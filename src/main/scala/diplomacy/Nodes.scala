@@ -10,6 +10,72 @@ import freechips.rocketchip.util.HeterogeneousBag
 import scala.collection.mutable.ListBuffer
 import scala.util.matching._
 
+/** Nodes system is the abstraction of the bus interconnect,
+ * Since all blocks(CPUs, caches, peripheries) are connected to bus,
+ * It has a very complex data flow illustrated graph below:
+ *                                                  ┌────────────────────────────────────────────────────────────────────────────┐
+ *                                                  ↓                                                                            │
+ *                                       [[MixedNode.uoParams]]──────→[[MixedNode.mapParamsU]]───────────┐                       │
+ *      [[InwardNode.accPI]]                                                     ↑                       │                       │
+ *                  │                                                            │                       │                       │
+ *                  ↓                                                            │                       ↓                       │
+ *      [[InwardNode.iBindings]]──┐     [[MixedNode.iDirectPorts]]───→[[MixedNode.iPorts]]    [[MixedNode.uiParams]]             │
+ *                  │             │                ↑                             │                       │                       │
+ *                  │             │                │                             └────────┬──────────────┤                       │
+ *                  │             │                │                                      │              ↓                       │
+ *                  │             └────[[MixedNode.oPortMapping]]    [[MixedNode.oStar]]  │   [[MixedNode.edgesIn]]───┐          │
+ *                  │                              ↑                            ↑         │              │            ↓          │
+ *                  │                              │                            │         │              │ [[MixedNode.in]]      │
+ *                  │                              │                            │         │              ↓            ↑          │
+ *                  │                              │                            │         │   [[MixedNode.bundleIn]]──┘          │
+ *                  ├─→ [[MixedNode.resolveStar]]──┼────────────────────────────┤         └────────────────────────────────────┐ │
+ *                  │                              │                            │             [[MixedNode.bundleOut]]─┐        │ │
+ *                  │                              │                            │                        ↑            ↓        │ │
+ *                  │                              │                            │                        │ [[MixedNode.out]]   │ │
+ *                  │                              ↓                            ↓                        │            ↑        │ │
+ *                  │            ┌──────[[MixedNode.iPortMapping]]   [[MixedNode.iStar]]      [[MixedNode.edgesOut]]──┘        │ │
+ *                  │            │                 │                                                     ↑                     │ │
+ *                  │            │                 │                             ┌───────────────────────┤                     │ │
+ *                  │            │                 ↓                             │                       │                     │ │
+ *     [[OutwardNode.oBindings]]─┘      [[MixedNode.oDirectPorts]]───→[[MixedNode.oPorts]]    [[MixedNode.doParams]]           │ │
+ *                  ↑                                                            │                       │                     │ │
+ *                  │               ┌────────────────────────────────────────────┤                       │                     │ │
+ *     [[OutwardNode.accPO]]        │                                            ↓                       │                     │ │
+ *                                  │    [[MixedNode.diParams]]──────→[[MixedNode.mapParamsD]]───────────┘                     │ │
+ *                                  │               ↑                                                                          │ │
+ *                                  │               └──────────────────────────────────────────────────────────────────────────┘ │
+ *                                  └────────────────────────────────────────────────────────────────────────────────────────────┘
+ * It contains such phases:
+ *   1. Node binding(non-lazy)
+ *     `nodeB := nodeA` is a typical node binding in diplomacy.
+ *     It means `nodeA` as master [[OutwardNode]], `nodeB` as slave [[InwardNode]] will be connected together.
+ *     when executing `nodeB := nodeA`, `nodeB` will invoke [[InwardNode.bind]], which is implemented with [[MixedNode.bind]]:
+ *       `nodeA` will call `nodeA.oPush(index, node, binding)`, in [[OutwardNode.oPush]]:
+ *         `index` is current `nodeA` [[OutwardNode.accPO]] size, which represents the how many [[InwardNode]] has connected to `nodeA`
+ *         `node` is [[NodeHandle]] of `NodeB`,
+ *         `binding` is binding type, which is used for deciding port mapping behavior.
+ *       similarly, `nodeB`, will call [[InwardNode.iPush]] after `nodeA` finish its binding.
+ *   2. Port mapping(lazy)
+ *     Port mapping converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]]
+ *     it is implemented with [[MixedNode.resolveStar]], which solves the size of each connection.
+ *   3. Parameter negotiation(lazy)
+ *     After finishing port mapping,
+ *     [[MixedNode.doParams]] and [[MixedNode.uiParams]] are result of parameter negotiation,
+ *   4. Bundle building.(lazy)
+ *     After finishing parameter propagation,
+ *     [[MixedNode.edges]] can be generated by zipping ports and parameters together.
+ *
+ * Diplomacy has some implicit acronym described below:
+ *   Parameters System:
+ *   D[IO], U[IO], E[IO], B[IO] is parameters will be propagated.
+ *   D: Downwards (master -> slave)
+ *   U: Upwards (slave -> master)
+ *   E: Edge contains necessary of nearby nodes connection information.
+ *   B: Bundle is [[chisel3.Data]], which you can attach chisel data type to it.
+ *
+ * */
+
+
 case object MonitorsEnabled extends Field[Boolean](true)
 case object RenderFlipped extends Field[Boolean](false)
 
