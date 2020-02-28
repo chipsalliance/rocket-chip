@@ -13,13 +13,16 @@ class RocketChipStage extends ChiselStage with PreservesAll[Phase] {
   override val shell = new Shell("rocket-chip") with RocketChipCli with ChiselCli with FirrtlCli
   override val targets: Seq[PhaseDependency] = Seq(
     classOf[freechips.rocketchip.stage.phases.Checks],
+    classOf[freechips.rocketchip.stage.phases.TransformAnnotations],
     classOf[freechips.rocketchip.stage.phases.PreElaboration],
     classOf[chisel3.stage.phases.Checks],
     classOf[chisel3.stage.phases.Elaborate],
     classOf[freechips.rocketchip.stage.phases.GenerateROMs],
-    classOf[chisel3.stage.phases.Convert],
+    classOf[chisel3.stage.phases.AddImplicitOutputFile],
+    classOf[chisel3.stage.phases.AddImplicitOutputAnnotationFile],
     classOf[chisel3.stage.phases.MaybeAspectPhase],
-    classOf[freechips.rocketchip.stage.phases.GenerateFirrtl],
+    classOf[chisel3.stage.phases.Emitter],
+    classOf[chisel3.stage.phases.Convert],
     classOf[freechips.rocketchip.stage.phases.GenerateFirrtlAnnos],
     classOf[freechips.rocketchip.stage.phases.AddDefaultTests],
     classOf[freechips.rocketchip.stage.phases.GenerateTestSuiteMakefrags],
