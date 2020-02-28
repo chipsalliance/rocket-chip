@@ -321,16 +321,6 @@ class TLEdgeOut(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
-  // Set the contents of user bits; seq fills the highest-index match first
-  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[TLClientParameters => UInt]): Vec[UInt] = {
-    val value = Wire(Vec(client.endSourceId, UInt(width = client.userBitWidth)))
-    client.clients.foreach { c =>
-      val upd = c.putUser[T](x, seq.map(_(c)))
-      c.sourceId.range.foreach { id => value(id) := upd }
-    }
-    value
-  }
-
   // Transfers
   def AcquireBlock(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
     require (manager.anySupportAcquireB)
@@ -584,66 +574,6 @@ class TLEdgeIn(
     val heads = todo.map(_.head)
     val tails = todo.map(_.tail)
     if (todo.isEmpty) Nil else { heads +: myTranspose(tails) }
-  }
-
-  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
-  // The first returned sequence element corresponds to the highest-index occurence for each client
-  def getUserSeq[T <: UserBits : ClassTag](bits: TLBundleA): Seq[ValidIO[UInt]] = {
-    require (bits.params.aUserBits == bundle.aUserBits)
-    myTranspose(client.clients.map { c =>
-      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
-    }).map { seq =>
-      val nbits = seq.map(_._2.tag.width).max
-      val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
-      val valid = Wire(init = Vec.fill(client.endSourceId) { Bool(false) })
-      seq.foreach { case (sources, UserBitField(tag, field)) =>
-        sources.range.foreach { id =>
-          valid(id) := Bool(true)
-          value(id) := field
-        }
-      }
-      val out = Wire(Valid(UInt(width = nbits)))
-      out.valid := valid(bits.source)
-      out.bits  := value(bits.source)
-      out
-    }
-  }
-
-  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
-  // The first returned sequence element corresponds to the highest-index occurence for each client
-  def getUserOrElse[T <: UserBits : ClassTag](bits: TLBundleA, default: UInt): Seq[UInt] = {
-    require (bits.params.aUserBits == bundle.aUserBits)
-    myTranspose(client.clients.map { c =>
-      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
-    }).map { seq =>
-      val nbits = seq.map(_._2.tag.width).max
-      val init = (default | UInt(0, width = nbits))(nbits-1, 0)
-      val value = Wire(init = Vec.fill(client.endSourceId) { init })
-      seq.foreach { case (sources, UserBitField(tag, field)) =>
-        sources.range.foreach { id =>
-          value(id) := field
-        }
-      }
-      value(bits.source)
-    }
-  }
-
-  // Extract highest-index type-T user bits from every client
-  def getUserHead[T <: UserBits : ClassTag](bits: TLBundleA): UInt = {
-    require (bits.params.aUserBits == bundle.aUserBits)
-    val seq = client.clients.map { c =>
-      val x = c.getUser[T](bits.user.get)
-      require (!x.isEmpty, "getUser called on a client ${c.name} with no matching fields")
-      (c.sourceId, x.head)
-    }
-    val nbits = seq.map(_._2.tag.width).max
-    val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
-    seq.foreach { case (sources, UserBitField(tag, field)) =>
-      sources.range.foreach { id =>
-        value(id) := field
-      }
-    }
-    value(bits.source)
   }
 
   // Transfers

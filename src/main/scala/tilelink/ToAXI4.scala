@@ -53,7 +53,7 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
     }
     AXI4MasterPortParameters(
       masters  = masters,
-      opaqueBits = p.userBitWidth, // TL user bits that need to be propagated from TL clients to AXI managers
+      opaqueBits = 0, //!!!USER p.userBitWidth, // TL user bits that need to be propagated from TL clients to AXI managers
       userBits = log2Ceil(p.endSourceId) + 4)
   },
   uFn = { p => TLManagerPortParameters(
@@ -136,7 +136,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       // pack the TL opaque bits if present
       val a_state = if (opaqueBits > 0) {
-        (a_source << sourceOff) | (a_size << sizeOff) | (in.a.bits.user.get << userBits.U)
+        (a_source << sourceOff) | (a_size << sizeOff) // !!!USER | (in.a.bits.user.get << userBits.U)
       } else {
         (a_source << sourceOff) | (a_size << sizeOff)
       }

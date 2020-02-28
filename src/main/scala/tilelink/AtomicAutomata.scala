@@ -164,7 +164,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           lgSize     = a_cam_a.bits.size,
           data       = amo_data,
           corrupt    = a_cam_a.bits.corrupt || a_cam_d.corrupt)._2
-        source_c.bits.user.map { _ := a_cam_a.bits.user.get }
+        //!!!USER source_c.bits.user.map { _ := a_cam_a.bits.user.get }
 
         // Finishing an AMO from the CAM has highest priority
         TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(0), source_c), (edgeOut.numBeats1(in.a.bits), source_i))

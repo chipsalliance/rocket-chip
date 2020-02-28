@@ -22,23 +22,23 @@ case class TLMasterToSlaveTransferSizes(
   hint:       TransferSizes = TransferSizes.none)
   extends TLCommonTransferSizes {
   def intersect(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
-    acquireT   = acquireT.intersect(rhs.acquireT),
-    acquireB   = acquireB.intersect(rhs.acquireB),
+    acquireT   = acquireT  .intersect(rhs.acquireT),
+    acquireB   = acquireB  .intersect(rhs.acquireB),
     arithmetic = arithmetic.intersect(rhs.arithmetic),
-    logical    = logical.intersect(rhs.logical),
-    get        = get.intersect(rhs.get),
-    putFull    = putFull.intersect(rhs.putFull),
+    logical    = logical   .intersect(rhs.logical),
+    get        = get       .intersect(rhs.get),
+    putFull    = putFull   .intersect(rhs.putFull),
     putPartial = putPartial.intersect(rhs.putPartial),
-    hint       = hint.intersect(rhs.hint))
+    hint       = hint      .intersect(rhs.hint))
   def cover(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
-    acquireT   = acquireT.cover(rhs.acquireT),
-    acquireB   = acquireB.cover(rhs.acquireB),
+    acquireT   = acquireT  .cover(rhs.acquireT),
+    acquireB   = acquireB  .cover(rhs.acquireB),
     arithmetic = arithmetic.cover(rhs.arithmetic),
-    logical    = logical.cover(rhs.logical),
-    get        = get.cover(rhs.get),
-    putFull    = putFull.cover(rhs.putFull),
+    logical    = logical   .cover(rhs.logical),
+    get        = get       .cover(rhs.get),
+    putFull    = putFull   .cover(rhs.putFull),
     putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint.cover(rhs.hint))
+    hint       = hint      .cover(rhs.hint))
 }
 
 object TLMasterToSlaveTransferSizes {
@@ -64,22 +64,22 @@ case class TLSlaveToMasterTransferSizes(
   hint:       TransferSizes = TransferSizes.none
 ) extends TLCommonTransferSizes {
   def intersect(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
-    probe      = probe.intersect(rhs.probe),
+    probe      = probe     .intersect(rhs.probe),
     arithmetic = arithmetic.intersect(rhs.arithmetic),
-    logical    = logical.intersect(rhs.logical),
-    get        = get.intersect(rhs.get),
-    putFull    = putFull.intersect(rhs.putFull),
+    logical    = logical   .intersect(rhs.logical),
+    get        = get       .intersect(rhs.get),
+    putFull    = putFull   .intersect(rhs.putFull),
     putPartial = putPartial.intersect(rhs.putPartial),
-    hint       = hint.intersect(rhs.hint)
+    hint       = hint      .intersect(rhs.hint)
   )
   def cover(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
-    probe      = probe.cover(rhs.probe),
+    probe      = probe     .cover(rhs.probe),
     arithmetic = arithmetic.cover(rhs.arithmetic),
-    logical    = logical.cover(rhs.logical),
-    get        = get.cover(rhs.get),
-    putFull    = putFull.cover(rhs.putFull),
+    logical    = logical   .cover(rhs.logical),
+    get        = get       .cover(rhs.get),
+    putFull    = putFull   .cover(rhs.putFull),
     putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint.cover(rhs.hint)
+    hint       = hint      .cover(rhs.hint)
   )
 }
 
@@ -107,11 +107,11 @@ trait TLCommonTransferSizes {
 class TLSlaveParameters private(
   val nodePath:           Seq[BaseNode],
   val resources:          Seq[Resource],
-  val name:               String,
-  val address:            Seq[AddressSet], // visibility
-  val regionType:         RegionType.T, // targetTypes
-  val executable:         Boolean, // executesOnly
-  val fifoId:             Option[Int], // requestFifo
+  setName:                String,
+  val address:            Seq[AddressSet],
+  val regionType:         RegionType.T,
+  val executable:         Boolean,
+  val fifoId:             Option[Int],
   val supports:           TLMasterToSlaveTransferSizes,
   val emits:              TLSlaveToMasterTransferSizes,
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
@@ -148,7 +148,7 @@ class TLSlaveParameters private(
   require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
   require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
-//  val name = nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val name = if (setName != "") setName else nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
   val maxTransfer = List( // Largest supported transfer of all types
     supportsAcquireT.max,
     supportsAcquireB.max,
@@ -214,26 +214,26 @@ class TLSlaveParameters private(
     fifoId:             Option[Int]     = fifoId) =
   {
     new TLSlaveParameters(
-      name = name,
-      address = address,
-      resources = resources,
-      regionType = regionType,
-      executable = executable,
-      nodePath = nodePath,
-      supports = TLMasterToSlaveTransferSizes(
-        acquireT = supportsAcquireT,
-        acquireB = supportsAcquireB,
-        arithmetic = supportsArithmetic,
-        logical = supportsLogical,
-        get = supportsGet,
-        putFull = supportsPutFull,
-        putPartial = supportsPutPartial,
-        hint = supportsHint),
-      emits = emits,
-      mayDenyGet = mayDenyGet,
-      mayDenyPut = mayDenyPut,
+      setName       = name,
+      address       = address,
+      resources     = resources,
+      regionType    = regionType,
+      executable    = executable,
+      nodePath      = nodePath,
+      supports      = TLMasterToSlaveTransferSizes(
+        acquireT      = supportsAcquireT,
+        acquireB      = supportsAcquireB,
+        arithmetic    = supportsArithmetic,
+        logical       = supportsLogical,
+        get           = supportsGet,
+        putFull       = supportsPutFull,
+        putPartial    = supportsPutPartial,
+        hint          = supportsHint),
+      emits           = emits,
+      mayDenyGet    = mayDenyGet,
+      mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
-      fifoId = fifoId)
+      fifoId        = fifoId)
   }
 
   @deprecated("Use v1copy","")
@@ -298,32 +298,31 @@ object TLSlaveParameters {
     fifoId:             Option[Int] = None) =
   {
     new TLSlaveParameters(
-      name = "unnamed",
-      address = address,
-      resources = resources,
-      regionType = regionType,
-      executable = executable,
-      nodePath = nodePath,
-      supports = TLMasterToSlaveTransferSizes(
-        supportsAcquireT,
-        supportsAcquireB,
-        supportsArithmetic,
-        supportsLogical,
-        supportsGet,
-        supportsPutFull,
-        supportsPutPartial,
-        supportsHint
-      ),
-      emits = TLSlaveToMasterTransferSizes.unknownEmits,
-      mayDenyGet = mayDenyGet,
-      mayDenyPut = mayDenyPut,
+      setName       = "",
+      address       = address,
+      resources     = resources,
+      regionType    = regionType,
+      executable    = executable,
+      nodePath      = nodePath,
+      supports      = TLMasterToSlaveTransferSizes(
+        acquireT      = supportsAcquireT,
+        acquireB      = supportsAcquireB,
+        arithmetic    = supportsArithmetic,
+        logical       = supportsLogical,
+        get           = supportsGet,
+        putFull       = supportsPutFull,
+        putPartial    = supportsPutPartial,
+        hint          = supportsHint),
+      emits         = TLSlaveToMasterTransferSizes.unknownEmits,
+      mayDenyGet    = mayDenyGet,
+      mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
-      fifoId = fifoId)
+      fifoId        = fifoId)
   }
 }
 
 object TLManagerParameters {
-  @deprecated("Use .v1 instead of apply","")
+  @deprecated("Use TLSlaveParameters.v1() instead of TLManagerParameters()","")
   def apply(
     address:            Seq[AddressSet],
     resources:          Seq[Resource] = Seq(),
@@ -363,16 +362,44 @@ object TLManagerParameters {
     )
 }
 
-case class TLSlavePortParameters (
-  slaves: Seq[TLSlaveParameters],
-  beatBytes: Int, // TODO refactoring this means it has to be versioned
-  endSinkId: Int = 0,
-  minLatency: Int = 0)
+case class TLChannelBeatBytes(a: Option[Int], b: Option[Int], c: Option[Int], d: Option[Int])
+{
+  def members = Seq(a, b, c, d)
+  members.collect { case Some(beatBytes) =>
+    require (isPow2(beatBytes), "Data channel width must be a power of 2")
+  }
+}
+
+object TLChannelBeatBytes{
+  def apply(beatBytes: Int): TLChannelBeatBytes = TLChannelBeatBytes(
+    Some(beatBytes),
+    Some(beatBytes),
+    Some(beatBytes),
+    Some(beatBytes))
+  def apply(): TLChannelBeatBytes = TLChannelBeatBytes(
+    None,
+    None,
+    None,
+    None)
+}
+
+class TLSlavePortParameters private(
+  val slaves:        Seq[TLSlaveParameters],
+  val channelBytes:  TLChannelBeatBytes,
+  val endSinkId:     Int,
+  val minLatency:    Int)
 {
   require (!managers.isEmpty, "Manager ports must have managers")
-  require (isPow2(beatBytes), "Data channel width must be a power of 2")
   require (endSinkId >= 0, "Sink ids cannot be negative")
   require (minLatency >= 0, "Minimum required latency cannot be negative")
+
+  // Using this API implies you cannot handle mixed-width busses
+  def beatBytes = {
+    channelBytes.members.foreach { width =>
+      require (width.isDefined && width == channelBytes.a)
+    }
+    channelBytes.a.get
+  }
 
   // TODO this should be deprecated
   def managers = slaves
@@ -487,6 +514,63 @@ case class TLSlavePortParameters (
   def isTree = !managers.exists(!_.isTree)
 
   def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
+
+  def v1copy(
+    managers:   Seq[TLSlaveParameters] = slaves,
+    beatBytes:  Int = -1,
+    endSinkId:  Int = endSinkId,
+    minLatency: Int = minLatency) =
+  {
+    new TLSlavePortParameters(
+      slaves       = managers,
+      channelBytes = if (beatBytes != -1) TLChannelBeatBytes(beatBytes) else channelBytes,
+      endSinkId    = endSinkId,
+      minLatency   = minLatency)
+  }
+
+  def copy(
+    managers:   Seq[TLSlaveParameters] = slaves,
+    beatBytes:  Int = -1,
+    endSinkId:  Int = endSinkId,
+    minLatency: Int = minLatency) =
+  {
+    v1copy(
+      managers,
+      beatBytes,
+      endSinkId,
+      minLatency)
+  }
+}
+
+object TLSlavePortParameters {
+  def v1(
+    managers:   Seq[TLSlaveParameters],
+    beatBytes:  Int,
+    endSinkId:  Int = 0,
+    minLatency: Int = 0) =
+  {
+    new TLSlavePortParameters(
+      slaves       = managers,
+      channelBytes = TLChannelBeatBytes(beatBytes),
+      endSinkId    = endSinkId,
+      minLatency   = minLatency)
+  }
+}
+
+object TLManagerPortParameters {
+  @deprecated("Use TLSlavePortParameters.v1","")
+  def apply(
+    managers:   Seq[TLSlaveParameters],
+    beatBytes:  Int,
+    endSinkId:  Int = 0,
+    minLatency: Int = 0) =
+  {
+    TLSlavePortParameters.v1(
+      managers,
+      beatBytes,
+      endSinkId,
+      minLatency)
+  }
 }
 
 class TLMasterParameters private(
@@ -561,14 +645,13 @@ class TLMasterParameters private(
       executesOnly      = this.executesOnly,
       requestFifo       = requestFifo,
       supports          = TLSlaveToMasterTransferSizes(
-        supportsArithmetic,
-        supportsLogical,
-        supportsGet,
-        supportsPutFull,
-        supportsPutPartial,
-        supportsHint,
-        supportsProbe
-      ),
+        probe             = supportsProbe,
+        arithmetic        = supportsArithmetic,
+        logical           = supportsLogical,
+        get               = supportsGet,
+        putFull           = supportsPutFull,
+        putPartial        = supportsPutPartial,
+        hint              = supportsHint),
       emits             = this.emits,
       neverReleasesData = this.neverReleasesData,
       sourceId          = sourceId)
@@ -621,29 +704,29 @@ object TLMasterParameters {
     supportsHint:        TransferSizes   = TransferSizes.none) =
   {
     new TLMasterParameters(
-      nodePath = nodePath,
-      resources = Nil,
-      name = name,
-      visibility = visibility,
+      nodePath          = nodePath,
+      resources         = Nil,
+      name              = name,
+      visibility        = visibility,
       unusedRegionTypes = Set(),
-      executesOnly = false,
-      requestFifo = requestFifo,
-      supports = TLSlaveToMasterTransferSizes(
-        supportsArithmetic,
-        supportsLogical,
-        supportsGet,
-        supportsPutFull,
-        supportsPutPartial,
-        supportsHint,
-        supportsProbe),
-      emits = TLMasterToSlaveTransferSizes.unknownEmits,
+      executesOnly      = false,
+      requestFifo       = requestFifo,
+      supports          = TLSlaveToMasterTransferSizes(
+        probe             = supportsProbe,
+        arithmetic        = supportsArithmetic,
+        logical           = supportsLogical,
+        get               = supportsGet,
+        putFull           = supportsPutFull,
+        putPartial        = supportsPutPartial,
+        hint              = supportsHint),
+      emits             = TLMasterToSlaveTransferSizes.unknownEmits,
       neverReleasesData = false,
-      sourceId = sourceId)
+      sourceId          = sourceId)
   }
 }
   
 object TLClientParameters {
-  @deprecated("Use .v1 instead of apply","")
+  @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters","")
   def apply(
     name:                String,
     sourceId:            IdRange         = IdRange(0,1),
@@ -674,9 +757,10 @@ object TLClientParameters {
   }
 }
 
-case class TLMasterPortParameters(
-  masters:    Seq[TLClientParameters],
-  minLatency: Int = 0) // Only applies to B=>C
+class TLMasterPortParameters private(
+  val masters:       Seq[TLMasterParameters],
+  val channelBytes:  TLChannelBeatBytes,
+  val minLatency:    Int) // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)
@@ -744,6 +828,50 @@ case class TLMasterPortParameters(
   val supportsHint       = safety_helper(_.supportsHint)       _
 
   def infoString = masters.map(_.infoString).mkString
+
+  def v1copy(
+    clients: Seq[TLClientParameters] = masters,
+    minLatency: Int = minLatency) =
+  {
+    new TLMasterPortParameters(
+      masters      = clients,
+      channelBytes = channelBytes,
+      minLatency   = minLatency)
+  }
+
+  @deprecated("Use v1copy","")
+  def copy(
+    clients: Seq[TLClientParameters] = masters,
+    minLatency: Int = minLatency) =
+  {
+    v1copy(
+      clients,
+      minLatency)
+  }
+}
+
+object TLClientPortParameters {
+  @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters()","")
+  def apply(
+    clients: Seq[TLClientParameters],
+    minLatency: Int = 0) =
+  {
+    TLMasterPortParameters.v1(
+      clients,
+      minLatency)
+  }
+}
+
+object TLMasterPortParameters {
+  def v1(
+    clients: Seq[TLClientParameters],
+    minLatency: Int = 0) =
+  {
+    new TLMasterPortParameters(
+      masters      = clients,
+      channelBytes = TLChannelBeatBytes(),
+      minLatency   = minLatency)
+  }
 }
 
 case class TLBundleParameters(
