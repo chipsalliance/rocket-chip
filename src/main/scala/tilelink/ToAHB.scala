@@ -11,12 +11,12 @@ import scala.math.{min, max}
 import AHBParameters._
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
-  dFn = { case TLClientPortParameters(clients, minLatency) =>
-    val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath,userBits = c.userBits) }
+  dFn = { case cp =>
+    val masters = cp.clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath,userBits = c.userBits) }
     AHBMasterPortParameters(masters)
   },
-  uFn = { case AHBSlavePortParameters(slaves, beatBytes, lite) =>
-    val managers = slaves.map { case s =>
+  uFn = { case sp =>
+    val managers = sp.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
         resources          = s.resources,
@@ -28,11 +28,11 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
         supportsHint       = if (!supportHints) TransferSizes.none else
                              if (s.supportsRead) s.supportsRead    else
                              if (s.supportsWrite) s.supportsWrite  else
-                             TransferSizes(1, beatBytes),
+                             TransferSizes(1, sp.beatBytes),
         fifoId             = Some(0),
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 0, 1)
+    TLManagerPortParameters(managers, sp.beatBytes, 0, 1)
   })
 
 class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params)

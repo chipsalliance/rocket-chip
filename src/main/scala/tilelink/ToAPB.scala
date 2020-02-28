@@ -10,25 +10,25 @@ import scala.math.{min, max}
 import APBParameters._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
-  dFn = { case TLClientPortParameters(clients, minLatency) =>
-    val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath, userBits = c.userBits) }
+  dFn = { case cp =>
+    val masters = cp.clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath, userBits = c.userBits) }
     APBMasterPortParameters(masters)
   },
-  uFn = { case APBSlavePortParameters(slaves, beatBytes) =>
-    val managers = slaves.map { case s =>
+  uFn = { case sp =>
+    val managers = sp.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
         executable         = s.executable,
         nodePath           = s.nodePath,
-        supportsGet        = if (s.supportsRead)  TransferSizes(1, beatBytes) else TransferSizes.none,
-        supportsPutPartial = if (s.supportsWrite) TransferSizes(1, beatBytes) else TransferSizes.none,
-        supportsPutFull    = if (s.supportsWrite) TransferSizes(1, beatBytes) else TransferSizes.none,
+        supportsGet        = if (s.supportsRead)  TransferSizes(1, sp.beatBytes) else TransferSizes.none,
+        supportsPutPartial = if (s.supportsWrite) TransferSizes(1, sp.beatBytes) else TransferSizes.none,
+        supportsPutFull    = if (s.supportsWrite) TransferSizes(1, sp.beatBytes) else TransferSizes.none,
         fifoId             = Some(0), // a common FIFO domain
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 0, 1)
+    TLManagerPortParameters(managers, sp.beatBytes, 0, 1)
   })
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
