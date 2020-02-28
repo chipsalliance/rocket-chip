@@ -79,11 +79,11 @@ module TestDriver;
     end
 
 `ifdef FSDB
-`define VCDPLUSON $fsdbDumpon;
-`define VCDPLUSCLOSE $fsdbDumpoff;
+`define VCDPLUSON $fsdbDumpon; if ($test$plusargs("vcdfile=")) $dumpon;
+`define VCDPLUSCLOSE $fsdbDumpoff; if ($test$plusargs("vcdfile=")) $dumpoff;
 `elsif VCS
-`define VCDPLUSON $vcdpluson(0); $vcdplusmemon(0);
-`define VCDPLUSCLOSE $vcdplusclose; $dumpoff;
+`define VCDPLUSON $vcdpluson(0); $vcdplusmemon(0); if ($test$plusargs("vcdfile=")) $dumpon;
+`define VCDPLUSCLOSE $vcdplusclose; $dumpoff; if ($test$plusargs("vcdfile=")) $dumpoff;
 `else
 `define VCDPLUSON $dumpon;
 `define VCDPLUSCLOSE $dumpoff;
