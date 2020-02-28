@@ -10,22 +10,23 @@ import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
 
-class GenerateInjectMonitor extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
+class GenerateInjectModule extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
+//  override val prerequisites = Seq(classOf[Checks], classOf[Elaborate], classOf[MaybeAspectPhase])
   override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
-    val fileName = s"${view[RocketChipOptions](annotations).longName}.rom.conf"
+    val fileName = s"${view[RocketChipOptions](annotations).longName}.mon.conf"
 
     annotations.flatMap {
       case a: ChiselCircuitAnnotation =>
-        injectMonitor(targetDir, a.circuit)
+        injectModule(targetDir, a.circuit)
         Some(a)
       case a => Some(a)
     }
   }
 
-  println("DEBUG_AOP: GenerateInjectMonitor")
+  println("DEBUG_AOP: SULTAN GenerateInjectModule")
 }
 

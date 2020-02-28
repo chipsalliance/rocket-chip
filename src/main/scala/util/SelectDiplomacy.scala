@@ -43,10 +43,10 @@ object SelectDiplomacy {
     */
   def collectImpModules(): List[LazyModuleImp] = {
     val edges = digraph.getEdgeMap
-    val lst: List[LazyModuleImp] = List[LazyModuleImp]()
+    var lst: List[LazyModuleImp] = List[LazyModuleImp]()
     edges.foreach { case (parent, children) =>
       parent.item match {
-        case x: LazyModuleImp => x :: lst
+        case x: LazyModuleImp => lst = x :: lst
         case _ => None
       }
     }
@@ -101,10 +101,10 @@ object SelectDiplomacy {
     */
   def collectLazyModules(): List[LazyModule] = {
     val edges = digraph.getEdgeMap
-    val lst: List[LazyModule] = List[LazyModule]()
+    var lst: List[LazyModule] = List[LazyModule]()
     edges.foreach { case (parent, children) =>
       parent.item match {
-        case x: LazyModule => x :: lst
+        case x: LazyModule => lst = x :: lst
         case _ => None
       }
     }
