@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.tilelink.TLTestRAM
 import freechips.rocketchip.diplomacy._
