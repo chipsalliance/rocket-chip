@@ -479,6 +479,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
     * */
   protected[diplomacy] lazy val iBindings = { iRealized = true; accPI.result() }
 
+  /** resolved STAR binding of inward nodes. */
   protected[diplomacy] val iStar: Int
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
   protected[diplomacy] def iForward(x: Int): Option[(Int, InwardNode[DI, UI, BI])] = None
@@ -521,6 +522,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
     * */
   protected[diplomacy] lazy val oBindings = { oRealized = true; accPO.result() }
 
+  /** resolved STAR binding of outward nodes. */
   protected[diplomacy] val oStar: Int
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
   protected[diplomacy] def oForward(x: Int): Option[(Int, OutwardNode[DO, UO, BO])] = None
@@ -571,11 +573,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inward = this
   val outward = this
 
-  /** converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]].
-    * @param iKnown
-    * @param oKnown
-    * @param iStar
-    * @param oStar
+ /** converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]].
+    * @param iKnown number of master nodes no need to query
+    * @param oKnown number of slave nodes no need to query
+    * @param iStar number of master nodes need to query
+    * @param oStar number of slave nodes need to query
     * @return
     * */
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
@@ -593,15 +595,17 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     * @return [[uiParams]]
     * */
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI]
-  /** @todo */
+  /** number of query from down to top near this node. */
   protected[diplomacy] lazy val sinkCard   = oBindings.count(_._3 == BIND_QUERY) + iBindings.count(_._3 == BIND_STAR)
-  /** @todo */
+  /** number of query from top to down near this node. */
   protected[diplomacy] lazy val sourceCard = iBindings.count(_._3 == BIND_QUERY) + oBindings.count(_._3 == BIND_STAR)
-  /** @todo */
+  /** number of flex near this node. */
   protected[diplomacy] lazy val flexes     = oBindings.filter(_._3 == BIND_FLEX).map(_._2) ++
                                              iBindings.filter(_._3 == BIND_FLEX).map(_._2)
-  /** @todo */
-  protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
+  /** positive = sink cardinality; define 0 to be sink (both should work)
+    * @todo maybe use Boolean is better here since this index only used with:
+    * */
+  protected[diplomacy] lazy val flexOffset = {
     def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
       if (visited.contains(v.serial)) {
         visited
@@ -609,40 +613,64 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         v.flexes.foldLeft(visited + (v.serial -> v))((sum, n) => DFS(n, sum))
       }
     }
+    /** a partial flex set connect to this node, for example
+      * {{{
+      *   a :*=* b :*=* c
+      *   d :*=* b
+      *   e :*=* f
+      * }}}
+      * `flexSet` of `a`, `b`, `c`, `d` will be `Set(a, b, c, d)`
+      * `flexSet` of `e`, `f` will be `Set(e,f)`
+      * */
     val flexSet = DFS(this, Map()).values
+    /** total size of query from down to top in this flex chain */
     val allSink   = flexSet.map(_.sinkCard).sum
+    /** total size of query from top to down in this flex chain */
     val allSource = flexSet.map(_.sourceCard).sum
+    /** require the flexSet containing this node query in one direction.
+      * @todo flexSet.size seem not possible to be 1? */
     require (flexSet.size == 1 || allSink == 0 || allSource == 0,
       s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have ${allSink} :*= operators and ${allSource} :=* operators connected to them, making it impossible to determine cardinality inference direction.")
     allSink - allSource
   }
 
   private var starCycleGuard = false
+  
   protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
     try {
       if (starCycleGuard) throw StarCycleException()
       starCycleGuard = true
+      /** number of [[BIND_STAR]] in [[OutwardNode]]s connected to this node. */
       val oStars = oBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset <  0) }
+      /** number of [[BIND_STAR]] in [[InwardNode]]s connected to this node. */
       val iStars = iBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset >= 0) }
+      /** number of known node in [[OutwardNode]]s connected to this node.
+        * @todo why iStar
+        * */
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) 0 else n.iStar }
+        case BIND_FLEX  => if (flexOffset < 0) 0 else n.iStar
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.sum
+      /** number of known node in [[InwardNode]]s connected to this node.
+        * @todo why oStar
+        * */
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) 0 else n.oStar }
+        case BIND_FLEX  => if (flexOffset >= 0) 0 else n.oStar
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.sum
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
+      /** cumulative list of resolved outward nodes number. */
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) oStar else n.iStar }
+        case BIND_FLEX  => if (flexOffset < 0) oStar else n.iStar
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
+      /** cumulative list of resolved inward nodes number. */
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
+        case BIND_FLEX  => if (flexOffset >= 0) iStar else n.oStar
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
       (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
