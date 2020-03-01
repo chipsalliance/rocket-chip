@@ -81,7 +81,9 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       out.a.bits.source  := UInt(0)
       // TL requires addresses be aligned to their size.
       out.a.bits.address := aligned_addr
-      assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
+      when (out.a.fire()) {
+        assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
+      }
       out.a.bits.data    := in.pwdata
       out.a.bits.mask    := Mux(in.pwrite, in.pstrb, ~0.U(beatBytes.W))
       out.a.bits.corrupt := Bool(false)
