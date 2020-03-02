@@ -60,7 +60,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   /** Accumulates Some(names), taking the final one. Nones are ignored. */
   private var suggestedNameVar: Option[String] = None
 
-  /** override Verilog module name of [[LazyModuleImpLike]] module.
+  /** Set instance name of [[LazyModuleImpLike]] module.
     * @param x suggested name to [[LazyModuleImpLike]] module.
     * */
   def suggestName(x: String): this.type = suggestName(Some(x))
@@ -77,9 +77,9 @@ abstract class LazyModule()(implicit val p: Parameters)
 
   /** Get the class name of this instance. */
   lazy val className: String = findClassName(getClass)
-  /** Suggested Verilog module name used by [[LazyModuleImpLike.suggestName]]. */
+  /** set instance name. */
   lazy val suggestedName: String = suggestedNameVar.getOrElse(className)
-  /** used by [[LazyModuleImpLike.desiredName]]. */
+  /** set module name. */
   lazy val desiredName: String = className // + hashcode?
 
   /** Return instance name. */
@@ -88,11 +88,11 @@ abstract class LazyModule()(implicit val p: Parameters)
   def line = sourceLine(info)
 
   // Accessing these names can only be done after circuit elaboration!
-  /** The final Chisel module name. */
+  /** Module name, used in GraphML. */
   lazy val moduleName = module.name
-  /** The final Chisel module name with the full hierarchy. */
+  /** Module hierarchy of this instance, used in GraphML. */
   lazy val pathName = module.pathName
-  /** The final Chisel instance name. */
+  /** Instance name, used in GraphML. */
   lazy val instanceName = pathName.split('.').last
 
   /** chisel hardware implementation of this [[LazyModule]],
@@ -220,7 +220,7 @@ sealed trait LazyModuleImpLike extends RawModule
   /** [[wrapper.module]] had better not be accessed while LazyModules are still being built! */
   require (LazyModule.scope.isEmpty, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.scope.get.name}")
 
-  /** set name from [[wrapper]]. */
+  /** set module name. */
   override def desiredName = wrapper.desiredName
   suggestName(wrapper.suggestedName)
 
