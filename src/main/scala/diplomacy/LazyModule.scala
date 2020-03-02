@@ -40,7 +40,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     * The companion object factory method will set this to the correct value.
     */
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
-  /** father of this LazyModule, if this instance is top of hierarchy, should be [[None]]. */
+  /** Parent of this LazyModule. If this instance is at the top of the hierarchy, this will be [[None]]. */
   protected[diplomacy] val parent: Option[LazyModule] = LazyModule.scope
 
   /** Code snippets from [[InModuleBody]] injection. */
@@ -170,7 +170,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
 
-  /** execute function to [[children]].
+  /** execute function by all of this node's [[children]].
     * @param iterfunc function to run
     * */
   def nodeIterator(iterfunc: (LazyModule) => Unit): Unit = {
@@ -195,7 +195,7 @@ object LazyModule
     * making use this singleton manage scope and index for elaboration.
     * @param bc [[LazyModule]] instance needed to be wrapped.
     * @param valName [[ValName]] used to naming this val.
-    * @param sourceInfo [[SourceInfo]] to generate this [[LazyModule]]
+    * @param sourceInfo [[SourceInfo]] information about where this [[LazyModule]] is being generated
     * */
   def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
     /** Make sure the user puts [[LazyModule]] around modules in the correct order. */
@@ -243,22 +243,22 @@ sealed trait LazyModuleImpLike extends RawModule
       * it will return a sequence of [[Dangle]] of these [[BaseNode]].
       * */
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
-    /** add all node and child dangle together. */
+    /** accumulate all the [[Dangle]]s from this node and any accumulated from its [[children]]*/
     val allDangles = nodeDangles ++ childDangles
-    /** internal nodes pairing, group [[allDangles]] which has same [[Dangle.source]]*/
+    /** For [[allDangles]] which originate from the same [[Dangle.source]], group them together into [[pairing]]. */
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
-    /** connect dangles can be paired. */
+    /** For each set of [[Dangle]]s where there are sets of 2 with the same source, ensure that they can be connected in a source/sink pair, and then make the connection. For these sets, mark them as [[done]].*/
     val done = Set() ++ pairing.values.filter(_.size == 2).map { case Seq(a, b) =>
       require (a.flipped != b.flipped)
       /** @todo quite strange. */
       if (a.flipped) { a.data <> b.data } else { b.data <> a.data }
       a.source
     }
-    /** find all not connected [[Dangle]] */
+    /** find all [[Dangle]]s which are still not connected. These will end up as [[AutoBundle]] [[IO]] ports on the module.*/
     val forward = allDangles.filter(d => !done(d.source))
     /** generate [[AutoBundle]] io from [[forward]]. */
     val auto = IO(new AutoBundle(forward.map { d => (d.name, d.data, d.flipped) }:_*))
-    /** construct [[Dangle]] from [[auto]] make it can be accessed by father nodes. */
+    /** Pass the [[Dangle]]s which remained and were used to generate the [[AutoBundle]] I/O ports up to the [[parent]] [[LazyModule]]*/
     val dangles = (forward zip auto.elements) map { case (d, (_, io)) =>
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.suggestedName + "_" + d.name)
@@ -270,9 +270,9 @@ sealed trait LazyModuleImpLike extends RawModule
   }
 
   /** Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]]
-    * notice: There are 2 different `finishInstantiate`:
+    * Note: There are 2 different `finishInstantiate` methods:
     *   [[LazyModuleImp.finishInstantiate]] and [[BaseNode.finishInstantiate]],
-    *   the former is a wrapper to latter.
+    *   the former is a wrapper to the latter.
     * */
   protected[diplomacy] def finishInstantiate() {
     wrapper.nodes.reverse.foreach { _.finishInstantiate() }
@@ -286,7 +286,8 @@ class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModu
 
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
   /** These wires are the default clock+reset for all LazyModule children.
-    * It will be used by clock/reset domain manger.
+    * It is recommended to drive these even if you manually drive the [[clock]] and [[reset]] of all of the [[LazyRawModuleImp]] children.
+    * Otherwise, anonymous children ([[Monitor]]s for example) will not have their [[clock]] and/or [[reset]] driven properly.
     * */
   val childClock = Wire(Clock())
   val childReset = Wire(Bool())
@@ -297,8 +298,8 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   }
 }
 
-/** used for [[LazyModule]] contains no implementation [[LazyModuleImp]] implementation,
-  * It will be used as wrapper to connect nodes between [[LazyModule]]
+/** used for a [[LazyModule]] which does not need to define any [[LazyModuleImp]] implementation.
+  * It can be used as wrapper that only instantiates and connects [[LazyModule]]s.
   * */
 class SimpleLazyModule(implicit p: Parameters) extends LazyModule
 {
@@ -309,7 +310,7 @@ trait LazyScope
 {
   this: LazyModule =>
   override def toString: String = s"LazyScope named $name"
-  /** manage the [[LazyScope]], when calling [[apply]] function,
+  /** preserve the previous value of the [[LazyModule.scope]], because when calling [[apply]] function,
     * [[LazyModule.scope]] will be altered.
     * */
   def apply[T](body: => T) = {
@@ -328,8 +329,8 @@ trait LazyScope
   }
 }
 
-/** used to create a scope for [[LazyModule]].
-  * [[LazyModule]] can be created inside [[LazyScope]]
+/** used to automatically create a level of module hierarchy (a [[SimpleLazyModule]]) within which [[LazyModule]]s can be instantiated and connected.
+  * [[LazyModule]] can be created inside [[LazyScope]].
   * It will instantiate a [[SimpleLazyModule]] to manage append `body`.
   * and make `body` codes evaluated in this scope.
   * */
@@ -344,7 +345,7 @@ object LazyScope
   }
   /** create a [[LazyScope]] with a self defined name.
     * @param name name of this scope.
-    * @param body code need to be evaluated.
+    * @param body code to be evaluated within the created `SimpleLazyModule`
     * */
   def apply[T](name: String)(body: => T)(implicit p: Parameters): T = {
     apply(body)(ValName(name), p)
@@ -372,7 +373,7 @@ case class HalfEdge(serial: Int, index: Int) extends Ordered[HalfEdge] {
 case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, data: Data)
 
 /** [[AutoBundle]] will construct the [[Bundle]] for [[LazyModule]] in [[LazyModuleImpLike.instantiate]],
-  * @param elts is a sequence of data contains port (name, data, flipped),
+  * @param elts is a sequence of data containin for each port  a tuple of (name, data, flipped), where
   *               name: IO name
   *               data: hardware in chisel
   *               flipped: flip or not in [[makeElements]]
@@ -410,7 +411,7 @@ object InModuleBody
 {
   /** code snippet injection.
     * [[InModuleBody.apply(body)]] will inject body to current [[LazyModule.inModuleBody]],
-    * it will be called by [[LazyModuleImpLike.instantiate]] to push these snippet to [[chisel3.internal.Builder]] finally.
+    * it will be called by [[LazyModuleImpLike.instantiate]] to push these snippets to [[chisel3.internal.Builder]].
     * */
   def apply[T](body: => T): ModuleValue[T] = {
     require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
@@ -424,7 +425,7 @@ object InModuleBody
       }
     }
 
-    /** notice: here didn't call [[out.execute]] function,
+    /** Note: the [[out.execute]] function is not called here,
       * it is a `() => Unit` val which will be executed later
       * */
     scope.inModuleBody = (out.execute _) +: scope.inModuleBody
