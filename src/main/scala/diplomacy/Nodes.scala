@@ -649,30 +649,33 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         * */
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => if (flexOffset < 0) 0 else n.iStar
+        case BIND_FLEX  => { if (flexOffset < 0) 0 else n.iStar }
         case BIND_QUERY => n.iStar
-        case BIND_STAR  => 0 }}.sum
+        case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       /** number of known node in [[InwardNode]]s connected to this node.
         * @todo why oStar
         * */
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => if (flexOffset >= 0) 0 else n.oStar
+        case BIND_FLEX  => { if (flexOffset >= 0) 0 else n.oStar }
         case BIND_QUERY => n.oStar
-        case BIND_STAR  => 0 }}.sum
+        case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
       /** cumulative list of resolved outward nodes number. */
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => if (flexOffset < 0) oStar else n.iStar
+        case BIND_FLEX  => { if (flexOffset < 0) oStar else n.iStar }
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
       /** cumulative list of resolved inward nodes number. */
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => if (flexOffset >= 0) iStar else n.oStar
+        case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
+      /** @todo [[oTotal]] and [[iTotal]] is not used. */
+      val oTotal = oSum.lastOption.getOrElse(0)
+      val iTotal = iSum.lastOption.getOrElse(0)
       (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
     } catch {
       case c: StarCycleException => throw c.copy(loop = context +: c.loop)

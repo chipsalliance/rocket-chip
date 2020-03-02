@@ -6,7 +6,6 @@ import Chisel._
 import chisel3.{RawModule, MultiIOModule, withClockAndReset}
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
-
 import scala.collection.immutable.{SortedMap, ListMap}
 import scala.util.matching._
 
@@ -102,7 +101,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   def module: LazyModuleImpLike
 
   /** generate the [[graphML]] representation for this instance. This is a representation of the Nodes, edges, Lazy Module hierarchy, and any other information that is added in by the implementations. It can be converted to a graphical representation of the [[LazyModule]] hierarchy with various third-party tools.*/
-  def omitGraphML: Boolean = nodes.forall(_.omitGraphML) && children.forall(_.omitGraphML)
+  def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
     val buf = new StringBuilder
     buf ++= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -205,7 +204,7 @@ object LazyModule
     /** [[LazyModule.scope]] stack pop. */
     scope = bc.parent
     bc.info = sourceInfo
-    if (bc.suggestedNameVar.isEmpty) bc.suggestName(valName.name)
+    if (!bc.suggestedNameVar.isDefined) bc.suggestName(valName.name)
     bc
   }
 }
@@ -224,7 +223,7 @@ sealed trait LazyModuleImpLike extends RawModule
   suggestName(wrapper.suggestedName)
 
   /** [[Parameters]] for chisel [[Module]]s. */
-  implicit val p: Parameters = wrapper.p
+  implicit val p = wrapper.p
 
   /** [[instantiate]] will be called when a instance of [[LazyModuleImp]] is called. */
   protected[diplomacy] def instantiate() = {
@@ -282,7 +281,7 @@ sealed trait LazyModuleImpLike extends RawModule
 
 class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
   /** instantiate hardware of this `Module`. */
-  val (auto: AutoBundle, dangles: Seq[Dangle]) = instantiate()
+  val (auto, dangles) = instantiate()
 }
 
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
@@ -315,6 +314,7 @@ trait LazyScope
     * [[LazyModule.scope]] will be altered.
     * */
   def apply[T](body: => T) = {
+    val saved = LazyModule.scope
     LazyModule.scope = Some(this)
     /** [[LazyModule.scope]] stack push. */
     val saved = LazyModule.scope
@@ -342,7 +342,7 @@ object LazyScope
     * */
   def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
     val scope = LazyModule(new SimpleLazyModule with LazyScope)
-    scope.apply { body }
+    scope { body }
   }
   /** create a [[LazyScope]] with a self defined name.
     * @param name set valName of [[SimpleLazyModule]] created by this.
