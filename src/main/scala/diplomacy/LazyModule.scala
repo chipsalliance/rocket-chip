@@ -10,52 +10,54 @@ import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap, ListMap}
 import scala.util.matching._
 
-/**
- * Introduction
- * This library contains these features:
- * - [[Parameters]] negotiation
- * - [[AutoBundle]] generation and connection
- *
- * To achieve these features, [[LazyModule]] consists sub-[[LazyModule]], [[BaseNode]] and [[LazyModuleImpLike]] module.
- * - [[BaseNode]] is for interaction of [[LazyModule]].
- * - [[LazyModuleImpLike]] module is for hardware module implementation.
- *
- * [[LazyModule]] leverage the magic of lazy-evaluation in Scala:
- * It split SoC generation into 2 phases.
- * - Phase 1:
- * -- Node binding
- * - Phase 2:
- * -- [[Parameters]] negotiation.
- * -- [[AutoBundle]] resolution.
- * -- [[LazyModuleImpLike]] module generation.
- *
- * */
+/** Introduction
+  * This library contains these features:
+  * - [[Parameters]] negotiation
+  * - [[AutoBundle]] generation and connection
+  *
+  * To achieve these features, [[LazyModule]] consists sub-[[LazyModule]], [[BaseNode]] and [[LazyModuleImpLike]] module.
+  * - [[BaseNode]] is for interaction of [[LazyModule]].
+  * - [[LazyModuleImpLike]] module is for hardware module implementation.
+  *
+  * [[LazyModule]] leverage the magic of lazy-evaluation in Scala:
+  * It split SoC generation into 2 phases.
+  * - Phase 1:
+  * -- Node binding
+  * - Phase 2:
+  * -- [[Parameters]] negotiation.
+  * -- [[AutoBundle]] resolution.
+  * -- [[LazyModuleImpLike]] module generation.
+  *
+  */
 abstract class LazyModule()(implicit val p: Parameters)
 {
-  /** contains sub-[[LazyModule]]s, can be accessed by [[getChildren]]. */
+  /** Contains sub-[[LazyModule]]s; can be accessed by [[getChildren]]. */
   protected[diplomacy] var children = List[LazyModule]()
-  /** contains [[BaseNode]] of this this instance. */
+  /** Contains the [[BaseNode]]s of this instance. */
   protected[diplomacy] var nodes = List[BaseNode]()
-  /** stores [[SourceInfo]] of this instance, after instantiated, singleton of [[LazyModule]] will set it to right value. */
+  /** Stores [[SourceInfo]] of this instance.
+    *
+    * The companion object factory method will set this to the correct value.
+    */
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   /** father of this LazyModule, if this instance is top of hierarchy, should be [[None]]. */
   protected[diplomacy] val parent: Option[LazyModule] = LazyModule.scope
 
-  /** code snippets from [[InModuleBody]] injection. */
+  /** Code snippets from [[InModuleBody]] injection. */
   protected[diplomacy] var inModuleBody = List[() => Unit]()
 
-  /** chain of parents, [[parent]] on left, top on right. */
+  /** Chain of ancestor LazyModules, starting with [[parent]] on left. */
   def parents: Seq[LazyModule] = parent match {
     case None => Nil
     case Some(x) => x +: x.parents
   }
 
-  /** [[LazyModule.scope]] stack push. */
+  // [[LazyModule.scope]] stack push.
   LazyModule.scope = Some(this)
-  /** inject this instance to [[parent]] if this is not top. */
+  // Prepend this instance to [[parent]]'s list of children.
   parent.foreach(p => p.children = this :: p.children)
 
-  /** accumulates Some(names), taking the final one. Nones are ignored. */
+  /** Accumulates Some(names), taking the final one. Nones are ignored. */
   private var suggestedNameVar: Option[String] = None
 
   /** override Verilog module name of [[LazyModuleImpLike]] module.
@@ -67,30 +69,30 @@ abstract class LazyModule()(implicit val p: Parameters)
     this
   }
 
-  /** helper of [[className]]. */
+  /** Helper of [[className]]. */
   private def findClassName(c: Class[_]): String = {
     val n = c.getName.split('.').last
     if (n.contains('$')) findClassName(c.getSuperclass) else n
   }
 
-  /** get the class name of this instance. */
+  /** Get the class name of this instance. */
   lazy val className: String = findClassName(getClass)
-  /** used by [[LazyModuleImpLike.suggestName]]. */
+  /** Suggested Verilog module name used by [[LazyModuleImpLike.suggestName]]. */
   lazy val suggestedName: String = suggestedNameVar.getOrElse(className)
   /** used by [[LazyModuleImpLike.desiredName]]. */
   lazy val desiredName: String = className // + hashcode?
 
-  /** @return instance name. */
+  /** Return instance name. */
   def name = suggestedName // className + suggestedName ++ hashcode ?
-  /** @return line to define this instance. */
+  /** Return source line that defines this instance. */
   def line = sourceLine(info)
 
-  /** Accessing these names can only be done after circuit elaboration! */
-  /** The final Verilog Module name. */
+  // Accessing these names can only be done after circuit elaboration!
+  /** The final Chisel module name. */
   lazy val moduleName = module.name
-  /** The final Verilog Module name with hierarchy. */
+  /** The final Chisel module name with the full hierarchy. */
   lazy val pathName = module.pathName
-  /** The final Verilog instance name. */
+  /** The final Chisel instance name. */
   lazy val instanceName = pathName.split('.').last
 
   /** chisel hardware implementation of this [[LazyModule]],
