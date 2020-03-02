@@ -99,7 +99,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     * */
   def module: LazyModuleImpLike
 
-  /** generate the [[graphML]]. */
+  /** generate the [[graphML]] representation for this instance. This is a representation of the Nodes, edges, Lazy Module hierarchy, and any other information that is added in by the implementations. It can be converted to a graphical representation of the [[LazyModule]] hierarchy with various third-party tools.*/
   def omitGraphML: Boolean = nodes.forall(_.omitGraphML) && children.forall(_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
     val buf = new StringBuilder
