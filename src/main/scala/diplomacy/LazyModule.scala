@@ -178,29 +178,27 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.foreach( _.nodeIterator(iterfunc) )
   }
 
-  /** get [[children]] */
+  /** getter of val [[children]]. */
   def getChildren = children
 }
 
 object LazyModule
 {
-  /** current [[LazyModule]] scope, specifically, it is a stack of [[LazyModule]].
-    * it will be dynamically set by [[LazyScope.apply]] and [[LazyModule.apply]],
+  /** Current [[LazyModule]] scope. The scope is a stack of [[LazyModule]]/[[LazyScope]].
+    * Each call to [[LazyScope.apply]] or [[LazyModule.apply]] will push that item onto the current scope.
     * */
   protected[diplomacy] var scope: Option[LazyModule] = None
-  /** index of [[LazyModule]], notice there is no No.0 module. */
+  /** global index of [[LazyModule]], notice there is no No.0 module. */
   private var index = 0
 
-  /** add a [[LazyModule]]
-    * @param bc [[LazyModule]] needed to be instantiated.
+  /** any instance of [[LazyModule]] should be wrapper in to a [[LazyModule.apply]],
+    * making use this singleton manage scope and index for elaboration.
+    * @param bc [[LazyModule]] instance needed to be wrapped.
     * @param valName [[ValName]] used to naming this val.
     * @param sourceInfo [[SourceInfo]] to generate this [[LazyModule]]
     * */
   def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
-    /** Make sure the user puts LazyModule around modules in the correct order
-      * If this require fails, probably some grandchild was missing a LazyModule
-      * or you applied LazyModule twice.
-      * */
+    /** Make sure the user puts [[LazyModule]] around modules in the correct order. */
     require (scope.isDefined, s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}")
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
     /** [[LazyModule.scope]] stack pop. */
@@ -224,7 +222,7 @@ sealed trait LazyModuleImpLike extends RawModule
   override def desiredName = wrapper.desiredName
   suggestName(wrapper.suggestedName)
 
-  /** [[Parameters]] for diplomatic [[Module]]s. */
+  /** [[Parameters]] for chisel [[Module]]s. */
   implicit val p: Parameters = wrapper.p
 
   /** [[instantiate]] will be called when a instance of [[LazyModuleImp]] is created. */
@@ -237,7 +235,7 @@ sealed trait LazyModuleImpLike extends RawModule
       val mod = Module(c.module)
       /** ask each child to finish instantiate. */
       mod.finishInstantiate()
-      /** return dangles of each child. */
+      /** return [[Dangle]]s of each child. */
       mod.dangles
     }
 
@@ -353,7 +351,11 @@ object LazyScope
   }
 }
 
-/** contains metadata of [[Dangle]]. */
+/** one side metadata of a [[Dangle]].
+  *
+  * @param serial serial of [[BaseNode]] contains this.
+  * @param index index of resolved ports [[BaseNode]].
+  * */
 case class HalfEdge(serial: Int, index: Int) extends Ordered[HalfEdge] {
   import scala.math.Ordered.orderingToOrdered
   def compare(that: HalfEdge) = HalfEdge.unapply(this) compare HalfEdge.unapply(that)
@@ -362,7 +364,10 @@ case class HalfEdge(serial: Int, index: Int) extends Ordered[HalfEdge] {
 /** [[Dangle]] is a handle to [[LazyModule]] and [[BaseNode]].
   * It will be returned by [[LazyModuleImpLike.instantiate]] and [[BaseNode.instantiate]],
   * It contains the IO information of a [[LazyModule]] and [[BaseNode]]
- *
+  * @param source source edge of this.
+  * @param sink sink edge of this.
+  * @param flipped
+  * @param data hardware in chisel.
   * */
 case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, data: Data)
 
@@ -370,9 +375,7 @@ case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: Stri
   * @param elts is a sequence of data contains port (name, data, flipped),
   *               name: IO name
   *               data: hardware in chisel
-  *               flipped: direction of this Bundle
-  *                 true -> Input
-  *                 false -> Output
+  *               flipped: flip or not in [[makeElements]]
   * */
 final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   /** We need to preserve the order of elts, despite grouping by name to disambiguate things. */
