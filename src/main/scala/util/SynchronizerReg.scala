@@ -5,7 +5,6 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util.{RegEnable, Cat}
 
-
 /**  These wrap behavioral
   *  shift and next registers into specific modules to allow for
   *  backend flows to replace or constrain
@@ -38,8 +37,7 @@ private class SynchronizerPrimitiveShiftReg(
   sync: Int,
   init: Boolean,
   resetType: SynchronizerResetType.Value)
-    extends AbstractPipelineReg(1)
-{
+    extends AbstractPipelineReg(1) {
 
   val initInt = if (init) 1 else 0
   val initPostfix = resetType match {
@@ -72,7 +70,7 @@ private class SynchronizerPrimitiveShiftReg(
 
 private object SynchronizerPrimitiveShiftReg {
   def apply (in: Bool, sync: Int, init: Boolean, resetType: SynchronizerResetType.Value): Bool =
-    AbstractPipelineReg(new SynchronizerPrimitiveShiftReg(sync, init, resetType), in, dontTouch=true)
+    AbstractPipelineReg(new SynchronizerPrimitiveShiftReg(sync, init, resetType), in)
 }
 
 class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int)
