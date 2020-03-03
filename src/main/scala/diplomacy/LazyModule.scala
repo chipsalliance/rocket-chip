@@ -250,7 +250,7 @@ sealed trait LazyModuleImpLike extends RawModule
     /** For each set of [[Dangle]]s where there are sets of 2 with the same source, ensure that they can be connected in a source/sink pair, and then make the connection. For these sets, mark them as [[done]].*/
     val done = Set() ++ pairing.values.filter(_.size == 2).map { case Seq(a, b) =>
       require (a.flipped != b.flipped)
-      /** @todo quite strange. */
+      /** @todo <> in chisel3 makes directionless connection. */
       if (a.flipped) { a.data <> b.data } else { b.data <> a.data }
       a.source
     }
