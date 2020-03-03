@@ -23,7 +23,7 @@ abstract class LazyModule()(implicit val p: Parameters)
 {
   /** Contains sub-[[LazyModule]]s; can be accessed by [[getChildren]]. */
   protected[diplomacy] var children = List[LazyModule]()
-  /** Contains the [[BaseNode]]s of this instance. */
+  /** Contains the [[BaseNode]]s instantiated within this instance. */
   protected[diplomacy] var nodes = List[BaseNode]()
   /** Stores [[SourceInfo]] of this instance.
     * The companion object factory method will set this to the correct value.
