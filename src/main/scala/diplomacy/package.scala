@@ -11,7 +11,7 @@ import scala.language.implicitConversions
   * - [[diplomacy.AutoBundle]] generation and connection
   *
   * To achieve these features, [[diplomacy.LazyModule]] consists
-  *   sub-[[diplomacy.LazyModule]] forms a hierarchy of [[diplomacy.LazyModule]]
+  * - sub-[[diplomacy.LazyModule]] forms a hierarchy of [[diplomacy.LazyModule]]
   * - [[diplomacy.BaseNode]] is for interaction of [[diplomacy.LazyModule]].
   * - [[diplomacy.LazyModuleImpLike]] module is for hardware module implementation.
   * */
