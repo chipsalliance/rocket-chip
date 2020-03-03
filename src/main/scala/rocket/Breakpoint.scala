@@ -50,7 +50,8 @@ class BP(implicit p: Parameters) extends CoreBundle()(p) {
 
 class BPWatch (val n: Int) extends Bundle() {
   val valid = Vec(n, Bool())
-  val dvalid = Vec(n, Bool())
+  val rvalid = Vec(n, Bool())
+  val wvalid = Vec(n, Bool())
   val ivalid = Vec(n, Bool())
   val action = UInt(3.W)
 }
@@ -87,11 +88,12 @@ class BreakpointUnit(n: Int)(implicit val p: Parameters) extends Module with Has
 
     bpw.action := action
     bpw.valid(0) := false.B
-    bpw.dvalid(0) := false.B
+    bpw.rvalid(0) := false.B
+    bpw.wvalid(0) := false.B
     bpw.ivalid(0) := false.B
 
-    when (end && r && ri) { io.xcpt_ld := (action === 0.U); io.debug_ld := (action === 1.U); bpw.valid(0) := true.B; bpw.dvalid(0) := true.B }
-    when (end && w && wi) { io.xcpt_st := (action === 0.U); io.debug_st := (action === 1.U); bpw.valid(0) := true.B; bpw.dvalid(0) := true.B }
+    when (end && r && ri) { io.xcpt_ld := (action === 0.U); io.debug_ld := (action === 1.U); bpw.valid(0) := true.B; bpw.rvalid(0) := true.B }
+    when (end && w && wi) { io.xcpt_st := (action === 0.U); io.debug_st := (action === 1.U); bpw.valid(0) := true.B; bpw.wvalid(0) := true.B }
     when (end && x && xi) { io.xcpt_if := (action === 0.U); io.debug_if := (action === 1.U); bpw.valid(0) := true.B; bpw.ivalid(0) := true.B }
 
     (end || r, end || w, end || x)
