@@ -9,25 +9,16 @@ import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap, ListMap}
 import scala.util.matching._
 
-/** Introduction
-  * This library contains these features:
-  * - [[Parameters]] negotiation
-  * - [[AutoBundle]] generation and connection
-  *
-  * To achieve these features, [[LazyModule]] consists sub-[[LazyModule]], [[BaseNode]] and [[LazyModuleImpLike]] module.
-  * - [[BaseNode]] is for interaction of [[LazyModule]].
-  * - [[LazyModuleImpLike]] module is for hardware module implementation.
-  *
-  * [[LazyModule]] leverage the magic of lazy-evaluation in Scala:
+/** [[LazyModule]] leverage the magic of lazy-evaluation in Scala:
   * It split SoC generation into 2 phases.
-  * - Phase 1:
-  * -- Node binding
-  * - Phase 2:
+  * - Phase 1(non-lazy):
+  * -- [[LazyModule]] and [[BaseNode]] instantiation.
+  * -- [[BaseNode]] binding.
+  * - Phase 2(lazy):
   * -- [[Parameters]] negotiation.
   * -- [[AutoBundle]] resolution.
   * -- [[LazyModuleImpLike]] module generation.
-  *
-  */
+  * */
 abstract class LazyModule()(implicit val p: Parameters)
 {
   /** Contains sub-[[LazyModule]]s; can be accessed by [[getChildren]]. */
