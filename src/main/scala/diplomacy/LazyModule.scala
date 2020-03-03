@@ -407,13 +407,13 @@ trait ModuleValue[T]
 
 object InModuleBody
 {
-  /** Code snippet injection.
-    * [[InModuleBody.apply(body)]] will inject body to current [[LazyModule.inModuleBody]],
-    * It will be called by [[LazyModuleImpLike.instantiate]] to push these snippets to [[chisel3.internal.Builder]].
+  /** Code snippet injection at last of [[LazyModuleImp.instantiate]] in this [[LazyModule.scope]].
+    * It is used to create additional connections beside [[AutoBundle]] connection.
     * */
   def apply[T](body: => T): ModuleValue[T] = {
     require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
     val scope = LazyModule.scope.get
+    /** a wrapper to [[body]], being able to extract result after `execute`. */
     val out = new ModuleValue[T] {
       var result: Option[T] = None
       def execute() { result = Some(body) }
@@ -423,7 +423,8 @@ object InModuleBody
       }
     }
 
-    // Note: the [[out.execute]] function is not called here, it is a `() => Unit` val which will be executed later.
+    // Store [[out.execute]] to [[scope.inModuleBody]],
+    // it is a val with type of `() => Unit`, which will be executed in [[LazyModuleImp.instantiate]].
     scope.inModuleBody = (out.execute _) +: scope.inModuleBody
     out
   }
