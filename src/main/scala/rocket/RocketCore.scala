@@ -595,7 +595,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_raw_inst := mem_reg_raw_inst
     wb_reg_mem_size := mem_reg_mem_size
     wb_reg_pc := mem_reg_pc
-    wb_reg_wphit := mem_reg_wphit | bpu.io.bpwatch.map { bpw => bpw.dvalid(0) }
+    wb_reg_wphit := mem_reg_wphit | bpu.io.bpwatch.map { bpw => (bpw.rvalid(0) && mem_reg_load) || (bpw.wvalid(0) && mem_reg_store) }
 
   }
 
