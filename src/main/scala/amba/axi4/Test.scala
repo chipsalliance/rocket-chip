@@ -39,7 +39,6 @@ class AXI4LiteFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: P
   io.finished := dut.io.finished
 }
 
-
 class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(txns))
@@ -61,7 +60,6 @@ class AXI4LiteUserBitsFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(impli
   val dut = Module(LazyModule(new AXI4LiteUserBitsFuzzRAM(txns)).module)
   io.finished := dut.io.finished
 }
-
 
 class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
