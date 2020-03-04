@@ -210,7 +210,7 @@ sealed trait LazyModuleImpLike extends RawModule
   val auto: AutoBundle
   protected[diplomacy] val dangles: Seq[Dangle]
 
-  /** [[wrapper.module]] had better not be accessed while LazyModules are still being built! */
+  // [[wrapper.module]] had better not be accessed while LazyModules are still being built!
   require (LazyModule.scope.isEmpty, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.scope.get.name}")
 
   /** Set module name. */
@@ -282,12 +282,14 @@ class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModu
 }
 
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
-  /** These wires are the default clock+reset for all LazyModule children.
-    * It is recommended to drive these even if you manually drive the [[clock]] and [[reset]] of all of the [[LazyRawModuleImp]] children.
-    * Otherwise, anonymous children ([[Monitor]]s for example) will not have their [[clock]] and/or [[reset]] driven properly.
-    * */
+  // These wires are the default clock+reset for all LazyModule children.
+  // It is recommended to drive these even if you manually drive the [[clock]] and [[reset]] of all of the [[LazyRawModuleImp]] children.
+  // Otherwise, anonymous children ([[Monitor]]s for example) will not have their [[clock]] and/or [[reset]] driven properly.
+  /** drive clock explicitly. */
   val childClock = Wire(Clock())
+  /** drive reset explicitly. */
   val childReset = Wire(Bool())
+  // default to be disabled
   childClock := Bool(false).asClock
   childReset := Bool(true)
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
