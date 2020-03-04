@@ -9,13 +9,13 @@ import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap, ListMap}
 import scala.util.matching._
 
-/** [[LazyModule]] leverage the magic of lazy-evaluation in Scala:
-  * It split SoC generation into 2 phases.
-  * - Phase 1(non-lazy):
+/** [[LazyModule]] uses Scala's lazy evaluation property to 
+  *  split hardware generation into two phases.
+  * - Phase 1 (non-lazy) states hardware intent and constraints:
   * -- [[LazyModule]] and [[BaseNode]] instantiation.
   * -- [[BaseNode]] binding.
-  * - Phase 2(lazy):
-  * -- [[Parameters]] negotiation.
+  * - Phase 2 (lazy) generates hardware:
+  * -- Parameter negotiation.
   * -- [[AutoBundle]] resolution.
   * -- [[LazyModuleImpLike]] module generation.
   * */
