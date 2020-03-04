@@ -41,28 +41,15 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
     // Transform input bundle sources (dest uses global namespace on both sides)
     val in = Wire(Vec(io_in.size, AXISBundle(wide_bundle)))
     for (i <- 0 until in.size) {
-      io_in(i).ready := in(i).ready
-      in(i).valid    := io_in(i).valid
-
-      (in(i).bits assignL io_in(i).bits) foreach {
-        // Assign the potentially widened AXI-ID
-        case AXISId => if (in(i).bits.params.hasId) { in(i).bits.id := io_in(i).bits.id | inputIdRanges(i).start.U }
-        // All other fields should remain the same
-        case key => in(i).bits(key) :<= io_in(i).bits(key)
-      }
+      in(i) :<> io_in(i)
+      in(i).bits.lift(AXISId) foreach { _ := io_in(i).bits.id | inputIdRanges(i).start.U }
     }
 
     // Transform output bundle sinks (id use global namespace on both sides)
     val out = Wire(Vec(io_out.size, AXISBundle(wide_bundle)))
     for (o <- 0 until out.size) {
-      out(o).ready        := io_out(o).ready
-      io_out(o).valid     := out(o).valid
-      (io_out(o).bits assignL out(o).bits) foreach {
-        // Simplify the potentially narrowed AXI-Dest
-        case AXISDest => if (io_out(o).params.hasDest) { io_out(o).bits.dest := trim(out(o).bits.dest, outputIdRanges(o).size) }
-        // All other fields should remain the same
-        case key => io_out(o).bits(key) :<= out(o).bits(key)
-      }
+      io_out(o) :<> out(o)
+      io_out(o).bits.lift(AXISDest) foreach { _ := trim(out(o).bits.dest, outputIdRanges(o).size) }
     }
 
     // Fanout the input sources to the output sinks
