@@ -119,8 +119,9 @@ class TLSlaveParameters private(
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
-  val mayDenyPut:         Boolean) // applies to: AccessAck,     Grant,    HintAck
+  val mayDenyPut:         Boolean, // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
+  val userBits:           Seq[UserBits])
 {
   def supportsAcquireT:   TransferSizes = supports.acquireT
   def supportsAcquireB:   TransferSizes = supports.acquireB
@@ -179,6 +180,10 @@ class TLSlaveParameters private(
   }
   def isTree = findTreeViolation() == None
 
+  def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
+  val userBitWidth = userBits.map(_.width).sum
+
   def infoString = {
     s"""Manager Name = ${name}
        |Manager Address = ${address}
@@ -211,7 +216,8 @@ class TLSlaveParameters private(
     mayDenyGet:         Boolean         = mayDenyGet,
     mayDenyPut:         Boolean         = mayDenyPut,
     alwaysGrantsT:      Boolean         = alwaysGrantsT,
-    fifoId:             Option[Int]     = fifoId) =
+    fifoId:             Option[Int]     = fifoId,
+    userBits:           Seq[UserBits]   = userBits) =
   {
     new TLSlaveParameters(
       setName       = name,
@@ -233,7 +239,8 @@ class TLSlaveParameters private(
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
-      fifoId        = fifoId)
+      fifoId        = fifoId,
+      userBits      = userBits)
   }
 
   @deprecated("Use v1copy","")
@@ -254,26 +261,28 @@ class TLSlaveParameters private(
     mayDenyGet:         Boolean         = mayDenyGet,
     mayDenyPut:         Boolean         = mayDenyPut,
     alwaysGrantsT:      Boolean         = alwaysGrantsT,
-    fifoId:             Option[Int]     = fifoId) =
+    fifoId:             Option[Int]     = fifoId,
+    userBits:           Seq[UserBits]   = userBits) =
   {
     v1copy(
-      address,
-      resources,
-      regionType,
-      executable,
-      nodePath,
-      supportsAcquireT,
-      supportsAcquireB,
-      supportsArithmetic,
-      supportsLogical,
-      supportsGet,
-      supportsPutFull,
-      supportsPutPartial,
-      supportsHint,
-      mayDenyGet,
-      mayDenyPut,
-      alwaysGrantsT,
-      fifoId)
+      address            = address,
+      resources          = resources,
+      regionType         = regionType,
+      executable         = executable,
+      nodePath           = nodePath,
+      supportsAcquireT   = supportsAcquireT,
+      supportsAcquireB   = supportsAcquireB,
+      supportsArithmetic = supportsArithmetic,
+      supportsLogical    = supportsLogical,
+      supportsGet        = supportsGet,
+      supportsPutFull    = supportsPutFull,
+      supportsPutPartial = supportsPutPartial,
+      supportsHint       = supportsHint,
+      mayDenyGet         = mayDenyGet,
+      mayDenyPut         = mayDenyPut,
+      alwaysGrantsT      = alwaysGrantsT,
+      fifoId             = fifoId,
+      userBits           = userBits)
   }
 }
 
@@ -295,7 +304,8 @@ object TLSlaveParameters {
     mayDenyGet:         Boolean = false,
     mayDenyPut:         Boolean = false,
     alwaysGrantsT:      Boolean = false,
-    fifoId:             Option[Int] = None) =
+    fifoId:             Option[Int] = None,
+    userBits:           Seq[UserBits] = Nil) =
   {
     new TLSlaveParameters(
       setName       = "",
@@ -317,7 +327,8 @@ object TLSlaveParameters {
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
-      fifoId        = fifoId)
+      fifoId        = fifoId,
+      userBits      = userBits)
   }
 }
 
@@ -513,6 +524,19 @@ class TLSlavePortParameters private(
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
 
+  // add some user bits to the same highest offset for every manager
+  val userBitWidth = managers.map(_.userBitWidth).max
+  def addUser[T <: UserBits](userBits: T): TLManagerPortParameters = {
+    this.copy(managers = managers.map { m =>
+      val extra = if (m.userBitWidth == userBitWidth) {
+        Seq(userBits)
+      } else {
+        Seq(PadUserBits(userBitWidth - m.userBitWidth), userBits)
+      }
+      m.copy(userBits = m.userBits ++ extra)
+    })
+  }
+
   def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
 
   def v1copy(
@@ -584,7 +608,8 @@ class TLMasterParameters private(
   val supports:          TLSlaveToMasterTransferSizes,
   val emits:             TLMasterToSlaveTransferSizes,
   val neverReleasesData: Boolean,
-  val sourceId:          IdRange)
+  val sourceId:          IdRange,
+  val userBits:          Seq[UserBits])
 {
   def supportsProbe:       TransferSizes   = supports.probe
   def supportsArithmetic:  TransferSizes   = supports.arithmetic
@@ -615,6 +640,10 @@ class TLMasterParameters private(
     supportsPutFull.max,
     supportsPutPartial.max).max
 
+  def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
+  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
+  val userBitWidth = userBits.map(_.width).sum
+
   def infoString = {
     s"""Client Name = ${name}
        |visibility = ${visibility}
@@ -634,7 +663,8 @@ class TLMasterParameters private(
     supportsGet:         TransferSizes   = supports.get,
     supportsPutFull:     TransferSizes   = supports.putFull,
     supportsPutPartial:  TransferSizes   = supports.putPartial,
-    supportsHint:        TransferSizes   = supports.hint) =
+    supportsHint:        TransferSizes   = supports.hint,
+    userBits:            Seq[UserBits]   = userBits) =
   {
     new TLMasterParameters(
       nodePath          = nodePath,
@@ -654,7 +684,8 @@ class TLMasterParameters private(
         hint              = supportsHint),
       emits             = this.emits,
       neverReleasesData = this.neverReleasesData,
-      sourceId          = sourceId)
+      sourceId          = sourceId,
+      userBits          = userBits)
   }
 
   @deprecated("Use v1copy instead of copy","")
@@ -670,21 +701,23 @@ class TLMasterParameters private(
     supportsGet:         TransferSizes   = supports.get,
     supportsPutFull:     TransferSizes   = supports.putFull,
     supportsPutPartial:  TransferSizes   = supports.putPartial,
-    supportsHint:        TransferSizes   = supports.hint) =
+    supportsHint:        TransferSizes   = supports.hint,
+    userBits:            Seq[UserBits]   = userBits) =
   {
     v1copy(
-      name,
-      sourceId,
-      nodePath,
-      requestFifo,
-      visibility,
-      supportsProbe,
-      supportsArithmetic,
-      supportsLogical,
-      supportsGet,
-      supportsPutFull,
-      supportsPutPartial,
-      supportsHint)
+      name               = name,
+      sourceId           = sourceId,
+      nodePath           = nodePath,
+      requestFifo        = requestFifo,
+      visibility         = visibility,
+      supportsProbe      = supportsProbe,
+      supportsArithmetic = supportsArithmetic,
+      supportsLogical    = supportsLogical,
+      supportsGet        = supportsGet,
+      supportsPutFull    = supportsPutFull,
+      supportsPutPartial = supportsPutPartial,
+      supportsHint       = supportsHint,
+      userBits           = userBits)
   }
 }
 
@@ -701,7 +734,8 @@ object TLMasterParameters {
     supportsGet:         TransferSizes   = TransferSizes.none,
     supportsPutFull:     TransferSizes   = TransferSizes.none,
     supportsPutPartial:  TransferSizes   = TransferSizes.none,
-    supportsHint:        TransferSizes   = TransferSizes.none) =
+    supportsHint:        TransferSizes   = TransferSizes.none,
+    userBits:            Seq[UserBits]   = Nil) =
   {
     new TLMasterParameters(
       nodePath          = nodePath,
@@ -721,7 +755,8 @@ object TLMasterParameters {
         hint              = supportsHint),
       emits             = TLMasterToSlaveTransferSizes.unknownEmits,
       neverReleasesData = false,
-      sourceId          = sourceId)
+      sourceId          = sourceId,
+      userBits          = userBits)
   }
 }
   
@@ -739,21 +774,23 @@ object TLClientParameters {
     supportsGet:         TransferSizes   = TransferSizes.none,
     supportsPutFull:     TransferSizes   = TransferSizes.none,
     supportsPutPartial:  TransferSizes   = TransferSizes.none,
-    supportsHint:        TransferSizes   = TransferSizes.none) =
+    supportsHint:        TransferSizes   = TransferSizes.none,
+    userBits:            Seq[UserBits]   = Nil) =
   {
     TLMasterParameters.v1(
-      name,
-      sourceId,
-      nodePath,
-      requestFifo,
-      visibility,
-      supportsProbe,
-      supportsArithmetic,
-      supportsLogical,
-      supportsGet,
-      supportsPutFull,
-      supportsPutPartial,
-      supportsHint)
+      name               = name,
+      sourceId           = sourceId,
+      nodePath           = nodePath,
+      requestFifo        = requestFifo,
+      visibility         = visibility,
+      supportsProbe      = supportsProbe,
+      supportsArithmetic = supportsArithmetic,
+      supportsLogical    = supportsLogical,
+      supportsGet        = supportsGet,
+      supportsPutFull    = supportsPutFull,
+      supportsPutPartial = supportsPutPartial,
+      supportsHint       = supportsHint,
+      userBits           = userBits)
   }
 }
 
@@ -827,6 +864,19 @@ class TLMasterPortParameters private(
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
   val supportsHint       = safety_helper(_.supportsHint)       _
 
+  // add some user bits to the same highest offset for every client
+  val userBitWidth = clients.map(_.userBitWidth).max
+  def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
+    this.copy(clients = clients.map { c =>
+      val extra = if (c.userBitWidth == userBitWidth) {
+        Seq(userBits)
+      } else {
+        Seq(PadUserBits(userBitWidth - c.userBitWidth), userBits)
+      }
+      c.copy(userBits = c.userBits ++ extra)
+    })
+  }
+
   def infoString = masters.map(_.infoString).mkString
 
   def v1copy(
@@ -880,6 +930,8 @@ case class TLBundleParameters(
   sourceBits:  Int,
   sinkBits:    Int,
   sizeBits:    Int,
+  aUserBits:   Int,
+  dUserBits:   Int,
   hasBCE:      Boolean)
 {
   // Chisel has issues with 0-width wires
@@ -888,6 +940,8 @@ case class TLBundleParameters(
   require (sourceBits  >= 1)
   require (sinkBits    >= 1)
   require (sizeBits    >= 1)
+  require (aUserBits   >= 0)
+  require (dUserBits   >= 0)
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
@@ -899,6 +953,8 @@ case class TLBundleParameters(
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
       max(sizeBits,    x.sizeBits),
+      max(aUserBits,   x.aUserBits),
+      max(dUserBits,   x.dUserBits),
       hasBCE ||        x.hasBCE)
 }
 
@@ -910,6 +966,8 @@ object TLBundleParameters
     sourceBits  = 1,
     sinkBits    = 1,
     sizeBits    = 1,
+    aUserBits   = 0,
+    dUserBits   = 0,
     hasBCE      = false)
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
@@ -921,6 +979,8 @@ object TLBundleParameters
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),
       sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
+      aUserBits   = client .userBitWidth,
+      dUserBits   = manager.userBitWidth,
       hasBCE      = client.anySupportProbe && manager.anySupportAcquireB)
 }
 
