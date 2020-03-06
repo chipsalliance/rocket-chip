@@ -9,6 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByIntoSeq}
 import scala.math.max
 import scala.reflect.ClassTag
+import scala.runtime.ScalaRunTime
 
 case class TLMasterToSlaveTransferSizes(
   // Supports both Acquire+Release of the following two sizes:
