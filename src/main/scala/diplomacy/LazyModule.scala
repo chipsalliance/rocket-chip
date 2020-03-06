@@ -168,7 +168,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
 
-  /** Execute function by all of this node's [[children]].
+  /** Execute function by all of this [[LazyModule]]'s  [[children]].
     *
     * @param iterfunc function to run
     * */
