@@ -211,6 +211,9 @@ object LazyModule
   }
 }
 
+/** 
+ * 
+ */
 sealed trait LazyModuleImpLike extends RawModule
 {
   val wrapper: LazyModule
@@ -281,11 +284,17 @@ sealed trait LazyModuleImpLike extends RawModule
   }
 }
 
+/** 
+ * 
+ */
 class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
   /** Instantiate hardware of this `Module`. */
   val (auto, dangles) = instantiate()
 }
 
+/** 
+ * 
+ */
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
   // These wires are the default clock+reset for all LazyModule children.
   // It is recommended to drive these even if you manually drive the [[clock]] and [[reset]] of all of the [[LazyRawModuleImp]] children.
@@ -310,6 +319,9 @@ class SimpleLazyModule(implicit p: Parameters) extends LazyModule
   lazy val module = new LazyModuleImp(this)
 }
 
+/** 
+ * 
+ */
 trait LazyScope
 {
   this: LazyModule =>
