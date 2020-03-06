@@ -10,7 +10,7 @@ verilog = $(generated_dir)/$(long_name).v
 
 $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG)"
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) --with-aspect freechips.rocketchip.monitors.TLMonitorInjToDcache -C $(CONFIG)"
 
 $(generated_dir)/%.v $(generated_dir)/%.conf: $(generated_dir)/%.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)

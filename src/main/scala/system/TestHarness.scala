@@ -31,17 +31,3 @@ class TestHarness()(implicit p: Parameters) extends Module {
   Debug.connectDebug(dut.debug, dut.psd, clock, reset, io.success)
 }
 
-object AopInjModules {
-
-  InjectModules.register(Seq(
-    ShowModules,
-    ShowModulePorts("DCache"),
-    AopInjectMonitor("DCache$".r, "TLMonitor", "HellaCacheBundle")
-  ))
-}
-
-// AopInjectMonitorChild("DCache$".r, "TLMonitor", "HellaCacheBundle", <child-name>)
-// AopInjectMonitorParent("DCache$".r, "TLMonitor", "HellaCacheBundle", <parent-name>)
-// AopInjectMonitorAncestor("DCache$".r, "TLMonitor", "HellaCacheBundle", <ancestor-name>)
-// AopInjectMonitorDescendant("DCache$".r, "TLMonitor", "HellaCacheBundle".<descendant-name>)
-

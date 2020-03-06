@@ -2,31 +2,23 @@
 
 package freechips.rocketchip.util
 
-import java.io.{File, FileWriter}
-import scala.util.matching.Regex
+import chisel3.aop.injecting.InjectingAspect
+import chisel3.experimental.{BaseModule, FixedPoint}
+import chisel3._
+import firrtl._
+import firrtl.options.TargetDirAnnotation
+import freechips.rocketchip.stage.{ConfigsAnnotation, TopModuleAnnotation}
+import freechips.rocketchip.system.{RocketChipStage, TestHarness}
 
-import Chisel._
+import java.io.{File, FileWriter}
 import Chisel.throwException
-import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.aoputil._
 
 import freechips.rocketchip.diplomacy.{LazyModuleImp, LazyModule, BaseNode}
 import chipsalliance.rocketchip.config.{Config, Parameters}
-import chisel3.experimental.{BaseModule, FixedPoint}
-import chisel3.internal.HasId
 import chisel3.internal.firrtl._
-import chisel3.{RawModule, VecInit}
-import chisel3.util._
+import freechips.rocketchip.system.{RocketChipStage, TestHarness}
 import chisel3.aop._
-import chisel3.aop.injecting._
-import freechips.rocketchip.unittest._
-import scala.util.matching.Regex
-
-//import chisel3._
-//import chisel3.experimental.{BaseModule, FixedPoint}
-//   *** import chisel3.internal.HasId
-//import chisel3.internal.firrtl._
-//import firrtl.annotations.ReferenceTarget
 
 trait HasRocketChipStageUtils {
 
@@ -65,8 +57,38 @@ trait HasRocketChipStageUtils {
     f
   }
 
-  def injectModule(targetDir: String, circuit: Circuit) = {
-    println("DEBUG_AOP: inject module")
+  def injTest(pf:PartialFunction[Int, Double]) = {
+    println(s"SULTAN Test int 5 to ${pf(5)}")
+  }
+
+  def injTest1(f: () => PartialFunction[Int, Double]) = {
+    println(s"SULTAN Test1 int 7 to ${f()(7)}")
+  }
+
+  def injTest2(f: () => Unit) = {
+    println("SULTAN from injTest2")
+    f()
+  }
+
+  var optCircuit: Option[Circuit] = None
+
+  def injectModule(targetDir: String, c: Circuit) {
+    println(s"SULTAN circuit IN  ${c.getClass.getName}")
+    optCircuit = Option(c)
+    println(s"SULTAN info injectModule")
+
+    optCircuit match {
+      case Some(x) => println(s"SULTAN x: ${x.getClass.getName}")
+    }
+  }
+
+  def injMonitor(pf: PartialFunction[BaseModule, Boolean]) = {
+    println(s"SULTAN pf ${pf.getClass.getName}")
+
+
+  }
+
+/*
     val dip = SelectDiplomacy(circuit).render(targetDir, "DiplomacyGraph", DOTGRAPH)
     val impModules: List[LazyModuleImp] = SelectDiplomacy.collectImpModules()
     val str = SelectDiplomacy.collectImpModules(targetDir, "collectImp.txt")
@@ -79,7 +101,6 @@ trait HasRocketChipStageUtils {
 //    circuit.components.foreach{a => println(s"SULTAN COMPONENT ${a.name} >>> ${a.getClass.getName}")}
 //    circuit.annotations.foreach{a => println(s"SULTAN ANNO ${a} >>> ${a.getClass.getName}")}
 
-/*
     impModules.foreach { m => println(s"SULTAN IMP MODULE ${m.name}")}
     val baseNodes: List[BaseNode] = SelectDiplomacy.collectBaseNodes()
     baseNodes.foreach{ n =>
@@ -89,13 +110,40 @@ trait HasRocketChipStageUtils {
       println("OUTPUTS")
       n.outputs.foreach{println}
     }
- */
 
 //    val pat = "(DCache$).*".r
 //    val tgts = getModByName(pat, circuit)
 //    tgts.foreach{a => println(s"SULTAN FIND_MODULE ${a}")}
 //    Select.ios(tgts.head).foreach{i => println(s"SULTAN IOS for first match ${i}")}
-    InjectModules.inj(circuit)
+ */
+
+
+//    InjectModules.inj(circuit)
+
+//    println(s"SULTAN info Injecting Aspect for statements")
+//    val modInjAspect = InjectingAspect(
+//      {dut: TestHarness => Seq(dut.dut)},
+//      {dut: freechips.rocketchip.system.ExampleRocketSystemModuleImp[freechips.rocketchip.system.ExampleRocketSystem] =>
+//        val dummyWire = Wire(UInt(3.W)).suggestName("hello")
+//        dummyWire := 5.U
+//        dontTouch(dummyWire)
+//      })
+
+//    val dirName = System.getProperty("user.dir") + "/emulator"
+//    println(s"SULTAN dirName: ${dirName}")
+
+//        val dir = new File(dirName)
+//        if (!dir.exists()) dir.mkdirs()
+
+//        new RocketChipStage().run(Seq(
+//          new TargetDirAnnotation(dirName),
+//          new TopModuleAnnotation(Class.forName("freechips.rocketchip.system.TestHarness")),
+//          new ConfigsAnnotation(Seq("freechips.rocketchip.system.DefaultConfig")),
+//          modInjAspect
+//        ))
+   
+
+
 
 //    val pat1 = "(RocketTile)|(Rocket)|(ExampleRocketSystem)".r
 //    val pat1 = "Rocket$".r
@@ -130,7 +178,7 @@ trait HasRocketChipStageUtils {
       })
  * ************/
 //    InjectMonitor.pr()
-  }
+//  }
 }
 
 object ElaborationArtefacts {

@@ -17,6 +17,18 @@ import org.scalatest.FlatSpec
  *  Output can be viewed in the testbuild directory. The wire named "hello" should show up in the generated
  *  *.anno.json file.
  */
+
+class exampleMod extends Module {
+  val io = IO(new Bundle{})
+
+  val exReg = RegInit(0.U(32.W))
+  val modWire = Wire(UInt(3.W)).suggestName("SULTAN")
+
+  exReg:= 0.U
+  modWire := 7.U
+  dontTouch(modWire)
+}
+
 class StageGeneratorSpec extends FlatSpec {
 
   val dummyAspect = InjectingAspect(
@@ -25,6 +37,8 @@ class StageGeneratorSpec extends FlatSpec {
       val dummyWire = Wire(UInt(3.W)).suggestName("hello")
       dummyWire := 5.U
       dontTouch(dummyWire)
+      val m0 = Module(new exampleMod())
+
     }
   )
 
