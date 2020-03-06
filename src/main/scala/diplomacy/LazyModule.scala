@@ -199,7 +199,7 @@ object LazyModule
     * @param sourceInfo [[SourceInfo]] information about where this [[LazyModule]] is being generated
     * */
   def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
-    /** Make sure the user puts [[LazyModule]] around modules in the correct order. */
+    // Make sure the user puts [[LazyModule]] around modules in the correct order.
     require (scope.isDefined,
              s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}. Ensure that descendant LazyModules are instantiated with the LazyModule() wrapper and that you did not call LazyModule() twice.")
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
@@ -231,45 +231,43 @@ sealed trait LazyModuleImpLike extends RawModule
   protected[diplomacy] def instantiate() = {
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo = c.info
-      /** Calling [[c.module]] will push the real [[Module]] into [[chisel3.internal.Builder]].
-        * Note: this place is not calling [[instantiate]], it just push the [[c.module]] to Builder.
-        * */
+      // Calling [[c.module]] will push the real [[Module]] into [[chisel3.internal.Builder]].
+      //  Note: this place is not calling [[instantiate]], it is just pushing [[c.module]] to Builder.
       val mod = Module(c.module)
-      /** Ask each child to finish instantiate. */
+      // Ask each child to finish instantiate.
       mod.finishInstantiate()
-      /** Return [[Dangle]]s of each child. */
+      // Return [[Dangle]]s of each child.
       mod.dangles
     }
 
-    /** Ask each node in the [[LazyModule]] to call [[BaseNode.instantiate]].
-      * It will return a sequence of [[Dangle]] of these [[BaseNode]].
-      * */
+    // Ask each node in the [[LazyModule]] to call [[BaseNode.instantiate]].
+    // It will return a sequence of [[Dangle]] of these [[BaseNode]].
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
-    /** Accumulate all the [[Dangle]]s from this node and any accumulated from its [[wrapper.children]]*/
+    // Accumulate all the [[Dangle]]s from this node and any accumulated from its [[wrapper.children]]
     val allDangles = nodeDangles ++ childDangles
-    /** For [[allDangles]] which originate from the same [[Dangle.source]], group them together into [[pairing]]. */
+    // For [[allDangles]] which originate from the same [[Dangle.source]], group them together into [[pairing]].
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq:_*)
-    /** For each set of [[Dangle]]s where there are sets of 2 with the same source and different flipped,
-      * ensure that they can be connected in a source/sink pair, and then make the connection.
-      * For these sets, mark them as [[done]]. */
+    // For each set of [[Dangle]]s where there are sets of 2 with the same source and different flipped,
+    // ensure that they can be connected in a source/sink pair, and then make the connection.
+    // For these sets, mark them as [[done]].
     val done = Set() ++ pairing.values.filter(_.size == 2).map { case Seq(a, b) =>
       require (a.flipped != b.flipped)
-      /** @todo <> in chisel3 makes directionless connection. */
+      // @todo <> in chisel3 makes directionless connection.
       if (a.flipped) { a.data <> b.data } else { b.data <> a.data }
       a.source
     }
-    /** Find all [[Dangle]]s which are still not connected. These will end up as [[AutoBundle]] [[IO]] ports on the module.*/
+    // Find all [[Dangle]]s which are still not connected. These will end up as [[AutoBundle]] [[IO]] ports on the module.
     val forward = allDangles.filter(d => !done(d.source))
-    /** Generate [[AutoBundle]] io from [[forward]]. */
+    // Generate [[AutoBundle]] IO from [[forward]].
     val auto = IO(new AutoBundle(forward.map { d => (d.name, d.data, d.flipped) }:_*))
-    /** Pass the [[Dangle]]s which remained and were used to generate the [[AutoBundle]] I/O ports up to the [[parent]] [[LazyModule]]*/
+    // Pass the [[Dangle]]s which remained and were used to generate the [[AutoBundle]] I/O ports up to the [[parent]] [[LazyModule]]
     val dangles = (forward zip auto.elements) map { case (d, (_, io)) =>
       if (d.flipped) { d.data <> io } else { io <> d.data }
       d.copy(data = io, name = wrapper.suggestedName + "_" + d.name)
     }
-    /** Push all [[LazyModule.inModuleBody]] to [[chisel3.internal.Builder]]. */
+    // Push all [[LazyModule.inModuleBody]] to [[chisel3.internal.Builder]].
     wrapper.inModuleBody.reverse.foreach { _() }
-    /** Return [[IO]] and [[Dangle]] of this [[LazyModuleImp]]. */
+    // Return [[IO]] and [[Dangle]] of this [[LazyModuleImp]].
     (auto, dangles)
   }
 
@@ -296,7 +294,7 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   val childClock = Wire(Clock())
   /** drive reset explicitly. */
   val childReset = Wire(Bool())
-  // default to be disabled
+  // the default is that these are disabled
   childClock := Bool(false).asClock
   childReset := Bool(true)
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
@@ -321,14 +319,14 @@ trait LazyScope
     * */
   def apply[T](body: => T) = {
     val saved = LazyModule.scope
-    /** [[LazyModule.scope]] stack push. */
+    // [[LazyModule.scope]] stack push.
     LazyModule.scope = Some(this)
-    /** Evaluate [[body]] in the current `scope`, saving the result to [[out]]. */
+    // Evaluate [[body]] in the current `scope`, saving the result to [[out]].
     val out = body
-    /** Check that the `scope` after evaluating `body` is the same as when we started.. */
+    // Check that the `scope` after evaluating `body` is the same as when we started.
     require (LazyModule.scope.isDefined, s"LazyScope ${name} tried to exit, but scope was empty!")
     require (LazyModule.scope.get eq this, s"LazyScope ${name} exited before LazyModule ${LazyModule.scope.get.name} was closed")
-    /** [[LazyModule.scope]] stack pop. */
+    // [[LazyModule.scope]] stack pop.
     LazyModule.scope = saved
     out
   }
@@ -337,7 +335,7 @@ trait LazyScope
 /** Used to automatically create a level of module hierarchy (a [[SimpleLazyModule]]) within
   * which [[LazyModule]]s can be instantiated and connected.
   * It will instantiate a [[SimpleLazyModule]] to manage evaluation of `body`.
-  * And make `body` codes evaluated in this scope.
+  * And evaluate `body` codes in this scope.
   * */
 object LazyScope
 {
@@ -361,9 +359,9 @@ object LazyScope
 
 /** One side metadata of a [[Dangle]].
   *
-  * Describes one side of an edge going into or out of of a [[BaseNode]].
+  * Describes one side of an edge going into or out of a [[BaseNode]].
   * 
-  * @param serial the global [[BaseNode.serial]] that this [[HalfEdge]] connects to.
+  * @param serial the global [[BaseNode.serial]] number of the [[BaseNode]] that this [[HalfEdge]] connects to.
   * @param index the `index` in the [[BaseNode]]'s input or output port list that this [[HalfEdge]] belongs to.
   * */
 case class HalfEdge(serial: Int, index: Int) extends Ordered[HalfEdge] {
@@ -393,7 +391,7 @@ case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: Stri
   *               flipped: flip or not in [[makeElements]]
   * */
 final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
-  /** We need to preserve the order of elts, despite grouping by name to disambiguate things. */
+  // We need to preserve the order of elts, despite grouping by name to disambiguate things.
   val elements = ListMap() ++ elts.zipWithIndex.map(makeElements).groupBy(_._1).values.flatMap {
     // If name is unique, it will return a Seq[index -> (name -> data)].
     case Seq((key, element, i)) => Seq(i -> (key -> element))
@@ -402,10 +400,10 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   }.toList.sortBy(_._1).map(_._2)
   require (elements.size == elts.size)
 
-  /** Trim final "(_[0-9]+)*$" in the name, flip data with flipped. */
+  // Trim final "(_[0-9]+)*$" in the name, flip data with flipped.
   private def makeElements(tuple: ((String, Data, Boolean), Int)) = {
     val ((key, data, flip), i) = tuple
-    /** Trim trailing _0_1_2 stuff so that when we append _# we don't create collisions. */
+    // Trim trailing _0_1_2 stuff so that when we append _# we don't create collisions.
     val regex = new Regex("(_[0-9]+)*$")
     val element = if (flip) data.cloneType.flip else data.cloneType
     (regex.replaceAllIn(key, ""), element, i)
@@ -421,14 +419,16 @@ trait ModuleValue[T]
 
 object InModuleBody
 {
-  /** Used to inject code snippets to be evaluated in  [[LazyModuleImp.instantiate]] in the current [[LazyModule.scope]].
-    * It can be used to create additional hardware outside of the  [[LazyModule.children]] and
-    * connections other than the internal [[BaseNode]] connections or additional IOs aside from the  [[AutoBundle]] 
+  /** Used to inject code snippets to be evaluated in  [[LazyModuleImp.instantiate]]
+    *  in the current [[LazyModule.scope]].
+    * It can be used to create additional hardware outside of the  [[LazyModule.children]],
+    * connections other than the internal [[BaseNode]] connections,
+    * or additional IOs aside from the  [[AutoBundle]] 
     * */
   def apply[T](body: => T): ModuleValue[T] = {
     require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
     val scope = LazyModule.scope.get
-    /** a wrapper to [[body]], being able to extract result after `execute`. */
+    // a wrapper to [[body]], being able to extract result after `execute`.
     val out = new ModuleValue[T] {
       var result: Option[T] = None
       def execute() { result = Some(body) }
