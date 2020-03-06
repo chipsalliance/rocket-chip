@@ -399,7 +399,7 @@ class TLSlavePortParameters private(
   val slaves:        Seq[TLSlaveParameters],
   val channelBytes:  TLChannelBeatBytes,
   val endSinkId:     Int,
-  val minLatency:    Int)
+  val minLatency:    Int) extends Product
 {
   require (!managers.isEmpty, "Manager ports must have managers")
   require (endSinkId >= 0, "Sink ids cannot be negative")
@@ -802,7 +802,7 @@ object TLClientParameters {
 class TLMasterPortParameters private(
   val masters:       Seq[TLMasterParameters],
   val channelBytes:  TLChannelBeatBytes,
-  val minLatency:    Int) // Only applies to B=>C
+  val minLatency:    Int) extends Product // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)
