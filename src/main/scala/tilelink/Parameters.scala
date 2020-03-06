@@ -564,6 +564,10 @@ class TLSlavePortParameters private(
       endSinkId,
       minLatency)
   }
+
+  override def equals(that: Any) = ScalaRunTime._equals(this, that)
+  override def hashCode() = ScalaRunTime._hashCode(this)
+  override def toString = ScalaRunTime._toString(this)
 }
 
 object TLSlavePortParameters {
@@ -898,6 +902,12 @@ class TLMasterPortParameters private(
       clients,
       minLatency)
   }
+
+  //def canEqual(that: Any) = that.isInstanceOf[Id]
+  override def equals(that: Any) = ScalaRunTime._equals(this, that)
+  override def hashCode() = ScalaRunTime._hashCode(this)
+  override def toString = ScalaRunTime._toString(this)
+
 }
 
 object TLClientPortParameters {
