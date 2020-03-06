@@ -1,9 +1,7 @@
 // See LICENSE.Berkeley for license details.
 
-import sbt.complete._
 import sbt.complete.DefaultParsers._
-import xerial.sbt.pack._
-import sys.process._
+import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
@@ -17,6 +15,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
+  libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.0.8" % "test"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
