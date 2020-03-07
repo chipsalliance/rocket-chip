@@ -1007,6 +1007,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.s2_paddr := s2_req.addr
 
   // performance events
+  io.cpu.perf.miss := mshrs.io.resp.fire() && !isPrefetch(mshrs.io.resp.bits.cmd)
+  io.cpu.perf.prefetch := mshrs.io.resp.fire() && isPrefetch(mshrs.io.resp.bits.cmd)
   io.cpu.perf.acquire := edge.done(tl_out.a)
   io.cpu.perf.release := edge.done(tl_out.c)
   io.cpu.perf.tlbMiss := io.ptw.req.fire()

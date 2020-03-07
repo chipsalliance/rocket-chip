@@ -139,6 +139,8 @@ class HellaCacheWriteData(implicit p: Parameters) extends CoreBundle()(p) with H
 class HellaCachePerfEvents extends Bundle {
   val acquire = Bool()
   val release = Bool()
+  val miss = Bool()
+  val prefetch = Bool()
   val grant = Bool()
   val tlbMiss = Bool()
   val blocked = Bool()

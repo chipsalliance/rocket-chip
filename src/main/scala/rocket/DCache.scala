@@ -932,6 +932,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     lrscCount > 0 || blockProbeAfterGrantCount > 0
 
   // performance events
+  io.cpu.perf.miss := edge.done(tl_out_a)
+  io.cpu.perf.prefetch := false.B
   io.cpu.perf.acquire := edge.done(tl_out_a)
   io.cpu.perf.release := edge.done(tl_out_c)
   io.cpu.perf.grant := tl_out.d.valid && d_last
