@@ -211,13 +211,14 @@ object LazyModule
   }
 }
 
-/** 
- * 
- */
+/** trait which must be returned in [[LazyModule.module]] for generating actual hardware. */
 sealed trait LazyModuleImpLike extends RawModule
 {
+  /** The [[LazyModule]] which will generate this [[LazyModuleImpLike]].
   val wrapper: LazyModule
+  /** The IOs that will be automatically "punched" for this [[LazyModuleImpLike]]
   val auto: AutoBundle
+  /** The metatdata that describes the [[Edge]]s which generated [[auto]]. */
   protected[diplomacy] val dangles: Seq[Dangle]
 
   // [[wrapper.module]] had better not be accessed while LazyModules are still being built!
@@ -284,20 +285,23 @@ sealed trait LazyModuleImpLike extends RawModule
   }
 }
 
-/** 
- * 
- */
+/** Actual description of a [[Module]] which can be instantiated by a call to [[LazyModule.module]].
+  *
+  * @param wrapper the [[LazyModule]] from which the `.module` call is being made.
+  */
 class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
   /** Instantiate hardware of this `Module`. */
   val (auto, dangles) = instantiate()
 }
 
-/** 
- * 
- */
+/** Actual description of a [[RawModule]] which can be instantiated by a call to [[LazyModule.module]].
+  *
+  * @param wrapper the [[LazyModule]] from which the `.module` call is being made.
+  */
 class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModuleImpLike {
   // These wires are the default clock+reset for all LazyModule children.
-  // It is recommended to drive these even if you manually drive the [[clock]] and [[reset]] of all of the [[LazyRawModuleImp]] children.
+  // It is recommended to drive these even if you manually drive the [[clock]] and [[reset]] of all of the
+  // [[LazyRawModuleImp]] children.
   // Otherwise, anonymous children ([[Monitor]]s for example) will not have their [[clock]] and/or [[reset]] driven properly.
   /** drive clock explicitly. */
   val childClock = Wire(Clock())
@@ -319,17 +323,16 @@ class SimpleLazyModule(implicit p: Parameters) extends LazyModule
   lazy val module = new LazyModuleImp(this)
 }
 
-/** 
- * 
- */
+/** Allows dynamic creation of [[Module]] hierarchy and "shoving" logic into a [[LazyModule]]. */ 
 trait LazyScope
 {
   this: LazyModule =>
   override def toString: String = s"LazyScope named $name"
-  /** Preserve the previous value of the [[LazyModule.scope]], because when calling [[apply]] function,
-    * [[LazyModule.scope]] will be altered.
-    * */
+  
+  /** Evaluate `body` in the current [[LazyModule.scope]] */
   def apply[T](body: => T) = {
+    // Preserve the previous value of the [[LazyModule.scope]], because when calling [[apply]] function,
+    // [[LazyModule.scope]] will be altered.
     val saved = LazyModule.scope
     // [[LazyModule.scope]] stack push.
     LazyModule.scope = Some(this)
