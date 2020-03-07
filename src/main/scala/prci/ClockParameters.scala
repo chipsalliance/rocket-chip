@@ -4,6 +4,8 @@ package freechips.rocketchip.prci
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
+import freechips.rocketchip.util.{HeterogeneousBag}
 import scala.math.max
 
 // All Clock parameters specify only the PLL values required at power-on
@@ -77,9 +79,29 @@ case class ClockGroupEdgeParameters(
 }
 
 // Used to create simple clock group drivers that just use the Chisel implicit clock
-case class ClockGroupDriverParameters(num: Int = 1) {
-  def driveFromImplicitClock(groups: ClockGroupEphemeralNode)(implicit p: Parameters): Unit = {
+case class ClockGroupDriverParameters(
+  num: Int = 1,
+  driveFn: ClockGroupDriver.DriveFn = ClockGroupDriver.driveFromImplicitClock
+) {
+  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[HeterogeneousBag[ClockGroupBundle]] = {
+    driveFn(node, num, p, vn)
+  }
+}
+
+object ClockGroupDriver {
+  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[HeterogeneousBag[ClockGroupBundle]]
+
+  def driveFromImplicitClock: DriveFn = { (groups, num, p, vn) =>
+    implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
+    InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) }
+  }
+
+  def driveFromIOs: DriveFn = { (groups, num, p, vn) =>
+    implicit val pp = p
+    val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
+    groups :*= ioClockGroupSourceNode
+    InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
   }
 }
