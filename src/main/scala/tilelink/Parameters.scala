@@ -635,7 +635,7 @@ class TLMasterParameters private(
   val emits:             TLMasterToSlaveTransferSizes,
   val neverReleasesData: Boolean,
   val sourceId:          IdRange,
-  val userBits:          Seq[UserBits])
+  val userBits:          Seq[UserBits]) extends Product
 {
   def supportsProbe:       TransferSizes   = supports.probe
   def supportsArithmetic:  TransferSizes   = supports.arithmetic
@@ -745,6 +745,38 @@ class TLMasterParameters private(
       supportsHint       = supportsHint,
       userBits           = userBits)
   }
+
+  def productArity: Int = 4
+  def productElement(n: Int): Any = n match {
+    case 0 => nodePath
+    case 1 => resources
+    case 2 => name
+    case 3 => visibility
+    case 4 => unusedRegionTypes
+    case 5 => executesOnly
+    case 6 => requestFifo
+    case 7 => supports
+    case 8 => emits
+    case 9 => neverReleasesData
+    case 10 => sourceId
+    case 11 => userBits
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+  def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterParameters]
+
+  override def equals(that: Any): Boolean = that match {
+    case other: TLMasterParameters =>
+      val myIt = this.productIterator
+      val thatIt = other.productIterator
+      var res = true
+      while (res && myIt.hasNext) {
+        res = myIt.next() == thatIt.next()
+      }
+      res
+    case _ => false
+  }
+    
+  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 }
 
 object TLMasterParameters {
