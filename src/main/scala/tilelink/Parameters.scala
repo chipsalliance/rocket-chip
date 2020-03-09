@@ -284,6 +284,39 @@ class TLSlaveParameters private(
       fifoId             = fifoId,
       userBits           = userBits)
   }
+
+  def productArity: Int = 13
+  def productElement(n: Int): Any = n match {
+    case 0 => nodePath
+    case 1 => resources
+    case 2 => setName
+    case 3 => address
+    case 4 => regionType
+    case 5 => executable
+    case 6 => fifoId
+    case 7 => supports
+    case 8 => emits
+    case 9 => alwaysGrantsT
+    case 10 => mayDenyGet
+    case 11 => mayDenyGet
+    case 12 => userBits
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+  def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
+
+  override def equals(that: Any): Boolean = that match {
+    case other: TLSlavePortParameters =>
+      val myIt = this.productIterator
+      val thatIt = other.productIterator
+      var res = true
+      while (res && myIt.hasNext) {
+        res = myIt.next() == thatIt.next()
+      }
+      res
+    case _ => false
+  }
+    
+  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 }
 
 object TLSlaveParameters {
@@ -588,8 +621,6 @@ class TLSlavePortParameters private(
   }
     
   override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
-
-  override def toString: String = "TLSlavePortParameters(" + slaves + "," + channelBytes + "," + endSinkId + "," + minLatency + ")"
 }
 
 object TLSlavePortParameters {
