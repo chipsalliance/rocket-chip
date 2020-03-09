@@ -575,7 +575,6 @@ class TLSlavePortParameters private(
   }
   def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
 
-  // I am amazed there's not a generic implementation of this but whatever
   override def equals(that: Any): Boolean = that match {
     case other: TLSlavePortParameters =>
       val myIt = this.productIterator
@@ -589,6 +588,8 @@ class TLSlavePortParameters private(
   }
     
   override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
+
+  override def toString: String = "TLSlavePortParameters(" + slaves + "," + channelBytes + "," + endSinkId + "," + minLatency + ")"
 }
 
 object TLSlavePortParameters {
@@ -933,7 +934,6 @@ class TLMasterPortParameters private(
   }
   def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterPortParameters]
 
-  // I am amazed there's not a generic implementation of this but whatever
   override def equals(that: Any): Boolean = that match {
     case other: TLMasterPortParameters =>
       val myIt = this.productIterator
