@@ -6,12 +6,12 @@ import chisel3.util._
 import freechips.rocketchip.util._
 
 sealed trait AXISKey
-case object AXISLast extends RequestKey[Bool]("last") with AXISKey
-case object AXISId   extends RequestKey[UInt]("id")   with AXISKey
-case object AXISDest extends RequestKey[UInt]("dest") with AXISKey
-case object AXISKeep extends DataKey   [UInt]("keep") with AXISKey
-case object AXISStrb extends DataKey   [UInt]("strb") with AXISKey
-case object AXISData extends DataKey   [UInt]("data") with AXISKey
+case object AXISLast extends ControlRequestKey[Bool]("last") with AXISKey
+case object AXISId   extends ControlRequestKey[UInt]("id")   with AXISKey
+case object AXISDest extends ControlRequestKey[UInt]("dest") with AXISKey
+case object AXISKeep extends DataRequestKey   [UInt]("keep") with AXISKey
+case object AXISStrb extends DataRequestKey   [UInt]("strb") with AXISKey
+case object AXISData extends DataRequestKey   [UInt]("data") with AXISKey
 
 case class AXISLastField()           extends SimpleBundleField(AXISLast)(Output(Bool()),        true.B)
 case class AXISIdField  (width: Int) extends SimpleBundleField(AXISId)  (Output(UInt(width.W)), 0.U)

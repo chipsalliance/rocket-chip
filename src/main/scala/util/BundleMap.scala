@@ -5,6 +5,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.DataMirror
 import scala.collection.immutable.ListMap
+import scala.collection.mutable.HashMap
 
 /* BundleMaps include IOs for every BundleField they are constructed with.
  * A given BundleField in a BundleMap is accessed by a BundleKey.
@@ -60,12 +61,6 @@ object BundleField {
    */
   def union(fields: Seq[BundleFieldBase]): Seq[BundleFieldBase] =
     fields.groupBy(_.key.name).map(_._2.reduce(_ unify _)).toList
-  def isOutput(x: Data) = DataMirror.specifiedDirectionOf(x) match {
-    case SpecifiedDirection.Unspecified => true
-    case SpecifiedDirection.Output      => true
-    case SpecifiedDirection.Input       => false
-    case SpecifiedDirection.Flip        => false
-  }
 }
 
 sealed trait BundleKeyBase {
@@ -78,23 +73,32 @@ sealed class BundleKey[T <: Data](val name: String) extends BundleKeyBase
  *  - data fields (which are per-beat/byte and should be widened by bus-width adapters)
  *  - control fields (which are per-burst and are unaffected by width adapters)
  */
-abstract        class DataKey   [T <: Data](name: String) extends BundleKey[T](name)
+abstract sealed class DataKey   [T <: Data](name: String) extends BundleKey[T](name)
 abstract sealed class ControlKey[T <: Data](name: String) extends BundleKey[T](name)
+
 /* Control signals can be further categorized in a request-response protocol:
  *  - request fields flow from master to slave
  *  - response fields flow from slave to master
  *  - echo fields flow from master to slave to master; a master must receive the same value in the response as he sent in the request
  */
-abstract class RequestKey [T <: Data](name: String) extends ControlKey[T](name)
-abstract class ResponseKey[T <: Data](name: String) extends ControlKey[T](name)
-abstract class EchoKey    [T <: Data](name: String) extends ControlKey[T](name)
+trait RequestKey
+trait ResponseKey
+trait EchoKey
+
+abstract class ControlRequestKey [T <: Data](name: String) extends ControlKey[T](name) with RequestKey
+abstract class ControlResponseKey[T <: Data](name: String) extends ControlKey[T](name) with ResponseKey
+abstract class ControlEchoKey    [T <: Data](name: String) extends ControlKey[T](name) with EchoKey
+
+abstract class DataRequestKey [T <: Data](name: String) extends DataKey[T](name) with RequestKey
+abstract class DataResponseKey[T <: Data](name: String) extends DataKey[T](name) with ResponseKey
+abstract class DataEchoKey    [T <: Data](name: String) extends DataKey[T](name) with EchoKey
 
 // If you extend this class, you must either redefine cloneType or have a fields constructor
 class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulkAssignable {
   // All fields must have distinct key.names
   require(fields.map(_.key.name).distinct.size == fields.size)
 
-  val elements = ListMap(fields.map { bf => bf.key.name -> chisel3.experimental.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
+  val elements: ListMap[String, Data] = ListMap(fields.map { bf => bf.key.name -> chisel3.experimental.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
   override def cloneType: this.type = {
     try {
       this.getClass.getConstructors.head.newInstance(fields).asInstanceOf[this.type]
@@ -107,7 +111,7 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulk
     }
   }
 
-  def apply[T <: Data](key: BundleKey[T]): T         = elements(key.name).asInstanceOf[T]
+  def apply[T <: Data](key: BundleKey[T]): T = elements(key.name).asInstanceOf[T]
   def lift [T <: Data](key: BundleKey[T]): Option[T] = elements.lift(key.name).map(_.asInstanceOf[T])
 
   def apply(key: BundleKeyBase): Data         = elements(key.name)
@@ -116,92 +120,118 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulk
   // Assign all outputs of this from either:
   //   outputs of that (if they exist)
   //   or the default value for the BundleField
-  def assignL(that: CustomBulkAssignable): Unit = {
-    def other = that.asInstanceOf[BundleMap]
-    fields.foreach { field =>
-      val value = apply(field.key)
-      other.lift(field.key) match {
-        case Some(x) => value :<= x
-        case None    => if (BundleField.isOutput(value)) field.setDataDefault(value)
+  def assignL(that: CustomBulkAssignable): Unit = { // this/bx :<= that/by
+    require(that.isInstanceOf[BundleMap], s"Illegal attempt to drive BundleMap ${this} :<= non-BundleMap ${that}")
+    val bx = this
+    val by = that.asInstanceOf[BundleMap]
+    val hy = HashMap(by.elements.toList:_*)
+    (bx.fields zip bx.elements) foreach { case (field, (_, vx)) =>
+      hy.lift(field.key.name) match {
+        case Some(vy) => FixChisel3.descendL(vx, vy)
+        case None => DataMirror.specifiedDirectionOf(vx) match {
+          case SpecifiedDirection.Output => field.setDataDefault(vx)
+          case SpecifiedDirection.Input => ()
+          case _ => require(false, s"Attempt to assign ${bx} :<= ${by}, where RHS is missing directional field ${field}")
+        }
       }
     }
+    // it's ok to have excess elements in 'hy'
   }
 
   // Assign all inputs of that from either:
   //   inputs of this (if they exist)
   //   or the default value for the BundleField
-  def assignR(that: CustomBulkAssignable): Unit = {
-    def other = that.asInstanceOf[BundleMap]
-    other.fields.foreach { field =>
-      val value = other(field.key)
-      lift(field.key) match {
-        case Some(x) => x :=> value
-        case None    => if (!BundleField.isOutput(value)) field.setDataDefault(value)
+  def assignR(that: CustomBulkAssignable): Unit = { // this/bx :=> that/by
+    require(that.isInstanceOf[BundleMap], s"Illegal attempt to drive BundleMap ${this} :=> non-BundleMap ${that}")
+    def bx = this
+    def by = that.asInstanceOf[BundleMap]
+    val hx = HashMap(bx.elements.toList:_*)
+    (by.fields zip by.elements) foreach { case (field, (_, vy)) =>
+      hx.lift(field.key.name) match {
+        case Some(vx) => FixChisel3.descendR(vx, vy)
+        case None => DataMirror.specifiedDirectionOf(vy) match {
+          case SpecifiedDirection.Output => ()
+          case SpecifiedDirection.Input => field.setDataDefault(vy)
+          case _ => require (false, s"Attempt to assign ${bx} :=> ${by}, where LHS is missing directional field ${field}")
+        }
       }
     }
+    // it's ok to have excess elements in 'hx'
   }
 }
 
 trait CustomBulkAssignable {
-  def assignL(that: CustomBulkAssignable): Unit
-  def assignR(that: CustomBulkAssignable): Unit
+  def assignL(that: CustomBulkAssignable): Unit // Custom implementation of :<=
+  def assignR(that: CustomBulkAssignable): Unit // Custom implementaiton of :=>
 }
 
-// Implement :<= :=> and :<>
+// Implement the primitives of bulk assignment, :<= and :=>
 object FixChisel3 {
-  private def descendL(x: Data, y: Data): Unit = {
+  // Used by :<= for child elements to switch directionality
+  def descendL(x: Data, y: Data): Unit = {
     DataMirror.specifiedDirectionOf(x) match {
       case SpecifiedDirection.Unspecified => assignL(x, y)
-      case SpecifiedDirection.Output      => x := y
+      case SpecifiedDirection.Output      => assignL(x, y); assignR(y, x)
       case SpecifiedDirection.Input       => ()
       case SpecifiedDirection.Flip        => assignR(y, x)
     }
   }
 
-  private def descendR(x: Data, y: Data): Unit = {
+  // Used by :=> for child elements to switch directionality
+  def descendR(x: Data, y: Data): Unit = {
     DataMirror.specifiedDirectionOf(y) match {
       case SpecifiedDirection.Unspecified => assignR(x, y)
       case SpecifiedDirection.Output      => ()
-      case SpecifiedDirection.Input       => y := x
+      case SpecifiedDirection.Input       => assignL(y, x); assignR(x, y)
       case SpecifiedDirection.Flip        => assignL(y, x)
     }
   }
 
+  // The default implementation of 'x :<= y'
+  // Assign all output fields of x from y
   def assignL(x: Data, y: Data): Unit = {
     (x, y) match {
       case (cx: CustomBulkAssignable, cy: CustomBulkAssignable) => cx.assignL(cy)
       case (vx: Vec[_], vy: Vec[_]) => {
-        require (vx.size == vy.size)
+        require (vx.size == vy.size, s"Assignment between vectors of unequal length (${vx.size} != ${vy.size})")
         (vx zip vy) foreach { case (ex, ey) => descendL(ex, ey) }
       }
       case (rx: Record, ry: Record) => {
-        require (rx.elements.size == ry.elements.size)
-        val keys = (rx.elements.keys ++ ry.elements.keys).toList.distinct
-        require (keys.size == rx.elements.size)
-        keys.foreach { key => descendL(rx.elements(key), ry.elements(key)) }
+        val hy = HashMap(ry.elements.toList:_*)
+        rx.elements.foreach { case (key, vx) =>
+          require (hy.contains(key), s"Attempt to assign ${x} :<= ${y}, where RHS is missing field ${key}")
+          descendL(vx, hy(key))
+        }
+        hy --= rx.elements.keys
+        require (hy.isEmpty, s"Attempt to assign ${x} :<= ${y}, where RHS has excess field ${hy.last._1}")
       }
       case (vx: Vec[_], DontCare) => vx.foreach { case ex => descendL(ex, DontCare) }
       case (rx: Record, DontCare) => rx.elements.foreach { case (_, dx) => descendL(dx, DontCare) }
-      case _ => x := y // interpret Unspecified leaves as Output
+      case _ => x := y // assign leaf fields (UInt/etc)
     }
   }
 
+  // The default implementation of 'x :=> y'
+  // Assign all input fields of y from x
   def assignR(x: Data, y: Data) = {
     (x, y) match {
       case (cx: CustomBulkAssignable, cy: CustomBulkAssignable) => cx.assignR(cy)
       case (vx: Vec[_], vy: Vec[_]) => {
-        require (vx.size == vy.size)
+        require (vx.size == vy.size, s"Assignment between vectors of unequal length (${vx.size} != ${vy.size})")
         (vx zip vy) foreach { case (ex, ey) => descendR(ex, ey) }
       }
       case (rx: Record, ry: Record) => {
-        require (rx.elements.size == ry.elements.size)
-        val keys = (rx.elements.keys ++ ry.elements.keys).toList.distinct
-        require (keys.size == rx.elements.size)
-        keys.foreach { key => descendR(rx.elements(key), ry.elements(key)) }
+        val hx = HashMap(rx.elements.toList:_*)
+        ry.elements.foreach { case (key, vy) =>
+          require (hx.contains(key), s"Attempt to assign ${x} :=> ${y}, where RHS has excess field ${key}")
+          descendR(hx(key), vy)
+        }
+        hx --= ry.elements.keys
+        require (hx.isEmpty, s"Attempt to assign ${x} :=> ${y}, where RHS is missing field ${hx.last._1}")
       }
       case (DontCare, vy: Vec[_]) => vy.foreach { case ey => descendR(DontCare, ey) }
       case (DontCare, ry: Record) => ry.elements.foreach { case (_, dy) => descendR(DontCare, dy) }
-      case _ =>  // x :=> y is a no-op for Unspecified
+      case _ =>  // no-op for leaf fields
     }
   }
 }
