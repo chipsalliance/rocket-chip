@@ -121,7 +121,7 @@ class TLSlaveParameters private(
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
   val mayDenyPut:         Boolean, // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
-  val userBits:           Seq[UserBits])
+  val userBits:           Seq[UserBits]) extends Product
 {
   def supportsAcquireT:   TransferSizes = supports.acquireT
   def supportsAcquireB:   TransferSizes = supports.acquireB
@@ -302,10 +302,10 @@ class TLSlaveParameters private(
     case 12 => userBits
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
-  def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
+  def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlaveParameters]
 
   override def equals(that: Any): Boolean = that match {
-    case other: TLSlavePortParameters =>
+    case other: TLSlaveParameters =>
       val myIt = this.productIterator
       val thatIt = other.productIterator
       var res = true
