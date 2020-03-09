@@ -9,7 +9,6 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByIntoSeq}
 import scala.math.max
 import scala.reflect.ClassTag
-import scala.runtime.ScalaRunTime
 
 case class TLMasterToSlaveTransferSizes(
   // Supports both Acquire+Release of the following two sizes:
@@ -566,9 +565,30 @@ class TLSlavePortParameters private(
       minLatency)
   }
 
-  override def equals(that: Any) = ScalaRunTime._equals(this, that)
-  override def hashCode() = ScalaRunTime._hashCode(this)
-  override def toString = ScalaRunTime._toString(this)
+  def productArity: Int = 4
+  def productElement(n: Int): Any = n match {
+    case 0 => slaves
+    case 1 => channelBytes
+    case 2 => endSinkId
+    case 3 => minLatency
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+  def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
+
+  // I am amazed there's not a generic implementation of this but whatever
+  override def equals(that: Any): Boolean = that match {
+    case other: TLSlavePortParameters =>
+      val myIt = this.productIterator
+      val thatIt = other.productIterator
+      var res = true
+      while (res && myIt.hasNext) {
+        res = myIt.next() == thatIt.next()
+      }
+      res
+    case _ => false
+  }
+    
+  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 }
 
 object TLSlavePortParameters {
@@ -904,10 +924,29 @@ class TLMasterPortParameters private(
       minLatency)
   }
 
-  //def canEqual(that: Any) = that.isInstanceOf[Id]
-  override def equals(that: Any) = ScalaRunTime._equals(this, that)
-  override def hashCode() = ScalaRunTime._hashCode(this)
-  override def toString = ScalaRunTime._toString(this)
+  def productArity: Int = 4
+  def productElement(n: Int): Any = n match {
+    case 0 => masters
+    case 1 => channelBytes
+    case 2 => minLatency
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+  def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterPortParameters]
+
+  // I am amazed there's not a generic implementation of this but whatever
+  override def equals(that: Any): Boolean = that match {
+    case other: TLMasterPortParameters =>
+      val myIt = this.productIterator
+      val thatIt = other.productIterator
+      var res = true
+      while (res && myIt.hasNext) {
+        res = myIt.next() == thatIt.next()
+      }
+      res
+    case _ => false
+  }
+    
+  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 
 }
 
