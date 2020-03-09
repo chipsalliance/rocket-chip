@@ -18,30 +18,26 @@ import chisel3.internal.firrtl._
 import freechips.rocketchip.util.HasRocketChipStageUtils
 import freechips.rocketchip.tilelink._
 
-case class DummyCode () extends RawModule {
-  val results: Seq[Int] = Seq[Int](0, 1, 2, 3, 4, 5, 6)
-  val values = VecInit(results.map(_.U))
-  val counter = RegInit(0.U(results.length.W))
-  counter := counter + 1.U
-  when(counter >= values.length.U) {
-    stop()
-  }.otherwise {
-//    when(reset.asBool() === false.B) {
-      printf("values(%d) = %d\n", counter, values(counter))
-      assert(counter === values(counter))
-//    }
-  }
+//case class AopTestModule () extends RawModule {
+case class AopTestModule (wide: Int) extends Module {
+  val io = IO(new Bundle {
+    val inc = Input(Bool())
+    val random = Output(UInt(wide.W))
+  })
+  io.random := 0.U
 }
-
 
 case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule](
   {top: RawModule => Select.collectDeep(top) { case d: DCacheModule => d }},
   {d: DCacheModule => 
     // attach TLMonitor here
     printf("SULTAN from object TLMonitorInjToDcache")
-    val dummyWire = Wire(UInt(3.W)).suggestName("hello")
+    val dummyWire = Wire(UInt(3.W)).suggestName("aopTestWire")
     dummyWire := 5.U
     dontTouch(dummyWire)
+    val mod = Module(new AopTestModule(16))
+    mod.io.inc := 1.U
+    dontTouch(mod.io.inc)
   }
 )
 //case object TLMonitorInjToDcache extends InjectorAspect (
