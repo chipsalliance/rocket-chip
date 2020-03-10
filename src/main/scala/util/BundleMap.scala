@@ -23,7 +23,7 @@ import scala.collection.mutable.HashMap
  * case class MyBundleDataField(width: Int) extends SimpleBundleField(MyBundleData)(Output(UInt(width.W)), 0.U)
  */
 
-trait BundleFieldBase {
+sealed trait BundleFieldBase {
   def key: BundleKeyBase
   def data: Data // the field's chisel type with a direction
   def setDataDefault(x: Data): Unit
@@ -32,7 +32,7 @@ trait BundleFieldBase {
   // (For example, by selecting the widest width)
   def unify(that: BundleFieldBase): BundleFieldBase = {
     require (this == that, s"Attempted to unify two BundleMaps with conflicting fields: ${this} and ${that}")
-    this
+    that
   }
 }
 
@@ -46,7 +46,7 @@ abstract class BundleField[T <: Data](val key: BundleKey[T]) extends BundleField
   def setDataDefault(x: Data): Unit = default(x.asInstanceOf[T])
 }
 
-abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(typeT: => T, defaultT: => T) extends BundleField[T](key)
+abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(typeT: => T, defaultT: => T) extends BundleField(key)
 {
   def data = typeT
   def default(x: T): Unit = { x := defaultT }
@@ -61,37 +61,45 @@ object BundleField {
    */
   def union(fields: Seq[BundleFieldBase]): Seq[BundleFieldBase] =
     fields.groupBy(_.key.name).map(_._2.reduce(_ unify _)).toList
+  /* There is no point in carrying an extra field if the other end does not use it.
+   */
+  def accept(fields: Seq[BundleFieldBase], keys: Seq[BundleKeyBase]): Seq[BundleFieldBase] = {
+    def hk = HashMap(keys.map(k => (k.name, k)):_*)
+    fields.filter(f => hk.lift(f.key.name) == Some(f.key))
+  }
 }
 
 sealed trait BundleKeyBase {
   def name: String
-}
 
-sealed class BundleKey[T <: Data](val name: String) extends BundleKeyBase
+  def isControl: Boolean = this match {
+    case _: IsControlKey => true
+    case _               => false
+  }
+
+  def isData: Boolean = this match {
+    case _: IsDataKey => true
+    case _            => false
+  }
+}
 
 /* Custom bundle fields have two broad categories:
  *  - data fields (which are per-beat/byte and should be widened by bus-width adapters)
  *  - control fields (which are per-burst and are unaffected by width adapters)
  */
-abstract sealed class DataKey   [T <: Data](name: String) extends BundleKey[T](name)
-abstract sealed class ControlKey[T <: Data](name: String) extends BundleKey[T](name)
+sealed trait IsDataKey    extends BundleKeyBase
+sealed trait IsControlKey extends BundleKeyBase
 
-/* Control signals can be further categorized in a request-response protocol:
+sealed class BundleKey[T <: Data](val name: String) extends BundleKeyBase
+abstract class ControlKey[T <: Data](name: String) extends BundleKey[T](name) with IsControlKey
+abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) with IsDataKey
+
+/* Signals can be further categorized in a request-response protocol:
  *  - request fields flow from master to slave
  *  - response fields flow from slave to master
  *  - echo fields flow from master to slave to master; a master must receive the same value in the response as he sent in the request
+ * Generally, this categorization belongs in different BundleMaps
  */
-trait RequestKey
-trait ResponseKey
-trait EchoKey
-
-abstract class ControlRequestKey [T <: Data](name: String) extends ControlKey[T](name) with RequestKey
-abstract class ControlResponseKey[T <: Data](name: String) extends ControlKey[T](name) with ResponseKey
-abstract class ControlEchoKey    [T <: Data](name: String) extends ControlKey[T](name) with EchoKey
-
-abstract class DataRequestKey [T <: Data](name: String) extends DataKey[T](name) with RequestKey
-abstract class DataResponseKey[T <: Data](name: String) extends DataKey[T](name) with ResponseKey
-abstract class DataEchoKey    [T <: Data](name: String) extends DataKey[T](name) with EchoKey
 
 // If you extend this class, you must either redefine cloneType or have a fields constructor
 class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulkAssignable {
@@ -158,6 +166,10 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulk
     }
     // it's ok to have excess elements in 'hx'
   }
+}
+
+object BundleMap {
+  def apply(fields: Seq[BundleFieldBase] = Nil) = new BundleMap(fields)
 }
 
 trait CustomBulkAssignable {

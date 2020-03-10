@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.util.{BundleField, BundleFieldBase}
+import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 
 class AXISSlaveParameters private (
@@ -208,12 +208,12 @@ class AXISBundleParameters private (
     aligned     = aligned && x.aligned)
 
   def v1copy(
-    idBits:      Int                  = idBits,
-    destBits:    Int                  = destBits,
-    dataBits:    Int                  = dataBits,
+    idBits:      Int = idBits,
+    destBits:    Int = destBits,
+    dataBits:    Int = dataBits,
     userFields:  Seq[BundleFieldBase] = userFields,
-    oneBeat:     Boolean              = oneBeat,
-    aligned:     Boolean              = aligned) =
+    oneBeat:     Boolean = oneBeat,
+    aligned:     Boolean = aligned) =
   {
     new AXISBundleParameters(
       idBits     = idBits,
