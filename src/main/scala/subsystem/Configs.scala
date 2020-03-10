@@ -43,6 +43,15 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
+  case TLNetworkTopologyLocated("InSubsystem") => List(
+    HierarchicalBusTopologyParams(
+      sbus = site(SystemBusKey),
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      mbus = site(MemoryBusKey),
+      cbus = site(ControlBusKey),
+      l2 = site(BankedL2Key),
+      xTypes = SubsystemCrossingParams()))
 })
 
 /* Composable partial function Configs to set individual parameters */

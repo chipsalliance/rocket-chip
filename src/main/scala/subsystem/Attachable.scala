@@ -33,7 +33,7 @@ trait HasLocations extends HasPRCILocations { this: LazyModule =>
   def updateDynamic(name: String)(value: Any): Unit = anyLocationMap.updateDynamic(name)(value)
 
   val tlBusWrapperLocationMap = new LocationMap[TLBusWrapper]
-  def locateTLBusWrapper(location: TLBusWrapperLocation): TLBusWrapper = locateTLBusWrapper(location.name)
+  def locateTLBusWrapper(location: Location[TLBusWrapper]): TLBusWrapper = locateTLBusWrapper(location.name)
   def locateTLBusWrapper(name: String): TLBusWrapper = tlBusWrapperLocationMap.selectDynamic(name)
 }
 
@@ -51,5 +51,5 @@ trait CanConnectWithinContext {
   * what is being made available via LocationMaps in trait HasLocations.
   */
 trait Attachable extends HasLocations { this: LazyModule =>
-  def locateTLBusWrapper(location: TLBusWrapperLocation): TLBusWrapper
+  def locateTLBusWrapper(location: TLBusWrapperLocation): TLBusWrapper = locateTLBusWrapper(location.name)
 }
