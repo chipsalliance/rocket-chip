@@ -92,7 +92,10 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   }
 
   implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)
-  p(SubsystemDriveAsyncClockGroupsKey).foreach(_.driveFromImplicitClock(asyncClockGroupsNode))
+  val async_clock_groups =
+    p(SubsystemDriveAsyncClockGroupsKey)
+      .map(_.drive(asyncClockGroupsNode))
+      .getOrElse(InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) })
 
   // Collect information for use in DTS
   lazy val topManagers = sbus.unifyManagers

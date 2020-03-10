@@ -135,7 +135,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     !ptw.io.dpath.clock_enabled &&
     core.io.cease))
 
-  outer.reportWFI(None) // TODO: actually report this?
+  outer.reportWFI(Some(core.io.wfi))
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
 
