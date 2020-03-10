@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci._
+import freechips.rocketchip.subsystem._ // TODO this class should be moved to package subsystem
 import freechips.rocketchip.util._
 
 /** Specifies widths of various attachement points in the SoC */
@@ -83,6 +84,61 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     coupleFrom(s"bus_named_${bus.busName}") {
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
+  }
+}
+
+trait TLBusWrapperInstantiationLike {
+  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLBusWrapper
+}
+
+trait TLBusWrapperConnectionLike {
+  val xType: ClockCrossingType
+  def inject(implicit p: Parameters): TLNode = TLNameNode("temp")
+  def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit
+}
+
+case class TLBusWrapperCrossToConnection
+    (xType: ClockCrossingType)
+    (nodeView: (TLBusWrapper, Parameters) => TLInwardNode = { case(w, p) => w.crossInHelper(xType)(p) },
+     inject: Parameters => TLNode = { _ => TLNameNode("temp") })
+  extends TLBusWrapperConnectionLike
+{
+  def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
+    val masterTLBus = context.locateTLBusWrapper(from)
+    val slaveTLBus  = context.locateTLBusWrapper(to)
+    slaveTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, masterTLBus.clockGroupNode)
+    masterTLBus.coupleTo(s"bus_named_${masterTLBus.busName}") {
+      nodeView(slaveTLBus,p) :*= TLWidthWidget(masterTLBus.beatBytes) :*= inject(p) :*= _
+      // TODO does BankBinder injection need to be  (_ :=* bb :*= _)
+    }
+  }
+}
+
+case class TLBusWrapperCrossFromConnection
+    (xType: ClockCrossingType)
+    (nodeView: (TLBusWrapper, Parameters) => TLOutwardNode = { case(w, p) => w.crossOutHelper(xType)(p) },
+     inject: Parameters => TLNode = { _ => TLNameNode("temp") })
+  extends TLBusWrapperConnectionLike
+{
+  def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit = FlipRendering { implicit p =>
+    val masterTLBus = context.locateTLBusWrapper(to)
+    val slaveTLBus  = context.locateTLBusWrapper(from)
+    masterTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, slaveTLBus.clockGroupNode)
+    slaveTLBus.coupleFrom(s"bus_named_${masterTLBus.busName}") {
+      _ :=* inject(p) :=* TLWidthWidget(masterTLBus.beatBytes) :=* nodeView(masterTLBus, p)
+    }
+  }
+}
+
+class TLBusWrapperTopology(
+  val instantiations: Seq[(Location[TLBusWrapper], TLBusWrapperInstantiationLike)],
+  val connections: Seq[(Location[TLBusWrapper], Location[TLBusWrapper], TLBusWrapperConnectionLike)]
+) extends CanInstantiateWithinContext with CanConnectWithinContext {
+  def instantiate(context: HasLocations)(implicit p: Parameters): Unit = {
+    instantiations.foreach { case (loc, params) => params.instantiate(context, loc) }
+  }
+  def connect(context: HasLocations)(implicit p: Parameters): Unit = {
+    connections.foreach { case (from, to, params) => params.connect(context, from, to) }
   }
 }
 
