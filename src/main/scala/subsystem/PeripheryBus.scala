@@ -26,6 +26,14 @@ case class PeripheryBusParams(
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
+  with TLBusWrapperInstantiationLike
+{
+  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
+    val pbus = LazyModule(new PeripheryBus(this, loc.name))
+    context.tlBusWrapperLocationMap.updateDynamic(loc.name)(pbus)
+    pbus
+  }
+}
 
 class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Parameters)
     extends TLBusWrapper(params, name)

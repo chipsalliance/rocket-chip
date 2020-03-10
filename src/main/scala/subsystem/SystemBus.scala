@@ -16,10 +16,19 @@ case class SystemBusParams(
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None)
-  extends HasTLBusParams with HasBuiltInDeviceParams
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
+  with TLBusWrapperInstantiationLike
+{
+  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
+    val sbus = LazyModule(new SystemBus(this, loc.name))
+    context.tlBusWrapperLocationMap.updateDynamic(loc.name)(sbus)
+    sbus
+  }
+}
 
-class SystemBus(params: SystemBusParams)(implicit p: Parameters)
-    extends TLBusWrapper(params, "system_bus")
+class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p: Parameters)
+    extends TLBusWrapper(params, name)
     with CanHaveBuiltInDevices
     with CanAttachTLSlaves
     with CanAttachTLMasters
