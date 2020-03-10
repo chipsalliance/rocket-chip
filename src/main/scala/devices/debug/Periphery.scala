@@ -28,8 +28,8 @@ case object APB extends DebugExportProtocol
 case class DebugAttachParams(
   protocols: Set[DebugExportProtocol] = Set(DMI),
   externalDisable: Boolean = false,
-  masterWhere: BaseSubsystemBusAttachment = FBUS,
-  slaveWhere: BaseSubsystemBusAttachment = CBUS
+  masterWhere: BaseSubsystemBusLocation = FBUS,
+  slaveWhere: BaseSubsystemBusLocation = CBUS
 ) {
   def dmi   = protocols.contains(DMI)
   def jtag  = protocols.contains(JTAG)
@@ -61,7 +61,7 @@ class PSDIO(implicit val p: Parameters) extends Bundle with CanHavePSDTestModeIO
   */
 
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  private val tlbus = attach(p(ExportDebug).slaveWhere)
+  private val tlbus = locateTLBusWrapper(p(ExportDebug).slaveWhere)
 
   val debugCustomXbarOpt = p(DebugModuleKey).map(params => LazyModule( new DebugCustomXbar(outputRequiresInput = false)))
   val apbDebugNodeOpt = p(ExportDebug).apb.option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
@@ -78,7 +78,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     }
 
     debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-      attach(p(ExportDebug).masterWhere).asInstanceOf[CanAttachTLMasters].fromPort(Some("debug_sb")){
+      locateTLBusWrapper(p(ExportDebug).masterWhere).asInstanceOf[CanAttachTLMasters].fromPort(Some("debug_sb")){
         FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node }
       }
     }

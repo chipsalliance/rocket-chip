@@ -69,7 +69,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 case object PLICKey extends Field[Option[PLICParams]](None)
 
 case class PLICAttachParams(
-  slaveWhere: BaseSubsystemBusAttachment = CBUS
+  slaveWhere: BaseSubsystemBusLocation = CBUS
 )
 
 case object PLICAttachKey extends Field(PLICAttachParams())
@@ -347,7 +347,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 /** Trait that will connect a PLIC to a subsystem */
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
-    val tlbus = attach(p(PLICAttachKey).slaveWhere)
+    val tlbus = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
     val plic = LazyModule(new TLPLIC(params, tlbus.beatBytes))
     plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ }
     plic.intnode :=* ibus.toPLIC

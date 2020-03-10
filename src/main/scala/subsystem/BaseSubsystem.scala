@@ -47,26 +47,26 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 
 trait Attachable extends LazyScope
     with HasLogicalTreeNode
-    with HasBusAttachmentFunction { this: LazyModule =>
+    with HasBusLocationFunction { this: LazyModule =>
   implicit val p: Parameters
   implicit val asyncClockGroupsNode: ClockGroupEphemeralNode
   val ibus: InterruptBusWrapper
 }
 
-trait HasBusAttachmentFunction {
-  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
-  def attach: BusAttachmentFunction
+trait HasBusLocationFunction {
+  type BusLocationFunction = PartialFunction[BaseSubsystemBusLocation, TLBusWrapper]
+  def locateTLBusWrapper: BusLocationFunction
 }
 
-/** This trait contains the cases matched in baseBusAttachmentFunc below.
+/** This trait contains the cases matched in baseBusLocateFunc below.
   * Extend/override them to offer novel attachment locations in subclasses of BaseSubsystem.
   */
-trait BaseSubsystemBusAttachment
-case object SBUS extends BaseSubsystemBusAttachment
-case object PBUS extends BaseSubsystemBusAttachment
-case object FBUS extends BaseSubsystemBusAttachment
-case object MBUS extends BaseSubsystemBusAttachment
-case object CBUS extends BaseSubsystemBusAttachment
+trait BaseSubsystemBusLocation
+case object SBUS extends BaseSubsystemBusLocation
+case object PBUS extends BaseSubsystemBusLocation
+case object FBUS extends BaseSubsystemBusLocation
+case object MBUS extends BaseSubsystemBusLocation
+case object CBUS extends BaseSubsystemBusLocation
 
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
@@ -83,7 +83,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey), "subsystem_cbus"))
 
-  def attach: BusAttachmentFunction = {
+  def locateTLBusWrapper: BusLocationFunction = {
     case SBUS => sbus
     case PBUS => pbus
     case FBUS => fbus
