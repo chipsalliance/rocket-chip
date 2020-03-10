@@ -32,25 +32,41 @@ object MemoryOpCategories extends MemoryOpConstants {
   }
 }
 
-/** Stores the client-side coherence information,
-  * such as permissions on the data and whether the data is dirty.
-  * Its API can be used to make TileLink messages in response to
-  * memory operations, cache control oeprations, or Probe messages.
-  */
-class ClientMetadata extends Bundle {
+abstract class ClientMetadataLike extends Bundle {
+
   /** Actual state information stored in this bundle */
   val state = UInt(width = ClientStates.width)
 
   /** Metadata equality */
   def ===(rhs: UInt): Bool = state === rhs
-  def ===(rhs: ClientMetadata): Bool = state === rhs.state
-  def =/=(rhs: ClientMetadata): Bool = !this.===(rhs)
+  def ===(rhs: ClientMetadataLike): Bool = state === rhs.state
+  def =/=(rhs: ClientMetadataLike): Bool = !this.===(rhs)
 
   /** Is the block's data present in this cache */
   def isValid(dummy: Int = 0): Bool = state > ClientStates.Nothing
 
+  /** Does this cache have permissions on this block sufficient to perform op,
+    * and what to do next (Acquire message param or updated metadata). */
+  def onAccess(cmd: UInt): (Bool, UInt, ClientMetadataLike)
+
+  /** Does a secondary miss on the block require another Acquire message */
+  def onSecondaryAccess(first_cmd: UInt, second_cmd: UInt): (Bool, Bool, UInt, ClientMetadataLike, UInt)
+
+  /** Metadata change on a returned Grant */
+  def onGrant(cmd: UInt, param: UInt): ClientMetadataLike
+
+  def onCacheControl(cmd: UInt): (Bool, UInt, ClientMetadataLike)
+
+  def onProbe(param: UInt): (Bool, UInt, ClientMetadataLike)
+
+  protected def copy(perm: UInt): ClientMetadataLike
+
+}
+
+sealed trait ClientMetadataHelpers { this: ClientMetadataLike =>
+
   /** Determine whether this cmd misses, and the new state (on hit) or param to be sent (on miss) */
-  private def growStarter(cmd: UInt): (Bool, UInt) = {
+  protected def growStarter(cmd: UInt): (Bool, UInt) = {
     import MemoryOpCategories._
     import TLPermissions._
     import ClientStates._
@@ -75,7 +91,7 @@ class ClientMetadata extends Bundle {
   /** Determine what state to go to after miss based on Grant param
     * For now, doesn't depend on state (which may have been Probed).
     */
-  private def growFinisher(cmd: UInt, param: UInt): UInt = {
+  protected def growFinisher(cmd: UInt, param: UInt): UInt = {
     import MemoryOpCategories._
     import TLPermissions._
     import ClientStates._
@@ -89,11 +105,65 @@ class ClientMetadata extends Bundle {
       Cat(wr, toT)   -> Dirty))
   }
 
+  protected final def shrinkHelperWriteback(param: UInt, writebackOnCleanDowngrade: Boolean): (Bool, UInt, UInt) = {
+    import ClientStates._
+    import TLPermissions._
+    MuxTLookup(Cat(param, state), (Bool(false), UInt(0), UInt(0)), Seq(
+                 // (wanted, am now)  -> (hasDirtyData,                    resp, next)
+                 Cat(toT,    Dirty)   -> (Bool(true),                      TtoT, Trunk),
+                 Cat(toT,    Trunk)   -> (Bool(false),                     TtoT, Trunk),
+                 Cat(toT,    Branch)  -> (Bool(false),                     BtoB, Branch),
+                 Cat(toT,    Nothing) -> (Bool(false),                     NtoN, Nothing),
+                 Cat(toB,    Dirty)   -> (Bool(true),                      TtoB, Branch),
+                 Cat(toB,    Trunk)   -> (Bool(writebackOnCleanDowngrade), TtoB, Branch),
+                 Cat(toB,    Branch)  -> (Bool(false),                     BtoB, Branch),
+                 Cat(toB,    Nothing) -> (Bool(false),                     NtoN, Nothing),
+                 Cat(toN,    Dirty)   -> (Bool(true),                      TtoN, Nothing),
+                 Cat(toN,    Trunk)   -> (Bool(writebackOnCleanDowngrade), TtoN, Nothing),
+                 Cat(toN,    Branch)  -> (Bool(writebackOnCleanDowngrade), BtoN, Nothing),
+                 Cat(toN,    Nothing) -> (Bool(false),                     NtoN, Nothing)))
+  }
+
+  /** Determine what state to go to based on Probe param */
+  protected def shrinkHelper(param: UInt): (Bool, UInt, UInt) = shrinkHelperWriteback(param, false)
+
+  /** Translate cache control cmds into Probe param */
+  protected def cmdToPermCap(cmd: UInt): UInt = {
+    import MemoryOpCategories._
+    import TLPermissions._
+    MuxLookup(cmd, toN, Seq(
+      M_FLUSH   -> toN,
+      M_PRODUCE -> toB,
+      M_CLEAN   -> toT))
+  }
+
+}
+
+/** A [[ClientMetadataLike]] mix-in that causes probes on clean downgrades to respond with data */
+trait NotifyOnCleanDowngrade extends ClientMetadataHelpers { this: ClientMetadataLike =>
+
+  override protected def shrinkHelper(param: UInt): (Bool, UInt, UInt) = shrinkHelperWriteback(param, true)
+
+  override def copy(perm: UInt): ClientMetadata = {
+    val meta = Wire(new ClientMetadata with NotifyOnCleanDowngrade)
+    meta.state := perm
+    meta
+  }
+
+}
+
+/** Stores the client-side coherence information,
+  * such as permissions on the data and whether the data is dirty.
+  * Its API can be used to make TileLink messages in response to
+  * memory operations, cache control oeprations, or Probe messages.
+  */
+class ClientMetadata extends ClientMetadataLike with ClientMetadataHelpers {
+
   /** Does this cache have permissions on this block sufficient to perform op,
     * and what to do next (Acquire message param or updated metadata). */
   def onAccess(cmd: UInt): (Bool, UInt, ClientMetadata) = {
     val r = growStarter(cmd)
-    (r._1, r._2, ClientMetadata(r._2))
+    (r._1, r._2, this.copy(r._2))
   }
 
   /** Does a secondary miss on the block require another Acquire message */
@@ -105,58 +175,34 @@ class ClientMetadata extends Bundle {
     val hit_again = r1._1 && r2._1
     val dirties = categorize(second_cmd) === wr
     val biggest_grow_param = Mux(dirties, r2._2, r1._2)
-    val dirtiest_state = ClientMetadata(biggest_grow_param)
+    val dirtiest_state = this.copy(biggest_grow_param)
     val dirtiest_cmd = Mux(dirties, second_cmd, first_cmd)
     (needs_second_acq, hit_again, biggest_grow_param, dirtiest_state, dirtiest_cmd)
   }
 
   /** Metadata change on a returned Grant */
-  def onGrant(cmd: UInt, param: UInt): ClientMetadata = ClientMetadata(growFinisher(cmd, param))
-
-  /** Determine what state to go to based on Probe param */
-  private def shrinkHelper(param: UInt): (Bool, UInt, UInt) = {
-    import ClientStates._
-    import TLPermissions._
-    MuxTLookup(Cat(param, state), (Bool(false), UInt(0), UInt(0)), Seq(
-    //(wanted, am now)  -> (hasDirtyData resp, next)
-      Cat(toT, Dirty)   -> (Bool(true),  TtoT, Trunk),
-      Cat(toT, Trunk)   -> (Bool(false), TtoT, Trunk),
-      Cat(toT, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toT, Nothing) -> (Bool(false), NtoN, Nothing),
-      Cat(toB, Dirty)   -> (Bool(true),  TtoB, Branch),
-      Cat(toB, Trunk)   -> (Bool(false), TtoB, Branch),  // Policy: Don't notify on clean downgrade
-      Cat(toB, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toB, Nothing) -> (Bool(false), NtoN, Nothing),
-      Cat(toN, Dirty)   -> (Bool(true),  TtoN, Nothing),
-      Cat(toN, Trunk)   -> (Bool(false), TtoN, Nothing), // Policy: Don't notify on clean downgrade
-      Cat(toN, Branch)  -> (Bool(false), BtoN, Nothing), // Policy: Don't notify on clean downgrade
-      Cat(toN, Nothing) -> (Bool(false), NtoN, Nothing)))
-  }
-
-  /** Translate cache control cmds into Probe param */
-  private def cmdToPermCap(cmd: UInt): UInt = {
-    import MemoryOpCategories._
-    import TLPermissions._
-    MuxLookup(cmd, toN, Seq(
-      M_FLUSH   -> toN,
-      M_PRODUCE -> toB,
-      M_CLEAN   -> toT))
-  }
+  def onGrant(cmd: UInt, param: UInt): ClientMetadata = this.copy(growFinisher(cmd, param))
 
   def onCacheControl(cmd: UInt): (Bool, UInt, ClientMetadata) = {
     val r = shrinkHelper(cmdToPermCap(cmd))
-    (r._1, r._2, ClientMetadata(r._3))
+    (r._1, r._2, this.copy(r._3))
   }
 
-  def onProbe(param: UInt): (Bool, UInt, ClientMetadata) = { 
+  def onProbe(param: UInt): (Bool, UInt, ClientMetadata) = {
     val r = shrinkHelper(param)
-    (r._1, r._2, ClientMetadata(r._3))
+    (r._1, r._2, this.copy(r._3))
+  }
+
+  override def copy(perm: UInt): ClientMetadata = {
+    val meta = Wire(new ClientMetadata)
+    meta.state := perm
+    meta
   }
 }
 
 /** Factories for ClientMetadata, including on reset */
 object ClientMetadata {
-  def apply(perm: UInt) = {
+  def apply(perm: UInt, writebackDataOnCleanDowngrade: Boolean = false) = {
     val meta = Wire(new ClientMetadata)
     meta.state := perm
     meta

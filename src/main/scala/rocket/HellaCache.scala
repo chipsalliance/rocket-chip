@@ -15,6 +15,10 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
 
+case class CoherencePolicy(
+  writebackDataOnCleanDowngrade: Boolean
+)
+
 case class DCacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
@@ -32,7 +36,10 @@ case class DCacheParams(
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
     clockGate: Boolean = false,
-    scratch: Option[BigInt] = None) extends L1CacheParams {
+    scratch: Option[BigInt] = None,
+    coherencePolicy: CoherencePolicy = CoherencePolicy(
+      writebackDataOnCleanDowngrade = false
+    )) extends L1CacheParams {
 
   def tagCode: Code = Code.fromString(tagECC)
   def dataCode: Code = Code.fromString(dataECC)
@@ -40,6 +47,11 @@ case class DCacheParams(
   def dataScratchpadBytes: Int = scratch.map(_ => nSets*blockBytes).getOrElse(0)
 
   def replacement = new RandomReplacement(nWays)
+
+  def clientMetadata: ClientMetadataLike = coherencePolicy.writebackDataOnCleanDowngrade match {
+    case true  => new ClientMetadata with NotifyOnCleanDowngrade
+    case false => new ClientMetadata
+  }
 
   require((!scratch.isDefined || nWays == 1),
     "Scratchpad only allowed in direct-mapped cache.")
@@ -271,12 +283,12 @@ trait HasHellaCacheModule {
 /** Metadata array used for all HellaCaches */
 
 class L1Metadata(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
-  val coh = new ClientMetadata
+  val coh = cacheParams.clientMetadata
   val tag = UInt(width = tagBits)
 }
 
 object L1Metadata {
-  def apply(tag: Bits, coh: ClientMetadata)(implicit p: Parameters) = {
+  def apply(tag: Bits, coh: ClientMetadataLike)(implicit p: Parameters) = {
     val meta = Wire(new L1Metadata)
     meta.tag := tag
     meta.coh := coh
