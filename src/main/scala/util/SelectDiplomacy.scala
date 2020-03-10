@@ -71,6 +71,7 @@ object SelectDiplomacy {
   /** Collects all BaseNodes as a List.
     */
   def collectBaseNodes(): List[BaseNode] = {
+
     val vertices = digraph.getVertices
     var lst: List[BaseNode] = List[BaseNode]()
     vertices.foreach { case x =>
@@ -158,7 +159,7 @@ object SelectDiplomacy {
   def getPaths() = {
   }
 
-  def apply(circuit: Circuit) = {
+  def apply() = {
 
     def diplChildren(parent: RTreeData, children: List[LazyModule]): Unit = {
       children.foreach{c =>

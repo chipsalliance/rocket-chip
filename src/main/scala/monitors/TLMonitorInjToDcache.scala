@@ -15,10 +15,10 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.stage.{ConfigsAnnotation, TopModuleAnnotation}
 import freechips.rocketchip.system.{RocketChipStage, TestHarness}
 import chisel3.internal.firrtl._
-import freechips.rocketchip.util.HasRocketChipStageUtils
+//import freechips.rocketchip.util.HasRocketChipStageUtils
+import freechips.rocketchip.util.SelectDiplomacy
 import freechips.rocketchip.tilelink._
 
-//case class AopTestModule () extends RawModule {
 case class AopTestModule (wide: Int) extends Module {
   val io = IO(new Bundle {
     val inc = Input(Bool())
@@ -32,14 +32,31 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
   {d: DCacheModule => 
     // attach TLMonitor here
     printf("SULTAN from object TLMonitorInjToDcache")
+    println(s"SULTAN from object TLMonitorInjToDcache wire inject")
     val dummyWire = Wire(UInt(3.W)).suggestName("aopTestWire")
     dummyWire := 5.U
     dontTouch(dummyWire)
-    val mod = Module(new AopTestModule(16))
-    mod.io.inc := 1.U
-    dontTouch(mod.io.inc)
+
+    println(s"SULTAN from object TLMonitorInjToDcache test moule inject")
+    val aopTestMod = Module(new AopTestModule(16))
+    aopTestMod.io.inc := 1.U
+    dontTouch(aopTestMod.io.inc)
+
+//    val (out, edge) = node.out(0)
+//    val edge = new TLEdgeIn(<client-param>, <manager-param>, <params>, <SourceInfo>)
+
+    println("SULTAN:TLMonitorInjToDcache bundle for the monitor")
+    val baseNodes = SelectDiplomacy().collectBaseNodes()
+//    val baseNodes = SelectDiplomacy.collectBaseNodes()
+
+    baseNodes.foreach{n => println(s"SULTAN DEBUG BASE NODES ${n.getClass.getName}")}
   }
 )
+
+
+
+
+
 //case object TLMonitorInjToDcache extends InjectorAspect (
 //  {top: RawModule => Select.collectDeep(top) { case d: DCache => d }},
 //  {d: DCache =>  
