@@ -15,6 +15,9 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.collection.mutable.ListBuffer
 
+/** Describes the behavior of the coherence policy
+  * @param writebackDataOnCleanDowngrade if true, the client returns data on a clean downgrade, if false, it does not
+  */
 case class CoherencePolicy(
   writebackDataOnCleanDowngrade: Boolean
 )
@@ -48,6 +51,7 @@ case class DCacheParams(
 
   def replacement = new RandomReplacement(nWays)
 
+  /** Return a new [[ClientMetadataLike]] object based on the [[CoherencePolicy]] */
   def clientMetadata: ClientMetadataLike = coherencePolicy.writebackDataOnCleanDowngrade match {
     case true  => new ClientMetadata with NotifyOnCleanDowngrade
     case false => new ClientMetadata

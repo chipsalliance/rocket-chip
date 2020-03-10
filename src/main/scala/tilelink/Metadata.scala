@@ -32,14 +32,20 @@ object MemoryOpCategories extends MemoryOpConstants {
   }
 }
 
+
+/** A [[Bundle]] that stores the permissions of some coherently-managed TileLink data. */
 abstract class ClientMetadataLike extends Bundle {
 
   /** Actual state information stored in this bundle */
   val state = UInt(width = ClientStates.width)
 
-  /** Metadata equality */
+  /** Return true if some [[UInt]] has the same permissions */
   def ===(rhs: UInt): Bool = state === rhs
+
+  /** Return true if a [[ClientMetadataLike]] has the same permissions */
   def ===(rhs: ClientMetadataLike): Bool = state === rhs.state
+
+  /** Return true if a [[ClientMetadataLike]] has different permissions */
   def =/=(rhs: ClientMetadataLike): Bool = !this.===(rhs)
 
   /** Is the block's data present in this cache */
@@ -59,10 +65,14 @@ abstract class ClientMetadataLike extends Bundle {
 
   def onProbe(param: UInt): (Bool, UInt, ClientMetadataLike)
 
+  /** Return a new [[ClientMetadataLike]] object initialized (via a wire connection) to some state
+    * @param perm the state (permission) to initialize to
+    */
   protected def copy(perm: UInt): ClientMetadataLike
 
 }
 
+/** Helper methods for meeting the API defined by [[ClassMetadataLike]] */
 sealed trait ClientMetadataHelpers { this: ClientMetadataLike =>
 
   /** Determine whether this cmd misses, and the new state (on hit) or param to be sent (on miss) */
@@ -105,6 +115,8 @@ sealed trait ClientMetadataHelpers { this: ClientMetadataLike =>
       Cat(wr, toT)   -> Dirty))
   }
 
+  /** A shrink helper that is parameterized by whether or not a data response should be generated on a clean downgrade
+    */
   protected final def shrinkHelperWriteback(param: UInt, writebackOnCleanDowngrade: Boolean): (Bool, UInt, UInt) = {
     import ClientStates._
     import TLPermissions._
