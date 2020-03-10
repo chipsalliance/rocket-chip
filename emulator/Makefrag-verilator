@@ -10,7 +10,7 @@ verilog = \
 
 $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG)"
 
 %.v %.conf: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
@@ -69,7 +69,7 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   --threads $(VERILATOR_THREADS) -Wno-UNOPTTHREADS \
 	-Wno-STMTDLY --x-assign unique \
   -I$(vsrc) \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(long_name).plusArgs"
 cppfiles = $(addprefix $(csrc)/, $(addsuffix .cc, $(CXXSRCS)))
 headers = $(wildcard $(csrc)/*.h)
 

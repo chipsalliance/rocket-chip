@@ -46,22 +46,22 @@ endif
 
 ifeq ($(SUITE),RocketSuiteA)
 PROJECT=freechips.rocketchip.system
-CONFIGS=DefaultConfig
+CONFIGS=$(PROJECT).DefaultConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteB)
 PROJECT=freechips.rocketchip.system
-CONFIGS=DefaultBufferlessConfig
+CONFIGS=$(PROJECT).DefaultBufferlessConfig
 endif
 
 ifeq ($(SUITE),RocketSuiteC)
 PROJECT=freechips.rocketchip.system
-CONFIGS=TinyConfig
+CONFIGS=$(PROJECT).TinyConfig
 endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=freechips.rocketchip.unittest
-CONFIGS=AMBAUnitTestConfig TLSimpleUnitTestConfig TLWidthUnitTestConfig
+CONFIGS=$(PROJECT).AMBAUnitTestConfig $(PROJECT).TLSimpleUnitTestConfig $(PROJECT).TLWidthUnitTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)
@@ -69,13 +69,13 @@ PROJECT=freechips.rocketchip.system
 
 export JTAG_DTM_ENABLE_SBA ?= off
 ifeq ($(JTAG_DTM_ENABLE_SBA), off)
-CONFIGS_32=WithJtagDTMSystem_DefaultRV32Config
-CONFIGS_64=WithJtagDTMSystem_DefaultConfig
+CONFIGS_32=$(PROJECT).WithJtagDTMSystem,$(PROJECT).DefaultRV32Config
+CONFIGS_64=$(PROJECT).WithJtagDTMSystem,$(PROJECT).DefaultConfig
 endif
 
 ifeq ($(JTAG_DTM_ENABLE_SBA), on)
-CONFIGS_32=WithJtagDTMSystem_WithDebugSBASystem_DefaultRV32Config
-CONFIGS_64=WithJtagDTMSystem_WithDebugSBASystem_DefaultConfig
+CONFIGS_32=$(PROJECT).WithJtagDTMSystem,$(PROJECT).WithDebugSBASystem,$(PROJECT).DefaultRV32Config
+CONFIGS_64=$(PROJECT).WithJtagDTMSystem,$(PROJECT).WithDebugSBASystem,$(PROJECT).DefaultConfig
 endif
 
 CONFIGS += $(CONFIGS_32)
@@ -89,18 +89,18 @@ endif
 ifeq ($(SUITE), Miscellaneous)
 PROJECT=freechips.rocketchip.system
 CONFIGS=\
-	DefaultSmallConfig \
-	DualBankConfig \
-	DualChannelConfig \
-	DualChannelDualBankConfig \
-	RoccExampleConfig \
-	Edge128BitConfig \
-	Edge32BitConfig \
-	QuadChannelBenchmarkConfig \
-	EightChannelConfig \
-	DualCoreConfig \
-	MemPortOnlyConfig \
-	MMIOPortOnlyConfig
+	$(PROJECT).DefaultSmallConfig \
+	$(PROJECT).DualBankConfig \
+	$(PROJECT).DualChannelConfig \
+	$(PROJECT).DualChannelDualBankConfig \
+	$(PROJECT).RoccExampleConfig \
+	$(PROJECT).Edge128BitConfig \
+	$(PROJECT).Edge32BitConfig \
+	$(PROJECT).QuadChannelBenchmarkConfig \
+	$(PROJECT).EightChannelConfig \
+	$(PROJECT).DualCoreConfig \
+	$(PROJECT).MemPortOnlyConfig \
+	$(PROJECT).MMIOPortOnlyConfig
 endif
 
 # These are the named regression targets.  While it's expected you run them in
