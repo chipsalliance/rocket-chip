@@ -53,9 +53,10 @@ case class HierarchicalBusTopologyParams(
   connections = List(
     (SBUS, CBUS, TLBusWrapperCrossToConnection  (xTypes.sbusToCbusXType)()),
     (CBUS, PBUS, TLBusWrapperCrossToConnection  (xTypes.cbusToPbusXType)()),
-    (SBUS, FBUS, TLBusWrapperCrossFromConnection(xTypes.fbusToSbusXType)()),
-    (SBUS, L2,   TLBusWrapperCrossToConnection  (NoCrossing)()),
-    (L2,   MBUS, TLBusWrapperCrossToConnection  (NoCrossing)
-      (inject = { implicit p => BankBinder(p(CacheBlockBytes) * (l2.nBanks-1)) }))
-  )
+    (SBUS, FBUS, TLBusWrapperCrossFromConnection(xTypes.fbusToSbusXType)())) ++
+    (if (l2.nBanks == 0) Nil else List( // TODO this should be two topologies once val mbus in subsystem is truly optional
+      (SBUS, L2,   TLBusWrapperCrossToConnection  (NoCrossing)()),
+      (L2,   MBUS, TLBusWrapperCrossToConnection  (NoCrossing)
+        (inject = { implicit p => BankBinder(p(CacheBlockBytes) * (l2.nBanks-1)) }))
+    ))
 )
