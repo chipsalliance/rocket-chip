@@ -7,15 +7,19 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.Location
 
-// These fields control parameters of the five traditional tilelink bus wrappers
+// These fields control parameters of the five traditional tilelink bus wrappers.
+//   They continue to exist for backwards compatiblity reasons but could eventually be retired.
 case object SystemBusKey extends Field[SystemBusParams]
 case object FrontBusKey extends Field[FrontBusParams]
 case object PeripheryBusKey extends Field[PeripheryBusParams]
 case object ControlBusKey extends Field[PeripheryBusParams]
 case object MemoryBusKey extends Field[MemoryBusParams]
 
-// These object serve as labels for specified attachement targets
-//   from amongst the five traditional tilelink bus wrappers
+// These objects serve as labels for specified attachment locations
+//   from amongst the five traditional tilelink bus wrappers.
+//   While they represent some tradtionally popular locations to attach devices,
+//   there is no guarantee that they will exist in subsystems with
+//   dynamically-configured topologies.
 class TLBusWrapperLocation(name: String) extends Location[TLBusWrapper](name)
 case object SBUS extends TLBusWrapperLocation("subsystem_sbus")
 case object PBUS extends TLBusWrapperLocation("subsystem_pbus")
@@ -25,7 +29,8 @@ case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
 case object L2   extends TLBusWrapperLocation("subsystem_l2")
 
 // This case class parameterizes the subsystem in terms of the optional clock-crossings
-//   which are insertable between some of the five traditional tilelink bus wrappers
+//   which are insertable between some of the five traditional tilelink bus wrappers.
+//   They continue to exist for backwards compatiblity reasons but could eventually be retired.
 case class SubsystemCrossingParams(
   sbusToCbusXType: ClockCrossingType = NoCrossing,
   cbusToPbusXType: ClockCrossingType = SynchronousCrossing(),
@@ -33,7 +38,9 @@ case class SubsystemCrossingParams(
 )
 
 // This case class provides a backwards-compatibility parameterization of a subsystem
-//  bus topology that contains thfive traditional tilelink bus wrappers
+//  bus topology that contains the five traditional tilelink bus wrappers.
+//  Users desiring a different topology are free to define a similar subclass,
+//  or just populate an instance of TLBusWrapperTopology via some other mechanism.
 case class HierarchicalBusTopologyParams(
   sbus: SystemBusParams,
   pbus: PeripheryBusParams,
