@@ -43,18 +43,39 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
-  case TLNetworkTopologyLocated("InSubsystem") => List(
-    HierarchicalBusTopologyParams(
-      sbus = site(SystemBusKey),
-      pbus = site(PeripheryBusKey),
-      fbus = site(FrontBusKey),
-      mbus = site(MemoryBusKey),
-      cbus = site(ControlBusKey),
-      l2 = site(BankedL2Key),
-      xTypes = SubsystemCrossingParams()))
 })
 
 /* Composable partial function Configs to set individual parameters */
+
+class WithJustOneBus extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated("InSubsystem") => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey))
+  )
+})
+
+class WithIncoherentBusTopology extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated("InSubsystem") => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey)),
+    HierarchicalBusTopologyParams(
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      cbus = site(ControlBusKey),
+      xTypes = SubsystemCrossingParams()))
+})
+
+class WithCoherentBusTopology extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated("InSubsystem") => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey)),
+    HierarchicalBusTopologyParams(
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      cbus = site(ControlBusKey),
+      xTypes = SubsystemCrossingParams()),
+    CoherentBusTopologyParams(
+      sbus = site(SystemBusKey),
+      mbus = site(MemoryBusKey),
+      l2 = site(BankedL2Key)))
+})
 
 class WithNBigCores(n: Int) extends Config((site, here, up) => {
   case RocketTilesKey => {
