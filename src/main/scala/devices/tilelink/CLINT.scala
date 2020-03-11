@@ -34,7 +34,7 @@ case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 case object CLINTKey extends Field[Option[CLINTParams]](None)
 
 case class CLINTAttachParams(
-  slaveWhere: BaseSubsystemBusAttachment = CBUS
+  slaveWhere: TLBusWrapperLocation = CBUS
 )
 
 case object CLINTAttachKey extends Field(CLINTAttachParams())
@@ -105,7 +105,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 /** Trait that will connect a CLINT to a subsystem */
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
-    val tlbus = attach(p(CLINTAttachKey).slaveWhere)
+    val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
     LogicalModuleTree.add(logicalTreeNode, clint.logicalTreeNode)
     clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }

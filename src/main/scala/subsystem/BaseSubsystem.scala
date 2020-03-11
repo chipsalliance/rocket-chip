@@ -47,26 +47,26 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
 
 trait Attachable extends LazyScope
     with HasLogicalTreeNode
-    with HasBusAttachmentFunction { this: LazyModule =>
+    with HasBusLocationFunction { this: LazyModule =>
   implicit val p: Parameters
   implicit val asyncClockGroupsNode: ClockGroupEphemeralNode
   val ibus: InterruptBusWrapper
 }
 
-trait HasBusAttachmentFunction {
-  type BusAttachmentFunction = PartialFunction[BaseSubsystemBusAttachment, TLBusWrapper]
-  def attach: BusAttachmentFunction
+trait HasBusLocationFunction {
+  type BusLocationFunction = PartialFunction[TLBusWrapperLocation, TLBusWrapper]
+  def locateTLBusWrapper: BusLocationFunction
 }
 
-/** This trait contains the cases matched in baseBusAttachmentFunc below.
-  * Extend/override them to offer novel attachment locations in subclasses of BaseSubsystem.
+/** This class the cases matched in baseBusLocateFunc below.
+  * Extend/override them to offer novel attachment locations.
   */
-trait BaseSubsystemBusAttachment
-case object SBUS extends BaseSubsystemBusAttachment
-case object PBUS extends BaseSubsystemBusAttachment
-case object FBUS extends BaseSubsystemBusAttachment
-case object MBUS extends BaseSubsystemBusAttachment
-case object CBUS extends BaseSubsystemBusAttachment
+class TLBusWrapperLocation(name: String) extends Location[TLBusWrapper](name)
+case object SBUS extends TLBusWrapperLocation("subsystem_sbus")
+case object PBUS extends TLBusWrapperLocation("subsystem_pbus")
+case object FBUS extends TLBusWrapperLocation("subsystem_fbus")
+case object MBUS extends TLBusWrapperLocation("subsystem_mbus")
+case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
 
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
@@ -83,7 +83,7 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   val mbus = LazyModule(new MemoryBus(p(MemoryBusKey)))
   val cbus = LazyModule(new PeripheryBus(p(ControlBusKey), "subsystem_cbus"))
 
-  def attach: BusAttachmentFunction = {
+  def locateTLBusWrapper: BusLocationFunction = {
     case SBUS => sbus
     case PBUS => pbus
     case FBUS => fbus
