@@ -24,7 +24,7 @@ class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
   override def cloneType = new MultiplierResp(dataBits, tagBits).asInstanceOf[this.type]
 }
 
-class MultiplierIO(dataBits: Int, tagBits: Int) extends Bundle {
+class MultiplierIO(val dataBits: Int, val tagBits: Int) extends Bundle {
   val req = Flipped(Decoupled(new MultiplierReq(dataBits, tagBits)))
   val kill = Input(Bool())
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
