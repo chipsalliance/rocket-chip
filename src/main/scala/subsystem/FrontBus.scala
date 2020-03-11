@@ -27,8 +27,6 @@ case class FrontBusParams(
 
 class FrontBus(params: FrontBusParams, name: String = "front_bus")(implicit p: Parameters)
     extends TLBusWrapper(params, name)
-    with CanHaveBuiltInDevices
-    with CanAttachTLMasters
     with HasTLXbarPhy {
   val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 }

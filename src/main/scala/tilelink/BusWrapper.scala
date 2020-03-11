@@ -5,8 +5,12 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+
+// TODO This class should be moved to package subsystem to resolve
+//      the dependency awkwardness of the following imports
+import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.prci._
-import freechips.rocketchip.subsystem._ // TODO this class should be moved to package subsystem
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.util._
 
 /** Specifies widths of various attachement points in the SoC */
@@ -27,8 +31,12 @@ trait HasTLBusParams {
 }
 
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
-    extends ClockDomain with HasTLBusParams {
-
+    extends ClockDomain
+    with HasTLBusParams
+    with CanHaveBuiltInDevices
+    with CanAttachTLSlaves
+    with CanAttachTLMasters
+{
   private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName)).suggestName(busName + "_clock_groups")
   private val clockGroup = LazyModule(new ClockGroup(busName))
   val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
@@ -143,6 +151,22 @@ class TLBusWrapperTopology(
 }
 
 trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
+
+  def toTile
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: => TLInwardNode): NoHandle = {
+    to("tile" named name) { FlipRendering { implicit p =>
+      gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
+    }}
+  }
+
+  def toDRAMController[D,U,E,B <: Data]
+      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
+      (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
+        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
+    to("memory_controller" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
+  }
+
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -217,6 +241,14 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
 }
 
 trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
+  def fromTile
+      (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
+      (gen: => TLOutwardNode): NoHandle = {
+    from("tile" named name) {
+      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* gen
+    }
+  }
+
   def fromMasterNode
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: TLOutwardNode) {

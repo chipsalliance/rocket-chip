@@ -33,20 +33,12 @@ case class MemoryBusParams(
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
 class MemoryBus(params: MemoryBusParams, name: String = "memory_bus")(implicit p: Parameters)
     extends TLBusWrapper(params, name)(p)
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves {
-
+{
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
   def inwardNode: TLInwardNode =
     if (params.replicatorMask == 0) xbar.node else { xbar.node :=* RegionReplicator(params.replicatorMask) }
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
-  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 
-  def toDRAMController[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
-        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("memory_controller" named name) { gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
-  }
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 }

@@ -29,9 +29,6 @@ case class SystemBusParams(
 
 class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p: Parameters)
     extends TLBusWrapper(params, name)
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves
-    with CanAttachTLMasters
 {
   private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
   def inwardNode: TLInwardNode = system_bus_xbar.node
@@ -39,12 +36,4 @@ class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p
   def busView: TLEdge = system_bus_xbar.node.edges.in.head
 
   val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
-
-  def fromTile
-      (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
-      (gen: => TLOutwardNode): NoHandle = {
-    from("tile" named name) {
-      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* gen
-    }
-  }
 }
