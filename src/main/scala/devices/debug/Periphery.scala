@@ -28,8 +28,8 @@ case object APB extends DebugExportProtocol
 case class DebugAttachParams(
   protocols: Set[DebugExportProtocol] = Set(DMI),
   externalDisable: Boolean = false,
-  masterWhere: BaseSubsystemBusLocation = FBUS,
-  slaveWhere: BaseSubsystemBusLocation = CBUS
+  masterWhere: TLBusWrapperLocation = FBUS,
+  slaveWhere: TLBusWrapperLocation = CBUS
 ) {
   def dmi   = protocols.contains(DMI)
   def jtag  = protocols.contains(JTAG)

@@ -54,19 +54,19 @@ trait Attachable extends LazyScope
 }
 
 trait HasBusLocationFunction {
-  type BusLocationFunction = PartialFunction[BaseSubsystemBusLocation, TLBusWrapper]
+  type BusLocationFunction = PartialFunction[TLBusWrapperLocation, TLBusWrapper]
   def locateTLBusWrapper: BusLocationFunction
 }
 
-/** This trait contains the cases matched in baseBusLocateFunc below.
-  * Extend/override them to offer novel attachment locations in subclasses of BaseSubsystem.
+/** This class the cases matched in baseBusLocateFunc below.
+  * Extend/override them to offer novel attachment locations.
   */
-trait BaseSubsystemBusLocation
-case object SBUS extends BaseSubsystemBusLocation
-case object PBUS extends BaseSubsystemBusLocation
-case object FBUS extends BaseSubsystemBusLocation
-case object MBUS extends BaseSubsystemBusLocation
-case object CBUS extends BaseSubsystemBusLocation
+class TLBusWrapperLocation(name: String) extends Location[TLBusWrapper](name)
+case object SBUS extends TLBusWrapperLocation("subsystem_sbus")
+case object PBUS extends TLBusWrapperLocation("subsystem_pbus")
+case object FBUS extends TLBusWrapperLocation("subsystem_fbus")
+case object MBUS extends TLBusWrapperLocation("subsystem_mbus")
+case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
 
 /** Base Subsystem class with no peripheral devices or ports added */
 abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 

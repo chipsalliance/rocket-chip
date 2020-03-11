@@ -69,7 +69,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 case object PLICKey extends Field[Option[PLICParams]](None)
 
 case class PLICAttachParams(
-  slaveWhere: BaseSubsystemBusLocation = CBUS
+  slaveWhere: TLBusWrapperLocation = CBUS
 )
 
 case object PLICAttachKey extends Field(PLICAttachParams())

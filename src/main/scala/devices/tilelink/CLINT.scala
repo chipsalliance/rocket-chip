@@ -34,7 +34,7 @@ case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 case object CLINTKey extends Field[Option[CLINTParams]](None)
 
 case class CLINTAttachParams(
-  slaveWhere: BaseSubsystemBusLocation = CBUS
+  slaveWhere: TLBusWrapperLocation = CBUS
 )
 
 case object CLINTAttachKey extends Field(CLINTAttachParams())
