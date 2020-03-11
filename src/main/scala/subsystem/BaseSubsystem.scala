@@ -65,16 +65,15 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   topology.foreach(_.instantiate(this))
   topology.foreach(_.connect(this))
 
-  // TODO where should this happen; must there always be an "sbus"?
+  // TODO how should this clock driving happen; must there really always be an "sbus"?
+  val sbus = tlBusWrapperLocationMap.select(SBUS)
   locateTLBusWrapper(SBUS).clockGroupNode := asyncClockGroupsNode
 
-  // TODO deprecate these public members to see where users are manually hardcoding a particular bus
-  // TODO additionally, merge all TLBusWrapper subtypes back into a single base class, at least in terms of coupling methods
-  val sbus = tlBusWrapperLocationMap.select(SBUS).asInstanceOf[SystemBus]
-  val pbus = tlBusWrapperLocationMap.lift(PBUS).getOrElse(sbus).asInstanceOf[PeripheryBus]
-  val fbus = tlBusWrapperLocationMap.lift(FBUS).getOrElse(sbus).asInstanceOf[FrontBus]
-  val mbus = tlBusWrapperLocationMap.lift(MBUS).getOrElse(sbus).asInstanceOf[MemoryBus]
-  val cbus = tlBusWrapperLocationMap.lift(CBUS).getOrElse(sbus).asInstanceOf[PeripheryBus]
+  // TODO deprecate these public members to see where users are manually hardcoding a particular bus that might actually not exist in a certain dynamic topology
+  val pbus = tlBusWrapperLocationMap.lift(PBUS).getOrElse(sbus)
+  val fbus = tlBusWrapperLocationMap.lift(FBUS).getOrElse(sbus)
+  val mbus = tlBusWrapperLocationMap.lift(MBUS).getOrElse(sbus)
+  val cbus = tlBusWrapperLocationMap.lift(CBUS).getOrElse(sbus)
 
   // Collect information for use in DTS
   lazy val topManagers = locateTLBusWrapper(SBUS).unifyManagers
