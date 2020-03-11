@@ -41,29 +41,41 @@ case class SubsystemCrossingParams(
 //  bus topology that contains the five traditional tilelink bus wrappers.
 //  Users desiring a different topology are free to define a similar subclass,
 //  or just populate an instance of TLBusWrapperTopology via some other mechanism.
-case class HierarchicalBusTopologyParams(
+
+case class JustOneBusTopologyParams(
   sbus: SystemBusParams,
+) extends TLBusWrapperTopology(
+  instantiations = List((SBUS, sbus)),
+  connections = Nil
+)
+
+case class HierarchicalBusTopologyParams(
   pbus: PeripheryBusParams,
   fbus: FrontBusParams,
-  mbus: MemoryBusParams,
   cbus: PeripheryBusParams,
-  l2: BankedL2Params,
   xTypes: SubsystemCrossingParams
 ) extends TLBusWrapperTopology(
   instantiations = List(
-    (SBUS, sbus),
     (PBUS, pbus),
     (FBUS, fbus),
-    (CBUS, cbus),
-    (MBUS, mbus),
-    (L2, CoherenceManagerWrapperParams(sbus.blockBytes, sbus.beatBytes, L2.name)(l2.coherenceManager))),
+    (CBUS, cbus)),
   connections = List(
     (SBUS, CBUS, TLBusWrapperCrossToConnection  (xTypes.sbusToCbusXType)()),
     (CBUS, PBUS, TLBusWrapperCrossToConnection  (xTypes.cbusToPbusXType)()),
-    (SBUS, FBUS, TLBusWrapperCrossFromConnection(xTypes.fbusToSbusXType)())) ++
-    (if (l2.nBanks == 0) Nil else List( // TODO this should be two topologies once val mbus in subsystem is truly optional
-      (SBUS, L2,   TLBusWrapperCrossToConnection  (NoCrossing)()),
-      (L2,   MBUS, TLBusWrapperCrossToConnection  (NoCrossing)
-        (inject = { implicit p => BankBinder(p(CacheBlockBytes) * (l2.nBanks-1)) }))
-    ))
+    (SBUS, FBUS, TLBusWrapperCrossFromConnection(xTypes.fbusToSbusXType)()))
+)
+
+case class CoherentBusTopologyParams(
+  sbus: SystemBusParams, // TODO remove this after better width propagation
+  mbus: MemoryBusParams,
+  l2: BankedL2Params
+) extends TLBusWrapperTopology(
+  instantiations = (if (l2.nBanks == 0) Nil else List(
+    (MBUS, mbus),
+    (L2, CoherenceManagerWrapperParams(sbus.blockBytes, sbus.beatBytes, L2.name)(l2.coherenceManager)))),
+  connections = (if (l2.nBanks == 0) Nil else List(
+    (SBUS, L2,   TLBusWrapperCrossToConnection  (NoCrossing)()),
+    (L2,   MBUS, TLBusWrapperCrossToConnection  (NoCrossing)
+      (inject = { implicit p => BankBinder(p(CacheBlockBytes) * (l2.nBanks-1)) }))
+  ))
 )
