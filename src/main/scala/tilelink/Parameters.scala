@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{RationalDirection,AsyncQueueParams, groupByIntoSeq}
+import freechips.rocketchip.util._
 import scala.math.max
 import scala.reflect.ClassTag
 
@@ -119,9 +119,9 @@ class TLSlaveParameters private(
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
   // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
-  val mayDenyPut:         Boolean, // applies to: AccessAck,     Grant,    HintAck
+  val mayDenyPut:         Boolean) // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
-  val userBits:           Seq[UserBits]) extends Product
+  extends Product
 {
   def supportsAcquireT:   TransferSizes = supports.acquireT
   def supportsAcquireB:   TransferSizes = supports.acquireB
@@ -180,10 +180,6 @@ class TLSlaveParameters private(
   }
   def isTree = findTreeViolation() == None
 
-  def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
-  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
-  val userBitWidth = userBits.map(_.width).sum
-
   def infoString = {
     s"""Manager Name = ${name}
        |Manager Address = ${address}
@@ -216,8 +212,7 @@ class TLSlaveParameters private(
     mayDenyGet:         Boolean         = mayDenyGet,
     mayDenyPut:         Boolean         = mayDenyPut,
     alwaysGrantsT:      Boolean         = alwaysGrantsT,
-    fifoId:             Option[Int]     = fifoId,
-    userBits:           Seq[UserBits]   = userBits) =
+    fifoId:             Option[Int]     = fifoId) =
   {
     new TLSlaveParameters(
       setName       = name,
@@ -239,8 +234,7 @@ class TLSlaveParameters private(
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
-      fifoId        = fifoId,
-      userBits      = userBits)
+      fifoId        = fifoId)
   }
 
   @deprecated("Use v1copy","")
@@ -261,8 +255,7 @@ class TLSlaveParameters private(
     mayDenyGet:         Boolean         = mayDenyGet,
     mayDenyPut:         Boolean         = mayDenyPut,
     alwaysGrantsT:      Boolean         = alwaysGrantsT,
-    fifoId:             Option[Int]     = fifoId,
-    userBits:           Seq[UserBits]   = userBits) =
+    fifoId:             Option[Int]     = fifoId) =
   {
     v1copy(
       address            = address,
@@ -281,11 +274,10 @@ class TLSlaveParameters private(
       mayDenyGet         = mayDenyGet,
       mayDenyPut         = mayDenyPut,
       alwaysGrantsT      = alwaysGrantsT,
-      fifoId             = fifoId,
-      userBits           = userBits)
+      fifoId             = fifoId)
   }
 
-  def productArity: Int = 13
+  def productArity: Int = 12
   def productElement(n: Int): Any = n match {
     case 0 => nodePath
     case 1 => resources
@@ -299,7 +291,6 @@ class TLSlaveParameters private(
     case 9 => alwaysGrantsT
     case 10 => mayDenyGet
     case 11 => mayDenyGet
-    case 12 => userBits
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
   def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlaveParameters]
@@ -337,8 +328,7 @@ object TLSlaveParameters {
     mayDenyGet:         Boolean = false,
     mayDenyPut:         Boolean = false,
     alwaysGrantsT:      Boolean = false,
-    fifoId:             Option[Int] = None,
-    userBits:           Seq[UserBits] = Nil) =
+    fifoId:             Option[Int] = None) =
   {
     new TLSlaveParameters(
       setName       = "",
@@ -360,8 +350,7 @@ object TLSlaveParameters {
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
-      fifoId        = fifoId,
-      userBits      = userBits)
+      fifoId        = fifoId)
   }
 }
 
@@ -428,10 +417,12 @@ object TLChannelBeatBytes{
 }
 
 class TLSlavePortParameters private(
-  val slaves:        Seq[TLSlaveParameters],
-  val channelBytes:  TLChannelBeatBytes,
-  val endSinkId:     Int,
-  val minLatency:    Int) extends Product
+  val slaves:         Seq[TLSlaveParameters],
+  val channelBytes:   TLChannelBeatBytes,
+  val endSinkId:      Int,
+  val minLatency:     Int,
+  val responseFields: Seq[BundleFieldBase],
+  val requestKeys:    Seq[BundleKeyBase]) extends Product
 {
   require (!managers.isEmpty, "Manager ports must have managers")
   require (endSinkId >= 0, "Sink ids cannot be negative")
@@ -557,53 +548,50 @@ class TLSlavePortParameters private(
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
 
-  // add some user bits to the same highest offset for every manager
-  val userBitWidth = managers.map(_.userBitWidth).max
-  def addUser[T <: UserBits](userBits: T): TLManagerPortParameters = {
-    this.copy(managers = managers.map { m =>
-      val extra = if (m.userBitWidth == userBitWidth) {
-        Seq(userBits)
-      } else {
-        Seq(PadUserBits(userBitWidth - m.userBitWidth), userBits)
-      }
-      m.copy(userBits = m.userBits ++ extra)
-    })
-  }
-
   def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
 
   def v1copy(
     managers:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
-    minLatency: Int = minLatency) =
+    minLatency: Int = minLatency,
+    responseFields: Seq[BundleFieldBase] = Nil,
+    requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     new TLSlavePortParameters(
       slaves       = managers,
       channelBytes = if (beatBytes != -1) TLChannelBeatBytes(beatBytes) else channelBytes,
       endSinkId    = endSinkId,
-      minLatency   = minLatency)
+      minLatency   = minLatency,
+      responseFields = responseFields,
+      requestKeys    = requestKeys)
   }
 
   def copy(
     managers:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
-    minLatency: Int = minLatency) =
+    minLatency: Int = minLatency,
+    responseFields: Seq[BundleFieldBase] = Nil,
+    requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     v1copy(
       managers,
       beatBytes,
       endSinkId,
-      minLatency)
+      minLatency,
+      responseFields,
+      requestKeys)
   }
 
-  def productArity: Int = 4
+  def productArity: Int = 6
   def productElement(n: Int): Any = n match {
     case 0 => slaves
     case 1 => channelBytes
     case 2 => endSinkId
     case 3 => minLatency
+    case 4 => responseFields
+    case 5 => requestKeys
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
   def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
@@ -628,13 +616,17 @@ object TLSlavePortParameters {
     managers:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
-    minLatency: Int = 0) =
+    minLatency: Int = 0,
+    responseFields: Seq[BundleFieldBase] = Nil,
+    requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     new TLSlavePortParameters(
       slaves       = managers,
       channelBytes = TLChannelBeatBytes(beatBytes),
       endSinkId    = endSinkId,
-      minLatency   = minLatency)
+      minLatency   = minLatency,
+      responseFields = responseFields,
+      requestKeys    = requestKeys)
   }
 }
 
@@ -644,13 +636,17 @@ object TLManagerPortParameters {
     managers:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
-    minLatency: Int = 0) =
+    minLatency: Int = 0,
+    responseFields: Seq[BundleFieldBase] = Nil,
+    requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     TLSlavePortParameters.v1(
       managers,
       beatBytes,
       endSinkId,
-      minLatency)
+      minLatency,
+      responseFields,
+      requestKeys)
   }
 }
 
@@ -665,8 +661,7 @@ class TLMasterParameters private(
   val supports:          TLSlaveToMasterTransferSizes,
   val emits:             TLMasterToSlaveTransferSizes,
   val neverReleasesData: Boolean,
-  val sourceId:          IdRange,
-  val userBits:          Seq[UserBits]) extends Product
+  val sourceId:          IdRange) extends Product
 {
   def supportsProbe:       TransferSizes   = supports.probe
   def supportsArithmetic:  TransferSizes   = supports.arithmetic
@@ -697,10 +692,6 @@ class TLMasterParameters private(
     supportsPutFull.max,
     supportsPutPartial.max).max
 
-  def getUser[T <: UserBits : ClassTag](x: UInt): Seq[UserBitField[T]] = UserBits.extract[T](userBits, x)
-  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[UInt]): UInt = UserBits.inject[T](userBits, x, seq)
-  val userBitWidth = userBits.map(_.width).sum
-
   def infoString = {
     s"""Client Name = ${name}
        |visibility = ${visibility}
@@ -720,8 +711,7 @@ class TLMasterParameters private(
     supportsGet:         TransferSizes   = supports.get,
     supportsPutFull:     TransferSizes   = supports.putFull,
     supportsPutPartial:  TransferSizes   = supports.putPartial,
-    supportsHint:        TransferSizes   = supports.hint,
-    userBits:            Seq[UserBits]   = userBits) =
+    supportsHint:        TransferSizes   = supports.hint) =
   {
     new TLMasterParameters(
       nodePath          = nodePath,
@@ -741,8 +731,7 @@ class TLMasterParameters private(
         hint              = supportsHint),
       emits             = this.emits,
       neverReleasesData = this.neverReleasesData,
-      sourceId          = sourceId,
-      userBits          = userBits)
+      sourceId          = sourceId)
   }
 
   @deprecated("Use v1copy instead of copy","")
@@ -758,8 +747,7 @@ class TLMasterParameters private(
     supportsGet:         TransferSizes   = supports.get,
     supportsPutFull:     TransferSizes   = supports.putFull,
     supportsPutPartial:  TransferSizes   = supports.putPartial,
-    supportsHint:        TransferSizes   = supports.hint,
-    userBits:            Seq[UserBits]   = userBits) =
+    supportsHint:        TransferSizes   = supports.hint) =
   {
     v1copy(
       name               = name,
@@ -773,11 +761,10 @@ class TLMasterParameters private(
       supportsGet        = supportsGet,
       supportsPutFull    = supportsPutFull,
       supportsPutPartial = supportsPutPartial,
-      supportsHint       = supportsHint,
-      userBits           = userBits)
+      supportsHint       = supportsHint)
   }
 
-  def productArity: Int = 4
+  def productArity: Int = 11
   def productElement(n: Int): Any = n match {
     case 0 => nodePath
     case 1 => resources
@@ -790,7 +777,6 @@ class TLMasterParameters private(
     case 8 => emits
     case 9 => neverReleasesData
     case 10 => sourceId
-    case 11 => userBits
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
   def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterParameters]
@@ -823,8 +809,7 @@ object TLMasterParameters {
     supportsGet:         TransferSizes   = TransferSizes.none,
     supportsPutFull:     TransferSizes   = TransferSizes.none,
     supportsPutPartial:  TransferSizes   = TransferSizes.none,
-    supportsHint:        TransferSizes   = TransferSizes.none,
-    userBits:            Seq[UserBits]   = Nil) =
+    supportsHint:        TransferSizes   = TransferSizes.none) =
   {
     new TLMasterParameters(
       nodePath          = nodePath,
@@ -844,8 +829,7 @@ object TLMasterParameters {
         hint              = supportsHint),
       emits             = TLMasterToSlaveTransferSizes.unknownEmits,
       neverReleasesData = false,
-      sourceId          = sourceId,
-      userBits          = userBits)
+      sourceId          = sourceId)
   }
 }
   
@@ -863,8 +847,7 @@ object TLClientParameters {
     supportsGet:         TransferSizes   = TransferSizes.none,
     supportsPutFull:     TransferSizes   = TransferSizes.none,
     supportsPutPartial:  TransferSizes   = TransferSizes.none,
-    supportsHint:        TransferSizes   = TransferSizes.none,
-    userBits:            Seq[UserBits]   = Nil) =
+    supportsHint:        TransferSizes   = TransferSizes.none) =
   {
     TLMasterParameters.v1(
       name               = name,
@@ -878,15 +861,17 @@ object TLClientParameters {
       supportsGet        = supportsGet,
       supportsPutFull    = supportsPutFull,
       supportsPutPartial = supportsPutPartial,
-      supportsHint       = supportsHint,
-      userBits           = userBits)
+      supportsHint       = supportsHint)
   }
 }
 
 class TLMasterPortParameters private(
   val masters:       Seq[TLMasterParameters],
   val channelBytes:  TLChannelBeatBytes,
-  val minLatency:    Int) extends Product // Only applies to B=>C
+  val minLatency:    Int,
+  val echoFields:    Seq[BundleFieldBase],
+  val requestFields: Seq[BundleFieldBase],
+  val responseKeys:  Seq[BundleKeyBase]) extends Product // Only applies to B=>C
 {
   require (!clients.isEmpty)
   require (minLatency >= 0)
@@ -953,46 +938,48 @@ class TLMasterPortParameters private(
   val supportsPutPartial = safety_helper(_.supportsPutPartial) _
   val supportsHint       = safety_helper(_.supportsHint)       _
 
-  // add some user bits to the same highest offset for every client
-  val userBitWidth = clients.map(_.userBitWidth).max
-  def addUser[T <: UserBits](userBits: T): TLClientPortParameters = {
-    this.copy(clients = clients.map { c =>
-      val extra = if (c.userBitWidth == userBitWidth) {
-        Seq(userBits)
-      } else {
-        Seq(PadUserBits(userBitWidth - c.userBitWidth), userBits)
-      }
-      c.copy(userBits = c.userBits ++ extra)
-    })
-  }
-
   def infoString = masters.map(_.infoString).mkString
 
   def v1copy(
     clients: Seq[TLClientParameters] = masters,
-    minLatency: Int = minLatency) =
+    minLatency: Int = minLatency,
+    echoFields:    Seq[BundleFieldBase] = Nil,
+    requestFields: Seq[BundleFieldBase] = Nil,
+    responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     new TLMasterPortParameters(
-      masters      = clients,
-      channelBytes = channelBytes,
-      minLatency   = minLatency)
+      masters       = clients,
+      channelBytes  = channelBytes,
+      minLatency    = minLatency,
+      echoFields    = echoFields,
+      requestFields = requestFields,
+      responseKeys  = responseKeys)
   }
 
   @deprecated("Use v1copy","")
   def copy(
     clients: Seq[TLClientParameters] = masters,
-    minLatency: Int = minLatency) =
+    minLatency: Int = minLatency,
+    echoFields:    Seq[BundleFieldBase] = Nil,
+    requestFields: Seq[BundleFieldBase] = Nil,
+    responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     v1copy(
       clients,
-      minLatency)
+      minLatency,
+      echoFields,
+      requestFields,
+      responseKeys)
   }
 
-  def productArity: Int = 4
+  def productArity: Int = 6
   def productElement(n: Int): Any = n match {
     case 0 => masters
     case 1 => channelBytes
     case 2 => minLatency
+    case 3 => echoFields
+    case 4 => requestFields
+    case 5 => responseKeys
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
   def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterPortParameters]
@@ -1017,23 +1004,35 @@ object TLClientPortParameters {
   @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters()","")
   def apply(
     clients: Seq[TLClientParameters],
-    minLatency: Int = 0) =
+    minLatency: Int = 0,
+    echoFields:    Seq[BundleFieldBase] = Nil,
+    requestFields: Seq[BundleFieldBase] = Nil,
+    responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     TLMasterPortParameters.v1(
       clients,
-      minLatency)
+      minLatency,
+      echoFields,
+      requestFields,
+      responseKeys)
   }
 }
 
 object TLMasterPortParameters {
   def v1(
     clients: Seq[TLClientParameters],
-    minLatency: Int = 0) =
+    minLatency: Int = 0,
+    echoFields:    Seq[BundleFieldBase] = Nil,
+    requestFields: Seq[BundleFieldBase] = Nil,
+    responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     new TLMasterPortParameters(
-      masters      = clients,
-      channelBytes = TLChannelBeatBytes(),
-      minLatency   = minLatency)
+      masters       = clients,
+      channelBytes  = TLChannelBeatBytes(),
+      minLatency    = minLatency,
+      echoFields    = echoFields,
+      requestFields = requestFields,
+      responseKeys  = responseKeys)
   }
 }
 
@@ -1043,9 +1042,10 @@ case class TLBundleParameters(
   sourceBits:  Int,
   sinkBits:    Int,
   sizeBits:    Int,
-  aUserBits:   Int,
-  dUserBits:   Int,
-  hasBCE:      Boolean)
+  echoFields:     Seq[BundleFieldBase],
+  requestFields:  Seq[BundleFieldBase],
+  responseFields: Seq[BundleFieldBase],
+  hasBCE: Boolean)
 {
   // Chisel has issues with 0-width wires
   require (addressBits >= 1)
@@ -1053,8 +1053,6 @@ case class TLBundleParameters(
   require (sourceBits  >= 1)
   require (sinkBits    >= 1)
   require (sizeBits    >= 1)
-  require (aUserBits   >= 0)
-  require (dUserBits   >= 0)
   require (isPow2(dataBits))
 
   val addrLoBits = log2Up(dataBits/8)
@@ -1066,9 +1064,10 @@ case class TLBundleParameters(
       max(sourceBits,  x.sourceBits),
       max(sinkBits,    x.sinkBits),
       max(sizeBits,    x.sizeBits),
-      max(aUserBits,   x.aUserBits),
-      max(dUserBits,   x.dUserBits),
-      hasBCE ||        x.hasBCE)
+      echoFields     = BundleField.union(echoFields     ++ x.echoFields),
+      requestFields  = BundleField.union(requestFields  ++ x.requestFields),
+      responseFields = BundleField.union(responseFields ++ x.responseFields),
+      hasBCE || x.hasBCE)
 }
 
 object TLBundleParameters
@@ -1079,9 +1078,10 @@ object TLBundleParameters
     sourceBits  = 1,
     sinkBits    = 1,
     sizeBits    = 1,
-    aUserBits   = 0,
-    dUserBits   = 0,
-    hasBCE      = false)
+    echoFields     = Nil,
+    requestFields  = Nil,
+    responseFields = Nil,
+    hasBCE = false)
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
@@ -1092,9 +1092,10 @@ object TLBundleParameters
       sourceBits  = log2Up(client.endSourceId),
       sinkBits    = log2Up(manager.endSinkId),
       sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
-      aUserBits   = client .userBitWidth,
-      dUserBits   = manager.userBitWidth,
-      hasBCE      = client.anySupportProbe && manager.anySupportAcquireB)
+      echoFields     = client.echoFields,
+      requestFields  = BundleField.accept(client.requestFields, manager.requestKeys),
+      responseFields = BundleField.accept(manager.responseFields, client.responseKeys),
+      hasBCE = client.anySupportProbe && manager.anySupportAcquireB)
 }
 
 case class TLEdgeParameters(

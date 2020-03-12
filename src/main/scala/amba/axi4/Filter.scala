@@ -32,7 +32,7 @@ class AXI4Filter(
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out <> in
+      out :<> in
     }
   }
 }

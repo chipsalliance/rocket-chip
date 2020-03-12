@@ -28,7 +28,8 @@ class AHBLite()(implicit p: Parameters) extends LazyModule {
       out.hprot  := in.hprot
       out.haddr  := in.haddr
       out.hwdata := in.hwdata
-      out.hauser.foreach { _ := in.hauser.get }
+      out.hauser :<> in.hauser
+      in.hduser :<> out.hduser
       in.hrdata := out.hrdata
     }
   }

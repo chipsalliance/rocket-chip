@@ -7,7 +7,22 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
+import freechips.rocketchip.amba._
 import scala.math.{min, max}
+
+class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
+  val size   = UInt(width = 4)
+  val source = UInt(width = sourceBits max 1)
+}
+
+case object AXI4TLState extends ControlKey[AXI4TLStateBundle]("tl_state")
+case class AXI4TLStateField(sourceBits: Int) extends BundleField(AXI4TLState) {
+  def data = Output(new AXI4TLStateBundle(sourceBits))
+  def default(x: AXI4TLStateBundle) = {
+    x.size   := 0.U
+    x.source := 0.U
+  }
+}
 
 class TLtoAXI4IdMap(tl: TLClientPortParameters, axi4: AXI4MasterPortParameters) {
   private val axiDigits = String.valueOf(axi4.endId-1).length()
@@ -28,7 +43,7 @@ case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCa
     axi4Id.end,
     tlId.start,
     tlId.end,
-    s""""$name"""",
+    s"$name",
     if (isCache) " [CACHE]" else "",
     if (requestFifo) " [FIFO]" else "")
 }
@@ -52,9 +67,10 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
         nodePath  = c.nodePath)
     }
     AXI4MasterPortParameters(
-      masters  = masters,
-      opaqueBits = p.userBitWidth, // TL user bits that need to be propagated from TL clients to AXI managers
-      userBits = log2Ceil(p.endSourceId) + 4)
+      masters    = masters,
+      requestFields = p.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
+      echoFields    = AXI4TLStateField(log2Ceil(p.endSourceId)) +: p.echoFields,
+      responseKeys  = p.responseKeys)
   },
   uFn = { p => TLManagerPortParameters(
     managers = p.slaves.map { case s =>
@@ -71,7 +87,9 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
         mayDenyPut         = true,
         mayDenyGet         = true)},
       beatBytes = p.beatBytes,
-      minLatency = p.minLatency)
+      minLatency = p.minLatency,
+      responseFields = p.responseFields,
+      requestKeys    = AMBAProt +: p.requestKeys)
   })
 
 class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
@@ -109,51 +127,28 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       // We need to keep the following state from A => D: (size, source)
       // All of those fields could potentially require 0 bits (argh. Chisel.)
-      // We will pack all of that extra information into the user bits.
+      // We will pack all of that extra information into the echo bits.
 
-      val opaqueBits = edgeOut.master.opaqueBits
-      val userBits = edgeOut.master.userBits
-      val sourceBits = log2Ceil(edgeIn.client.endSourceId)
-      val sizeBits = log2Ceil(edgeIn.maxLgSize+1)
-      val stateBits = sizeBits + sourceBits // could be 0
-      require (stateBits <= out.aw.bits.params.userBits)
-
+      require (log2Ceil(edgeIn.maxLgSize+1) <= 4)
       val a_address = edgeIn.address(in.a.bits)
       val a_source  = in.a.bits.source
       val a_size    = edgeIn.size(in.a.bits)
       val a_isPut   = edgeIn.hasData(in.a.bits)
       val (a_first, a_last, _) = edgeIn.firstlast(in.a)
 
-      // Make sure the fields are within the bounds we assumed
-      assert (a_source  < UInt(BigInt(1) << sourceBits))
-      assert (a_size    < UInt(BigInt(1) << sizeBits))
+      val r_state = out.r.bits.echo(AXI4TLState)
+      val r_source  = r_state.source
+      val r_size    = r_state.size
 
-      // Carefully pack/unpack fields into the state we send
-      val baseEnd = 0
-      val (sourceEnd, sourceOff) = (sourceBits + baseEnd,   baseEnd)
-      val (sizeEnd,   sizeOff)   = (sizeBits   + sourceEnd, sourceEnd)
-      require (sizeEnd == stateBits)
-
-      // pack the TL opaque bits if present
-      val a_state = if (opaqueBits > 0) {
-        (a_source << sourceOff) | (a_size << sizeOff) | (in.a.bits.user.get << userBits.U)
-      } else {
-        (a_source << sourceOff) | (a_size << sizeOff)
-      }
-
-      val r_state = out.r.bits.user.getOrElse(UInt(0))
-      val r_source  = if (sourceBits > 0) r_state(sourceEnd-1, sourceOff) else UInt(0)
-      val r_size    = if (sizeBits   > 0) r_state(sizeEnd  -1, sizeOff)   else UInt(0)
-
-      val b_state = out.b.bits.user.getOrElse(UInt(0))
-      val b_source  = if (sourceBits > 0) b_state(sourceEnd-1, sourceOff) else UInt(0)
-      val b_size    = if (sizeBits   > 0) b_state(sizeEnd  -1, sizeOff)   else UInt(0)
+      val b_state = out.b.bits.echo(AXI4TLState)
+      val b_source  = b_state.source
+      val b_size    = b_state.size
 
       // We need these Queues because AXI4 queues are irrevocable
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
       val out_w = Wire(out.w)
-      out.w <> Queue.irrevocable(out_w, entries=depth, flow=combinational)
+      out.w :<> Queue.irrevocable(out_w, entries=depth, flow=combinational)
       val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
 
       // Fan out the ARW channel to AR and AW
@@ -179,7 +174,21 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.cache := UInt(0) // do not allow AXI to modify our transactions
       arw.prot  := AXI4Parameters.PROT_PRIVILEDGED
       arw.qos   := UInt(0) // no QoS
-      arw.user.foreach { _ := a_state }
+      arw.user :<= in.a.bits.user
+      arw.echo :<= in.a.bits.echo
+      val a_extra = arw.echo(AXI4TLState)
+      a_extra.source := a_source
+      a_extra.size   := a_size
+
+      in.a.bits.user.lift(AMBAProt).foreach { x =>
+        arw.prot(0) :=  x.privileged
+        arw.prot(1) := !x.secure
+        arw.prot(2) :=  x.fetch
+        arw.cache(0) := x.bufferable
+        arw.cache(1) := x.modifiable
+        arw.cache(2) := x.cacheable
+        arw.cache(3) := x.cacheable
+      }
 
       val stall = sourceStall(in.a.bits.source) && a_first
       in.a.ready := !stall && Mux(a_isPut, (doneAW || out_arw.ready) && out_w.ready, out_arw.ready)
@@ -212,6 +221,10 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       val r_d = edgeIn.AccessAck(r_source, r_size, UInt(0), denied = r_denied, corrupt = r_corrupt || r_denied)
       val b_d = edgeIn.AccessAck(b_source, b_size, denied = b_denied)
+      r_d.user :<= out.r.bits.user
+      r_d.echo :<= out.r.bits.echo
+      b_d.user :<= out.b.bits.user
+      b_d.echo :<= out.b.bits.echo
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux

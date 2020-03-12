@@ -58,7 +58,7 @@ class AXI4RAM(
 
     val w_full = RegInit(Bool(false))
     val w_id   = Reg(UInt())
-    val w_user = Reg(UInt(width = 1 max in.params.userBits))
+    val w_echo = Reg(BundleMap(in.params.echoFields))
     val r_sel1 = Reg(r_sel0)
     val w_sel1 = Reg(w_sel0)
 
@@ -68,7 +68,7 @@ class AXI4RAM(
     when (in.aw.fire()) {
       w_id := in.aw.bits.id
       w_sel1 := w_sel0
-      in.aw.bits.user.foreach { w_user := _ }
+      w_echo :<= in.aw.bits.echo
     }
 
     val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
@@ -83,11 +83,11 @@ class AXI4RAM(
 
     in.b.bits.id   := w_id
     in.b.bits.resp := Mux(w_sel1, AXI4Parameters.RESP_OKAY, AXI4Parameters.RESP_DECERR)
-    in.b.bits.user.foreach { _ := w_user }
+    in.b.bits.echo :<= w_echo
 
     val r_full = RegInit(Bool(false))
     val r_id   = Reg(UInt())
-    val r_user = Reg(UInt(width = 1 max in.params.userBits))
+    val r_echo = Reg(BundleMap(in.params.echoFields))
 
     when (in. r.fire()) { r_full := Bool(false) }
     when (in.ar.fire()) { r_full := Bool(true) }
@@ -95,7 +95,7 @@ class AXI4RAM(
     when (in.ar.fire()) {
       r_id := in.ar.bits.id
       r_sel1 := r_sel0
-      in.ar.bits.user.foreach { r_user := _ }
+      r_echo :<= in.ar.bits.echo
     }
 
     val ren = in.ar.fire()
@@ -108,7 +108,7 @@ class AXI4RAM(
     in.r.bits.id   := r_id
     in.r.bits.resp := Mux(r_sel1, Mux(rcorrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY), AXI4Parameters.RESP_DECERR)
     in.r.bits.data := Cat(rdata.reverse)
-    in.r.bits.user.foreach { _ := r_user }
+    in.r.bits.echo :<= r_echo
     in.r.bits.last := Bool(true)
   }
 }
