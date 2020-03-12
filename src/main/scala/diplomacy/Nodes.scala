@@ -30,7 +30,7 @@ import scala.util.matching._
  *
  * Specific applications of Diplomacy are expected to either extend these types
  * or to specify concrete types for the type parameters. This allows for
- * creating application-specific node, edge, parameter, and bundle types.
+ * creating and associating application-specific node, edge, parameter, and bundle types.
  *
  * Is an "edge" and a binding the same thing?
  *
@@ -54,7 +54,7 @@ import scala.util.matching._
  * - Upward refers to a flow of parameters in the outward direction.
  * - Downward refers to a flow of parameters in the inward direction.
  *
- * A useful mnemonic for distinguishing between inward and outward is to imagine
+ * A useful mnemonic for distinguishing between upward and downward is to imagine
  * the diplomatic graph as a literal network of rivers where upward refers to
  * parameters that move in the upstream direction while downward refers to
  * parameters that move in the downstream direction.
@@ -75,19 +75,19 @@ import scala.util.matching._
  * 1. It should be chainable, so that a := b := c will have the intuitive effect
  *    of binding c to b and b to a. This requires that return type of := be the
  *    same as its arguments, because the result of one := operation must be
- *    valid as an argument to other := operation.
+ *    valid as an argument to the other := operation.
  *
  * 2. It should be associative, so that (a := b) := c is equivalent to a := (b
  *    := c). This means that the order in which the bind operations execute does
  *    not matter, even if split across multiple files.
  *
- * 3. a := b should only be allowed if and only if b allows outward edges and a
+ * 3. a := b should be allowed if and only if b allows outward edges and a
  *    allows inward edges. This should be preserved even when chaining
  *    operations, and it should ideally be enforced at compile-time.
  *
  * Handles are a way of satisfying all of these properties. A Handle represents
  * the aggregation of a chain of Nodes, and it preserves information about
- * whether connectability of the innermost and the outermost sides of the chain.
+ * the connectability of the innermost and the outermost sides of the chain.
  *
  * If b supports inward edges, then a := b returns a Handle that supports inward
  * edges that go into b. If a supports outward edges, then a := b returns a
@@ -134,19 +134,19 @@ trait OutwardNodeImp[DO, UO, EO, BO <: Data]
 }
 
 /**
- * A node implementation.
- *
- * This class has no members and is solely used for holding type information.
- * Applications of Diplomacy should extend NodeImp with a case object that sets
- * concrete type arguments.
- */
+  * A node implementation.
+  *
+  * This class has no members and is solely used for holding type information.
+  * Applications of Diplomacy should extend NodeImp with a case object that sets
+  * concrete type arguments.
+  */
 abstract class NodeImp[D, U, EO, EI, B <: Data]
   extends Object with InwardNodeImp[D, U, EI, B] with OutwardNodeImp[D, U, EO, B]
 
 /**
  * A NodeImp where the inward and outward edges are of the same type.
  *
- * If your edges have the same direction, using this saves you some typing.
+ * If your edges have the same type in both directions, using this saves you some typing.
  */
 abstract class SimpleNodeImp[D, U, E, B <: Data]
   extends NodeImp[D, U, E, E, B]
@@ -252,7 +252,7 @@ trait NoHandle
 case object NoHandleObject extends NoHandle
 
 /**
- * A Handle that can be on both sides of a bind operator.
+ * A Handle that can be used on either side of a bind operator.
  */
 trait NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]
   extends InwardNodeHandle[DI, UI, EI, BI] with OutwardNodeHandle[DO, UO, EO, BO]
@@ -634,7 +634,7 @@ abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]
   extends MixedCustomNode(imp, imp)
 
 /**
- *
+ * A node that can connect multiple inward edges of one NodeImp to multiple outward edges of a different NodeImp
  */
 class MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
