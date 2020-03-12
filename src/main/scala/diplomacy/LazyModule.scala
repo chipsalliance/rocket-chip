@@ -11,13 +11,13 @@ import scala.util.matching._
 
 /** [[LazyModule]] uses Scala's lazy evaluation property to split hardware generation into two phases.
   *
-  * - Phase 1 (non-lazy) states hardware intent and constraints:
-  * -- [[LazyModule]] and [[BaseNode]] instantiation.
-  * -- [[BaseNode]] binding.
-  * - Phase 2 (lazy) generates hardware:
-  * -- Parameter negotiation.
-  * -- [[AutoBundle]] resolution.
-  * -- [[LazyModuleImpLike]] module generation.
+  *   - Phase 1 (non-lazy) states hardware intent and constraints:
+  *     - [[LazyModule]] and [[BaseNode]] instantiation.
+  *     - [[BaseNode]] binding.
+  *   - Phase 2 (lazy) generates hardware:
+  *     - Parameter negotiation.
+  *     - [[AutoBundle]] resolution.
+  *     - [[LazyModuleImpLike]] module generation.
   */
 abstract class LazyModule()(implicit val p: Parameters)
 {
