@@ -26,6 +26,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   /** Contains the [[BaseNode]]s instantiated within this instance. */
   protected[diplomacy] var nodes = List[BaseNode]()
   /** Stores [[SourceInfo]] of this instance.
+    *
     * The companion object factory method will set this to the correct value.
     */
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
