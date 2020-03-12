@@ -93,7 +93,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     */
   def module: LazyModuleImpLike
 
-  /** Generate the [[graphML]] representation for this instance. 
+  /** Generate the GraphML representation for this instance.
     *
     * This is a representation of the Nodes, Edges, Lazy Module hierarchy,
     * and any other information that is added in by the implementations.
@@ -120,7 +120,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   /** Give globally unique [[LazyModule]] index to this instance. */
   private val index = { LazyModule.index = LazyModule.index + 1; LazyModule.index }
 
-  /** Generate [[BaseNode]] graphML string.
+  /** Generate [[BaseNode]] GraphML string.
     *
     * @param buf string buffer to write
     * @param pad pad as prefix for indent.
@@ -141,7 +141,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     buf ++= s"""${pad}</node>\n"""
   }
 
-  /** Generate [[Edge]]s graphML string.
+  /** Generate [[Edge]]s GraphML string.
     *
     * @param buf string buffer to write
     * @param pad pad as prefix for indent.
