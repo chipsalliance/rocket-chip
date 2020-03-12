@@ -99,7 +99,6 @@ abstract class LazyModule()(implicit val p: Parameters)
     * and any other information that is added in by the implementations.
     * It can be converted to a graphical representation of the [[LazyModule]]
     * hierarchy with various third-party tools.
-    * Note: the name of this function should be `emitGraphML`.
     */
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
