@@ -175,7 +175,7 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
 
-  /** Execute function by all of this [[LazyModule]]'s  [[children]].
+  /** Execute function by all of this [[LazyModule]]'s [[children]].
     *
     * @param iterfunc function to run
     */
@@ -443,11 +443,11 @@ trait ModuleValue[T]
   def getWrappedValue: T
 }
 
-/** Used to inject code snippets to be evaluated in  [[LazyModuleImp.instantiate]] in the current [[LazyModule.scope]].
+/** Used to inject code snippets to be evaluated in [[LazyModuleImp.instantiate]] in the current [[LazyModule.scope]].
   *
-  * It can be used to create additional hardware outside of the  [[LazyModule.children]],
+  * It can be used to create additional hardware outside of the [[LazyModule.children]],
   * connections other than the internal [[BaseNode]] connections,
-  * or additional IOs aside from the  [[AutoBundle]]
+  * or additional IOs aside from the [[AutoBundle]]
   */
 object InModuleBody
 {
