@@ -93,14 +93,19 @@ abstract class LazyModule()(implicit val p: Parameters)
     */
   def module: LazyModuleImpLike
 
-  /** Generate the GraphML representation for this instance.
+  /** Whether to omit the GraphML for this [[LazyModule]]
+   * 
+   * Recursively determines whether all [[Nodes]] and children [[LazyModule]]s want to omitGraphML.
+   */
+  def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
+ 
+  /** The GraphML representation for this instance.
     *
     * This is a representation of the Nodes, Edges, Lazy Module hierarchy,
     * and any other information that is added in by the implementations.
     * It can be converted to a graphical representation of the [[LazyModule]]
     * hierarchy with various third-party tools.
     */
-  def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
     val buf = new StringBuilder
     buf ++= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
