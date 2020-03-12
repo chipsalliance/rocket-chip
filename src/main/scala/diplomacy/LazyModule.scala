@@ -439,14 +439,14 @@ trait ModuleValue[T]
   def getWrappedValue: T
 }
 
+/** Used to inject code snippets to be evaluated in  [[LazyModuleImp.instantiate]] in the current [[LazyModule.scope]].
+  *
+  * It can be used to create additional hardware outside of the  [[LazyModule.children]],
+  * connections other than the internal [[BaseNode]] connections,
+  * or additional IOs aside from the  [[AutoBundle]]
+  */
 object InModuleBody
 {
-  /** Used to inject code snippets to be evaluated in  [[LazyModuleImp.instantiate]] in the current [[LazyModule.scope]].
-    *
-    * It can be used to create additional hardware outside of the  [[LazyModule.children]],
-    * connections other than the internal [[BaseNode]] connections,
-    * or additional IOs aside from the  [[AutoBundle]]
-    */
   def apply[T](body: => T): ModuleValue[T] = {
     require (LazyModule.scope.isDefined, s"InModuleBody invoked outside a LazyModule")
     val scope = LazyModule.scope.get
