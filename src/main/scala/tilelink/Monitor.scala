@@ -11,6 +11,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
 import freechips.rocketchip.formal._
 import chisel3.experimental.chiselName
+import freechips.rocketchip.util.coverage.Coverage
 
 case class TLMonitorArgs(edge: TLEdge)
 
@@ -74,6 +75,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val source_ok = edge.client.contains(bundle.source)
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
+    Coverage.cover(mask, "This is a cover point")
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
