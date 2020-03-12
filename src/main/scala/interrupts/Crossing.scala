@@ -45,7 +45,18 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 }
 
 
-class IntSyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyModule
+object IntSyncCrossingSink
+{
+  @deprecated("IntSyncCrossingSink which used the `sync` parameter to determine crossing type is deprecated. Use IntSyncAsyncCrossingSink, IntSyncRationalCrossingSink, or IntSyncSyncCrossingSink instead for > 1, 1, and 0 sync values respectively", "rocket-chip 1.2")
+  def apply(sync: Int = 3)(implicit p: Parameters) =
+  {
+    val intsink = LazyModule(new IntSyncAsyncCrossingSink(sync))
+    intsink.node
+  }
+}
+
+
+class IntSyncAsyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val node = IntSyncSinkNode(sync)
 
@@ -56,11 +67,51 @@ class IntSyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends LazyMod
   }
 }
 
-object IntSyncCrossingSink
+object IntSyncAsyncCrossingSink
 {
   def apply(sync: Int = 3)(implicit p: Parameters) =
   {
-    val intsink = LazyModule(new IntSyncCrossingSink(sync))
+    val intsink = LazyModule(new IntSyncAsyncCrossingSink(sync))
+    intsink.node
+  }
+}
+
+class IntSyncSyncCrossingSink()(implicit p: Parameters) extends LazyModule
+{
+  val node = IntSyncSinkNode(0)
+
+  lazy val module = new LazyModuleImp(this) {
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out := in.sync
+    }
+  }
+}
+
+object IntSyncSyncCrossingSink
+{
+  def apply()(implicit p: Parameters) =
+  {
+    val intsink = LazyModule(new IntSyncSyncCrossingSink())
+    intsink.node
+  }
+}
+
+class IntSyncRationalCrossingSink()(implicit p: Parameters) extends LazyModule
+{
+  val node = IntSyncSinkNode(1)
+
+  lazy val module = new LazyModuleImp(this) {
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out := RegNext(in.sync)
+    }
+  }
+}
+
+object IntSyncRationalCrossingSink
+{
+  def apply()(implicit p: Parameters) =
+  {
+    val intsink = LazyModule(new IntSyncRationalCrossingSink())
     intsink.node
   }
 }
