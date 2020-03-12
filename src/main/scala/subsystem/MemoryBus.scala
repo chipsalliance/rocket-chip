@@ -17,7 +17,8 @@ case class MemoryBusParams(
   dtsFrequency: Option[BigInt] = None,
   zeroDevice: Option[AddressSet] = None,
   errorDevice: Option[DevNullParams] = None,
-  replicatorMask: BigInt = 0)
+  replicatorMask: BigInt = 0,
+  nInwardBanks: Int = 0)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
@@ -35,8 +36,11 @@ class MemoryBus(params: MemoryBusParams, name: String = "memory_bus")(implicit p
     extends TLBusWrapper(params, name)(p)
 {
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
-  def inwardNode: TLInwardNode =
-    if (params.replicatorMask == 0) xbar.node else { xbar.node :=* RegionReplicator(params.replicatorMask) }
+  private def replicate(node: TLInwardNode): TLInwardNode =
+    if (params.replicatorMask == 0) node else { node :=* RegionReplicator(params.replicatorMask) }
+  private def bank(node: TLInwardNode): TLInwardNode =
+    if (params.nInwardBanks == 0) node else { node :=* BankBinder(params.nInwardBanks, blockBytes) :*= TLTempNode() }
+  def inwardNode: TLInwardNode = bank(replicate(xbar.node))
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
 
