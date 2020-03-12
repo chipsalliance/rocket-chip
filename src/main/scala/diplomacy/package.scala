@@ -6,16 +6,6 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInf
 import chisel3.Data
 import freechips.rocketchip.config.Parameters
 import scala.language.implicitConversions
-/** Introduction
-  * This library contains these features:
-  * - [[Parameters]] negotiation
-  * - [[diplomacy.AutoBundle]] generation and connection
-  *
-  * To achieve these features, [[diplomacy.LazyModule]] consists
-  * - sub-[[diplomacy.LazyModule]] forms a hierarchy of [[diplomacy.LazyModule]]
-  * - [[diplomacy.BaseNode]] is for interaction of [[diplomacy.LazyModule]].
-  * - [[diplomacy.LazyModuleImpLike]] module is for hardware module implementation.
-  * */
 package object diplomacy
 {
   type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = NodeHandle[D, U, E, B, D, U, E, B]
