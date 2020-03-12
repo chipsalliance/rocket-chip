@@ -66,11 +66,11 @@ abstract class LazyModule()(implicit val p: Parameters)
     if (n.contains('$')) findClassName(c.getSuperclass) else n
   }
 
-  /** Get the class name of this instance. */
+  /** The class name of this instance. */
   lazy val className: String = findClassName(getClass)
-  /** Set instance name. */
+  /** Suggested instance name. */
   lazy val suggestedName: String = suggestedNameVar.getOrElse(className)
-  /** Set module name. */
+  /** Suggested module name. */
   lazy val desiredName: String = className // + hashcode?
 
   /** Return instance name. */
