@@ -214,7 +214,8 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
       "clock-frequency"      -> tileParams.core.bootFreqHz.asProperty,
       "riscv,isa"            -> isaDTS.asProperty,
       "timebase-frequency"   -> p(DTSTimebase).asProperty,
-      "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty
+      "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty,
+      "hardware-perf-monitor-counters" -> tileParams.core.nPerfCounters.asProperty
   )
 
   // The boundary buffering needed to cut feed-through paths is
