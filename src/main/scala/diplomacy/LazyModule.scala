@@ -36,37 +36,33 @@ abstract class LazyModule()(implicit val p: Parameters)
   /** Code snippets from [[InModuleBody]] injection. */
   protected[diplomacy] var inModuleBody = List[() => Unit]()
 
-  /** Chain of ancestor LazyModules, starting with [[parent]] on left. */
+  /** Sequence of ancestor LazyModules, starting with [[parent]]. */
   def parents: Seq[LazyModule] = parent match {
     case None => Nil
     case Some(x) => x +: x.parents
   }
 
-  // [[LazyModule.scope]] stack push.
+  // Push this instance onto the [[LazyModule.scope]] stack.
   LazyModule.scope = Some(this)
-  // Prepend this instance to [[parent]]'s list of children.
   parent.foreach(p => p.children = this :: p.children)
 
   /** Accumulates Some(names), taking the final one. `None`s are ignored. */
   private var suggestedNameVar: Option[String] = None
 
-  /** Set instance name of [[LazyModuleImpLike]] module.
-    *
-    * @param x suggested name to [[LazyModuleImpLike]] module.
-    */
+  /** Suggests instance name for [[LazyModuleImpLike]] module. */
   def suggestName(x: String): this.type = suggestName(Some(x))
   def suggestName(x: Option[String]): this.type = {
     x.foreach { n => suggestedNameVar = Some(n) }
     this
   }
 
-  /** Helper function of [[className]]. This searches upwards in the class hierarchy for the first class name that was not an anonymous scala class.*/
+  /** Finds the name of the first non-anonymous Scala class while walking up the class hierarchy. */
   private def findClassName(c: Class[_]): String = {
     val n = c.getName.split('.').last
     if (n.contains('$')) findClassName(c.getSuperclass) else n
   }
 
-  /** The class name of this instance. */
+  /** Scala class name of this instance. */
   lazy val className: String = findClassName(getClass)
   /** Suggested instance name. */
   lazy val suggestedName: String = suggestedNameVar.getOrElse(className)
@@ -81,30 +77,30 @@ abstract class LazyModule()(implicit val p: Parameters)
   // Accessing these names can only be done after circuit elaboration!
   /** Module name, used in GraphML. */
   lazy val moduleName = module.name
-  /** Module hierarchy of this instance, used in GraphML. */
+  /** Hierarchical path of this instance, used in GraphML. */
   lazy val pathName = module.pathName
   /** Instance name, used in GraphML. */
   lazy val instanceName = pathName.split('.').last
 
   /** [[chisel3]] hardware implementation of this [[LazyModule]].
     *
-    * This `module` function should be declared  as `lazy val` in the subclass for lazy evaluation.
-    * Generally, it is the beginning of phase 2.
+    * Subclasses should define this function should `lazy val`s for lazy evaluation.
+    * Generally, the evaluation of this marks the beginning of phase 2.
     */
   def module: LazyModuleImpLike
 
-  /** Whether to omit the GraphML for this [[LazyModule]]
+  /** Whether to omit generating the GraphML for this [[LazyModule]].
    * 
-   * Recursively determines whether all [[Nodes]] and children [[LazyModule]]s want to omitGraphML.
+   * Recursively checks whether all [[Node]]s and children [[LazyModule]]s should omit GraphML
+   * generation.
    */
   def omitGraphML: Boolean = !nodes.exists(!_.omitGraphML) && !children.exists(!_.omitGraphML)
  
-  /** The GraphML representation for this instance.
+  /** GraphML representation for this instance.
     *
-    * This is a representation of the Nodes, Edges, Lazy Module hierarchy,
-    * and any other information that is added in by the implementations.
-    * It can be converted to a graphical representation of the [[LazyModule]]
-    * hierarchy with various third-party tools.
+    * This is a representation of the Nodes, Edges, LazyModule hierarchy,
+    * and any other information that is added in by implementations.
+    * It can be converted to an image with various third-party tools.
     */
   lazy val graphML: String = parent.map(_.graphML).getOrElse {
     val buf = new StringBuilder
@@ -121,13 +117,13 @@ abstract class LazyModule()(implicit val p: Parameters)
     buf.toString
   }
 
-  /** Give globally unique [[LazyModule]] index to this instance. */
+  /** A globally unique [[LazyModule]] index for this instance. */
   private val index = { LazyModule.index = LazyModule.index + 1; LazyModule.index }
 
-  /** Generate [[BaseNode]] GraphML string.
+  /** Generate GraphML fragment for nodes.
     *
-    * @param buf string buffer to write
-    * @param pad pad as prefix for indent.
+    * @param buf String buffer to write to.
+    * @param pad Padding as prefix for indentation purposes.
     */
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
@@ -145,10 +141,10 @@ abstract class LazyModule()(implicit val p: Parameters)
     buf ++= s"""${pad}</node>\n"""
   }
 
-  /** Generate [[Edge]]s GraphML string.
+  /** Generate GraphML fragment for edges.
     *
-    * @param buf string buffer to write
-    * @param pad pad as prefix for indent.
+    * @param buf String buffer to write to.
+    * @param pad Padding as prefix for indentation purposes.
     */
   private def edgesGraphML(buf: StringBuilder, pad: String) {
     nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_._1.omitGraphML).foreach { case (o, edge) =>
@@ -175,34 +171,35 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
 
-  /** Execute function by all of this [[LazyModule]]'s [[children]].
+  /** Call function on all of this [[LazyModule]]'s [[children]].
     *
-    * @param iterfunc function to run
+    * @param iterfunc Function to call on each descendant.
     */
   def nodeIterator(iterfunc: (LazyModule) => Unit): Unit = {
     iterfunc(this)
     children.foreach( _.nodeIterator(iterfunc) )
   }
 
-  /** Accessor of val [[children]]. */
+  /** Accessor for [[children]]. */
   def getChildren = children
 }
 
 object LazyModule
 {
-  /** Current [[LazyModule]] scope. The scope is a stack of [[LazyModule]]/[[LazyScope]].
+  /** Current [[LazyModule]] scope. The scope is a stack of [[LazyModule]]/[[LazyScope]]s.
     *
     * Each call to [[LazyScope.apply]] or [[LazyModule.apply]] will push that item onto the current scope.
     */
   protected[diplomacy] var scope: Option[LazyModule] = None
-  /** Global index of [[LazyModule]], notice there is no zeroth module. */
+  /** Global index of [[LazyModule]]. Note that there is no zeroth module. */
   private var index = 0
 
-  /** Any instance of [[LazyModule]] should be wrapper in to a [[LazyModule.apply]],
+  /** Wraps a [[LazyModule]], handling bookkeeping of scopes.
     *
-    * Making use this singleton manage scope and index for elaboration.
+    * This method manages the scope and index of the [[LazyModule]]s. All [[LazyModule]]s must be
+    * wrapped exactly once.
     *
-    * @param bc [[LazyModule]] instance that needs to be wrapped.
+    * @param bc [[LazyModule]] instance to be wrapped.
     * @param valName [[ValName]] used to name this instance,
     *                it can be automatically generated by [[ValName]] macro, or specify manually.
     * @param sourceInfo [[SourceInfo]] information about where this [[LazyModule]] is being generated
@@ -212,7 +209,7 @@ object LazyModule
     require (scope.isDefined,
              s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}. Ensure that descendant LazyModules are instantiated with the LazyModule() wrapper and that you did not call LazyModule() twice.")
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
-    // [[LazyModule.scope]] stack pop.
+    // Pop from the [[LazyModule.scope]] stack.
     scope = bc.parent
     bc.info = sourceInfo
     if (!bc.suggestedNameVar.isDefined) bc.suggestName(valName.name)
@@ -220,14 +217,17 @@ object LazyModule
   }
 }
 
-/** trait which must be returned in [[LazyModule.module]] for generating actual hardware. */
+/** Trait describing the actual [[Module]] implementation wrapped by a [[LazyModule]].
+  *
+  * This is the actual Chisel module that is lazily-evaluated in the second phase of Diplomacy.
+  */
 sealed trait LazyModuleImpLike extends RawModule
 {
-  /** The [[LazyModule]] which will generate this [[LazyModuleImpLike]]. */
+  /** [[LazyModule]] that contains this instance. */
   val wrapper: LazyModule
-  /** The IOs that will be automatically "punched" for this [[LazyModuleImpLike]]  */
+  /** IOs that will be automatically "punched" for this instance. */
   val auto: AutoBundle
-  /** The metatdata that describes the [[HalfEdge]]s which generated [[auto]]. */
+  /** The metadata that describes the [[HalfEdge]]s which generated [[auto]]. */
   protected[diplomacy] val dangles: Seq[Dangle]
 
   // [[wrapper.module]] had better not be accessed while LazyModules are still being built!
