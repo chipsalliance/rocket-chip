@@ -101,14 +101,13 @@ trait TLBusWrapperInstantiationLike {
 
 trait TLBusWrapperConnectionLike {
   val xType: ClockCrossingType
-  def inject(implicit p: Parameters): TLNode = TLNameNode("temp")
   def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit
 }
 
 case class TLBusWrapperCrossToConnection
     (xType: ClockCrossingType)
     (nodeView: (TLBusWrapper, Parameters) => TLInwardNode = { case(w, p) => w.crossInHelper(xType)(p) },
-     inject: Parameters => TLNode = { _ => TLNameNode("temp") })
+      inject: Parameters => TLNode = { _ => TLTempNode() })
   extends TLBusWrapperConnectionLike
 {
   def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
@@ -117,7 +116,6 @@ case class TLBusWrapperCrossToConnection
     slaveTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, masterTLBus.clockGroupNode)
     masterTLBus.coupleTo(s"bus_named_${masterTLBus.busName}") {
       nodeView(slaveTLBus,p) :*= TLWidthWidget(masterTLBus.beatBytes) :*= inject(p) :*= _
-      // TODO does BankBinder injection need to be  (_ :=* bb :*= _)
     }
   }
 }
@@ -125,7 +123,7 @@ case class TLBusWrapperCrossToConnection
 case class TLBusWrapperCrossFromConnection
     (xType: ClockCrossingType)
     (nodeView: (TLBusWrapper, Parameters) => TLOutwardNode = { case(w, p) => w.crossOutHelper(xType)(p) },
-     inject: Parameters => TLNode = { _ => TLNameNode("temp") })
+     inject: Parameters => TLNode = { _ => TLTempNode() })
   extends TLBusWrapperConnectionLike
 {
   def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit = FlipRendering { implicit p =>
