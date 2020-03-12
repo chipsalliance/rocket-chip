@@ -39,6 +39,20 @@ case class TLMasterToSlaveTransferSizes(
     putFull    = putFull   .cover(rhs.putFull),
     putPartial = putPartial.cover(rhs.putPartial),
     hint       = hint      .cover(rhs.hint))
+  // Reduce rendering to a simple yes/no per field
+  override def toString = {
+    def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
+    def flags = Vector(
+      str(acquireT,   "T"),
+      str(acquireB,   "B"),
+      str(arithmetic, "A"),
+      str(logical,    "L"),
+      str(get,        "G"),
+      str(putFull,    "F"),
+      str(putPartial, "P"),
+      str(hint,       "H"))
+    flags.mkString
+  }
 }
 
 object TLMasterToSlaveTransferSizes {
@@ -81,6 +95,19 @@ case class TLSlaveToMasterTransferSizes(
     putPartial = putPartial.cover(rhs.putPartial),
     hint       = hint      .cover(rhs.hint)
   )
+  // Reduce rendering to a simple yes/no per field
+  override def toString = {
+    def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
+    def flags = Vector(
+      str(probe,      "T"),
+      str(arithmetic, "A"),
+      str(logical,    "L"),
+      str(get,        "G"),
+      str(putFull,    "F"),
+      str(putPartial, "P"),
+      str(hint,       "H"))
+    flags.mkString
+  }
 }
 
 object TLSlaveToMasterTransferSizes {
@@ -121,8 +148,27 @@ class TLSlaveParameters private(
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
   val mayDenyPut:         Boolean) // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
-  extends Product
+  extends SimpleProduct
 {
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlaveParameters]
+  override def productPrefix = "TLSlaveParameters"
+  // We intentionally omit nodePath for equality testing / formatting
+  def productArity: Int = 11
+  def productElement(n: Int): Any = n match {
+    case 0 => name
+    case 1 => address
+    case 2 => resources
+    case 3 => regionType
+    case 4 => executable
+    case 5 => fifoId
+    case 6 => supports
+    case 7 => emits
+    case 8 => alwaysGrantsT
+    case 9 => mayDenyGet
+    case 10 => mayDenyPut
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+
   def supportsAcquireT:   TransferSizes = supports.acquireT
   def supportsAcquireB:   TransferSizes = supports.acquireB
   def supportsArithmetic: TransferSizes = supports.arithmetic
@@ -276,38 +322,6 @@ class TLSlaveParameters private(
       alwaysGrantsT      = alwaysGrantsT,
       fifoId             = fifoId)
   }
-
-  def productArity: Int = 12
-  def productElement(n: Int): Any = n match {
-    case 0 => nodePath
-    case 1 => resources
-    case 2 => setName
-    case 3 => address
-    case 4 => regionType
-    case 5 => executable
-    case 6 => fifoId
-    case 7 => supports
-    case 8 => emits
-    case 9 => alwaysGrantsT
-    case 10 => mayDenyGet
-    case 11 => mayDenyGet
-    case _ => throw new IndexOutOfBoundsException(n.toString)
-  }
-  def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlaveParameters]
-
-  override def equals(that: Any): Boolean = that match {
-    case other: TLSlaveParameters =>
-      val myIt = this.productIterator
-      val thatIt = other.productIterator
-      var res = true
-      while (res && myIt.hasNext) {
-        res = myIt.next() == thatIt.next()
-      }
-      res
-    case _ => false
-  }
-    
-  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 }
 
 object TLSlaveParameters {
@@ -422,8 +436,21 @@ class TLSlavePortParameters private(
   val endSinkId:      Int,
   val minLatency:     Int,
   val responseFields: Seq[BundleFieldBase],
-  val requestKeys:    Seq[BundleKeyBase]) extends Product
+  val requestKeys:    Seq[BundleKeyBase]) extends SimpleProduct
 {
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
+  override def productPrefix = "TLSlavePortParameters"
+  def productArity: Int = 6
+  def productElement(n: Int): Any = n match {
+    case 0 => slaves
+    case 1 => channelBytes
+    case 2 => endSinkId
+    case 3 => minLatency
+    case 4 => responseFields
+    case 5 => requestKeys
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+
   require (!managers.isEmpty, "Manager ports must have managers")
   require (endSinkId >= 0, "Sink ids cannot be negative")
   require (minLatency >= 0, "Minimum required latency cannot be negative")
@@ -583,32 +610,6 @@ class TLSlavePortParameters private(
       responseFields,
       requestKeys)
   }
-
-  def productArity: Int = 6
-  def productElement(n: Int): Any = n match {
-    case 0 => slaves
-    case 1 => channelBytes
-    case 2 => endSinkId
-    case 3 => minLatency
-    case 4 => responseFields
-    case 5 => requestKeys
-    case _ => throw new IndexOutOfBoundsException(n.toString)
-  }
-  def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
-
-  override def equals(that: Any): Boolean = that match {
-    case other: TLSlavePortParameters =>
-      val myIt = this.productIterator
-      val thatIt = other.productIterator
-      var res = true
-      while (res && myIt.hasNext) {
-        res = myIt.next() == thatIt.next()
-      }
-      res
-    case _ => false
-  }
-    
-  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 }
 
 object TLSlavePortParameters {
@@ -661,8 +662,26 @@ class TLMasterParameters private(
   val supports:          TLSlaveToMasterTransferSizes,
   val emits:             TLMasterToSlaveTransferSizes,
   val neverReleasesData: Boolean,
-  val sourceId:          IdRange) extends Product
+  val sourceId:          IdRange) extends SimpleProduct
 {
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterParameters]
+  override def productPrefix = "TLMasterParameters"
+  // We intentionally omit nodePath for equality testing / formatting
+  def productArity: Int = 10
+  def productElement(n: Int): Any = n match {
+    case 0 => name
+    case 1 => sourceId
+    case 2 => resources
+    case 3 => visibility
+    case 4 => unusedRegionTypes
+    case 5 => executesOnly
+    case 6 => requestFifo
+    case 7 => supports
+    case 8 => emits
+    case 9 => neverReleasesData
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+
   def supportsProbe:       TransferSizes   = supports.probe
   def supportsArithmetic:  TransferSizes   = supports.arithmetic
   def supportsLogical:     TransferSizes   = supports.logical
@@ -763,37 +782,6 @@ class TLMasterParameters private(
       supportsPutPartial = supportsPutPartial,
       supportsHint       = supportsHint)
   }
-
-  def productArity: Int = 11
-  def productElement(n: Int): Any = n match {
-    case 0 => nodePath
-    case 1 => resources
-    case 2 => name
-    case 3 => visibility
-    case 4 => unusedRegionTypes
-    case 5 => executesOnly
-    case 6 => requestFifo
-    case 7 => supports
-    case 8 => emits
-    case 9 => neverReleasesData
-    case 10 => sourceId
-    case _ => throw new IndexOutOfBoundsException(n.toString)
-  }
-  def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterParameters]
-
-  override def equals(that: Any): Boolean = that match {
-    case other: TLMasterParameters =>
-      val myIt = this.productIterator
-      val thatIt = other.productIterator
-      var res = true
-      while (res && myIt.hasNext) {
-        res = myIt.next() == thatIt.next()
-      }
-      res
-    case _ => false
-  }
-    
-  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 }
 
 object TLMasterParameters {
@@ -871,8 +859,21 @@ class TLMasterPortParameters private(
   val minLatency:    Int,
   val echoFields:    Seq[BundleFieldBase],
   val requestFields: Seq[BundleFieldBase],
-  val responseKeys:  Seq[BundleKeyBase]) extends Product // Only applies to B=>C
+  val responseKeys:  Seq[BundleKeyBase]) extends SimpleProduct
 {
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterPortParameters]
+  override def productPrefix = "TLMasterPortParameters"
+  def productArity: Int = 6
+  def productElement(n: Int): Any = n match {
+    case 0 => masters
+    case 1 => channelBytes
+    case 2 => minLatency
+    case 3 => echoFields
+    case 4 => requestFields
+    case 5 => responseKeys
+    case _ => throw new IndexOutOfBoundsException(n.toString)
+  }
+
   require (!clients.isEmpty)
   require (minLatency >= 0)
 
@@ -971,33 +972,6 @@ class TLMasterPortParameters private(
       requestFields,
       responseKeys)
   }
-
-  def productArity: Int = 6
-  def productElement(n: Int): Any = n match {
-    case 0 => masters
-    case 1 => channelBytes
-    case 2 => minLatency
-    case 3 => echoFields
-    case 4 => requestFields
-    case 5 => responseKeys
-    case _ => throw new IndexOutOfBoundsException(n.toString)
-  }
-  def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterPortParameters]
-
-  override def equals(that: Any): Boolean = that match {
-    case other: TLMasterPortParameters =>
-      val myIt = this.productIterator
-      val thatIt = other.productIterator
-      var res = true
-      while (res && myIt.hasNext) {
-        res = myIt.next() == thatIt.next()
-      }
-      res
-    case _ => false
-  }
-    
-  override def hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
-
 }
 
 object TLClientPortParameters {
