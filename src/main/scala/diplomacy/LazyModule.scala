@@ -9,15 +9,17 @@ import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap, ListMap}
 import scala.util.matching._
 
-/** [[LazyModule]] uses Scala's lazy evaluation property to split hardware generation into two phases.
+/** While the [[diplomacy]] package allows fairly abstract parameter negotiation while constructing a DAG,
+  *  [[LazyModule]] builds on top of the DAG annotated with the negotiated parameters and leverage's Scala's lazy evaluation property to split Chisel module generation into two phases:
   *
-  *   - Phase 1 (non-lazy) states hardware intent and constraints:
+  *   - Phase 1 (diplomatic) states parameters, hierarchy, and connections:
   *     - [[LazyModule]] and [[BaseNode]] instantiation.
   *     - [[BaseNode]] binding.
-  *   - Phase 2 (lazy) generates hardware:
-  *     - Parameter negotiation.
-  *     - [[AutoBundle]] resolution.
-  *     - [[LazyModuleImpLike]] module generation.
+  *   - Phase 2 (lazy) generates [[chisel3]] [[Modules]]:
+  *     - Parameters are negotiated across [[Edge]]s.
+  *     - Concrete [[Bundle]]s are created along [[Edge]]s and connected
+  *     - [[AutoBundle]] are automatically connected along [[Edges]], punching [[IO]] as necessary though module hierarchy
+  *     - [[LazyModuleImpLike]] generates [[chisel]] [[Module]]s.
   */
 abstract class LazyModule()(implicit val p: Parameters)
 {
@@ -79,7 +81,7 @@ abstract class LazyModule()(implicit val p: Parameters)
   lazy val moduleName = module.name
   /** Hierarchical path of this instance, used in GraphML. */
   lazy val pathName = module.pathName
-  /** Instance name, used in GraphML. */
+  /** Instance name.  Should only be accessed after circuit elaboration.*/
   lazy val instanceName = pathName.split('.').last
 
   /** [[chisel3]] hardware implementation of this [[LazyModule]].
