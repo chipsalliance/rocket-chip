@@ -365,7 +365,7 @@ class CSRFile(
   }
   val reg_mip = Reg(new MIP)
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
-  val reg_mcause = Reg(Bits(width = xLen))
+  val reg_mcause = RegInit(0.U(xLen.W))
   val reg_mtval = Reg(UInt(width = vaddrBitsExtended))
   val reg_mscratch = Reg(Bits(width = xLen))
   val mtvecWidth = paddrBits min xLen
