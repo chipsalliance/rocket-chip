@@ -45,7 +45,6 @@ case class AXI4SlaveParameters(
 case class AXI4SlavePortParameters(
   slaves:     Seq[AXI4SlaveParameters],
   beatBytes:  Int,
-  wcorrupt:   Boolean = false,
   minLatency: Int = 1,
   responseFields: Seq[BundleFieldBase] = Nil,
   requestKeys:    Seq[BundleKeyBase]   = Nil)
@@ -102,8 +101,7 @@ case class AXI4BundleParameters(
   idBits:   Int,
   echoFields:     Seq[BundleFieldBase] = Nil,
   requestFields:  Seq[BundleFieldBase] = Nil,
-  responseFields: Seq[BundleFieldBase] = Nil,
-  wcorrupt: Boolean = false)
+  responseFields: Seq[BundleFieldBase] = Nil)
 {
   require (dataBits >= 8, s"AXI4 data bits must be >= 8 (got $dataBits)")
   require (addrBits >= 1, s"AXI4 addr bits must be >= 1 (got $addrBits)")
@@ -127,13 +125,12 @@ case class AXI4BundleParameters(
       max(idBits,     x.idBits),
       BundleField.union(echoFields ++ x.echoFields),
       BundleField.union(requestFields ++ x.requestFields),
-      BundleField.union(responseFields ++ x.responseFields),
-      wcorrupt || x.wcorrupt)
+      BundleField.union(responseFields ++ x.responseFields))
 }
 
 object AXI4BundleParameters
 {
-  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1, echoFields=Nil, requestFields=Nil, responseFields=Nil, wcorrupt=false)
+  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1, echoFields=Nil, requestFields=Nil, responseFields=Nil)
   def union(x: Seq[AXI4BundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
   def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
@@ -143,8 +140,7 @@ object AXI4BundleParameters
       idBits   = log2Up(master.endId),
       echoFields     = master.echoFields,
       requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
-      responseFields = BundleField.accept(slave.responseFields, master.responseKeys),
-      wcorrupt = slave.wcorrupt)
+      responseFields = BundleField.accept(slave.responseFields, master.responseKeys))
 }
 
 case class AXI4EdgeParameters(

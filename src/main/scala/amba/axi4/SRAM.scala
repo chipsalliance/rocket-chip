@@ -8,7 +8,10 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.AXI4_Lite
 import freechips.rocketchip.util._
+import freechips.rocketchip.amba._
 
+// Setting wcorrupt=true is not enough to enable the w.user field
+// You must also list AMBACorrupt in your master's requestFields
 class AXI4RAM(
     address: AddressSet,
     cacheable: Boolean = true,
@@ -17,7 +20,7 @@ class AXI4RAM(
     beatBytes: Int = 4,
     devName: Option[String] = None,
     errors: Seq[AddressSet] = Nil,
-    wcorrupt: Boolean = false)
+    wcorrupt: Boolean = true)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
@@ -30,11 +33,11 @@ class AXI4RAM(
       supportsWrite = TransferSizes(1, beatBytes),
       interleavedId = Some(0))),
     beatBytes  = beatBytes,
-    wcorrupt   = wcorrupt,
+    requestKeys = if (wcorrupt) Seq(AMBACorrupt) else Seq(),
     minLatency = 1)))
 
   lazy val module = new LazyModuleImp(this) {
-    val (in, _) = node.in(0)
+    val (in, edgeIn) = node.in(0)
     val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = 1L << mask.filter(b=>b).size)
 
     parentLogicalTreeNode.map {
@@ -49,7 +52,7 @@ class AXI4RAM(
         LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
     }
 
-    val corrupt = if (wcorrupt) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
+    val corrupt = if (edgeIn.bundle.requestFields.contains(AMBACorrupt)) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
@@ -74,7 +77,7 @@ class AXI4RAM(
     val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
     when (in.aw.fire() && w_sel0) {
       mem.write(w_addr, wdata, in.w.bits.strb.asBools)
-      corrupt.foreach { _.write(w_addr, in.w.bits.corrupt.get.asUInt) }
+      corrupt.foreach { _.write(w_addr, in.w.bits.user(AMBACorrupt).asUInt) }
     }
 
     in. b.valid := w_full
@@ -122,7 +125,8 @@ object AXI4RAM
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
-    errors: Seq[AddressSet] = Nil)
+    errors: Seq[AddressSet] = Nil,
+    wcorrupt: Boolean = true)
   (implicit p: Parameters) =
   {
     val axi4ram = LazyModule(new AXI4RAM(
@@ -131,7 +135,8 @@ object AXI4RAM
       executable = executable,
       beatBytes = beatBytes,
       devName = devName,
-      errors = errors))
+      errors = errors,
+      wcorrupt = wcorrupt))
     axi4ram.node
   }
 }

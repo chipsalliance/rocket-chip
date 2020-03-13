@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class AXI4ToTLNode(wcorrupt: Boolean = false)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
+case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
   dFn = { case mp =>
     mp.masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = mp.masters.map(_.maxFlight.get).max
@@ -39,13 +39,14 @@ case class AXI4ToTLNode(wcorrupt: Boolean = false)(implicit valName: ValName) ex
         supportsRead  = m.supportsGet.intersect(maxXfer),
         interleavedId = Some(0))}, // TL2 never interleaves D beats
     beatBytes = mp.beatBytes,
-    wcorrupt = wcorrupt,
     minLatency = mp.minLatency,
     responseFields = mp.responseFields,
-    requestKeys    = mp.requestKeys.filter(_ != AMBAProt))
+    requestKeys    = (if (wcorrupt) Seq(AMBACorrupt) else Seq()) ++ mp.requestKeys.filter(_ != AMBAProt))
   })
 
-class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyModule
+// Setting wcorrupt true is insufficient to enable w.user.corrupt
+// One must additionally provide list it in the AXI4 master's requestFields
+class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4ToTLNode(wcorrupt)
 
@@ -122,7 +123,7 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       in.w.ready  := w_out.ready && in.aw.valid
       w_out.valid := in.aw.valid && in.w.valid
       w_out.bits :<= edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
-      in.w.bits.corrupt.foreach { w_out.bits.corrupt := _ }
+      in.w.bits.user.lift(AMBACorrupt).foreach { w_out.bits.corrupt := _ }
 
       w_out.bits.user :<= in.aw.bits.user
       w_out.bits.user.lift(AMBAProt).foreach { wprot =>
@@ -198,7 +199,7 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply(wcorrupt: Boolean = false)(implicit p: Parameters) =
+  def apply(wcorrupt: Boolean = true)(implicit p: Parameters) =
   {
     val axi42tl = LazyModule(new AXI4ToTL(wcorrupt))
     axi42tl.node

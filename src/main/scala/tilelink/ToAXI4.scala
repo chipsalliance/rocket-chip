@@ -48,7 +48,7 @@ case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCa
     if (requestFifo) " [FIFO]" else "")
 }
 
-case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
+case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
     p.clients.foreach { c =>
       require (c.sourceId.start % (1 << stripBits) == 0 &&
@@ -68,7 +68,7 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
     }
     AXI4MasterPortParameters(
       masters    = masters,
-      requestFields = p.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
+      requestFields = (if (wcorrupt) Seq(AMBACorruptField()) else Seq()) ++ p.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
       echoFields    = AXI4TLStateField(log2Ceil(p.endSourceId)) +: p.echoFields,
       responseKeys  = p.responseKeys)
   },
@@ -92,9 +92,10 @@ case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends M
       requestKeys    = AMBAProt +: p.requestKeys)
   })
 
-class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0)(implicit p: Parameters) extends LazyModule
+// wcorrupt alone is not enough; a slave must include AMBACorrupt in the slave port's requestKeys
+class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0, val wcorrupt: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLToAXI4Node(stripBits)
+  val node = TLToAXI4Node(stripBits, wcorrupt)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -198,7 +199,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       out_w.bits.data := in.a.bits.data
       out_w.bits.strb := in.a.bits.mask
       out_w.bits.last := a_last
-      out_w.bits.corrupt.foreach { _ := in.a.bits.corrupt }
+      out_w.bits.user.lift(AMBACorrupt).foreach { _ := in.a.bits.corrupt }
 
       // R and B => D arbitration
       val r_holds_d = RegInit(Bool(false))
@@ -270,9 +271,9 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
 object TLToAXI4
 {
-  def apply(combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0)(implicit p: Parameters) =
+  def apply(combinational: Boolean = true, adapterName: Option[String] = None, stripBits: Int = 0, wcorrupt: Boolean = true)(implicit p: Parameters) =
   {
-    val tl2axi4 = LazyModule(new TLToAXI4(combinational, adapterName, stripBits))
+    val tl2axi4 = LazyModule(new TLToAXI4(combinational, adapterName, stripBits, wcorrupt))
     tl2axi4.node
   }
 
