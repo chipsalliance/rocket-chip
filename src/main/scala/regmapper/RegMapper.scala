@@ -5,28 +5,28 @@ package freechips.rocketchip.regmapper
 import Chisel._
 
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers, MuxSeq}
+import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 
 // A bus agnostic register interface to a register-based device
 
-case class RegMapperParams(indexBits: Int, maskBits: Int, extraBits: Int)
+case class RegMapperParams(indexBits: Int, maskBits: Int, extraFields: Seq[BundleFieldBase] = Nil)
 
-class RegMapperInput(params: RegMapperParams) extends GenericParameterizedBundle(params)
+class RegMapperInput(val params: RegMapperParams) extends Bundle
 {
   val read  = Bool()
   val index = UInt(width = params.indexBits)
   val data  = UInt(width = params.maskBits*8)
   val mask  = UInt(width = params.maskBits)
-  val extra = UInt(width = params.extraBits)
+  val extra = BundleMap(params.extraFields)
 }
 
-class RegMapperOutput(params: RegMapperParams) extends GenericParameterizedBundle(params)
+class RegMapperOutput(val params: RegMapperParams) extends Bundle
 {
   val read  = Bool()
   val data  = UInt(width = params.maskBits*8)
-  val extra = UInt(width = params.extraBits)
+  val extra = BundleMap(params.extraFields)
 }
 
 object RegMapper

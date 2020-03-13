@@ -43,7 +43,7 @@ object TLArbiter
     if (sources.isEmpty) {
       sink.valid := Bool(false)
     } else if (sources.size == 1) {
-      sink <> sources.head._2
+      sink :<> sources.head._2
     } else {
       val pairs = sources.toList
       val beatsIn = pairs.map(_._1)
@@ -84,7 +84,7 @@ object TLArbiter
         s.ready := sink.ready && r
       }
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
-      sink.bits := Mux1H(muxState, sourcesIn.map(_.bits))
+      sink.bits :<= Mux1H(muxState, sourcesIn.map(_.bits))
     }
   }
 }

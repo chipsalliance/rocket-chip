@@ -7,7 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
+import freechips.rocketchip.util._
 import scala.math.{min,max}
 
 case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
@@ -28,7 +28,7 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val (ahb, _) = this.in(0)
 
     val indexBits = log2Up((address.mask+1)/beatBytes)
-    val params = RegMapperParams(indexBits, beatBytes, 1)
+    val params = RegMapperParams(indexBits, beatBytes)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
@@ -46,7 +46,6 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     in.bits.index := d_index
     in.bits.data  := ahb.hwdata
     in.bits.mask  := d_mask
-    in.bits.extra := UInt(0)
 
     when (ahb.hready) { d_phase := Bool(false) }
     ahb.hreadyout := !d_phase || out.valid

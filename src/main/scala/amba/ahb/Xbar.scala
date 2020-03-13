@@ -6,12 +6,18 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
+import freechips.rocketchip.util._
 import scala.math.{min,max}
 
 class AHBFanout()(implicit p: Parameters) extends LazyModule {
   val node = AHBFanoutNode(
     masterFn = { case Seq(m) => m },
-    slaveFn  = { seq => seq(0).copy(slaves = seq.flatMap(_.slaves)) })
+    slaveFn  = { seq =>
+      seq(0).copy(
+        slaves = seq.flatMap(_.slaves),
+        requestKeys    = seq.flatMap(_.requestKeys).distinct,
+        responseFields = BundleField.union(seq.flatMap(_.responseFields)))
+    })
 
   lazy val module = new LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
@@ -38,7 +44,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
 
       when (in.hready) { d_sel := a_sel }
       (a_sel zip io_out) foreach { case (sel, out) =>
-        out := in
+        out :<> in
         out.hsel := in.hsel && sel
         out.hmaster.map { _ := UInt(0) }
       }
@@ -77,8 +83,9 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
       in.hrdata     := out.hrdata
       in.hresp      := out.hresp // zero-extended
       in.hgrant.foreach { _ := Bool(true) }
-      out.hauser.foreach { _ := in.hauser.get }
       out.hmaster.foreach { _ := UInt(0) }
+      out.hauser :<= in.hauser
+      in.hduser :<= out.hduser
     }
   }
 }

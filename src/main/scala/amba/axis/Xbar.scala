@@ -76,9 +76,7 @@ object AXISXbar
     if (sources.isEmpty) {
       sink.valid := false.B
     } else if (sources.size == 1) {
-      sink.valid := sources.head.valid
-      sink.bits  := sources.head.bits
-      sources.head.ready := sink.ready
+      sink :<> sources.head
     } else {
       // The number of beats which remain to be sent
       val idle = RegInit(true.B)
@@ -107,14 +105,14 @@ object AXISXbar
       val allowed = Mux(idle, readys, state)
       (sources zip allowed) foreach { case (s, r) => s.ready := sink.ready && r }
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
-      sink.bits := Mux1H(muxState, sources.map(_.bits))
+      sink.bits :<= Mux1H(muxState, sources.map(_.bits))
     }
   }
 
   def fanout(input: AXISBundle, select: Seq[Bool]): Seq[AXISBundle] = {
     val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
-      filtered(i).bits := input.bits
+      filtered(i).bits :<= input.bits
       filtered(i).valid := input.valid && (select(i) || (select.size == 1).B)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))

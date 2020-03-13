@@ -7,7 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.HeterogeneousBag
+import freechips.rocketchip.util._
 import scala.math.{min,max}
 
 case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
@@ -27,7 +27,7 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val (apb, _) = this.in(0)
 
     val indexBits = log2Up((address.mask+1)/beatBytes)
-    val params = RegMapperParams(indexBits, beatBytes, 1)
+    val params = RegMapperParams(indexBits, beatBytes)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
@@ -40,7 +40,6 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     in.bits.index := apb.paddr >> log2Ceil(beatBytes)
     in.bits.data  := apb.pwdata
     in.bits.mask  := Mux(apb.pwrite, apb.pstrb, UInt((1<<beatBytes) - 1))
-    in.bits.extra := UInt(0)
 
     in.valid := apb.psel && !taken
     out.ready := apb.penable
