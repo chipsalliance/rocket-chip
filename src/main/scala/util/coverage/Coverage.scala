@@ -37,7 +37,7 @@ object Coverage {
 case class CoverPointAnnotation(target: ReferenceTarget, message: String) extends SingleTargetAnnotation[ReferenceTarget] {
   override def duplicate(n: ReferenceTarget): Annotation = this.copy(target = n)
   override def serialize: String = {
-    s"Cover($message, ${target.prettyPrint("")})"
+    s"cover(\n${target.prettyPrint("  ")},\n  $message\n)"
   }
 }
 
