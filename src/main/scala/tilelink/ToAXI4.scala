@@ -182,13 +182,17 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       a_extra.size   := a_size
 
       in.a.bits.user.lift(AMBAProt).foreach { x =>
-        arw.prot(0) :=  x.privileged
-        arw.prot(1) := !x.secure
-        arw.prot(2) :=  x.fetch
-        arw.cache(0) := x.bufferable
-        arw.cache(1) := x.modifiable
-        arw.cache(2) := x.cacheable
-        arw.cache(3) := x.cacheable
+        val prot  = Wire(Vec(3, Bool()))
+        val cache = Wire(Vec(4, Bool()))
+        prot(0) :=  x.privileged
+        prot(1) := !x.secure
+        prot(2) :=  x.fetch
+        cache(0) := x.bufferable
+        cache(1) := x.modifiable
+        cache(2) := x.cacheable
+        cache(3) := x.cacheable
+        arw.prot  := Cat(prot.reverse)
+        arw.cache := Cat(cache.reverse)
       }
 
       val stall = sourceStall(in.a.bits.source) && a_first

@@ -90,9 +90,11 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       out.pstrb   := Mux(a_write, a.bits.mask, UInt(0))
       out.pauser :<= a.bits.user
       a.bits.user.lift(AMBAProt).foreach { x =>
-        out.pprot(0) :=  x.privileged
-        out.pprot(1) := !x.secure
-        out.pprot(2) :=  x.fetch
+        val pprot = Wire(Vec(3, Bool()))
+        pprot(0) :=  x.privileged
+        pprot(1) := !x.secure
+        pprot(2) :=  x.fetch
+        out.pprot := Cat(pprot.reverse)
       }
 
       a.ready := a_enable && out.pready

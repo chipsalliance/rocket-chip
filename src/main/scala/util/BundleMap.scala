@@ -119,11 +119,21 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulk
     }
   }
 
+  // A BundleMap is best viewed as a map from BundleKey to Data
+  def keydata: Seq[(BundleKeyBase, Data)] = (fields zip elements) map { case (field, (_, data)) => (field.key, data) }
+
   def apply[T <: Data](key: BundleKey[T]): T = elements(key.name).asInstanceOf[T]
   def lift [T <: Data](key: BundleKey[T]): Option[T] = elements.lift(key.name).map(_.asInstanceOf[T])
 
   def apply(key: BundleKeyBase): Data         = elements(key.name)
   def lift (key: BundleKeyBase): Option[Data] = elements.lift(key.name)
+
+  // Create a new BundleMap with only the selected Keys retained
+  def subset(fn: BundleKeyBase => Boolean): BundleMap = {
+    val out = Wire(BundleMap(fields.filter(x => fn(x.key))))
+    out :<= this
+    out
+  }
 
   // Assign all outputs of this from either:
   //   outputs of that (if they exist)
@@ -165,6 +175,22 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulk
       }
     }
     // it's ok to have excess elements in 'hx'
+  }
+
+  // Assign only those outputs of this which exist as outputs in that
+  def partialAssignL(that: BundleMap): Unit = {
+    val h = HashMap(that.keydata:_*)
+    keydata foreach { case (key, vx) =>
+      h.lift(key).foreach { vy => FixChisel3.descendL(vx, vy) }
+    }
+  }
+
+  // Assign only those inputs of that which exist as inputs in this
+  def partialAssignR(that: BundleMap): Unit = {
+    val h = HashMap(keydata:_*)
+    that.keydata foreach { case (key, vy) =>
+      h.lift(key).foreach { vx => FixChisel3.descendL(vx, vy) }
+    }
   }
 }
 

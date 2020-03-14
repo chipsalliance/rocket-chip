@@ -188,10 +188,12 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
 
       // Set prot bits if we have extra meta-data
       send.hauser.lift(AMBAProt).foreach { x =>
-        out.hprot(0) := !x.fetch
-        out.hprot(1) :=  x.privileged
-        out.hprot(2) :=  x.bufferable
-        out.hprot(3) :=  x.cacheable
+        val hprot = Wire(Vec(4, Bool()))
+        hprot(0) := !x.fetch
+        hprot(1) :=  x.privileged
+        hprot(2) :=  x.bufferable
+        hprot(3) :=  x.cacheable
+        out.hprot := Cat(hprot.reverse)
       }
 
       // We need a skidpad to capture D output:

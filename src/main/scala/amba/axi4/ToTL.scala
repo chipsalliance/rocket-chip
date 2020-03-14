@@ -22,7 +22,7 @@ case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends Mi
             nodePath    = m.nodePath,
             requestFifo = true)
       },
-      echoFields    = mp.requestFields,
+      echoFields    = mp.echoFields,
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)
   },
