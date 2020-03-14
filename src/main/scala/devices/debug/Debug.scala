@@ -629,11 +629,13 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmiInnerNode = TLAsyncCrossingSource() := dmiBypass.node := dmiXbar.node
   dmOuter.dmiNode := dmiXbar.node
   
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
 
     val nComponents = dmOuter.intnode.edges.out.size
 
     val io = IO(new Bundle {
+      val dmi_clock = Input(Clock())
+      val dmi_reset = Input(Reset())
       val dmi   = (!p(ExportDebug).apb).option(Flipped(new DMIIO()(p)))
       // Optional APB Interface is fully diplomatic so is not listed here.
       val ctrl = new DebugCtrlBundle(nComponents)
@@ -642,18 +644,22 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
       val dmAuthenticated = p(DebugModuleKey).get.hasAuthentication.option(Input(Bool()))
     })
-    val rf_reset = IO(Input(Reset()))
+    val rf_reset = IO(Input(Reset()))    // RF transform
 
-    dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
+    childClock := io.dmi_clock
+    childReset := io.dmi_reset
 
-    dmiBypass.module.io.bypass := ~io.ctrl.dmactive | ~AsyncResetSynchronizerShiftReg(in=io.ctrl.dmactiveAck, sync=3, name=Some("dmactiveAckSync"))
+    withClockAndReset(childClock, childReset) {
+      dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
 
-    io.ctrl <> dmOuter.module.io.ctrl
-    io.innerCtrl <> ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset))
-    dmOuter.module.io.hgDebugInt := io.hgDebugInt
-    io.hartResetReq.foreach { x => dmOuter.module.io.hartResetReq.foreach {y => x := y}}
-    io.dmAuthenticated.foreach { x => dmOuter.module.io.dmAuthenticated.foreach { y => y := x}}
+      dmiBypass.module.io.bypass := ~io.ctrl.dmactive | ~AsyncResetSynchronizerShiftReg(in=io.ctrl.dmactiveAck, sync=3, name=Some("dmactiveAckSync"))
 
+      io.ctrl <> dmOuter.module.io.ctrl
+      io.innerCtrl <> ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset))
+      dmOuter.module.io.hgDebugInt := io.hgDebugInt
+      io.hartResetReq.foreach { x => dmOuter.module.io.hartResetReq.foreach {y => x := y}}
+      io.dmAuthenticated.foreach { x => dmOuter.module.io.dmAuthenticated.foreach { y => y := x}}
+    }
   }
 }
 
@@ -1701,7 +1707,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       val hartIsInReset = Input(Vec(getNComponents(), Bool()))
       val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
     })
-    val rf_reset = IO(Input(Reset()))
+    val rf_reset = IO(Input(Reset()))    // RF transform
 
     childClock := io.debug_clock
     childReset := io.debug_reset
@@ -1784,14 +1790,14 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     dmOuter.module.io.dmi.foreach { dmOuterDMI =>
       dmOuterDMI <> io.dmi.get.dmi
-      dmOuter.module.reset := io.dmi.get.dmiReset
-      dmOuter.module.clock := io.dmi.get.dmiClock
+      dmOuter.module.io.dmi_reset := io.dmi.get.dmiReset
+      dmOuter.module.io.dmi_clock := io.dmi.get.dmiClock
       dmOuter.module.rf_reset := io.dmi.get.dmiReset
     }
 
     (io.apb_clock zip io.apb_reset)  foreach { case (c, r) =>
-      dmOuter.module.reset := r
-      dmOuter.module.clock := c
+      dmOuter.module.io.dmi_reset := r
+      dmOuter.module.io.dmi_clock := c
       dmOuter.module.rf_reset := r
     }
 

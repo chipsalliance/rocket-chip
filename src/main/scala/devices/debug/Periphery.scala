@@ -149,7 +149,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     debug
   }
 
-  val dtm = debug.map(_.systemjtag.map { instantiateJtagDTM(_) })
+  val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
 
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
@@ -157,19 +157,18 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.io.jtag <> sj.jtag
 
     debug.map(_.disableDebug.foreach { x => dtm.io.jtag.TMS := sj.jtag.TMS | x })  // force TMS high when debug is disabled
-    val psdio = psd.psd.getOrElse(WireInit(0.U.asTypeOf(new PSDTestMode)))
 
-    dtm.clock          := sj.jtag.TCK
+    dtm.io.jtag_clock  := sj.jtag.TCK
     dtm.io.jtag_reset  := sj.reset
     dtm.io.jtag_mfr_id := sj.mfr_id
     dtm.io.jtag_part_number := sj.part_number
     dtm.io.jtag_version := sj.version
-    dtm.reset          := dtm.io.fsmReset
+    dtm.rf_reset := sj.reset
 
     outer.debugOpt.map { outerdebug => 
       outerdebug.module.io.dmi.get.dmi <> dtm.io.dmi
       outerdebug.module.io.dmi.get.dmiClock := sj.jtag.TCK
-      outerdebug.module.io.dmi.get.dmiReset := ResetCatchAndSync(sj.jtag.TCK, sj.reset, "dmiResetCatch", psdio)
+      outerdebug.module.io.dmi.get.dmiReset := sj.reset
     }
     dtm
   }
@@ -259,7 +258,7 @@ object Debug {
       }
       debug.systemjtag.foreach { sj =>
         val jtag = Module(new SimJTAG(tickDelay=3)).connect(sj.jtag, c, r, ~r, out)
-        sj.reset := r
+        sj.reset := r.asAsyncReset
         sj.mfr_id := p(JtagDTMKey).idcodeManufId.U(11.W)
         sj.part_number := p(JtagDTMKey).idcodePartNum.U(16.W)
         sj.version := p(JtagDTMKey).idcodeVersion.U(4.W)
@@ -314,7 +313,7 @@ object Debug {
         sj.jtag.TMS := true.B
         sj.jtag.TDI := true.B
         sj.jtag.TRSTn.foreach { r => r := true.B }
-        sj.reset := true.B    // TODO: .asAsyncReset (JTAG does not support abstract reset yet)
+        sj.reset := true.B.asAsyncReset
         sj.mfr_id := 0.U
         sj.part_number := 0.U
         sj.version := 0.U

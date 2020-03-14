@@ -31,7 +31,7 @@ class JtagOutput(irLength: Int) extends Bundle {
 }
 
 class JtagControl extends Bundle {
-  val jtag_reset = Input(Bool())
+  val jtag_reset = Input(AsyncReset())
 }
 
 /** Aggregate JTAG block IO.
@@ -69,6 +69,10 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   val tdo = Wire(Bool())  // 4.4.1c TDI should appear here uninverted after shifting
   val tdo_driven = Wire(Bool())
 
+  val clock_falling = WireInit((!clock.asUInt).asClock)
+
+  val tapIsInTestLogicReset = Wire(Bool())
+
   //
   // JTAG state machine
   //
@@ -86,8 +90,12 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     currState := stateMachine.io.currState
     io.output.state := stateMachine.io.currState
      // 4.5.1a TDO changes on falling edge of TCK, 6.1.2.1d driver active on first TCK falling edge in ShiftIR and ShiftDR states
-    io.jtag.TDO.data := NegEdgeAsyncResetReg(clock, tdo, name = Some("tdoReg"))
-    io.jtag.TDO.driven := NegEdgeAsyncResetReg(clock, tdo_driven, name = Some("tdoeReg"))
+    withClock(clock_falling) {
+      val TDOdata   = RegNext(next=tdo, init=false.B).suggestName("tdoReg")
+      val TDOdriven = RegNext(next=tdo_driven, init=false.B).suggestName("tdoeReg")
+      io.jtag.TDO.data   := TDOdata
+      io.jtag.TDO.driven := TDOdriven
+    }
   }
 
   //
@@ -104,23 +112,18 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   irChain.io.chainIn.update := currState === JtagState.UpdateIR.U
   irChain.io.capture.bits := "b01".U
 
-  val updateInstruction = Wire(Bool())
-
-  val nextActiveInstruction = Wire(UInt(irLength.W))
-  val activeInstruction = NegEdgeReg(clock, nextActiveInstruction, initialInstruction.U, updateInstruction, name = Some("irReg"))
-   // 7.2.1d active instruction output latches on TCK falling edge
-
-  when (currState === JtagState.UpdateIR.U) {
-    nextActiveInstruction := irChain.io.update.bits
-    updateInstruction := true.B
-  } .otherwise {
-    // Needed when using chisel3._ (See #1160)
-    nextActiveInstruction := DontCare
-    updateInstruction := false.B
+  withClockAndReset(clock_falling, io.control.jtag_reset) {
+    val activeInstruction = RegInit(initialInstruction.U(irLength.W))
+    when (tapIsInTestLogicReset) {
+      activeInstruction := initialInstruction.U
+    }.elsewhen (currState === JtagState.UpdateIR.U) {
+      activeInstruction := irChain.io.update.bits
+    }
+    io.output.instruction := activeInstruction
   }
-  io.output.instruction := activeInstruction
 
-  io.output.reset := currState === JtagState.TestLogicReset.U
+  tapIsInTestLogicReset := currState === JtagState.TestLogicReset.U
+  io.output.reset := tapIsInTestLogicReset
 
   //
   // Data Register

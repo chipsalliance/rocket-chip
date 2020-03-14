@@ -65,35 +65,38 @@ class DTMInfo extends Bundle {
 /** A wrapper around JTAG providing a reset signal and manufacturer id. */
 class SystemJTAGIO extends Bundle {
   val jtag = Flipped(new JTAGIO(hasTRSTn = false))
-  val reset = Input(Bool())
+  val reset = Input(AsyncReset())
   val mfr_id = Input(UInt(11.W))
   val part_number = Input(UInt(16.W))
   val version = Input(UInt(4.W))
 }
 
 class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
-  (implicit val p: Parameters) extends Module  {
+  (implicit val p: Parameters) extends RawModule  {
 
   val io = IO(new Bundle {
+    val jtag_clock = Input(Clock())
+    val jtag_reset = Input(AsyncReset())
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
-    val jtag_reset = Input(Bool())
     val jtag_mfr_id = Input(UInt(11.W))
     val jtag_part_number = Input(UInt(16.W))
     val jtag_version = Input(UInt(4.W))
-    val fsmReset = Output(Bool())
   })
+  val rf_reset = IO(Input(Reset()))    // RF transform
+
+  withClockAndReset(io.jtag_clock, io.jtag_reset) {
 
   //--------------------------------------------------------
   // Reg and Wire Declarations
 
   val dtmInfo = Wire(new DTMInfo)
 
-  val busyReg = RegInit(false.B)
-  val stickyBusyReg = RegInit(false.B)
-  val stickyNonzeroRespReg = RegInit(false.B)
+  val busyReg = Reg(Bool())
+  val stickyBusyReg = Reg(Bool())
+  val stickyNonzeroRespReg = Reg(Bool())
 
-  val downgradeOpReg = RegInit(false.B) // downgrade op because prev. failed.
+  val downgradeOpReg = Reg(Bool()) // downgrade op because prev. failed.
 
   val busy = Wire(Bool())
   val nonzeroResp = Wire(Bool())
@@ -104,7 +107,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
 
   val dmiReqReg  = Reg(new DMIReq(debugAddrBits))
-  val dmiReqValidReg = RegInit(false.B)
+  val dmiReqValidReg = Reg(Bool())
 
   val dmiStatus = Wire(UInt(2.W))
 
@@ -260,8 +263,14 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   tapIO.control.jtag_reset := io.jtag_reset
 
   //--------------------------------------------------------
-  // Reset Generation (this is fed back to us by the instantiating module,
-  // and is used to reset the debug registers).
+  // TAP Test-Logic-Reset state resets the debug registers.
 
-  io.fsmReset := tapIO.output.reset
-}
+  when (tapIO.output.reset) {
+    busyReg := false.B
+    stickyBusyReg := false.B
+    stickyNonzeroRespReg := false.B
+    downgradeOpReg := false.B
+    dmiReqValidReg := false.B
+  }
+
+}}
