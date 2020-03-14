@@ -582,8 +582,8 @@ class TLSlavePortParameters private(
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
-    responseFields: Seq[BundleFieldBase] = Nil,
-    requestKeys:    Seq[BundleKeyBase]   = Nil) =
+    responseFields: Seq[BundleFieldBase] = responseFields,
+    requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     new TLSlavePortParameters(
       slaves       = managers,
@@ -599,8 +599,8 @@ class TLSlavePortParameters private(
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
-    responseFields: Seq[BundleFieldBase] = Nil,
-    requestKeys:    Seq[BundleKeyBase]   = Nil) =
+    responseFields: Seq[BundleFieldBase] = responseFields,
+    requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     v1copy(
       managers,
@@ -944,9 +944,9 @@ class TLMasterPortParameters private(
   def v1copy(
     clients: Seq[TLClientParameters] = masters,
     minLatency: Int = minLatency,
-    echoFields:    Seq[BundleFieldBase] = Nil,
-    requestFields: Seq[BundleFieldBase] = Nil,
-    responseKeys:  Seq[BundleKeyBase]   = Nil) =
+    echoFields:    Seq[BundleFieldBase] = echoFields,
+    requestFields: Seq[BundleFieldBase] = requestFields,
+    responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     new TLMasterPortParameters(
       masters       = clients,
@@ -961,9 +961,9 @@ class TLMasterPortParameters private(
   def copy(
     clients: Seq[TLClientParameters] = masters,
     minLatency: Int = minLatency,
-    echoFields:    Seq[BundleFieldBase] = Nil,
-    requestFields: Seq[BundleFieldBase] = Nil,
-    responseKeys:  Seq[BundleKeyBase]   = Nil) =
+    echoFields:    Seq[BundleFieldBase] = echoFields,
+    requestFields: Seq[BundleFieldBase] = requestFields,
+    responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     v1copy(
       clients,
