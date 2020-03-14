@@ -1028,6 +1028,7 @@ case class TLBundleParameters(
   require (sinkBits    >= 1)
   require (sizeBits    >= 1)
   require (isPow2(dataBits))
+  echoFields.foreach { f => require (f.key.isControl, s"${f} is not a legal echo field") }
 
   val addrLoBits = log2Up(dataBits/8)
 

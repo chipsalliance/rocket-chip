@@ -107,6 +107,7 @@ case class AXI4BundleParameters(
   require (addrBits >= 1, s"AXI4 addr bits must be >= 1 (got $addrBits)")
   require (idBits >= 1, s"AXI4 id bits must be >= 1 (got $idBits)")
   require (isPow2(dataBits), s"AXI4 data bits must be pow2 (got $dataBits)")
+  echoFields.foreach { f => require (f.key.isControl, s"${f} is not a legal echo field") }
 
   // Bring the globals into scope
   val lenBits   = AXI4Parameters.lenBits
