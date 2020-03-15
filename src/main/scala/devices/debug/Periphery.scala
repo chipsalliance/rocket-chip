@@ -149,7 +149,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     debug
   }
 
-  val dtm = debug.map(_.systemjtag.map { instantiateJtagDTM(_) })
+  val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
 
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
@@ -157,14 +157,12 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.io.jtag <> sj.jtag
 
     debug.map(_.disableDebug.foreach { x => dtm.io.jtag.TMS := sj.jtag.TMS | x })  // force TMS high when debug is disabled
-    val psdio = psd.psd.getOrElse(WireInit(0.U.asTypeOf(new PSDTestMode)))
 
     dtm.io.jtag_clock  := sj.jtag.TCK
     dtm.io.jtag_reset  := sj.reset
     dtm.io.jtag_mfr_id := sj.mfr_id
     dtm.io.jtag_part_number := sj.part_number
     dtm.io.jtag_version := sj.version
-    dtm.io.tapReset     := dtm.io.fsmReset
     dtm.rf_reset := sj.reset
 
     outer.debugOpt.map { outerdebug => 

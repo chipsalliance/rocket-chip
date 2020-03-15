@@ -31,8 +31,7 @@ class JtagOutput(irLength: Int) extends Bundle {
 }
 
 class JtagControl extends Bundle {
-  val jtag_reset = Input(Reset())
-  val tapReset = Input(Bool())
+  val jtag_reset = Input(AsyncReset())
 }
 
 /** Aggregate JTAG block IO.
@@ -72,6 +71,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
 
   val clock_falling = WireInit((!clock.asUInt).asClock)
 
+  val tapIsInTestLogicReset = Wire(Bool())
+
   //
   // JTAG state machine
   //
@@ -82,7 +83,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   // combined with any POR, and it should also be
   // synchronized to TCK.
   require(!io.jtag.TRSTn.isDefined, "TRSTn should be absorbed into jtckPOReset outside of JtagTapController.")
-  withReset(io.control.jtag_reset.asAsyncReset) {
+  withReset(io.control.jtag_reset) {
     val stateMachine = Module(new JtagStateMachine)
     stateMachine.suggestName("stateMachine")
     stateMachine.io.tms := io.jtag.TMS
@@ -111,9 +112,9 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   irChain.io.chainIn.update := currState === JtagState.UpdateIR.U
   irChain.io.capture.bits := "b01".U
 
-  withClockAndReset(clock_falling, io.control.jtag_reset.asAsyncReset) {
+  withClockAndReset(clock_falling, io.control.jtag_reset) {
     val activeInstruction = RegInit(initialInstruction.U(irLength.W))
-    when (io.control.tapReset) {
+    when (tapIsInTestLogicReset) {
       activeInstruction := initialInstruction.U
     }.elsewhen (currState === JtagState.UpdateIR.U) {
       activeInstruction := irChain.io.update.bits
@@ -121,7 +122,8 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
     io.output.instruction := activeInstruction
   }
 
-  io.output.reset := currState === JtagState.TestLogicReset.U
+  tapIsInTestLogicReset := currState === JtagState.TestLogicReset.U
+  io.output.reset := tapIsInTestLogicReset
 
   //
   // Data Register
