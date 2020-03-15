@@ -644,15 +644,12 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
       val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
       val dmAuthenticated = p(DebugModuleKey).get.hasAuthentication.option(Input(Bool()))
     })
-    val rf_reset = IO(Input(Reset()))
+    val rf_reset = IO(Input(Reset()))    // RF transform
 
     childClock := io.dmi_clock
     childReset := io.dmi_reset
 
     withClockAndReset(childClock, childReset) {
-      dmOuter.module.clock := io.dmi_clock
-      dmOuter.module.reset := io.dmi_reset
-
       dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
 
       dmiBypass.module.io.bypass := ~io.ctrl.dmactive | ~AsyncResetSynchronizerShiftReg(in=io.ctrl.dmactiveAck, sync=3, name=Some("dmactiveAckSync"))
@@ -1710,7 +1707,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
       val hartIsInReset = Input(Vec(getNComponents(), Bool()))
       val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
     })
-    val rf_reset = IO(Input(Reset()))
+    val rf_reset = IO(Input(Reset()))    // RF transform
 
     childClock := io.debug_clock
     childReset := io.debug_reset
