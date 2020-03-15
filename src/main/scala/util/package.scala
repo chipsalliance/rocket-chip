@@ -234,6 +234,30 @@ package object util {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
+/** provides operators useful for working with bidirectional [[Bundle]]s
+  * 
+  * In terms of [[Flipped]]:
+  * a :<= b // means drive all unflipped fields of 'a' from 'b' (ie: valid/bits)  
+  * a :=> b // means drive all flipped fields of 'b' from 'a' (ie: ready)  
+  * a :<> b // do both of the above
+  * 
+  * This utility class is needed because in chisel3,
+  * the operators := and <> became much less powerful:  
+  * a := b // only works if there are no directions on fields.  
+  * a <> b // only works if one of those is an IO (not a wire).
+  * Contrast this with 'a :<> b' which will connect a ready-valid producer
+  * 'b' to a consumer 'a'.
+  * If you flip this to 'b :<> a', it works the way you would expect (flipping the role of producer/consumer).
+  * This is how Chisel._ (compatability mode) and firrtl work.
+  * Some find that  ':<>' has superior readability (even if the direction can be inferred from an IO),
+  * because it clearly states the intended producer/consumer relationship. 
+  * Plus, you will get an appropriate error if you connected it the wrong way
+  * (usually because you got the IO direction wrong) instead of silently succeeding.
+  * 
+  * What if you want to connect all of the signals (e.g. ready/valid/bits) from 'b' to 'a'?
+  * For example in order to tap the connection to monitor traffic on an existing connection.
+  * In that case you can do 'a :<= b' and 'b :=> a'.
+  */
   implicit class EnhancedChisel3Assign[T <: Data](val x: T) extends AnyVal {
     // Assign all output fields of x from y; note that the actual direction of x is irrelevant
     def :<= (y: T): Unit = FixChisel3.assignL(x, y)
