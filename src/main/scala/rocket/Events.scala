@@ -48,3 +48,28 @@ class EventSets(val eventSets: Seq[EventSet]) {
 
   private def eventSetIdBits = 8
 }
+
+class SuperscalarEventSets(eventSets: Seq[(Seq[EventSet], (UInt, UInt) => UInt)]) {
+  def evaluate(eventSel: UInt): UInt = {
+    val (set, mask) = decode(eventSel)
+    val sets = for ((sets, reducer) <- eventSets)
+      yield sets.map(_.check(mask)).reduce(reducer)
+    val zeroPadded = sets.padTo(1 << eventSetIdBits, 0.U)
+    zeroPadded(set)
+  }
+
+  def toScalarEventSets: EventSets = new EventSets(eventSets.map(_._1.head))
+
+  def cover() { eventSets.foreach(_._1.foreach(_.withCovers)) }
+
+  private def decode(counter: UInt): (UInt, UInt) = {
+    require(eventSetIdBits > 0)
+    (counter(eventSetIdBits-1, 0), counter >> maxEventSetIdBits)
+  }
+
+  private def eventSetIdBits = log2Ceil(eventSets.size)
+  private def maxEventSetIdBits = 8
+
+  require(eventSets.forall(s => s._1.forall(_.size == s._1.head.size)))
+  require(eventSetIdBits <= maxEventSetIdBits)
+}
