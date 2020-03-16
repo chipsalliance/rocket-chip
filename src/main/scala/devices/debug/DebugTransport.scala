@@ -263,9 +263,9 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   tapIO.control.jtag_reset := io.jtag_reset
 
   //--------------------------------------------------------
-  // TAP Test-Logic-Reset state resets the debug registers.
+  // TAP Test-Logic-Reset state synchronously resets the debug registers.
 
-  when (tapIO.output.reset) {
+  when (tapIO.output.tapIsInTestLogicReset) {
     busyReg := false.B
     stickyBusyReg := false.B
     stickyNonzeroRespReg := false.B
