@@ -239,8 +239,8 @@ package object util {
   * In terms of [[Flipped]] with a producer 'p' and 'consumer' c:
   * c :<= p // means drive all unflipped fields of 'c' from 'p' (e.g.: valid/bits)  
   * c :=> p // means drive all flipped fields of 'c' from 'p' (e.g.: ready)  
-  * p :<> c // do both of the above
-  * c :<> p // do both of the above, but you'll probably get a Gender error later.
+  * c :<> p // do both of the above
+  * p :<> c // do both of the above, but you'll probably get a Gender error later.
   * 
   * This utility class is needed because in [[chisel3]]:
   * c := p // only works if there are no directions on fields.  
