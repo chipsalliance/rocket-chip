@@ -25,7 +25,7 @@ class JTAGIO(hasTRSTn: Boolean = false) extends Bundle {
 class JtagOutput(irLength: Int) extends Bundle {
   val state = Output(JtagState.State.chiselType())  // state, transitions on TCK rising edge
   val instruction = Output(UInt(irLength.W))  // current active instruction
-  val reset = Output(Bool())  // synchronous reset asserted in Test-Logic-Reset state, should NOT hold the FSM in reset
+  val tapIsInTestLogicReset = Output(Bool())  // synchronously asserted in Test-Logic-Reset state, should NOT hold the FSM in reset
 
   override def cloneType = new JtagOutput(irLength).asInstanceOf[this.type]
 }
@@ -123,7 +123,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   }
 
   tapIsInTestLogicReset := currState === JtagState.TestLogicReset.U
-  io.output.reset := tapIsInTestLogicReset
+  io.output.tapIsInTestLogicReset := tapIsInTestLogicReset
 
   //
   // Data Register

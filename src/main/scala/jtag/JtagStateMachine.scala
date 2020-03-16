@@ -74,7 +74,7 @@ class JtagStateMachine(implicit val p: Parameters) extends Module() {
   }
   val io = IO(new StateMachineIO)
 
-  val nextState = WireInit(JtagState.TestLogicReset.U)  // (JtagState.State.width.W))
+  val nextState = WireInit(JtagState.TestLogicReset.U)
   val currState = RegNext(next=nextState, init=JtagState.TestLogicReset.U)
 
   switch (currState) {
