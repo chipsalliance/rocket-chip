@@ -6,14 +6,9 @@ endif
 MODEL ?= TestHarness
 PROJECT ?= freechips.rocketchip.system
 CFG_PROJECT ?= $(PROJECT)
-CONFIG ?= $(CFG_PROJECT).DefaultConfig
+CONFIG ?= DefaultConfig
 # TODO: For now must match rocketchip.Generator
-comma := ,
-space := $() $()
-splitConfigs := $(subst $(comma), ,$(CONFIG))
-configBases := $(foreach config,$(splitConfigs),$(lastword $(subst ., ,$(config))))
-CONFIG_STR := $(subst $(space),_,$(configBases))
-long_name = $(PROJECT).$(CONFIG_STR)
+long_name = $(PROJECT).$(CONFIG)
 
 VLSI_MEM_GEN ?= $(base_dir)/scripts/vlsi_mem_gen
 

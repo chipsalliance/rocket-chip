@@ -3,6 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.amba.ahb._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -11,12 +12,14 @@ import scala.math.{min, max}
 import AHBParameters._
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
-  dFn = { case TLClientPortParameters(clients, minLatency) =>
-    val masters = clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath,userBits = c.userBits) }
-    AHBMasterPortParameters(masters)
+  dFn = { cp =>
+    AHBMasterPortParameters(
+      masters = cp.clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) },
+      requestFields = cp.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
+      responseKeys  = cp.responseKeys)
   },
-  uFn = { case AHBSlavePortParameters(slaves, beatBytes, lite) =>
-    val managers = slaves.map { case s =>
+  uFn = { case sp =>
+    val managers = sp.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
         resources          = s.resources,
@@ -28,11 +31,17 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
         supportsHint       = if (!supportHints) TransferSizes.none else
                              if (s.supportsRead) s.supportsRead    else
                              if (s.supportsWrite) s.supportsWrite  else
-                             TransferSizes(1, beatBytes),
+                             TransferSizes(1, sp.beatBytes),
         fifoId             = Some(0),
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 0, 1)
+    TLManagerPortParameters(
+      managers   = managers,
+      beatBytes  = sp.beatBytes,
+      endSinkId  = 0,
+      minLatency = 1,
+      responseFields = sp.responseFields,
+      requestKeys    = AMBAProt +: sp.requestKeys)
   })
 
 class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params)
@@ -49,7 +58,8 @@ class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params
   val hburst = UInt(width = AHBParameters.burstBits)
   val addr   = UInt(width = params.bundle.addressBits)
   val data   = UInt(width = params.bundle.dataBits)
-  val hauser = if ( params.bundle.aUserBits > 0) Some(UInt(OUTPUT, width = params.bundle.aUserBits)) else None
+  val hauser = BundleMap(params.bundle.requestFields)
+  val echo   = BundleMap(params.bundle.echoFields)
 }
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
@@ -138,6 +148,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
           post.hint  := a_hint
           post.size  := in.a.bits.size
           post.source:= in.a.bits.source
+          post.hauser:<= in.a.bits.user
+          post.echo  :<= in.a.bits.echo
         }
         when (in.a.fire() && !a_hint) {
           post.write := edgeIn.hasData(in.a.bits)
@@ -145,7 +157,6 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
           post.hburst:= Mux(a_singleBeat, BURST_SINGLE, (a_logBeats1<<1) | UInt(1))
           post.addr  := in.a.bits.address
           post.data  := in.a.bits.data
-          post.hauser.map { _ := in.a.bits.user.get }
         }
       }
 
@@ -172,9 +183,18 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       out.hsize   := send.hsize
       out.hburst  := Mux(increment, BURST_INCR, send.hburst)
       out.hprot   := PROT_DEFAULT
+      out.hauser  := send.hauser
       out.hwdata  := RegEnable(send.data, a_flow)
 
-      send.hauser.map { i => out.hauser.map { _ := i} }
+      // Set prot bits if we have extra meta-data
+      send.hauser.lift(AMBAProt).foreach { x =>
+        val hprot = Wire(Vec(4, Bool()))
+        hprot(0) := !x.fetch
+        hprot(1) :=  x.privileged
+        hprot(2) :=  x.bufferable
+        hprot(3) :=  x.cacheable
+        out.hprot := Cat(hprot.reverse)
+      }
 
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
@@ -184,7 +204,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       // a_ready and htrans, we add another entry for aFlow=false.
       val depth = if (aFlow) 2 else 3
       val d = Wire(in.d)
-      in.d <> Queue(d, depth, flow=true)
+      in.d :<> Queue(d, depth, flow=true)
       assert (!d.valid || d.ready)
 
       val d_flight = RegInit(UInt(0, width = 2))
@@ -198,6 +218,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       val d_write   = RegEnable(send.write,  a_flow && send.send)
       val d_source  = RegEnable(send.source, a_flow && send.send)
       val d_size    = RegEnable(send.size,   a_flow && send.send)
+      val d_echo    = RegEnable(send.echo,   a_flow && send.send)
 
       when (d_flow) {
         d_valid := send.send && (send.last || !send.write) && a_flow
@@ -210,6 +231,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       d.bits.opcode := Mux(d_hint, TLMessages.HintAck, Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData))
       d.bits.denied  := (out.hresp(0) || d_denied) && d_write && !d_hint
       d.bits.corrupt := out.hresp(0) && !d_write && !d_hint
+      d.bits.user :<= out.hduser
+      d.bits.echo :<= d_echo
 
       // If the only operations in the pipe are Hints, don't stall based on hready
       val skip = Bool(supportHints) && send.hint && (!d_valid || d_hint)

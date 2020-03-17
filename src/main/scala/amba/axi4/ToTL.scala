@@ -3,24 +3,28 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-case class AXI4ToTLNode(wcorrupt: Boolean = false)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
-  dFn = { case AXI4MasterPortParameters(masters, opaqueBits, userBits) =>
-    masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
-    val maxFlight = masters.map(_.maxFlight.get).max
+case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
+  dFn = { case mp =>
+    mp.masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
+    val maxFlight = mp.masters.map(_.maxFlight.get).max
     TLClientPortParameters(
-      clients = masters.filter(_.maxFlight != Some(0)).flatMap { m =>
+      clients = mp.masters.filter(_.maxFlight != Some(0)).flatMap { m =>
         for (id <- m.id.start until m.id.end)
           yield TLClientParameters(
             name        = s"${m.name} ID#${id}",
             sourceId    = IdRange(id * maxFlight*2, (id+1) * maxFlight*2), // R+W ids are distinct
             nodePath    = m.nodePath,
             requestFifo = true)
-      })
+      },
+      echoFields    = mp.echoFields,
+      requestFields = AMBAProtField() +: mp.requestFields,
+      responseKeys  = mp.responseKeys)
   },
   uFn = { mp => AXI4SlavePortParameters(
     slaves = mp.managers.map { m =>
@@ -35,11 +39,14 @@ case class AXI4ToTLNode(wcorrupt: Boolean = false)(implicit valName: ValName) ex
         supportsRead  = m.supportsGet.intersect(maxXfer),
         interleavedId = Some(0))}, // TL2 never interleaves D beats
     beatBytes = mp.beatBytes,
-    wcorrupt = wcorrupt,
-    minLatency = mp.minLatency)
+    minLatency = mp.minLatency,
+    responseFields = mp.responseFields,
+    requestKeys    = (if (wcorrupt) Seq(AMBACorrupt) else Seq()) ++ mp.requestKeys.filter(_ != AMBAProt))
   })
 
-class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyModule
+// Setting wcorrupt true is insufficient to enable w.user.corrupt
+// One must additionally provide list it in the AXI4 master's requestFields
+class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4ToTLNode(wcorrupt)
 
@@ -53,7 +60,6 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       val txnCountBits = log2Ceil(maxFlight+1) // wrap-around must not block b_allow
       val addedBits = logFlight + 1 // +1 for read vs. write source ID
 
-      require (edgeIn.master.userBits == 0, "AXI4 user bits cannot be transported by TL")
       require (edgeIn.master.masters(0).aligned)
       edgeOut.manager.requireFifo()
 
@@ -82,7 +88,17 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       assert (!in.ar.valid || r_size1 === UIntToOH1(r_size, beatCountBits)) // because aligned
       in.ar.ready := r_out.ready
       r_out.valid := in.ar.valid
-      r_out.bits := edgeOut.Get(r_id, r_addr, r_size)._2
+      r_out.bits :<= edgeOut.Get(r_id, r_addr, r_size)._2
+
+      r_out.bits.user :<= in.ar.bits.user
+      r_out.bits.user.lift(AMBAProt).foreach { rprot =>
+        rprot.privileged :=  in.ar.bits.prot(0)
+        rprot.secure     := !in.ar.bits.prot(1)
+        rprot.fetch      :=  in.ar.bits.prot(2)
+        rprot.bufferable :=  in.ar.bits.cache(0)
+        rprot.modifiable :=  in.ar.bits.cache(1)
+        rprot.cacheable  :=  in.ar.bits.cache(2) || in.ar.bits.cache(3)
+      }
 
       val r_sel = UIntToOH(in.ar.bits.id, numIds)
       (r_sel.asBools zip r_count) foreach { case (s, r) =>
@@ -106,8 +122,18 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       in.aw.ready := w_out.ready && in.w.valid && in.w.bits.last
       in.w.ready  := w_out.ready && in.aw.valid
       w_out.valid := in.aw.valid && in.w.valid
-      w_out.bits := edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
-      in.w.bits.corrupt.foreach { w_out.bits.corrupt := _ }
+      w_out.bits :<= edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
+      in.w.bits.user.lift(AMBACorrupt).foreach { w_out.bits.corrupt := _ }
+
+      w_out.bits.user :<= in.aw.bits.user
+      w_out.bits.user.lift(AMBAProt).foreach { wprot =>
+        wprot.privileged :=  in.aw.bits.prot(0)
+        wprot.secure     := !in.aw.bits.prot(1)
+        wprot.fetch      :=  in.aw.bits.prot(2)
+        wprot.bufferable :=  in.aw.bits.cache(0)
+        wprot.modifiable :=  in.aw.bits.cache(1)
+        wprot.cacheable  :=  in.aw.bits.cache(2) || in.aw.bits.cache(3)
+      }
 
       val w_sel = UIntToOH(in.aw.bits.id, numIds)
       (w_sel.asBools zip w_count) foreach { case (s, r) =>
@@ -131,12 +157,14 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
       ok_r.bits.data := out.d.bits.data
       ok_r.bits.resp := d_resp
       ok_r.bits.last := d_last
+      ok_r.bits.user :<= out.d.bits.user
 
       // AXI4 needs irrevocable behaviour
-      in.r <> Queue.irrevocable(ok_r, 1, flow=true)
+      in.r :<> Queue.irrevocable(ok_r, 1, flow=true)
 
       ok_b.bits.id   := out.d.bits.source >> addedBits
       ok_b.bits.resp := d_resp
+      ok_b.bits.user :<= out.d.bits.user
 
       // AXI4 needs irrevocable behaviour
       val q_b = Queue.irrevocable(ok_b, 1, flow=true)
@@ -151,7 +179,7 @@ class AXI4ToTL(wcorrupt: Boolean = false)(implicit p: Parameters) extends LazyMo
         when (in.b.fire() && s) { r := r + UInt(1) }
       }
 
-      in.b.bits := q_b.bits
+      in.b.bits :<= q_b.bits
       in.b.valid := q_b.valid && b_allow
       q_b.ready := in.b.ready && b_allow
 
@@ -171,7 +199,7 @@ class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(para
 
 object AXI4ToTL
 {
-  def apply(wcorrupt: Boolean = false)(implicit p: Parameters) =
+  def apply(wcorrupt: Boolean = true)(implicit p: Parameters) =
   {
     val axi42tl = LazyModule(new AXI4ToTL(wcorrupt))
     axi42tl.node

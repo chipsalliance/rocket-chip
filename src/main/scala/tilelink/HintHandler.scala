@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.Repeater
+import freechips.rocketchip.util._
 import freechips.rocketchip.devices.tilelink.TLROM
 import scala.math.min
 
@@ -56,11 +56,8 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
         val mux = Wire(chiselTypeOf(in.a))
 
         repeater.io.repeat := mapPP && !edgeIn.last(out.a)
-        repeater.io.enq <> in.a
-        // Work-around broken chisel3 <>
-        out.a.bits := mux.bits
-        out.a.valid := mux.valid
-        mux.ready := out.a.ready
+        repeater.io.enq :<> in.a
+        out.a :<> mux
 
         // Only some signals need to be repeated
         mux.bits.opcode  := in.a.bits.opcode  // ignored when full
@@ -71,6 +68,11 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
         mux.bits.data    := in.a.bits.data    // irrelevant when full (mask = 0)
         mux.bits.mask    := in.a.bits.mask    // ignored when full
         mux.bits.corrupt := in.a.bits.corrupt // irrelevant when full (mask = 0)
+
+        // Hints have no data fields; use defaults for those
+        mux.bits.user :<= in.a.bits.user
+        mux.bits.user.partialAssignL(repeater.io.deq.bits.user.subset(_.isControl))
+        mux.bits.echo :<= repeater.io.deq.bits.echo // control only
 
         mux.valid := repeater.io.deq.valid
         repeater.io.deq.ready := mux.ready

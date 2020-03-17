@@ -5,6 +5,7 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util._
 
 // Trades off slave port proximity against routing resource cost
 object ForceFanout
@@ -33,6 +34,9 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
   val node = TLNexusNode(
     clientFn  = { seq =>
       seq(0).copy(
+        echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
+        requestFields = BundleField.union(seq.flatMap(_.requestFields)),
+        responseKeys  = seq.flatMap(_.responseKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
         clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
           port.clients map { client => client.copy(
@@ -44,6 +48,8 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     managerFn = { seq =>
       val fifoIdFactory = TLXbar.relabeler()
       seq(0).copy(
+        responseFields = BundleField.union(seq.flatMap(_.responseFields)),
+        requestKeys = seq.flatMap(_.requestKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
         endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
         managers = seq.flatMap { port =>
@@ -118,7 +124,7 @@ object TLXbar
       val r = inputIdRanges(i)
 
       if (connectAIO(i).exists(x=>x)) {
-        in(i).a <> io_in(i).a
+        in(i).a :<> io_in(i).a
         in(i).a.bits.source := io_in(i).a.bits.source | UInt(r.start)
       } else {
         in(i).a.valid := Bool(false)
@@ -126,7 +132,7 @@ object TLXbar
       }
 
       if (connectBIO(i).exists(x=>x)) {
-        io_in(i).b <> in(i).b
+        io_in(i).b :<> in(i).b
         io_in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
       } else {
         in(i).b.ready := Bool(true)
@@ -134,7 +140,7 @@ object TLXbar
       }
 
       if (connectCIO(i).exists(x=>x)) {
-        in(i).c <> io_in(i).c
+        in(i).c :<> io_in(i).c
         in(i).c.bits.source := io_in(i).c.bits.source | UInt(r.start)
       } else {
         in(i).c.valid := Bool(false)
@@ -142,7 +148,7 @@ object TLXbar
       }
 
       if (connectDIO(i).exists(x=>x)) {
-        io_in(i).d <> in(i).d
+        io_in(i).d :<> in(i).d
         io_in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
       } else {
         in(i).d.ready := Bool(true)
@@ -150,7 +156,7 @@ object TLXbar
       }
 
       if (connectEIO(i).exists(x=>x)) {
-        in(i).e <> io_in(i).e
+        in(i).e :<> io_in(i).e
       } else {
         in(i).e.valid := Bool(false)
         io_in(i).e.ready := Bool(true)
@@ -163,28 +169,28 @@ object TLXbar
       val r = outputIdRanges(o)
 
       if (connectAOI(o).exists(x=>x)) {
-        io_out(o).a <> out(o).a
+        io_out(o).a :<> out(o).a
       } else {
         out(o).a.ready := Bool(true)
         io_out(o).a.valid := Bool(false)
       }
 
       if (connectBOI(o).exists(x=>x)) {
-        out(o).b <> io_out(o).b
+        out(o).b :<> io_out(o).b
       } else {
         out(o).b.valid := Bool(false)
         io_out(o).b.ready := Bool(true)
       }
 
       if (connectCOI(o).exists(x=>x)) {
-        io_out(o).c <> out(o).c
+        io_out(o).c :<> out(o).c
       } else {
         out(o).c.ready := Bool(true)
         io_out(o).c.valid := Bool(false)
       }
 
       if (connectDOI(o).exists(x=>x)) {
-        out(o).d <> io_out(o).d
+        out(o).d :<> io_out(o).d
         out(o).d.bits.sink := io_out(o).d.bits.sink | UInt(r.start)
       } else {
         out(o).d.valid := Bool(false)
@@ -192,7 +198,7 @@ object TLXbar
       }
 
       if (connectEOI(o).exists(x=>x)) {
-        io_out(o).e <> out(o).e
+        io_out(o).e :<> out(o).e
         io_out(o).e.bits.sink := trim(out(o).e.bits.sink, r.size)
       } else {
         out(o).e.ready := Bool(true)

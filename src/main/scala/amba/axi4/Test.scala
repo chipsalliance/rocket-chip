@@ -48,8 +48,8 @@ class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyMod
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
   xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node
-  ram.node  := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(true ) := TLUserUser(FunkyBits1(5,3.14), {case x => "h1f".U}) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
-  gpio.node := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(false) := TLUserUser(FunkyBits1(3,2.11), {case x => "h3".U }) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
+  ram.node  := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(true ) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
+  gpio.node := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(false) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished

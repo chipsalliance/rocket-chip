@@ -54,27 +54,20 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   val node = TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => c.copy(clients = Seq(TLClientParameters(
-      name        = "TLFragmenter",
-      sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
-      requestFifo = true,
-      // This master can only produce:
-      // emitsAcquireT = c.clients.map(_.knownToEmit.get.emitsAcquireT).reduce(_ smallestintervalcover _),
-      // emitsAcquireB = c.clients.map(_.knownToEmit.get.emitsAcquireB).reduce(_ smallestintervalcover _),
-      // emitsArithmetic = c.clients.map(_.knownToEmit.get.emitsArithmetic).reduce(_ smallestintervalcover _),
-      // emitsLogical = c.clients.map(_.knownToEmit.get.emitsLogical).reduce(_ smallestintervalcover _),
-      // emitsGet = c.clients.map(_.knownToEmit.get.emitsGet).reduce(_ smallestintervalcover _),
-      // emitsPutFull = c.clients.map(_.knownToEmit.get.emitsPutFull).reduce(_ smallestintervalcover _),
-      // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
-      // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
-      userBits    = {
-        require( c.clients.forall( _.userBits.length == c.clients(0).userBits.length ),
-          s"Length of userBits sequences of all clients must be equal. ${c.clients.map(x => (x.name, x.userBits.length))}")
-        require( c.clients.forall( _.userBits.zip( c.clients(0).userBits ).forall { case (a, b) => a.width == b.width } ),
-          s"Width of corresponding userBits for all clients must match. ${c.clients.map(x => (x.name, x.userBits))}")
-
-        c.clients(0).userBits
-      })))
+    clientFn  = { c => c.copy(
+      clients = Seq(TLClientParameters(
+        name        = "TLFragmenter",
+        sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
+        requestFifo = true))),
+        // This master can only produce:
+        // emitsAcquireT = c.clients.map(_.knownToEmit.get.emitsAcquireT).reduce(_ smallestintervalcover _),
+        // emitsAcquireB = c.clients.map(_.knownToEmit.get.emitsAcquireB).reduce(_ smallestintervalcover _),
+        // emitsArithmetic = c.clients.map(_.knownToEmit.get.emitsArithmetic).reduce(_ smallestintervalcover _),
+        // emitsLogical = c.clients.map(_.knownToEmit.get.emitsLogical).reduce(_ smallestintervalcover _),
+        // emitsGet = c.clients.map(_.knownToEmit.get.emitsGet).reduce(_ smallestintervalcover _),
+        // emitsPutFull = c.clients.map(_.knownToEmit.get.emitsPutFull).reduce(_ smallestintervalcover _),
+        // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
+        // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
     },
     managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
 
@@ -309,6 +302,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val fullMask = UInt((BigInt(1) << beatBytes) - 1)
         assert (!repeater.io.full || in_a.bits.mask === fullMask)
         out.a.bits.mask := Mux(repeater.io.full, fullMask, in.a.bits.mask)
+        out.a.bits.user.partialAssignL(in.a.bits.user.subset(_.isData))
 
         // Tie off unused channels
         in.b.valid := Bool(false)

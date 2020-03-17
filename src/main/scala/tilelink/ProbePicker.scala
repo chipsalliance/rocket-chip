@@ -20,7 +20,7 @@ class ProbePicker(implicit p: Parameters) extends LazyModule
           (next, head +: output) // pair is not banked, push head without merging
         } else {
           def redact(x: TLClientParameters) = x.copy(sourceId = IdRange(0,1), nodePath = Nil, visibility = Seq(AddressSet(0, ~0)))
-          require (redact(next) == redact(head))
+          require (redact(next) == redact(head), s"${redact(next)} != ${redact(head)}")
           val merge = head.copy(
             sourceId = IdRange(
               head.sourceId.start min next.sourceId.start,

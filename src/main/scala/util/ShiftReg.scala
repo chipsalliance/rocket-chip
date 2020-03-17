@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 
 // Similar to the Chisel ShiftRegister but allows the user to suggest a
 // name to the registers that get instantiated, and
@@ -12,7 +12,7 @@ object ShiftRegInit {
 
   (0 until n).foldRight(in) {
     case (i, next) => {
-      val r = Reg(next, next = next, init = init)
+      val r = RegNext(next, init = init)
       name.foreach { na => r.suggestName(s"${na}_${i}") }
       r
     }
@@ -26,20 +26,18 @@ object ShiftRegInit {
   *  rather than buffering.
   *  
   *  The different types vary in their reset behavior:
-  *  AsyncResetShiftReg -- This is identical to the AsyncResetSynchronizerShiftReg, 
-  *      it is just named differently to distinguish its use case.
-  *      This is an async ShiftRegister meant for timing,
-  *      not for synchronization.
-  *  AsyncResetSynchronizerShiftReg -- asynchronously reset to specific value.
-  *  SyncResetSynchronizerShiftReg  -- reset to specific value.
-  *  SynchronizerShiftReg           -- no reset, pipeline only.
+  *  AsyncResetShiftReg             -- Asynchronously reset register array
+  *                                    A W(width) x D(depth) sized array is constructed from D instantiations of a
+  *                                    W-wide register vector. Functionally identical to AsyncResetSyncrhonizerShiftReg,
+  *                                    but only used for timing applications
   */
 
 abstract class AbstractPipelineReg(w: Int = 1) extends Module {
-  val io = new Bundle {
-    val d = UInt(INPUT, width = w)
-    val q = UInt(OUTPUT, width = w)
+  val io = IO(new Bundle {
+    val d = Input(UInt(w.W))
+    val q = Output(UInt(w.W))
   }
+  )
 }
 
 object AbstractPipelineReg {
@@ -61,11 +59,11 @@ class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String
   }
 
   chain.last.io.d := io.d
-  chain.last.io.en := Bool(true)
+  chain.last.io.en := true.B
 
   (chain.init zip chain.tail).foreach { case (sink, source) =>
     sink.io.d := source.io.q
-    sink.io.en := Bool(true)
+    sink.io.en := true.B
   }
   io.q := chain.head.io.q
 }
@@ -82,65 +80,4 @@ object AsyncResetShiftReg {
 
   def apply [T <: Chisel.Data](in: T, depth: Int, init: T): T =
     apply (in, depth, init.litValue.toInt, None)
-}
-
-// Note that it is important to override "name" in order to ensure that the Chisel dedup does
-// not try to merge instances of this with instances of the superclass.
-class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) extends AsyncResetShiftReg(w, depth = sync, init, name = "sync") {
-  require(sync > 0, "Sync must be greater than 0.")
-  override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
-}
-
-object AsyncResetSynchronizerShiftReg {
-  def apply [T <: Chisel.Data](in: T, depth: Int, init: Int  = 0, name: Option[String] = None): T =
-    AbstractPipelineReg(new AsyncResetSynchronizerShiftReg(in.getWidth, depth, init), in, name)
-
-  def apply [T <: Chisel.Data](in: T, depth: Int, name: Option[String]): T =
-    apply(in, depth, 0, name)
-
-  def apply [T <: Chisel.Data](in: T, depth: Int, init: T, name: Option[String]): T =
-    apply(in, depth, init.litValue.toInt, name)
-
-  def apply [T <: Chisel.Data](in: T, depth: Int, init: T): T =
-    apply (in, depth, init.litValue.toInt, None)
-}
-
-class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
-  require(sync > 0, "Sync must be greater than 0.")
-
-  override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
-
-  val syncv = List.tabulate(sync) { i =>
-    val r = Reg(UInt(width = w))
-    r.suggestName(s"sync_${i}")
-  }
-
-  syncv.last := io.d
-
-  (syncv.init zip syncv.tail).foreach { case (sink, source) =>
-    sink := source
-  }
-  io.q := syncv.head
-}
-
-
-object SynchronizerShiftReg {
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, name: Option[String] = None): T = {
-    if (sync == 0) in
-    else AbstractPipelineReg(new SynchronizerShiftReg(in.getWidth, sync), in, name)
-  }
-}
-
-class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int = 3, init: Int = 0) extends AbstractPipelineReg(w) {
-  require (sync >= 0, "Sync must be greater than or equal to 0")
-
-  override def desiredName = s"SyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
-
-  io.q := ShiftRegInit(io.d, n = sync, init = init.U, name = Some("sync"))
-
-}
-
-object SyncResetSynchronizerShiftReg {
-  def apply [T <: Chisel.Data](in: T, sync: Int = 3, init: T, name: Option[String] = None): T =
-    AbstractPipelineReg(new SyncResetSynchronizerShiftReg(in.getWidth, sync, init.litValue.toInt), in, name)
 }

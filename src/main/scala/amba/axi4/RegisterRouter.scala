@@ -7,8 +7,11 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
+import freechips.rocketchip.util._
 import scala.math.{min,max}
+
+case object AXI4RRId extends ControlKey[UInt]("extra_id")
+case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(UInt(OUTPUT, width = 1 max width), UInt(0))
 
 case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
@@ -33,8 +36,11 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     val r  = io.r
     val b  = io.b
 
-    val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, ar.bits.params.idBits + ar.bits.params.userBits)
+    val fields = AXI4RRIdField(ar.bits.params.idBits) +: ar.bits.params.echoFields
+    val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, fields)
     val in = Wire(Decoupled(new RegMapperInput(params)))
+    val ar_extra = Wire(in.bits.extra)
+    val aw_extra = Wire(in.bits.extra)
 
     // Prefer to execute reads first
     in.valid := ar.valid || (aw.valid && w.valid)
@@ -42,9 +48,10 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     aw.ready := in.ready && !ar.valid && w .valid
     w .ready := in.ready && !ar.valid && aw.valid
 
-    val ar_extra = Cat(Seq(ar.bits.id) ++ ar.bits.user.toList)
-    val aw_extra = Cat(Seq(aw.bits.id) ++ aw.bits.user.toList)
-    val in_extra = Mux(ar.valid, ar_extra, aw_extra)
+    ar_extra :<= ar.bits.echo
+    aw_extra :<= aw.bits.echo
+    ar_extra(AXI4RRId) := ar.bits.id
+    aw_extra(AXI4RRId) := aw.bits.id
     val addr = Mux(ar.valid, ar.bits.addr, aw.bits.addr)
     val mask = MaskGen(ar.bits.addr, ar.bits.size, beatBytes)
 
@@ -52,7 +59,7 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     in.bits.index := addr >> log2Ceil(beatBytes)
     in.bits.data  := w.bits.data
     in.bits.mask  := Mux(ar.valid, mask, w.bits.strb)
-    in.bits.extra := in_extra
+    in.bits.extra := Mux(ar.valid, ar_extra, aw_extra)
 
     // Invoke the register map builder and make it Irrevocable
     val out = Queue.irrevocable(
@@ -64,17 +71,15 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     r.valid := out.valid &&  out.bits.read
     b.valid := out.valid && !out.bits.read
 
-    val out_id = if (r.bits.params.idBits == 0) UInt(0) else (out.bits.extra >> ar.bits.params.userBits)
-
-    r.bits.id   := out_id
+    r.bits.id   := out.bits.extra(AXI4RRId)
     r.bits.data := out.bits.data
     r.bits.last := Bool(true)
     r.bits.resp := AXI4Parameters.RESP_OKAY
-    r.bits.user.foreach { _ := out.bits.extra }
+    r.bits.echo :<= out.bits.extra
 
-    b.bits.id   := out_id
+    b.bits.id   := out.bits.extra(AXI4RRId)
     b.bits.resp := AXI4Parameters.RESP_OKAY
-    b.bits.user.foreach { _ := out.bits.extra }
+    b.bits.echo :<= out.bits.extra
   }
 }
 

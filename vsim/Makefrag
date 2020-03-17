@@ -64,14 +64,14 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 # Build the simulator
 #--------------------------------------------------------------------
 
-simv = $(sim_dir)/simv-$(PROJECT)-$(CONFIG_STR)
+simv = $(sim_dir)/simv-$(PROJECT)-$(CONFIG)
 $(simv) : $(sim_vsrcs) $(sim_csrcs)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
 	-debug_pp \
 
-simv_debug = $(sim_dir)/simv-$(PROJECT)-$(CONFIG_STR)-debug
+simv_debug = $(sim_dir)/simv-$(PROJECT)-$(CONFIG)-debug
 $(simv_debug) : $(sim_vsrcs) $(sim_csrcs)
 	cd $(sim_dir) && \
 	rm -rf csrc && \

@@ -6,29 +6,38 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
+import freechips.rocketchip.amba._
 import scala.math.{min, max}
 import APBParameters._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
-  dFn = { case TLClientPortParameters(clients, minLatency) =>
-    val masters = clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath, userBits = c.userBits) }
-    APBMasterPortParameters(masters)
+  dFn = { cp =>
+    APBMasterPortParameters(
+      masters = cp.clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath) },
+      requestFields = cp.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
+      responseKeys  = cp.responseKeys)
   },
-  uFn = { case APBSlavePortParameters(slaves, beatBytes) =>
-    val managers = slaves.map { case s =>
+  uFn = { sp =>
+    val managers = sp.slaves.map { case s =>
       TLManagerParameters(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
         executable         = s.executable,
         nodePath           = s.nodePath,
-        supportsGet        = if (s.supportsRead)  TransferSizes(1, beatBytes) else TransferSizes.none,
-        supportsPutPartial = if (s.supportsWrite) TransferSizes(1, beatBytes) else TransferSizes.none,
-        supportsPutFull    = if (s.supportsWrite) TransferSizes(1, beatBytes) else TransferSizes.none,
+        supportsGet        = if (s.supportsRead)  TransferSizes(1, sp.beatBytes) else TransferSizes.none,
+        supportsPutPartial = if (s.supportsWrite) TransferSizes(1, sp.beatBytes) else TransferSizes.none,
+        supportsPutFull    = if (s.supportsWrite) TransferSizes(1, sp.beatBytes) else TransferSizes.none,
         fifoId             = Some(0), // a common FIFO domain
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(managers, beatBytes, 0, 1)
+    TLManagerPortParameters(
+      managers   = managers,
+      beatBytes  = sp.beatBytes,
+      endSinkId  = 0,
+      minLatency = 1,
+      responseFields = sp.responseFields,
+      requestKeys    = AMBAProt +: sp.requestKeys)
   })
 
 // The input side has either a flow queue (aFlow=true) or a pipe queue (aFlow=false)
@@ -54,7 +63,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       // phase result.  Whenever we have a queued response, we can not allow
       // APB to present new responses, so we must quash the address phase.
       val d = Wire(in.d)
-      in.d <> Queue(d, 1, flow = true)
+      in.d :<> Queue(d, 1, flow = true)
 
       // We need an irrevocable input for APB to stall
       val a = Queue(in.a, 1, flow = aFlow, pipe = !aFlow)
@@ -67,6 +76,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       val d_write  = RegEnable(a_write,       enable_d)
       val d_source = RegEnable(a.bits.source, enable_d)
       val d_size   = RegEnable(a.bits.size,   enable_d)
+      val d_echo   = RegEnable(a.bits.echo,   enable_d)
 
       when (a_sel)    { a_enable := Bool(true) }
       when (d.fire()) { a_enable := Bool(false) }
@@ -78,8 +88,14 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       out.pprot   := PROT_DEFAULT
       out.pwdata  := a.bits.data
       out.pstrb   := Mux(a_write, a.bits.mask, UInt(0))
-
-      a.bits.user.map {i => out.pauser.map {_ := i}}
+      out.pauser :<= a.bits.user
+      a.bits.user.lift(AMBAProt).foreach { x =>
+        val pprot = Wire(Vec(3, Bool()))
+        pprot(0) :=  x.privileged
+        pprot(1) := !x.secure
+        pprot(2) :=  x.fetch
+        out.pprot := Cat(pprot.reverse)
+      }
 
       a.ready := a_enable && out.pready
       d.valid := a_enable && out.pready
@@ -93,6 +109,8 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       d.bits.denied  :=  d_write && out.pslverr
       d.bits.data    := out.prdata
       d.bits.corrupt := !d_write && out.pslverr
+      d.bits.user    :<= out.pduser
+      d.bits.echo    :<= d_echo
     }
   }
 }
