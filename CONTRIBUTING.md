@@ -45,6 +45,7 @@ You can do this by simply editing the file in your text editor of choice.
 ```bash
 # Add and commit the submodule
 git add <submodule>
+git add wit-manifest.json
 git commit -m "<meaningful message about bumping>"
 ```
 
