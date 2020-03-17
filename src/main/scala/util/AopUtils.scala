@@ -33,7 +33,7 @@ object InjectModules {
 //  def monInject[T](collector: PartialFunction[BaseModule, T]): Iterable[T] = {
 //    items.collect{case m: DCache => println(s"SULTAN DCache: ${m.getClass.getName}")}
     println(s"SULTAN partial func: ${collector.getClass.getName}")
-//    circuit.components.collect{collector}
+//    SelectDrcuit.components.collect{collector}
   }
 
   def monFind(a: BaseModule) = {

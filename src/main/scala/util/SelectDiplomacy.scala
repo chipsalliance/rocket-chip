@@ -2,6 +2,9 @@
 
 package freechips.rocketchip.util
 
+import scala.io.Source
+import java.nio.file.{Paths, Files}
+
 import Chisel._
 import chisel3.RawModule
 //import chisel3.internal.firrtl.{Circuit, DefModule}
@@ -23,6 +26,8 @@ import chisel3.aop.{Aspect, Select}
 import firrtl.graph._
 
 import scala.collection.mutable
+
+import scala.collection.JavaConverters._
 
 trait GraphType
 object DOTGRAPH extends GraphType
@@ -154,6 +159,20 @@ object SelectDiplomacy {
 //    collectLazyModules.find(_.name == name)
 //  }
 
+    def mixedNodes() = collectBaseNodes().collect{case x: MixedNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+    def mixedCustomNodes() = collectBaseNodes().collect{case x: MixedCustomNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+    def customNodes() = collectBaseNodes().collect{case x: CustomNode[Data, Data, Data, Data, Data] => x}
+    def junctionNodes() = collectBaseNodes().collect{case x: JunctionNode[Data, Data, Data, Data, Data] => x}
+    def mixedAdapterNodes() = collectBaseNodes().collect{case x: MixedAdapterNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+    def adapterNodes() = collectBaseNodes().collect{case x: AdapterNode[Data, Data, Data, Data, Data] => x}
+    def identityNodes() = collectBaseNodes().collect{case x: IdentityNode[Data, Data, Data, Data, Data] => x}
+    def ephemeralNodes() = collectBaseNodes().collect{case x: EphemeralNode[Data, Data, Data, Data, Data] => x}
+    def mixedNexusNodes() = collectBaseNodes().collect{case x: MixedNexusNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+    def nexusNodes() = collectBaseNodes().collect{case x: NexusNode[Data, Data, Data, Data, Data] => x}
+    def sourceNodes() = collectBaseNodes().collect{case x: SourceNode[Data, Data, Data, Data, Data] => x}
+    def sinkNodes() = collectBaseNodes().collect{case x: SinkNode[Data, Data, Data, Data, Data] => x}
+    def mixedTestNodes() = collectBaseNodes().collect{case x: MixedTestNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+
 
 //  def getPaths(gr: MutableDiGraph[TreeData]): List[Any] = {
   def getPaths() = {
@@ -197,6 +216,62 @@ object SelectDiplomacy {
       }
     }
     this
+  }
+
+  def viewDiplomacy() = {
+    val pwdDir = System.getenv().asScala{"PWD"}
+    println(s"view Diplomacy PWD ${pwdDir}")
+
+    val ItemRegex = """(\w+)\s+(\w+)""".r
+    val filename = s"${pwdDir}/viewDiplomacy.txt"
+    if(Files.exists(Paths.get(filename))) {
+      for (line <- Source.fromFile(filename).getLines) {
+        line match {
+          case line if line.startsWith("//") => ""
+          case ItemRegex(a, b) =>
+            a match {
+              case "graph" => b match {
+                case "dot" => render(pwdDir, "diplGraph", DOTGRAPH)
+              }
+              case "BaseNode" => b match {
+                case "all" => {
+                  val baseNodes = SelectDiplomacy().collectBaseNodes()
+                  baseNodes.foreach{n => println(s"BASE NODE ${n.name} <<< ${n} >>>")}
+                }
+                case "byGroup" => {
+                  for(e <- mixedNodes()) println(s"NodesByGroup mixedNodes ${e}")
+                  for(e <- mixedCustomNodes()) println(s"NodesByGroup mixedCustomNodes ${e}")
+                  for(e <- mixedCustomNodes()) println(s"NodesByGroup mixedCustomNodes ${e}")
+                  for(e <- junctionNodes()) println(s"NodesByGroup junctionNodes ${e}")
+                  for(e <- mixedAdapterNodes()) println(s"NodesByGroup mixedAdapterNode ${e}")
+                  for(e <- adapterNodes()) println(s"NodesByGroup adapterNode ${e}")
+                  for(e <- identityNodes()) println(s"NodesByGroup identityNode ${e}")
+                  for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeraNodes ${e}")
+                  for(e <- mixedNexusNodes()) println(s"NodesByGroup mixedNexuxNode ${e}")
+                  for(e <- nexusNodes()) println(s"NodesByGroup nexuxNode ${e}")
+                  for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeralNode ${e}")
+                  for(e <- sourceNodes()) println(s"NodesByGroup Node ${e}")
+                  for(e <- sinkNodes()) println(s"NodesByGroup Node ${e}")
+                  for(e <- mixedTestNodes()) println(s"NodesByGroup Node ${e}")
+                }
+              }
+              case "impModules" => b match {
+                case "all" => {
+                  val impMod = SelectDiplomacy().collectImpModules()
+                  impMod.foreach{n => println(s"IMP Module ${n.getClass.getName}")}
+                }
+              }
+              case "lazyModules" => b match {
+                case "all" => {
+                  val lazyMod = SelectDiplomacy().collectLazyModules()
+                  lazyMod.foreach{n => println(s"Lazy Module ${n.getClass.getName}")}
+                }
+              }
+            }
+          case _ => ""
+        }
+      }
+    }
   }
 
   def writeFile(targetDir: String, fname: String, contents: String): File = {

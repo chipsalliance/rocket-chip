@@ -18,6 +18,16 @@ import chisel3.internal.firrtl._
 //import freechips.rocketchip.util.HasRocketChipStageUtils
 import freechips.rocketchip.util.SelectDiplomacy
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.formal._
+import freechips.rocketchip.diplomacy._
+
+//object TestMonitor {
+//  val m = new 
+//
+//
+//
+//}
+
 
 case class AopTestModule (wide: Int) extends Module {
   val io = IO(new Bundle {
@@ -27,32 +37,87 @@ case class AopTestModule (wide: Int) extends Module {
   io.random := 0.U
 }
 
+////class MyTLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args) {
+//  val formalMonitor = Module(
+//    new FormalTileLinkMonitor(TLMonitorArgs(edge), MonitorDirection.Driver)
+//  )
+//}
+
+/** Provides classes for dealing with complex numbers.  Also provides
+  *  implicits for converting to and from `Int`.
+  *
+  *  API to access Diplomacy Node data:
+  *  {{{
+  *     val baseNodes = SelectDiplomacy.collectBaseNodes()
+  *     val impMod = SelectDiplomacy.collectImpModules()
+  *     val lazyMod = SelectDiplomacy.collectLazyModules()
+  * 
+  *     val mixedNodes = SelectDiplomacy.mixedNodes()
+  *     val mixedCustomNodes = SelectDiplomacy.mixedCustomNodes()
+  *      val customNodes = SelectDiplomacy.customNodes()
+  *      val junctionNodes = SelectDiplomacy.junctionNodes()
+  *      val mixedAdapterNodes = SelectDiplomacy.mixedAdapterNodes()
+  *      val adapterNodes = SelectDiplomacy.adapterNodes()
+  *      val identityNodes = SelectDiplomacy.identityNodes()
+  *      val ephemeralNodes = SelectDiplomacy.ephemeralNodes()
+  *      val mixedNexusNodes = SelectDiplomacy.mixedNexusNodes()
+  *      val nexusNodes = SelectDiplomacy.nexusNodes()
+  *      val sourceNodes = SelectDiplomacy.sourceNodes()
+  *      val sinkNodes = SelectDiplomacy.sinkNodes()
+  *  val mixedTestNodes = SelectDiplomacy.mixedTestNodes()
+  *  }}}
+ */
+
 case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule](
   {top: RawModule => Select.collectDeep(top) { case d: DCacheModule => d }},
   {d: DCacheModule => 
     // attach TLMonitor here
-    printf("SULTAN from object TLMonitorInjToDcache")
-    println(s"SULTAN from object TLMonitorInjToDcache wire inject")
+    printf("SULTAN from object TLMonitorInjToDcache for .v file")
+    println(s"DEBUG from object TLMonitorInjToDcache wire inject")
     val dummyWire = Wire(UInt(3.W)).suggestName("aopTestWire")
     dummyWire := 5.U
     dontTouch(dummyWire)
 
-    println(s"SULTAN from object TLMonitorInjToDcache test moule inject")
+    println(s"DEBUG from object TLMonitorInjToDcache test moule inject")
     val aopTestMod = Module(new AopTestModule(16))
     aopTestMod.io.inc := 1.U
     dontTouch(aopTestMod.io.inc)
 
-//    val (out, edge) = node.out(0)
-//    val edge = new TLEdgeIn(<client-param>, <manager-param>, <params>, <SourceInfo>)
+//    val aopTestMod = Module(new TLMonitor(edges))
 
-    println("SULTAN:TLMonitorInjToDcache bundle for the monitor")
-    val baseNodes = SelectDiplomacy().collectBaseNodes()
-//    val baseNodes = SelectDiplomacy.collectBaseNodes()
+    val view = SelectDiplomacy().viewDiplomacy()
 
-    baseNodes.foreach{n => println(s"SULTAN DEBUG BASE NODES ${n.getClass.getName}")}
-  }
-)
+    val ios = Select.ios(d)
+    println(s"DEBUG DCache ios ${ios}")
+    val inst = Select.instances(d)
+    println(s"DEBUG DCache inst ${inst}")
+    val wires = Select.wires(d)
+    println(s"DEBUG DCache wires ${wires}")
 
+    wires.collect{case x: TLBundleA => println(s"SULTAN TLBundleA x: ${x.getClass.getName}"); x}
+
+/*
+    val baseNodes = SelectDiplomacy.collectBaseNodes()
+    val impMod = SelectDiplomacy.collectImpModules()
+    val lazyMod = SelectDiplomacy.collectLazyModules()
+
+    val mixedNodes = SelectDiplomacy.mixedNodes()
+    val mixedCustomNodes = SelectDiplomacy.mixedCustomNodes()
+    val customNodes = SelectDiplomacy.customNodes()
+    val junctionNodes = SelectDiplomacy.junctionNodes()
+    val mixedAdapterNodes = SelectDiplomacy.mixedAdapterNodes()
+    val adapterNodes = SelectDiplomacy.adapterNodes()
+    val identityNodes = SelectDiplomacy.identityNodes()
+    val ephemeralNodes = SelectDiplomacy.ephemeralNodes()
+    val mixedNexusNodes = SelectDiplomacy.mixedNexusNodes()
+    val nexusNodes = SelectDiplomacy.nexusNodes()
+    val sourceNodes = SelectDiplomacy.sourceNodes()
+    val sinkNodes = SelectDiplomacy.sinkNodes()
+    val mixedTestNodes = SelectDiplomacy.mixedTestNodes()
+ */
+//    val edge: TLEdge = 
+//    val tlMonArgs = TLMonitorArgs(edge)
+  })
 
 
 
