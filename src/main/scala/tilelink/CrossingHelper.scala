@@ -15,6 +15,8 @@ case class TLInwardCrossingHelper(name: String, scope: LazyScope, node: TLInward
         node :*=* scope { TLRationalCrossingSink(direction.flip) :*=* TLRationalNameNode(name) } :*=* TLRationalNameNode(name) :*=* TLRationalCrossingSource()
       case SynchronousCrossing(buffer) =>
         node :*=* scope { TLBuffer(buffer) :*=* TLNameNode(name) } :*=* TLNameNode(name)
+      case SeparateButSynchronousCrossing(buffer) =>
+        node :*=* scope { TLBuffer(buffer) :*=* TLNameNode(name) } :*=* TLNameNode(name)
     }
   }
 }
@@ -27,6 +29,8 @@ case class TLOutwardCrossingHelper(name: String, scope: LazyScope, node: TLOutwa
       case RationalCrossing(direction) =>
         TLRationalCrossingSink(direction) :*=* TLRationalNameNode(name) :*=* scope { TLRationalNameNode(name) :*=* TLRationalCrossingSource() } :*=* node
       case SynchronousCrossing(buffer) =>
+        TLNameNode(name) :*=* scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
+      case SeparateButSynchronousCrossing(buffer) =>
         TLNameNode(name) :*=* scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
     }
   }

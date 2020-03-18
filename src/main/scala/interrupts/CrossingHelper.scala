@@ -12,7 +12,7 @@ case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwa
         node :*=* scope { IntSyncAsyncCrossingSink(x.sinkSync) :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
       case RationalCrossing(_) =>
         node :*=* scope { IntSyncRationalCrossingSink() :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
-      case SynchronousCrossing(_) =>
+      case SynchronousCrossing(_) | SeparateButSynchronousCrossing (_) =>
         node :*=* scope { IntSyncSyncCrossingSink() :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
     }
   }
@@ -25,7 +25,7 @@ case class IntOutwardCrossingHelper(name: String, scope: LazyScope, node: IntOut
         IntSyncAsyncCrossingSink(x.sinkSync) :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
       case RationalCrossing(_) =>
         IntSyncRationalCrossingSink() :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
-      case SynchronousCrossing(buffer) =>
+      case SynchronousCrossing(_) | SeparateButSynchronousCrossing(_)=>
         IntSyncSyncCrossingSink() :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
     }
   }
