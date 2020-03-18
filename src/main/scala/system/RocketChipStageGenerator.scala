@@ -21,7 +21,6 @@ class RocketChipStage extends ChiselStage with PreservesAll[Phase] {
     classOf[chisel3.stage.phases.AddImplicitOutputFile],
     classOf[chisel3.stage.phases.AddImplicitOutputAnnotationFile],
     classOf[chisel3.stage.phases.MaybeAspectPhase],
-    classOf[freechips.rocketchip.stage.phases.GenerateInjectModule],
     classOf[chisel3.stage.phases.Emitter],
     classOf[chisel3.stage.phases.Convert],
     classOf[freechips.rocketchip.stage.phases.GenerateFirrtlAnnos],
