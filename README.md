@@ -650,7 +650,9 @@ Further information about GDB debugging is available [here](https://sourceware.o
 
 ## <a name="contributors"></a> Contributors
 
-Can be found [here](https://github.com/ucb-bar/rocket-chip/graphs/contributors).
+Contributing guidelines can be found in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+A list of contributors can be found [here](https://github.com/chipsalliance/rocket-chip/graphs/contributors).
 
 ## <a name="attribution"></a> Attribution
 
