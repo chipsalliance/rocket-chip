@@ -85,6 +85,7 @@ global def makeRocketChipGeneratorOptions jars targetDir topModule configs =
 
 tuple RocketChipGeneratorOutputs =
   DTS_:            Path
+  DTSJSON_:        Path # JSON version of the DTS file.
   FirrtlFile_:     Path
   FirrtlAnnoFile_: Path
   RomConf_:        Path
@@ -93,6 +94,7 @@ tuple RocketChipGeneratorOutputs =
   OMFile_:         Option Path
 
 global def getRocketChipGeneratorOutputsDTS             = getRocketChipGeneratorOutputsDTS_
+global def getRocketChipGeneratorOutputsDTSJSON         = getRocketChipGeneratorOutputsDTSJSON_
 global def getRocketChipGeneratorOutputsFirrtlFile      = getRocketChipGeneratorOutputsFirrtlFile_
 global def getRocketChipGeneratorOutputsFirrtlAnnoFile  = getRocketChipGeneratorOutputsFirrtlAnnoFile_
 global def getRocketChipGeneratorOutputsRomConf         = getRocketChipGeneratorOutputsRomConf_
@@ -104,11 +106,11 @@ global def runRocketChipGenerator options =
   def jars = options.getRocketChipGeneratorOptionsJars
   def runDir = "rocket-chip"
   def targetDir = options.getRocketChipGeneratorOptionsTargetDir
+  def rootPackage = "_root_"
+  def configs = catWith "_" options.getRocketChipGeneratorOptionsConfigNames
 
   def cmdline =
-    def rootPackage = "_root_"
     def main = "freechips.rocketchip.system.Generator"
-    def configs = catWith "_" options.getRocketChipGeneratorOptionsConfigNames
     def topModule = options.getRocketChipGeneratorOptionsTopModuleName
     def relJars = jars | map getPathName | map (relative runDir)
     def classpath = catWith ":" relJars
@@ -132,6 +134,11 @@ global def runRocketChipGenerator options =
     | setPlanDirectory runDir
     | runJob
 
+  def outputBaseName =
+    options
+    | getRocketChipGeneratorOptionsBaseFileName
+    | getOrElse "{rootPackage}.{configs}"
+
   def filterFiles regex = filter (matches regex _.getPathName) allOutputs
   def getFile regex = filterFiles regex | head | getOrElse (makeBadPath (makeError "File not found"))
   def getFileOpt regex = match (filterFiles regex)
@@ -143,6 +150,7 @@ global def runRocketChipGenerator options =
   def firrtlFile  = getFile `.*\.fir`
   def romConfFile = getFile `.*\.rom\.conf`
   def dtsFile     = getFile `.*\.dts`
+  def dtsJSONFile = getFile (regExpCat (`.*`, outputBaseName.quote, `\.json`, Nil))
   def omFile      = getFileOpt `.*\.objectModel\.json`
 
-  RocketChipGeneratorOutputs dtsFile firrtlFile annoFile romConfFile allOutputs options omFile
+  RocketChipGeneratorOutputs dtsFile dtsJSONFile firrtlFile annoFile romConfFile allOutputs options omFile
