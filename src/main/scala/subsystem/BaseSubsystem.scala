@@ -14,8 +14,6 @@ case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDri
 case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("async_clock_groups")))
 case class TLNetworkTopologyLocated(where: String) extends Field[Seq[CanInstantiateWithinContext with CanConnectWithinContext]]
 
-case class HierarchicalLocation(override val name: String) extends Location[LazyScope](name)
-
 class HierarchicalLocation(override val name: String) extends Location[LazyScope](name)
 case object InTile extends HierarchicalLocation("InTile")
 case object InSubsystem extends HierarchicalLocation("InSubsystem")
