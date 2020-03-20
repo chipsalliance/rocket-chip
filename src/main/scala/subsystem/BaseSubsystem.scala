@@ -43,8 +43,9 @@ case object ResetAsynchronousFull extends SubsystemResetScheme
 case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSynchronous)
 
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
-    with Attachable {
+abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
+                            (implicit p: Parameters)
+    extends BareSubsystem with Attachable {
 
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
@@ -58,9 +59,8 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
 
   // Find the topology configuration for the TL buses located in this subsystem.
   // Calling these functions populates tlBusWrapperLocationMap and connects the locations to each other.
-  val location = HierarchicalLocation("InSubsystem")
   val topology = p(TLNetworkTopologyLocated(location.name))
-  topology.foreach(_.instantiate(this))
+  private val buses = topology.map(_.instantiate(this))
   topology.foreach(_.connect(this))
 
   // TODO how should this clock driving happen; must there really always be an "sbus"?
@@ -99,14 +99,6 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   }
 
   lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
-
-  private val buses = Seq(
-    sbus,
-    pbus,
-    fbus,
-    mbus,
-    cbus
-  )
 
   buses.foreach { bus =>
     val builtIn = bus.builtInDevices
