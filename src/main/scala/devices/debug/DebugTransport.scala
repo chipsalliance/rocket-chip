@@ -65,7 +65,7 @@ class DTMInfo extends Bundle {
 /** A wrapper around JTAG providing a reset signal and manufacturer id. */
 class SystemJTAGIO extends Bundle {
   val jtag = Flipped(new JTAGIO(hasTRSTn = false))
-  val reset = Input(AsyncReset())
+  val reset = Input(Reset())
   val mfr_id = Input(UInt(11.W))
   val part_number = Input(UInt(16.W))
   val version = Input(UInt(4.W))
@@ -76,7 +76,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
   val io = IO(new Bundle {
     val jtag_clock = Input(Clock())
-    val jtag_reset = Input(AsyncReset())
+    val jtag_reset = Input(Reset())
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
     val jtag_mfr_id = Input(UInt(11.W))
@@ -85,7 +85,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   })
   val rf_reset = IO(Input(Reset()))    // RF transform
 
-  withClockAndReset(io.jtag_clock, io.jtag_reset) {
+  withClockAndReset(io.jtag_clock, io.jtag_reset.asAsyncReset) {
 
   //--------------------------------------------------------
   // Reg and Wire Declarations
@@ -260,7 +260,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   tapIO.idcode.get := idcode
   tapIO.jtag <> io.jtag
 
-  tapIO.control.jtag_reset := io.jtag_reset
+  tapIO.control.jtag_reset := io.jtag_reset.asAsyncReset
 
   //--------------------------------------------------------
   // TAP Test-Logic-Reset state synchronously resets the debug registers.
