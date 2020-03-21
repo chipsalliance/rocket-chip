@@ -223,7 +223,7 @@ object SelectDiplomacy {
     println(s"view Diplomacy PWD ${pwdDir}")
 
     val ItemRegex = """(\w+)\s+(\w+)""".r
-    val filename = s"${pwdDir}/viewDiplomacy.txt"
+    val filename = s"${pwdDir}/diplomacy.view"
     if(Files.exists(Paths.get(filename))) {
       for (line <- Source.fromFile(filename).getLines) {
         line match {
@@ -248,11 +248,11 @@ object SelectDiplomacy {
                   for(e <- identityNodes()) println(s"NodesByGroup identityNode ${e}")
                   for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeraNodes ${e}")
                   for(e <- mixedNexusNodes()) println(s"NodesByGroup mixedNexuxNode ${e}")
-                  for(e <- nexusNodes()) println(s"NodesByGroup nexuxNode ${e}")
+                  for(e <- nexusNodes()) println(s"NodesByGroup nexuxNodes ${e}")
                   for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeralNode ${e}")
-                  for(e <- sourceNodes()) println(s"NodesByGroup Node ${e}")
-                  for(e <- sinkNodes()) println(s"NodesByGroup Node ${e}")
-                  for(e <- mixedTestNodes()) println(s"NodesByGroup Node ${e}")
+                  for(e <- sourceNodes()) println(s"NodesByGroup sourceNodes ${e}")
+                  for(e <- sinkNodes()) println(s"NodesByGroup sinkNodes ${e}")
+                  for(e <- mixedTestNodes()) println(s"NodesByGroup mixedTestNodes ${e}")
                 }
               }
               case "impModules" => b match {

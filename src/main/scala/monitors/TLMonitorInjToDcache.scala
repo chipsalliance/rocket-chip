@@ -21,28 +21,6 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.formal._
 import freechips.rocketchip.diplomacy._
 
-//object TestMonitor {
-//  val m = new 
-//
-//
-//
-//}
-
-
-case class AopTestModule (wide: Int) extends Module {
-  val io = IO(new Bundle {
-    val inc = Input(Bool())
-    val random = Output(UInt(wide.W))
-  })
-  io.random := 0.U
-}
-
-////class MyTLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args) {
-//  val formalMonitor = Module(
-//    new FormalTileLinkMonitor(TLMonitorArgs(edge), MonitorDirection.Driver)
-//  )
-//}
-
 /** Provides classes for dealing with complex numbers.  Also provides
   *  implicits for converting to and from `Int`.
   *
@@ -68,6 +46,20 @@ case class AopTestModule (wide: Int) extends Module {
   *  }}}
  */
 
+case class AopTestModule (wide: Int) extends Module {
+  val io = IO(new Bundle {
+    val inc = Input(Bool())
+    val random = Output(UInt(wide.W))
+  })
+  io.random := 0.U
+}
+
+//class AopTLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args) {
+//  val aopMonitor = Module(
+//    new FormalTileLinkMonitor(TLMonitorArgs(edge), MonitorDirection.Driver)
+//  )
+//}
+
 case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule](
   {top: RawModule => Select.collectDeep(top) { case d: DCacheModule => d }},
   {d: DCacheModule => 
@@ -83,10 +75,27 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
     aopTestMod.io.inc := 1.U
     dontTouch(aopTestMod.io.inc)
 
-//    val aopTestMod = Module(new TLMonitor(edges))
+//    val args = TLMonitorArgs() // edges comes from select
+//
+//    val aopTlMod = Module(new TLMonitor(args))
+    // connect wires
 
     val view = SelectDiplomacy().viewDiplomacy()
 
+    val abcd = SelectDiplomacy().sourceNodes
+    val abcd1 = abcd.foreach{y => y match{
+      case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLClientNode") => 
+        a.asInstanceOf[TLClientNode]  match {
+//          case b : List[TLClientPortParameters] => println(s"SULTAN MATCH FOUND"); a
+          case TLClientNode(portParams: TLClientPortParameters)  => println(s"SULTAN MATCH FOUND"); a
+          case _ => println(s"SULTAN MATCH NOT FOUND"); a
+        }
+        a
+      case _ => 
+    }}
+ 
+//println(s"SULTAN AAAA ${a.makeIOs}"); y
+//    freechips.rocketchip.tilelink.TLClientNode
     val ios = Select.ios(d)
     println(s"DEBUG DCache ios ${ios}")
     val inst = Select.instances(d)
@@ -96,52 +105,6 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
 
     wires.collect{case x: TLBundleA => println(s"SULTAN TLBundleA x: ${x.getClass.getName}"); x}
 
-/*
-    val baseNodes = SelectDiplomacy.collectBaseNodes()
-    val impMod = SelectDiplomacy.collectImpModules()
-    val lazyMod = SelectDiplomacy.collectLazyModules()
-
-    val mixedNodes = SelectDiplomacy.mixedNodes()
-    val mixedCustomNodes = SelectDiplomacy.mixedCustomNodes()
-    val customNodes = SelectDiplomacy.customNodes()
-    val junctionNodes = SelectDiplomacy.junctionNodes()
-    val mixedAdapterNodes = SelectDiplomacy.mixedAdapterNodes()
-    val adapterNodes = SelectDiplomacy.adapterNodes()
-    val identityNodes = SelectDiplomacy.identityNodes()
-    val ephemeralNodes = SelectDiplomacy.ephemeralNodes()
-    val mixedNexusNodes = SelectDiplomacy.mixedNexusNodes()
-    val nexusNodes = SelectDiplomacy.nexusNodes()
-    val sourceNodes = SelectDiplomacy.sourceNodes()
-    val sinkNodes = SelectDiplomacy.sinkNodes()
-    val mixedTestNodes = SelectDiplomacy.mixedTestNodes()
- */
-//    val edge: TLEdge = 
-//    val tlMonArgs = TLMonitorArgs(edge)
   })
 
 
-
-
-//case object TLMonitorInjToDcache extends InjectorAspect (
-//  {top: RawModule => Select.collectDeep(top) { case d: DCache => d }},
-//  {d: DCache =>  
-//    // attach TLMonitor here
-//    println(s"SULTAN from object TLMonitorInjToDcache")
-//  })
-
-//{
-
-
-//  injMonitor(mon:       {case a: TLMoniotr => true})
-//            (whereToGo: {case a: DCache => true}),
-//            (port:      {case a: HellaCacheBundle => true})
-
-//(
-//    selectRoots: TLMonitor => Iterable[DCache],
-//    injection: TLMonitor => Unit
-//)
-//
-
-// (
-//    selectRoots: TLMonitor => Iterable[DCache],
-//    injection: TLMonitor => Unit)

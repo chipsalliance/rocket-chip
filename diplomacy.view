@@ -1,0 +1,6 @@
+graph     dot
+// graph  graphML
+//
+BaseNode  all
+BaseNode  byGroup
+
