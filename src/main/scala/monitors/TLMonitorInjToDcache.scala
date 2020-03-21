@@ -87,7 +87,7 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
       case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLClientNode") => 
         a.asInstanceOf[TLClientNode]  match {
 //          case b : List[TLClientPortParameters] => println(s"SULTAN MATCH FOUND"); a
-          case TLClientNode(portParams: TLClientPortParameters)  => println(s"SULTAN MATCH FOUND"); a
+          case TLClientNode(portParams: Seq[TLClientPortParameters])  => println(s"SULTAN MATCH FOUND"); a
           case _ => println(s"SULTAN MATCH NOT FOUND"); a
         }
         a
