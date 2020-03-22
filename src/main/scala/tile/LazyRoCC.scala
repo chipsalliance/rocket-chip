@@ -360,7 +360,7 @@ class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(imp
                       val rocc = roccIo.cloneType
                     })
         override def desiredName: String = blackBoxFile
-        setResource(s"/vsrc/$blackBoxFile.v")
+        addResource(s"/vsrc/$blackBoxFile.v")
       }
     )
   }
