@@ -32,8 +32,8 @@ abstract class DevNullDevice(params: DevNullParams, beatBytes: Int, device: Simp
   val atom = if (params.maxAtomic > 0) TransferSizes(1, params.maxAtomic) else TransferSizes.none
   val acq  = if (params.acquire) xfer else TransferSizes.none
   val hint = if (params.hint) xfer else TransferSizes.none
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = params.address,
       resources          = device.reg,
       regionType         = params.region,

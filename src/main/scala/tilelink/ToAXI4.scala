@@ -24,7 +24,7 @@ case class AXI4TLStateField(sourceBits: Int) extends BundleField(AXI4TLState) {
   }
 }
 
-class TLtoAXI4IdMap(tl: TLClientPortParameters, axi4: AXI4MasterPortParameters) {
+class TLtoAXI4IdMap(tl: TLMasterPortParameters, axi4: AXI4MasterPortParameters) {
   private val axiDigits = String.valueOf(axi4.endId-1).length()
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
   private val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
@@ -72,9 +72,9 @@ case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit v
       echoFields    = AXI4TLStateField(log2Ceil(p.endSourceId)) +: p.echoFields,
       responseKeys  = p.responseKeys)
   },
-  uFn = { p => TLManagerPortParameters(
+  uFn = { p => TLSlavePortParameters.v1(
     managers = p.slaves.map { case s =>
-      TLManagerParameters(
+      TLSlaveParameters.v1(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
@@ -281,7 +281,7 @@ object TLToAXI4
     tl2axi4.node
   }
 
-  def sortByType(a: TLClientParameters, b: TLClientParameters): Boolean = {
+  def sortByType(a: TLMasterParameters, b: TLMasterParameters): Boolean = {
     if ( a.supportsProbe && !b.supportsProbe) return false
     if (!a.supportsProbe &&  b.supportsProbe) return true
     if ( a.requestFifo   && !b.requestFifo  ) return false
