@@ -32,17 +32,24 @@ import freechips.rocketchip.diplomacy._
   * 
   *     val mixedNodes = SelectDiplomacy.mixedNodes()
   *     val mixedCustomNodes = SelectDiplomacy.mixedCustomNodes()
-  *      val customNodes = SelectDiplomacy.customNodes()
-  *      val junctionNodes = SelectDiplomacy.junctionNodes()
-  *      val mixedAdapterNodes = SelectDiplomacy.mixedAdapterNodes()
-  *      val adapterNodes = SelectDiplomacy.adapterNodes()
-  *      val identityNodes = SelectDiplomacy.identityNodes()
-  *      val ephemeralNodes = SelectDiplomacy.ephemeralNodes()
-  *      val mixedNexusNodes = SelectDiplomacy.mixedNexusNodes()
-  *      val nexusNodes = SelectDiplomacy.nexusNodes()
-  *      val sourceNodes = SelectDiplomacy.sourceNodes()
-  *      val sinkNodes = SelectDiplomacy.sinkNodes()
-  *  val mixedTestNodes = SelectDiplomacy.mixedTestNodes()
+  *     val customNodes = SelectDiplomacy.customNodes()
+  *     val junctionNodes = SelectDiplomacy.junctionNodes()
+  *     val mixedAdapterNodes = SelectDiplomacy.mixedAdapterNodes()
+  *     val adapterNodes = SelectDiplomacy.adapterNodes()
+  *     val identityNodes = SelectDiplomacy.identityNodes()
+  *     val ephemeralNodes = SelectDiplomacy.ephemeralNodes()
+  *     val mixedNexusNodes = SelectDiplomacy.mixedNexusNodes()
+  *     val nexusNodes = SelectDiplomacy.nexusNodes()
+  *     val sourceNodes = SelectDiplomacy.sourceNodes()
+  *     val sinkNodes = SelectDiplomacy.sinkNodes()
+  *     val mixedTestNodes = SelectDiplomacy.mixedTestNodes()
+  * 
+  *     val csNode = getSrcNode[DCache, TLClientNode]()
+  *         ManagementNode
+  *         AdapterNode
+  *         JumctionNode
+  *         NameNode
+  *         NexusNode
   *  }}}
  */
 
@@ -78,24 +85,16 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
 //    val args = TLMonitorArgs() // edges comes from select
 //
 //    val aopTlMod = Module(new TLMonitor(args))
+
+    val clientSrcNode = SelectDiplomacy.getSrcNode[DCache, TLClientNode]()
+
+    println(s"SULTAN Client Source Node params ${clientSrcNode.head.portParams}")
+
+    //    val aopTlMon = Module(new TLMonitor(clients.head.portParams))
+
+
     // connect wires
-
-    val view = SelectDiplomacy().viewDiplomacy()
-
-    val abcd = SelectDiplomacy().sourceNodes
-    val abcd1 = abcd.foreach{y => y match{
-      case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLClientNode") => 
-        a.asInstanceOf[TLClientNode]  match {
-//          case b : List[TLClientPortParameters] => println(s"SULTAN MATCH FOUND"); a
-          case TLClientNode(portParams: Seq[TLClientPortParameters])  => println(s"SULTAN MATCH FOUND"); a
-          case _ => println(s"SULTAN MATCH NOT FOUND"); a
-        }
-        a
-      case _ => 
-    }}
  
-//println(s"SULTAN AAAA ${a.makeIOs}"); y
-//    freechips.rocketchip.tilelink.TLClientNode
     val ios = Select.ios(d)
     println(s"DEBUG DCache ios ${ios}")
     val inst = Select.instances(d)
@@ -103,7 +102,12 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
     val wires = Select.wires(d)
     println(s"DEBUG DCache wires ${wires}")
 
-    wires.collect{case x: TLBundleA => println(s"SULTAN TLBundleA x: ${x.getClass.getName}"); x}
+    inst.foreach{x => println(s"SULTAN DCACHE INST ${x}")}
+    val bun = wires.collect{case x: TLBundleA => println(s"SULTAN TLBundleA x: ${x}"); x}
+
+//    val aaaa = TLImp.monitor(bun.head, TLEdgeIn())
+
+    val view = SelectDiplomacy().viewDiplomacy()
 
   })
 

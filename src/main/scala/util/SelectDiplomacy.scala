@@ -1,6 +1,7 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.util
+jupitersMoons2019!
 
 import scala.io.Source
 import java.nio.file.{Paths, Files}
@@ -14,8 +15,9 @@ import java.io.{File, FileWriter}
 import firrtl.annotations.JsonProtocol
 import freechips.rocketchip.config._
 import freechips.rocketchip.system.{DefaultTestSuites, TestGeneration}
-//import freechips.rocketchip.tilelink._
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket._
 import freechips.rocketchip.diplomacy.{LazyModuleImp, LazyModule, BaseNode}
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
@@ -169,9 +171,27 @@ object SelectDiplomacy {
     def ephemeralNodes() = collectBaseNodes().collect{case x: EphemeralNode[Data, Data, Data, Data, Data] => x}
     def mixedNexusNodes() = collectBaseNodes().collect{case x: MixedNexusNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
     def nexusNodes() = collectBaseNodes().collect{case x: NexusNode[Data, Data, Data, Data, Data] => x}
-    def sourceNodes() = collectBaseNodes().collect{case x: SourceNode[Data, Data, Data, Data, Data] => x}
+
+    def sourceNodes() = collectBaseNodes().collect{case x: SourceNode[Data, Data, Data, Data, Data] =>  x}
+
     def sinkNodes() = collectBaseNodes().collect{case x: SinkNode[Data, Data, Data, Data, Data] => x}
     def mixedTestNodes() = collectBaseNodes().collect{case x: MixedTestNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+
+/** Return source nodes of type T from the imp module M
+  */
+  def getSrcNode[M, T <: BaseNode]() = {
+    val clientNode = SelectDiplomacy().sourceNodes.collect{
+      case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLClientNode") => a.asInstanceOf[T]
+    }.filter{case c => c.parents.foldLeft(false){(z,f) => 
+      val v1 = f match {
+        case x: M => true
+        case _ => false
+      }
+      z || v1
+    }}
+
+    clientNode
+  }
 
 
 //  def getPaths(gr: MutableDiGraph[TreeData]): List[Any] = {
