@@ -4,11 +4,14 @@ package freechips.rocketchip.devices.debug
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.chiselName
+
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+
 
 case class JtagDTMConfig (
   idcodeVersion    : Int,      // chosen by manuf.
@@ -71,12 +74,16 @@ class SystemJTAGIO extends Bundle {
   val version = Input(UInt(4.W))
 }
 
+// Use the Chisel Name macro due to the bulk of this being inside a withClockAndReset block
+@chiselName
 class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   (implicit val p: Parameters) extends RawModule  {
 
   val io = IO(new Bundle {
     val jtag_clock = Input(Clock())
-    val jtag_reset = Input(Reset())
+    val jtag_reset = Input(Reset()) // This is internally converted to AsyncReset.
+                                    // We'd prefer to call this AsyncReset, but that's a fairly
+                                    // invasive API change.
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
     val jtag_mfr_id = Input(UInt(11.W))
@@ -92,11 +99,11 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
   val dtmInfo = Wire(new DTMInfo)
 
-  val busyReg = Reg(Bool())
-  val stickyBusyReg = Reg(Bool())
-  val stickyNonzeroRespReg = Reg(Bool())
+  val busyReg = RegInit(false.B)
+  val stickyBusyReg = RegInit(false.B)
+  val stickyNonzeroRespReg = RegInit(false.B)
 
-  val downgradeOpReg = Reg(Bool()) // downgrade op because prev. failed.
+  val downgradeOpReg = RegInit(false.B) // downgrade op because prev. failed.
 
   val busy = Wire(Bool())
   val nonzeroResp = Wire(Bool())
@@ -107,7 +114,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
 
   val dmiReqReg  = Reg(new DMIReq(debugAddrBits))
-  val dmiReqValidReg = Reg(Bool())
+  val dmiReqValidReg = RegInit(false.B)
 
   val dmiStatus = Wire(UInt(2.W))
 
