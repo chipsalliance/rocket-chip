@@ -1,7 +1,6 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.util
-jupitersMoons2019!
 
 import scala.io.Source
 import java.nio.file.{Paths, Files}
