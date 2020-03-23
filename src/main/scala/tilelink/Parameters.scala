@@ -298,18 +298,18 @@ class TLSlaveParameters private(
     mayDenyPut:    Boolean) =
   {
     new TLSlaveParameters(
-    nodePath      = nodePath,
-    resources     = resources,
-    setName       = setName,
-    address       = address,
-    regionType    = regionType,
-    executable    = executable,
-    fifoId        = fifoId,
-    supports      = supports,
-    emits         = emits,
-    alwaysGrantsT = alwaysGrantsT,
-    mayDenyGet    = mayDenyGet,
-    mayDenyPut    = mayDenyPut)
+      nodePath      = nodePath,
+      resources     = resources,
+      setName       = setName,
+      address       = address,
+      regionType    = regionType,
+      executable    = executable,
+      fifoId        = fifoId,
+      supports      = supports,
+      emits         = emits,
+      alwaysGrantsT = alwaysGrantsT,
+      mayDenyGet    = mayDenyGet,
+      mayDenyPut    = mayDenyPut)
   }
 
   @deprecated("Use v1copy","")
@@ -394,6 +394,35 @@ object TLSlaveParameters {
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
       fifoId        = fifoId)
+  }
+
+  def v2(
+    nodePath:      Seq[BaseNode]                = Seq(),
+    resources:     Seq[Resource]                = Seq(),
+    setName:       String,
+    address:       Seq[AddressSet],
+    regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
+    executable:    Boolean                      = false,
+    fifoId:        Option[Int]                  = None,
+    supports:      TLMasterToSlaveTransferSizes = TLMasterToSlaveTransferSizes.unknownSupports,
+    emits:         TLSlaveToMasterTransferSizes = TLSlaveToMasterTransferSizes.unknownEmits,
+    alwaysGrantsT: Boolean                      = false,
+    mayDenyGet:    Boolean                      = false,
+    mayDenyPut:    Boolean                      = false) =
+  {
+    new TLSlaveParameters(
+    nodePath      = nodePath,
+    resources     = resources,
+    setName       = setName,
+    address       = address,
+    regionType    = regionType,
+    executable    = executable,
+    fifoId        = fifoId,
+    supports      = supports,
+    emits         = emits,
+    alwaysGrantsT = alwaysGrantsT,
+    mayDenyGet    = mayDenyGet,
+    mayDenyPut    = mayDenyPut)
   }
 }
 
