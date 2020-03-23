@@ -841,6 +841,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     resp.bits.size := uncachedResp.size
     resp.bits.signed := uncachedResp.signed
     resp.bits.data := new LoadGen(uncachedResp.size, uncachedResp.signed, uncachedResp.addr, s1_uncached_data_word, false.B, wordBytes).data
+    resp.bits.data_raw := s1_uncached_data_word
     when (grantIsUncachedData && !resp.ready) {
       tl_out.d.ready := false
     }
