@@ -811,6 +811,33 @@ class TLMasterParameters private(
       sourceId          = sourceId)
   }
 
+  def v2copy(
+    nodePath:          Seq[BaseNode]                = nodePath,
+    resources:         Seq[Resource]                = resources,
+    name:              String                       = name,
+    visibility:        Seq[AddressSet]              = visibility,
+    unusedRegionTypes: Set[RegionType.T]            = unusedRegionTypes,
+    executesOnly:      Boolean                      = executesOnly,
+    requestFifo:       Boolean                      = requestFifo,
+    supports:          TLSlaveToMasterTransferSizes = supports,
+    emits:             TLMasterToSlaveTransferSizes = emits,
+    neverReleasesData: Boolean                      = neverReleasesData,
+    sourceId:          IdRange                      = sourceId) =
+  {
+    new TLMasterParameters(
+      nodePath          = nodePath,
+      resources         = resources,
+      name              = name,
+      visibility        = visibility,
+      unusedRegionTypes = unusedRegionTypes,
+      executesOnly      = executesOnly,
+      requestFifo       = requestFifo,
+      supports          = supports,
+      emits             = emits,
+      neverReleasesData = neverReleasesData,
+      sourceId          = sourceId)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     name:                String          = name,
