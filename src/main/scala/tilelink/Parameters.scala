@@ -904,6 +904,33 @@ object TLMasterParameters {
       neverReleasesData = false,
       sourceId          = sourceId)
   }
+
+  def v2(
+    nodePath:          Seq[BaseNode]                = Seq(),
+    resources:         Seq[Resource]                = Nil,
+    name:              String,
+    visibility:        Seq[AddressSet]              = Seq(AddressSet(0, ~0)),
+    unusedRegionTypes: Set[RegionType.T]            = Set(),
+    executesOnly:      Boolean                      = false,
+    requestFifo:       Boolean                      = false,
+    supports:          TLSlaveToMasterTransferSizes = TLSlaveToMasterTransferSizes.unknownSupports,
+    emits:             TLMasterToSlaveTransferSizes = TLMasterToSlaveTransferSizes.unknownEmits,
+    neverReleasesData: Boolean                      = false,
+    sourceId:          IdRange                      = IdRange(0,1)) =
+  {
+    new TLMasterParameters(
+      nodePath          = nodePath,
+      resources         = resources,
+      name              = name,
+      visibility        = visibility,
+      unusedRegionTypes = unusedRegionTypes,
+      executesOnly      = executesOnly,
+      requestFifo       = requestFifo,
+      supports          = supports,
+      emits             = emits,
+      neverReleasesData = neverReleasesData,
+      sourceId          = sourceId)
+  }
 }
   
 object TLClientParameters {
