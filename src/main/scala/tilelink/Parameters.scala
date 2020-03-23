@@ -276,11 +276,40 @@ class TLSlaveParameters private(
         putFull       = supportsPutFull,
         putPartial    = supportsPutPartial,
         hint          = supportsHint),
-      emits           = emits,
+      emits         = emits,
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
       fifoId        = fifoId)
+  }
+
+  def v2copy(
+    nodePath:      Seq[BaseNode],
+    resources:     Seq[Resource],
+    setName:       String,
+    address:       Seq[AddressSet],
+    regionType:    RegionType.T,
+    executable:    Boolean,
+    fifoId:        Option[Int],
+    supports:      TLMasterToSlaveTransferSizes,
+    emits:         TLSlaveToMasterTransferSizes,
+    alwaysGrantsT: Boolean,
+    mayDenyGet:    Boolean,
+    mayDenyPut:    Boolean) =
+  {
+    new TLSlaveParameters(
+    nodePath      = nodePath,
+    resources     = resources,
+    setName       = setName,
+    address       = address,
+    regionType    = regionType,
+    executable    = executable,
+    fifoId        = fifoId,
+    supports      = supports,
+    emits         = emits,
+    alwaysGrantsT = alwaysGrantsT,
+    mayDenyGet    = mayDenyGet,
+    mayDenyPut    = mayDenyPut)
   }
 
   @deprecated("Use v1copy","")
