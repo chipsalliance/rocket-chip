@@ -4,6 +4,7 @@ package freechips.rocketchip.devices.debug
 
 
 import chisel3._
+import chisel3.experimental.chiselName
 import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
@@ -281,6 +282,7 @@ object WNotifyVal {
   }
 }
 
+@chiselName
 class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyModule {
 
   // For Shorter Register Names
@@ -331,7 +333,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
     val DMCONTROLReset = WireInit(0.U.asTypeOf(new DMCONTROLFields()))
     val DMCONTROLNxt = WireInit(0.U.asTypeOf(new DMCONTROLFields()))
-    val DMCONTROLReg = RegNext(next=DMCONTROLNxt, init=0.U.asTypeOf(DMCONTROLNxt))
+    val DMCONTROLReg = RegNext(next=DMCONTROLNxt, init=0.U.asTypeOf(DMCONTROLNxt)).suggestName("DMCONTROLReg")
 
     val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
     val DMCONTROLWrData = WireInit(0.U.asTypeOf(new DMCONTROLFields()))
@@ -453,7 +455,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     //--------------------------------------------------------------
     val hrmask    = Wire(Vec(nComponents, Bool()))
     val hrmaskNxt = Wire(Vec(nComponents, Bool()))
-    val hrmaskReg = RegNext(next=hrmaskNxt, init=0.U.asTypeOf(hrmaskNxt))
+    val hrmaskReg = RegNext(next=hrmaskNxt, init=0.U.asTypeOf(hrmaskNxt)).suggestName("hrmaskReg")
 
     hrmaskNxt := hrmaskReg
     for (component <- 0 until nComponents) {
@@ -525,7 +527,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     //--------------------------------------------------------------
 
     val debugIntNxt = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
-    val debugIntRegs = RegNext(next=debugIntNxt, init=0.U.asTypeOf(debugIntNxt))
+    val debugIntRegs = RegNext(next=debugIntNxt, init=0.U.asTypeOf(debugIntNxt)).suggestName("debugIntRegs")
 
     debugIntNxt := debugIntRegs
 
@@ -556,9 +558,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     // Additional notifications that occur while one is already waiting update the pending data so that the last value written is sent.
     // Volatile events resumereq and ackhavereset are registered when they occur and remain pending until ready is received.
     val innerCtrlValid = Wire(Bool())
-    val innerCtrlValidReg = RegInit(false.B)
-    val innerCtrlResumeReqReg = RegInit(false.B)
-    val innerCtrlAckHaveResetReg = RegInit(false.B)
+    val innerCtrlValidReg = RegInit(false.B).suggestName("innerCtrlValidReg")
+    val innerCtrlResumeReqReg = RegInit(false.B).suggestName("innerCtrlResumeReqReg")
+    val innerCtrlAckHaveResetReg = RegInit(false.B).suggestName("innerCtrlAckHaveResetReg")
 
     innerCtrlValid := hartselloWrEn | resumereqWrEn | ackhaveresetWrEn | setresethaltreqWrEn | clrresethaltreqWrEn | haselWrEn |
        (HAWINDOWWrEn & supportHartArray.B)
@@ -663,6 +665,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   }
 }
 
+@chiselName
 class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
 
