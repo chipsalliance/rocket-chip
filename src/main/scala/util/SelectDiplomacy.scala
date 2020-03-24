@@ -160,27 +160,28 @@ object SelectDiplomacy {
 //    collectLazyModules.find(_.name == name)
 //  }
 
-    def mixedNodes() = collectBaseNodes().collect{case x: MixedNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
-    def mixedCustomNodes() = collectBaseNodes().collect{case x: MixedCustomNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
-    def customNodes() = collectBaseNodes().collect{case x: CustomNode[Data, Data, Data, Data, Data] => x}
-    def junctionNodes() = collectBaseNodes().collect{case x: JunctionNode[Data, Data, Data, Data, Data] => x}
-    def mixedAdapterNodes() = collectBaseNodes().collect{case x: MixedAdapterNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
-    def adapterNodes() = collectBaseNodes().collect{case x: AdapterNode[Data, Data, Data, Data, Data] => x}
-    def identityNodes() = collectBaseNodes().collect{case x: IdentityNode[Data, Data, Data, Data, Data] => x}
-    def ephemeralNodes() = collectBaseNodes().collect{case x: EphemeralNode[Data, Data, Data, Data, Data] => x}
-    def mixedNexusNodes() = collectBaseNodes().collect{case x: MixedNexusNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
-    def nexusNodes() = collectBaseNodes().collect{case x: NexusNode[Data, Data, Data, Data, Data] => x}
+  def mixedNodes() = collectBaseNodes().collect{case x: MixedNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+  def mixedCustomNodes() = collectBaseNodes().collect{case x: MixedCustomNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+  def customNodes() = collectBaseNodes().collect{case x: CustomNode[Data, Data, Data, Data, Data] => x}
+  def junctionNodes() = collectBaseNodes().collect{case x: JunctionNode[Data, Data, Data, Data, Data] => x}
+  def mixedAdapterNodes() = collectBaseNodes().collect{case x: MixedAdapterNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+  def adapterNodes() = collectBaseNodes().collect{case x: AdapterNode[Data, Data, Data, Data, Data] => x}
+  def identityNodes() = collectBaseNodes().collect{case x: IdentityNode[Data, Data, Data, Data, Data] => x}
+  def ephemeralNodes() = collectBaseNodes().collect{case x: EphemeralNode[Data, Data, Data, Data, Data] => x}
+  def mixedNexusNodes() = collectBaseNodes().collect{case x: MixedNexusNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+  def nexusNodes() = collectBaseNodes().collect{case x: NexusNode[Data, Data, Data, Data, Data] => x}
+  def sourceNodes() = collectBaseNodes().collect{case x: SourceNode[Data, Data, Data, Data, Data] =>  x}
+  def sinkNodes() = collectBaseNodes().collect{case x: SinkNode[Data, Data, Data, Data, Data] => x}
+  def mixedTestNodes() = collectBaseNodes().collect{case x: MixedTestNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
 
-    def sourceNodes() = collectBaseNodes().collect{case x: SourceNode[Data, Data, Data, Data, Data] =>  x}
-
-    def sinkNodes() = collectBaseNodes().collect{case x: SinkNode[Data, Data, Data, Data, Data] => x}
-    def mixedTestNodes() = collectBaseNodes().collect{case x: MixedTestNode[Data, Data, Data, Data, Data, Data, Data, Data] => x}
+  def clientTLNodes() = collectBaseNodes().collect{case x: TLClientNode => x}
+  def clientTLNode(s: String) = collectBaseNodes().collect{case x: TLClientNode if(s == x.name) => x}
 
 /** Return source nodes of type T from the imp module M
   */
-  def getSrcNode[M, T <: BaseNode]() = {
-    val clientNode = SelectDiplomacy().sourceNodes.collect{
-      case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLClientNode") => a.asInstanceOf[T]
+  def getSrcNodes[M]() = {
+    val clientNodes = SelectDiplomacy().sourceNodes.collect{
+      case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLClientNode") => a.asInstanceOf[TLClientNode]
     }.filter{case c => c.parents.foldLeft(false){(z,f) => 
       val v1 = f match {
         case x: M => true
@@ -189,13 +190,28 @@ object SelectDiplomacy {
       z || v1
     }}
 
-    clientNode
+    clientNodes
   }
 
+  def getSrcNode[M]() = getSrcNodes[M]().head
 
-//  def getPaths(gr: MutableDiGraph[TreeData]): List[Any] = {
-  def getPaths() = {
+/** Return sink nodes of type T from the imp module M
+  */
+  def getSinkNodes[M]() = {
+    val clientNodes = SelectDiplomacy().sinkNodes.collect{
+      case a:  SourceNode[Data, Data, Data, Data, Data] if(a.getClass.getName == "freechips.rocketchip.tilelink.TLManagerNode") => a.asInstanceOf[TLManagerNode]
+    }.filter{case c => c.parents.foldLeft(false){(z,f) => 
+      val v1 = f match {
+        case x: M => true
+        case _ => false
+      }
+      z || v1
+    }}
+
+    clientNodes
   }
+
+  def getSinkNode[M]() = getSinkNodes[M]().head
 
   def apply() = {
 
@@ -255,23 +271,23 @@ object SelectDiplomacy {
               case "BaseNode" => b match {
                 case "all" => {
                   val baseNodes = SelectDiplomacy().collectBaseNodes()
-                  baseNodes.foreach{n => println(s"BASE NODE ${n.name} <<< ${n} >>>")}
+                  baseNodes.foreach{n => println(s"BASE NODE name: ${n.name} cls: ${n.getClass.getName} <<< ${n} >>>")}
                 }
                 case "byGroup" => {
-                  for(e <- mixedNodes()) println(s"NodesByGroup mixedNodes ${e}")
-                  for(e <- mixedCustomNodes()) println(s"NodesByGroup mixedCustomNodes ${e}")
-                  for(e <- mixedCustomNodes()) println(s"NodesByGroup mixedCustomNodes ${e}")
-                  for(e <- junctionNodes()) println(s"NodesByGroup junctionNodes ${e}")
-                  for(e <- mixedAdapterNodes()) println(s"NodesByGroup mixedAdapterNode ${e}")
-                  for(e <- adapterNodes()) println(s"NodesByGroup adapterNode ${e}")
-                  for(e <- identityNodes()) println(s"NodesByGroup identityNode ${e}")
-                  for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeraNodes ${e}")
-                  for(e <- mixedNexusNodes()) println(s"NodesByGroup mixedNexuxNode ${e}")
-                  for(e <- nexusNodes()) println(s"NodesByGroup nexuxNodes ${e}")
-                  for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeralNode ${e}")
-                  for(e <- sourceNodes()) println(s"NodesByGroup sourceNodes ${e}")
-                  for(e <- sinkNodes()) println(s"NodesByGroup sinkNodes ${e}")
-                  for(e <- mixedTestNodes()) println(s"NodesByGroup mixedTestNodes ${e}")
+                  for(e <- mixedNodes()) println(s"NodesByGroup mixedNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- mixedCustomNodes()) println(s"NodesByGroup mixedCustomNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- mixedCustomNodes()) println(s"NodesByGroup mixedCustomNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- junctionNodes()) println(s"NodesByGroup junctionNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- mixedAdapterNodes()) println(s"NodesByGroup mixedAdapterNode name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- adapterNodes()) println(s"NodesByGroup adapterNode name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- identityNodes()) println(s"NodesByGroup identityNode name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeraNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- mixedNexusNodes()) println(s"NodesByGroup mixedNexuxNode name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- nexusNodes()) println(s"NodesByGroup nexuxNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- ephemeralNodes()) println(s"NodesByGroup ephemeralNode name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- sourceNodes()) println(s"NodesByGroup sourceNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- sinkNodes()) println(s"NodesByGroup sinkNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
+                  for(e <- mixedTestNodes()) println(s"NodesByGroup mixedTestNodes name: ${e.name} cls: ${e.getClass.getName} <<<${e}>>>")
                 }
               }
               case "impModules" => b match {

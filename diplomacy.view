@@ -1,6 +1,6 @@
-graph     dot
-// graph  graphML
+//graph     dot
+//// graph  graphML
 //
-BaseNode  all
-BaseNode  byGroup
+//BaseNode  all
+//BaseNode  byGroup
 
