@@ -64,7 +64,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   topology.foreach(_.connect(this))
 
   // TODO how should this clock driving happen; must there really always be an "sbus"?
-  val sbus = tlBusWrapperLocationMap.select(SBUS)
+  val sbus = tlBusWrapperLocationMap(SBUS)
   locateTLBusWrapper(SBUS).clockGroupNode := asyncClockGroupsNode
 
   // TODO deprecate these public members to see where users are manually hardcoding a particular bus that might actually not exist in a certain dynamic topology

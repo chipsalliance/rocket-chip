@@ -44,8 +44,8 @@ case class CoherenceManagerWrapperParams(blockBytes: Int, beatBytes: Int, name: 
   val dtsFrequency = None
   def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
     val cmWrapper = LazyModule(new CoherenceManagerWrapper(this, context))
-    context.updateDynamic(loc.name+"Halt")(cmWrapper.halt)
-    context.tlBusWrapperLocationMap.updateDynamic(loc.name)(cmWrapper)
+    cmWrapper.halt.foreach { context.anyLocationMap += loc.halt(_) }
+    context.tlBusWrapperLocationMap += (loc -> cmWrapper)
     cmWrapper
   }
 }

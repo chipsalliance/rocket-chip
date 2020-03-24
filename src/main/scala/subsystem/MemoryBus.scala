@@ -26,7 +26,7 @@ case class MemoryBusParams(
 {
   def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): MemoryBus = {
     val mbus = LazyModule(new MemoryBus(this, loc.name))
-    context.tlBusWrapperLocationMap.updateDynamic(loc.name)(mbus)
+    context.tlBusWrapperLocationMap += (loc -> mbus)
     mbus
   }
 }

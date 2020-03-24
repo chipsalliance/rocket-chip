@@ -22,7 +22,7 @@ case class SystemBusParams(
 {
   def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
     val sbus = LazyModule(new SystemBus(this, loc.name))
-    context.tlBusWrapperLocationMap.updateDynamic(loc.name)(sbus)
+    context.tlBusWrapperLocationMap += (loc -> sbus)
     sbus
   }
 }
