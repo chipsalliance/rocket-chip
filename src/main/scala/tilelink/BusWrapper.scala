@@ -106,32 +106,34 @@ trait TLBusWrapperConnectionLike {
 
 case class TLBusWrapperCrossToConnection
     (xType: ClockCrossingType)
-    (nodeView: (TLBusWrapper, Parameters) => TLInwardNode = { case(w, p) => w.crossInHelper(xType)(p) },
+    (slaveNodeView: (TLBusWrapper, Parameters) => TLInwardNode = { case(w, p) => w.crossInHelper(xType)(p) },
+     masterNodeView: (TLBusWrapper, Parameters) => TLOutwardNode = { case(w, p) => w.outwardNode },
       inject: Parameters => TLNode = { _ => TLTempNode() })
   extends TLBusWrapperConnectionLike
 {
-  def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
-    val masterTLBus = context.locateTLBusWrapper(from)
-    val slaveTLBus  = context.locateTLBusWrapper(to)
+  def connect(context: HasLocations, master: Location[TLBusWrapper], slave: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
+    val masterTLBus = context.locateTLBusWrapper(master)
+    val slaveTLBus  = context.locateTLBusWrapper(slave)
     slaveTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, masterTLBus.clockGroupNode)
-    masterTLBus.coupleTo(s"bus_named_${masterTLBus.busName}") {
-      nodeView(slaveTLBus,p) :*= TLWidthWidget(masterTLBus.beatBytes) :*= inject(p) :*= _
+    masterTLBus.to(s"bus_named_${masterTLBus.busName}") {
+      slaveNodeView(slaveTLBus, p) :*= TLWidthWidget(masterTLBus.beatBytes) :*= inject(p) :*= masterNodeView(masterTLBus, p)
     }
   }
 }
 
 case class TLBusWrapperCrossFromConnection
     (xType: ClockCrossingType)
-    (nodeView: (TLBusWrapper, Parameters) => TLOutwardNode = { case(w, p) => w.crossOutHelper(xType)(p) },
+    (slaveNodeView: (TLBusWrapper, Parameters) => TLInwardNode = { case(w, p) => w.inwardNode },
+     masterNodeView: (TLBusWrapper, Parameters) => TLOutwardNode = { case(w, p) => w.crossOutHelper(xType)(p) },
      inject: Parameters => TLNode = { _ => TLTempNode() })
   extends TLBusWrapperConnectionLike
 {
-  def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit = FlipRendering { implicit p =>
-    val masterTLBus = context.locateTLBusWrapper(to)
-    val slaveTLBus  = context.locateTLBusWrapper(from)
+  def connect(context: HasLocations, slave: Location[TLBusWrapper], master: Location[TLBusWrapper])(implicit p: Parameters): Unit = FlipRendering { implicit p =>
+    val masterTLBus = context.locateTLBusWrapper(master)
+    val slaveTLBus  = context.locateTLBusWrapper(slave)
     masterTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, slaveTLBus.clockGroupNode)
-    slaveTLBus.coupleFrom(s"bus_named_${masterTLBus.busName}") {
-      _ :=* inject(p) :=* TLWidthWidget(masterTLBus.beatBytes) :=* nodeView(masterTLBus, p)
+    slaveTLBus.from(s"bus_named_${masterTLBus.busName}") {
+      slaveNodeView(slaveTLBus, p) :=* inject(p) :=* TLWidthWidget(masterTLBus.beatBytes) :=* masterNodeView(masterTLBus, p)
     }
   }
 }
