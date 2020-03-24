@@ -42,7 +42,7 @@ case class CoherenceManagerWrapperParams(blockBytes: Int, beatBytes: Int, name: 
   with TLBusWrapperInstantiationLike
 {
   val dtsFrequency = None
-  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
     val cmWrapper = LazyModule(new CoherenceManagerWrapper(this, context))
     cmWrapper.halt.foreach { context.anyLocationMap += loc.halt(_) }
     context.tlBusWrapperLocationMap += (loc -> cmWrapper)
@@ -51,10 +51,10 @@ case class CoherenceManagerWrapperParams(blockBytes: Int, beatBytes: Int, name: 
 }
 
 object CoherenceManagerWrapper {
-  type CoherenceManagerInstantiationFn = HasLocations => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode])
+  type CoherenceManagerInstantiationFn = HasTileLinkLocations => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode])
 }
 
-class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: HasLocations)(implicit p: Parameters) extends TLBusWrapper(params, params.name) {
+class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: HasTileLinkLocations)(implicit p: Parameters) extends TLBusWrapper(params, params.name) {
   val (temp, outwardNode, halt) = params.coherenceManager(context)
   // TODO could remove temp if we could get access to .edges from InwardNodeHandle
   val viewNode = TLIdentityNode()

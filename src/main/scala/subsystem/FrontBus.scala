@@ -18,7 +18,7 @@ case class FrontBusParams(
   with HasBuiltInDeviceParams
   with TLBusWrapperInstantiationLike
 {
-  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): FrontBus = {
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): FrontBus = {
     val fbus = LazyModule(new FrontBus(this, loc.name))
     context.tlBusWrapperLocationMap += (loc -> fbus)
     fbus

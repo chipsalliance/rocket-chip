@@ -20,7 +20,7 @@ case class SystemBusParams(
   with HasBuiltInDeviceParams
   with TLBusWrapperInstantiationLike
 {
-  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
     val sbus = LazyModule(new SystemBus(this, loc.name))
     context.tlBusWrapperLocationMap += (loc -> sbus)
     sbus

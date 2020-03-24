@@ -12,7 +12,7 @@ import freechips.rocketchip.util._
 
 case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
 case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("async_clock_groups")))
-case class TLNetworkTopologyLocated(where: String) extends Field[Seq[CanInstantiateWithinContext with CanConnectWithinContext]]
+case class TLNetworkTopologyLocated(where: String) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
 
 class HierarchicalLocation(override val name: String) extends Location[LazyScope](name)
 case object InTile extends HierarchicalLocation("InTile")
@@ -42,30 +42,40 @@ case object ResetAsynchronousFull extends SubsystemResetScheme
 
 case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSynchronous)
 
-/** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
-                            (implicit p: Parameters)
-    extends BareSubsystem with Attachable {
-
-  override val module: BaseSubsystemModuleImp[BaseSubsystem]
-
-  // Concrete attachment points for PRCI-related signals.
+/** Concrete attachment points for PRCI-related signals.
+  * These aren't actually very configurable, yet.
+  */
+trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val ibus = new InterruptBusWrapper()
   implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)
   val async_clock_groups =
     p(SubsystemDriveAsyncClockGroupsKey)
       .map(_.drive(asyncClockGroupsNode))
       .getOrElse(InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) })
+}
 
-  // Find the topology configuration for the TL buses located in this subsystem.
+/** Look up the topology configuration for the TL buses located within this layer of the hierarchy */
+trait HasConfigurableTLNetworkTopology { this: HasTileLinkLocations =>
+  val location: HierarchicalLocation
   // Calling these functions populates tlBusWrapperLocationMap and connects the locations to each other.
   val topology = p(TLNetworkTopologyLocated(location.name))
   private val buses = topology.map(_.instantiate(this))
   topology.foreach(_.connect(this))
+}
 
-  // TODO how should this clock driving happen; must there really always be an "sbus"?
+/** Base Subsystem class with no peripheral devices, ports or cores added yet */
+abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
+                            (implicit p: Parameters)
+  extends BareSubsystem
+  with Attachable
+  with HasConfigurablePRCILocations
+  with HasConfigurableTLNetworkTopology
+{
+  override val module: BaseSubsystemModuleImp[BaseSubsystem]
+
+  // TODO must there really always be an "sbus"?
   val sbus = tlBusWrapperLocationMap(SBUS)
-  locateTLBusWrapper(SBUS).clockGroupNode := asyncClockGroupsNode
+  tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := asyncClockGroupsNode }
 
   // TODO deprecate these public members to see where users are manually hardcoding a particular bus that might actually not exist in a certain dynamic topology
   val pbus = tlBusWrapperLocationMap.lift(PBUS).getOrElse(sbus)
@@ -74,7 +84,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   val cbus = tlBusWrapperLocationMap.lift(CBUS).getOrElse(sbus)
 
   // Collect information for use in DTS
-  lazy val topManagers = locateTLBusWrapper(SBUS).unifyManagers
+  lazy val topManagers = sbus.unifyManagers
   ResourceBinding {
     val managers = topManagers
     val max = managers.flatMap(_.address).map(_.max).max

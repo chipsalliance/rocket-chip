@@ -96,12 +96,12 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 }
 
 trait TLBusWrapperInstantiationLike {
-  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLBusWrapper
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLBusWrapper
 }
 
 trait TLBusWrapperConnectionLike {
   val xType: ClockCrossingType
-  def connect(context: HasLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit
+  def connect(context: HasTileLinkLocations, from: Location[TLBusWrapper], to: Location[TLBusWrapper])(implicit p: Parameters): Unit
 }
 
 case class TLBusWrapperCrossToConnection
@@ -111,7 +111,7 @@ case class TLBusWrapperCrossToConnection
       inject: Parameters => TLNode = { _ => TLTempNode() })
   extends TLBusWrapperConnectionLike
 {
-  def connect(context: HasLocations, master: Location[TLBusWrapper], slave: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
+  def connect(context: HasTileLinkLocations, master: Location[TLBusWrapper], slave: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
     val masterTLBus = context.locateTLBusWrapper(master)
     val slaveTLBus  = context.locateTLBusWrapper(slave)
     slaveTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, masterTLBus.clockGroupNode)
@@ -128,7 +128,7 @@ case class TLBusWrapperCrossFromConnection
      inject: Parameters => TLNode = { _ => TLTempNode() })
   extends TLBusWrapperConnectionLike
 {
-  def connect(context: HasLocations, slave: Location[TLBusWrapper], master: Location[TLBusWrapper])(implicit p: Parameters): Unit = FlipRendering { implicit p =>
+  def connect(context: HasTileLinkLocations, slave: Location[TLBusWrapper], master: Location[TLBusWrapper])(implicit p: Parameters): Unit = FlipRendering { implicit p =>
     val masterTLBus = context.locateTLBusWrapper(master)
     val slaveTLBus  = context.locateTLBusWrapper(slave)
     masterTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, slaveTLBus.clockGroupNode)
@@ -141,11 +141,13 @@ case class TLBusWrapperCrossFromConnection
 class TLBusWrapperTopology(
   val instantiations: Seq[(Location[TLBusWrapper], TLBusWrapperInstantiationLike)],
   val connections: Seq[(Location[TLBusWrapper], Location[TLBusWrapper], TLBusWrapperConnectionLike)]
-) extends CanInstantiateWithinContext with CanConnectWithinContext {
-  def instantiate(context: HasLocations)(implicit p: Parameters): Unit = {
+) extends CanInstantiateWithinContextThatHasTileLinkLocations
+  with CanConnectWithinContextThatHasTileLinkLocations
+{
+  def instantiate(context: HasTileLinkLocations)(implicit p: Parameters): Unit = {
     instantiations.foreach { case (loc, params) => params.instantiate(context, loc) }
   }
-  def connect(context: HasLocations)(implicit p: Parameters): Unit = {
+  def connect(context: HasTileLinkLocations)(implicit p: Parameters): Unit = {
     connections.foreach { case (from, to, params) => params.connect(context, from, to) }
   }
 }

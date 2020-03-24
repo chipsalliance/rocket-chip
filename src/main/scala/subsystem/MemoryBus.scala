@@ -24,7 +24,7 @@ case class MemoryBusParams(
   with HasRegionReplicatorParams
   with TLBusWrapperInstantiationLike
 {
-  def instantiate(context: HasLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): MemoryBus = {
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): MemoryBus = {
     val mbus = LazyModule(new MemoryBus(this, loc.name))
     context.tlBusWrapperLocationMap += (loc -> mbus)
     mbus
