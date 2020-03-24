@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 
 import freechips.rocketchip.config.Parameters
@@ -389,7 +390,7 @@ trait HasFPUParameters {
   }
 }
 
-abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters
+abstract class FPUModule(implicit val p: Parameters) extends Module with HasCoreParameters with HasFPUParameters
 
 class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   class Output extends Bundle {
