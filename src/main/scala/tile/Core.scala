@@ -49,6 +49,7 @@ trait CoreParams {
 
   def dcacheReqTagBits: Int = 6
 
+  def minFLen: Int = 32
   def vLen: Int = 0
   def sLen: Int = 0
   def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
@@ -58,6 +59,7 @@ trait CoreParams {
 trait HasCoreParameters extends HasTileParameters {
   val coreParams: CoreParams = tileParams.core
 
+  val minFLen = coreParams.fpu.map(_ => coreParams.minFLen).getOrElse(0)
   val fLen = coreParams.fpu.map(_.fLen).getOrElse(0)
 
   val usingMulDiv = coreParams.mulDiv.nonEmpty
