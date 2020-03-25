@@ -15,6 +15,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental._
 
 case class FPUParams(
+  minFLen: Int = 32,
   fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
@@ -250,19 +251,21 @@ case class FType(exp: Int, sig: Int) {
 }
 
 object FType {
+  val H = new FType(5, 11)
   val S = new FType(8, 24)
   val D = new FType(11, 53)
 
-  val all = List(S, D)
+  val all = List(H, S, D)
 }
 
 trait HasFPUParameters {
   require(fLen == 0 || FType.all.exists(_.ieeeWidth == fLen))
+  val minFLen: Int
   val fLen: Int
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
-  val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
+  val floatTypes = FType.all.filter(t => minFLen <= t.ieeeWidth && t.ieeeWidth <= fLen)
   def minType = floatTypes.head
   def maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
