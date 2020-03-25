@@ -75,13 +75,32 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
     println(s"DEBUG from object TLMonitorInjToDcache TLMonitor inject")
     val clientSrcNodes = SelectDiplomacy.getSrcNodes[DCache]()
 
-    val clientNode = SelectDiplomacy.clientTLNode("dcache.node")
+     println(s"DEBUG from object TLMonitorInjToDcache TLMonitor inject")
+//     val clientSrcNodes = SelectDiplomacy.getSrcNodes[DCache]()
+    val clientNode = SelectDiplomacy.clientTLNode("dcache.node").head
+//-    val edges = clientNode.head.edges
+   val (bundle, edge) = clientNode.out.head
+   
+   
+ //    println(s"DEBUG: node: ${nd.getClass.getName} edges: ${edges.getClass.getName}")
+//-    val args = TLMonitorArgs(edges)
+   val args = TLMonitorArgs(edge)
+  
 
-    val nd = clientNode.head
-    val edges = nd.edges
-//    println(s"DEBUG: node: ${nd.getClass.getName} edges: ${edges.getClass.getName}")
+//        val (out, edge) = node.out(0)
+//        val args = TLMonitorArgs(edge)
+//        val aopTlMon = Module(new TLMonitor(args))
+    val aopTlMon = Module(new TLMonitor(args))
+//    aopTlMon.io.in := bundle
+ 
+//    val clientNode = SelectDiplomacy.clientTLNode("dcache.node")
+//
+//    val nd = clientNode.head
+//    val edge = nd.edges.out.head
+//    println(s"DEBUG: edge: ${edge.getClass.getName} <<<${edge}>>")
 
-    val args = TLMonitorArgs(edges)
+////    val args = TLMonitorArgs(edge)
+//    val aopTlMon = Module(new TLMonitor(args))
 
 
 //        val (out, edge) = node.out(0)
