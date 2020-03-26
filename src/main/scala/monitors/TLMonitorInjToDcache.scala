@@ -62,7 +62,7 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
   {top: RawModule => Select.collectDeep(top) { case d: DCacheModule => d }},
   {d: DCacheModule => 
     // attach TLMonitor here   
-    printf("SULTAN from object TLMonitorInjToDcache for .v file")
+    printf("TLMonitorInjToDcache: message from the object for .v file")
     val dummyWire = Wire(UInt(3.W)).suggestName("aopTestWire")
     dummyWire := 5.U
     dontTouch(dummyWire)
@@ -76,36 +76,13 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
     val clientSrcNodes = SelectDiplomacy.getSrcNodes[DCache]()
 
      println(s"DEBUG from object TLMonitorInjToDcache TLMonitor inject")
-//     val clientSrcNodes = SelectDiplomacy.getSrcNodes[DCache]()
     val clientNode = SelectDiplomacy.clientTLNode("dcache.node").head
-//-    val edges = clientNode.head.edges
    val (bundle, edge) = clientNode.out.head
    
-   
- //    println(s"DEBUG: node: ${nd.getClass.getName} edges: ${edges.getClass.getName}")
-//-    val args = TLMonitorArgs(edges)
    val args = TLMonitorArgs(edge)
   
-
-//        val (out, edge) = node.out(0)
-//        val args = TLMonitorArgs(edge)
-//        val aopTlMon = Module(new TLMonitor(args))
-    val aopTlMon = Module(new TLMonitor(args))
-//    aopTlMon.io.in := bundle
- 
-//    val clientNode = SelectDiplomacy.clientTLNode("dcache.node")
-//
-//    val nd = clientNode.head
-//    val edge = nd.edges.out.head
-//    println(s"DEBUG: edge: ${edge.getClass.getName} <<<${edge}>>")
-
-////    val args = TLMonitorArgs(edge)
-//    val aopTlMon = Module(new TLMonitor(args))
-
-
-//        val (out, edge) = node.out(0)
-//        val args = TLMonitorArgs(edge)
-//        val aopTlMon = Module(new TLMonitor(args))
+    val aopTLMon = Module(new TLMonitor(args))
+    aopTLMon.io.in := bundle
 
   })
 
