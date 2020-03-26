@@ -344,7 +344,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_maybe_flush_pre_data_ecc_and_waw = s2_valid_masked && !s2_meta_error && s2_hit
-  val s2_no_alloc_hazard = {
+  val s2_no_alloc_hazard = if (!usingVM || pgIdxBits >= untagBits) false.B else {
     // make sure that any in-flight non-allocating accesses are ordered before
     // any allocating accesses.  this can only happen if aliasing is possible.
     val any_no_alloc_in_flight = Reg(Bool())
@@ -362,8 +362,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
 
     val s2_uncached_hits = RegEnable(s1_uncached_hits.asUInt, s1_valid_not_nacked)
-
-    usingVM && pgIdxBits < untagBits && s2_uncached_hits.orR
+    s2_uncached_hits.orR
   }
   val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_readwrite && !s2_no_alloc_hazard
   val s2_valid_flush_line = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_cmd_flush_line
