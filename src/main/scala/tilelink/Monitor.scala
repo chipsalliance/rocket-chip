@@ -78,7 +78,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
     when (bundle.opcode === TLMessages.AcquireBlock) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
+      monAssert (edge.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
       monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
       monAssert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquireBlock smaller than a beat" + extra)
@@ -89,7 +89,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.AcquirePerm) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type unsupported by manager" + extra)
+      monAssert (edge.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type unsupported by manager" + extra)
       monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + extra)
       monAssert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquirePerm smaller than a beat" + extra)
@@ -101,7 +101,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.manager.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
+      monAssert (edge.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
       monAssert (source_ok, "'A' channel Get carries invalid source ID" + extra)
       monAssert (is_aligned, "'A' channel Get address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel Get carries invalid param" + extra)
@@ -110,7 +110,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.manager.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
+      monAssert (edge.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
       monAssert (source_ok, "'A' channel PutFull carries invalid source ID" + extra)
       monAssert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutFull carries invalid param" + extra)
@@ -118,7 +118,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.manager.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
+      monAssert (edge.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
       monAssert (source_ok, "'A' channel PutPartial carries invalid source ID" + extra)
       monAssert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutPartial carries invalid param" + extra)
@@ -126,7 +126,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.manager.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
+      monAssert (edge.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
       monAssert (source_ok, "'A' channel Arithmetic carries invalid source ID" + extra)
       monAssert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
       monAssert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
@@ -134,7 +134,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.manager.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
+      monAssert (edge.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
       monAssert (source_ok, "'A' channel Logical carries invalid source ID" + extra)
       monAssert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
       monAssert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
@@ -142,7 +142,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
+      monAssert (edge.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
       monAssert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
       monAssert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       monAssert (TLHints.isHints(bundle.param), "'A' channel Hint carries invalid opcode param" + extra)
@@ -255,7 +255,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      monAssert (edge.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
       monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
@@ -265,7 +265,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      monAssert (edge.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
       monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)

@@ -1199,6 +1199,64 @@ case class TLEdgeParameters(
 
   val bundle = TLBundleParameters(client, manager)
   def formatEdge = client.infoString + "\n" + manager.infoString
+
+  private def emitHelper(
+    safe:    Boolean,
+    member: TLMasterParameters => TransferSizes,
+    address: UInt,
+    lgSize:  UInt,
+    range:   Option[TransferSizes]): Bool = {
+    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
+    val supportCases = groupByIntoSeq(client.clients)(m => trim(member(m))).map { case (k, vs) =>
+      k -> vs.flatMap(_.visibility)
+    }
+    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
+    simplified.map { case (s, a) =>
+      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      a.map(_.contains(address)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
+  }
+
+  private def supportHelper(
+    safe:    Boolean,
+    member: TLSlaveParameters => TransferSizes,
+    address: UInt,
+    lgSize:  UInt,
+    range:   Option[TransferSizes]): Bool = {
+    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
+    val supportCases = groupByIntoSeq(manager.managers)(m => trim(member(m))).map { case (k, vs) =>
+      k -> vs.flatMap(_.address)
+    }
+    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
+    simplified.map { case (s, a) =>
+      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      a.map(_.contains(address)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
+  }
+
+  // Check for support of a given operation at a specific address
+  def supportsAcquireTSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.acquireT,   address, lgSize, range) && emitHelper(true, _.emits.acquireT,   address, lgSize, range)
+  def supportsAcquireBSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.acquireB,   address, lgSize, range) && emitHelper(true, _.emits.acquireB,   address, lgSize, range)
+  def supportsArithmeticSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.arithmetic, address, lgSize, range) && emitHelper(true, _.emits.arithmetic, address, lgSize, range)
+  def supportsLogicalSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.logical,    address, lgSize, range) && emitHelper(true, _.emits.logical,    address, lgSize, range)
+  def supportsGetSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.get,        address, lgSize, range) && emitHelper(true, _.emits.get,        address, lgSize, range)
+  def supportsPutFullSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.putFull,    address, lgSize, range) && emitHelper(true, _.emits.putFull,    address, lgSize, range)
+  def supportsPutPartialSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.putPartial, address, lgSize, range) && emitHelper(true, _.emits.putPartial, address, lgSize, range)
+  def supportsHintSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true,  _.supports.hint,       address, lgSize, range) && emitHelper(true, _.emits.hint,       address, lgSize, range)
+
+  def supportsAcquireTFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.acquireT,   address, lgSize, range) && emitHelper(false, _.emits.acquireT,   address, lgSize, range)
+  def supportsAcquireBFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.acquireB,   address, lgSize, range) && emitHelper(false, _.emits.acquireB,   address, lgSize, range)
+  def supportsArithmeticFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.arithmetic, address, lgSize, range) && emitHelper(false, _.emits.arithmetic, address, lgSize, range)
+  def supportsLogicalFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.logical,    address, lgSize, range) && emitHelper(false, _.emits.logical,    address, lgSize, range)
+  def supportsGetFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.get,        address, lgSize, range) && emitHelper(false, _.emits.get,        address, lgSize, range)
+  def supportsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.putFull,    address, lgSize, range) && emitHelper(false, _.emits.putFull,    address, lgSize, range)
+  def supportsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.putPartial, address, lgSize, range) && emitHelper(false, _.emits.putPartial, address, lgSize, range)
+  def supportsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supports.hint,       address, lgSize, range) && emitHelper(false, _.emits.hint,       address, lgSize, range)
+
 }
 
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
