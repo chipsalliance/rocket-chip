@@ -412,13 +412,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
   val in = RegEnable(io.in.bits, io.in.valid)
   val valid = Reg(next=io.in.valid)
 
-  // NOTE-2361: the withReset(false.B) in this file
-  // is to enable AsyncReset in this module, while this
-  // submodule does not contain any sequential elements.
-  // See https://github.com/chipsalliance/rocket-chip/issues/2361
-  // This withReset(false.B) can be removed once the above issue is
-  // resolved.
-  val dcmp = withReset(false.B) {Module(new hardfloat.CompareRecFN(maxExpWidth, maxSigWidth))}
+  val dcmp = Module(new hardfloat.CompareRecFN(maxExpWidth, maxSigWidth))
   dcmp.io.a := in.in1
   dcmp.io.b := in.in2
   dcmp.io.signaling := !in.rm(1)
@@ -445,8 +439,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     when (!in.ren2) { // fcvt
       val cvtType = in.typ.extract(log2Ceil(nIntTypes), 1)
       intType := cvtType
-      // See  NOTE-2361 above
-      val conv = withReset(false.B){Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, xLen))}
+      val conv = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, xLen))
       conv.io.in := in.in1
       conv.io.roundingMode := in.rm
       conv.io.signedOut := ~in.typ(0)
@@ -504,8 +497,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
     // could be improved for RVD/RVQ with a single variable-position rounding
     // unit, rather than N fixed-position ones
     val i2fResults = for (t <- floatTypes) yield {
-      // See  NOTE-2361 above
-      val i2f = withReset(false.B){Module(new hardfloat.INToRecFN(xLen, t.exp, t.sig))}
+      val i2f = Module(new hardfloat.INToRecFN(xLen, t.exp, t.sig))
       i2f.io.signedIn := ~in.bits.typ(0)
       i2f.io.in := intValue
       i2f.io.roundingMode := in.bits.rm
@@ -602,12 +594,8 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
 
-    // See  NOTE-2361 above
-    val mulAddRecFNToRaw_preMul =
-      withReset(false.B) {Module(new hardfloat.MulAddRecFNToRaw_preMul(expWidth, sigWidth))}
-    // See  NOTE-2361 above
-    val mulAddRecFNToRaw_postMul =
-        withReset(false.B) {Module(new hardfloat.MulAddRecFNToRaw_postMul(expWidth, sigWidth))}
+    val mulAddRecFNToRaw_preMul = Module(new hardfloat.MulAddRecFNToRaw_preMul(expWidth, sigWidth))
+    val mulAddRecFNToRaw_postMul = Module(new hardfloat.MulAddRecFNToRaw_postMul(expWidth, sigWidth))
 
     mulAddRecFNToRaw_preMul.io.op := io.op
     mulAddRecFNToRaw_preMul.io.a  := io.a
@@ -634,8 +622,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
 
-    // See  NOTE-2361 above
-    val roundRawFNToRecFN = withReset(false.B){Module(new hardfloat.RoundRawFNToRecFN(expWidth, sigWidth, 0))}
+    val roundRawFNToRecFN = Module(new hardfloat.RoundRawFNToRecFN(expWidth, sigWidth, 0))
 
     val round_regs = if(latency==2) 1 else 0
     roundRawFNToRecFN.io.invalidExc         := Pipe(valid_stage0, mulAddRecFNToRaw_postMul.io.invalidExc, round_regs).bits
