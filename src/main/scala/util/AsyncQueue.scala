@@ -55,16 +55,12 @@ object GrayCounter {
   }
 }
 
-class AsyncValidSync(sync: Int, desc: String) extends RawModule {
+class AsyncValidSync(sync: Int, desc: String) extends Module {
   val io = IO(new Bundle {
     val in = Input(Bool())
     val out = Output(Bool())
   })
-  val clock = IO(Input(Clock()))
-  val reset = IO(Input(AsyncReset()))
-  withClockAndReset(clock, reset){
-    io.out := AsyncResetSynchronizerShiftReg(io.in, sync, Some(desc))
-  }
+  io.out := AsyncResetSynchronizerShiftReg(io.in, sync, Some(desc))
 }
 
 class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Module {
@@ -102,15 +98,9 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
 
     val sink_extend  = Module(new AsyncValidSync(params.sync, "sink_extend"))
     val sink_valid   = Module(new AsyncValidSync(params.sync, "sink_valid"))
-    source_valid_0.reset := (reset.asBool || !sio.sink_reset_n).asAsyncReset
-    source_valid_1.reset := (reset.asBool || !sio.sink_reset_n).asAsyncReset
-    sink_extend   .reset := (reset.asBool || !sio.sink_reset_n).asAsyncReset
-    sink_valid    .reset := reset.asAsyncReset
-
-    source_valid_0.clock := clock
-    source_valid_1.clock := clock
-    sink_extend   .clock := clock
-    sink_valid    .clock := clock
+    source_valid_0.reset := reset.asBool || !sio.sink_reset_n
+    source_valid_1.reset := reset.asBool || !sio.sink_reset_n
+    sink_extend   .reset := reset.asBool || !sio.sink_reset_n
 
     source_valid_0.io.in := true.B
     source_valid_1.io.in := source_valid_0.io.out
@@ -170,15 +160,9 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
 
     val source_extend = Module(new AsyncValidSync(params.sync, "source_extend"))
     val source_valid  = Module(new AsyncValidSync(params.sync, "source_valid"))
-    sink_valid_0 .reset := (reset.asBool || !sio.source_reset_n).asAsyncReset
-    sink_valid_1 .reset := (reset.asBool || !sio.source_reset_n).asAsyncReset
-    source_extend.reset := (reset.asBool || !sio.source_reset_n).asAsyncReset
-    source_valid .reset := reset.asAsyncReset
-
-    sink_valid_0 .clock := clock
-    sink_valid_1 .clock := clock
-    source_extend.clock := clock
-    source_valid .clock := clock
+    sink_valid_0 .reset := reset.asBool || !sio.source_reset_n
+    sink_valid_1 .reset := reset.asBool || !sio.source_reset_n
+    source_extend.reset := reset.asBool || !sio.source_reset_n
 
     sink_valid_0.io.in := true.B
     sink_valid_1.io.in := sink_valid_0.io.out
