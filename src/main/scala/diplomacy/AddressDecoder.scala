@@ -5,6 +5,52 @@ package freechips.rocketchip.diplomacy
 import Chisel.log2Ceil
 import scala.math.{max,min}
 
+object AddressDecoderCache {
+  import AddressDecoder._
+
+  import org.json4s._
+  import org.json4s.native.JsonMethods._
+  import org.json4s.native.Serialization
+  import org.json4s.native.Serialization.{read, write}
+  import java.io._
+
+  def time[R](name: String)(f: => R): R = {
+    val (t, res) = firrtl.Utils.time(f)
+    println(s"$name took $t ms")
+    res
+  }
+
+  private implicit val formats = Serialization.formats(NoTypeHints)
+  //println(writePretty(arg))
+
+  case class AddressDecoderResult(key: (Ports, BigInt), value: BigInt)
+
+  private val cacheDir = "/scratch/koenig/federation-caat-167-cache-address-decoder/rocket-chip/cache"
+
+  private val cache: Map[(Ports, BigInt), BigInt] = {
+    time("Loading cache"){
+      val files: Seq[String] = (new File(cacheDir)).list().map(s"$cacheDir/" + _)
+                                                          .map(fn => io.Source.fromFile(fn).mkString)
+      val values = files.map(read[AddressDecoderResult])
+      values.map { case AddressDecoderResult(k, v) => k -> v }.toMap
+    }
+  }
+
+  def getOrElseUpdate(ports: Ports, givenBits: BigInt, f: => BigInt): BigInt =
+    cache.getOrElse((ports, givenBits), {
+      val res = time("Calculating")(f)
+      time("Writing"){
+        val value = AddressDecoderResult((ports, givenBits), res)
+        val file = new File(cacheDir, value.hashCode.toHexString)
+        val fw = new FileWriter(file)
+        fw.write(write(value))
+        fw.close()
+      }
+      res
+    })
+
+}
+
 object AddressDecoder
 {
   type Port = Seq[AddressSet]
@@ -20,6 +66,10 @@ object AddressDecoder
   // ie: inspecting only the bits in the output, you can look at an address
   //     and decide to which port (outer Seq) the address belongs.
   def apply(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = {
+    import AddressDecoderCache.time
+    time("Getting value")(AddressDecoderCache.getOrElseUpdate(ports, givenBits, applyImpl(ports, givenBits)))
+  }
+  def applyImpl(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = {
     val nonEmptyPorts = ports.filter(_.nonEmpty)
     if (nonEmptyPorts.size <= 1) {
       givenBits
