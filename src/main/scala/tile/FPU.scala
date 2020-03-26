@@ -914,8 +914,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
     for (t <- floatTypes) {
       val tag = !mem_ctrl.singleOut // TODO typeTag
-      // See  NOTE-2361 above
-      val divSqrt = withReset(false.B){Module(new hardfloat.DivSqrtRecFN_small(t.exp, t.sig, 0))}
+      val divSqrt = Module(new hardfloat.DivSqrtRecFN_small(t.exp, t.sig, 0))
       divSqrt.io.inValid := mem_reg_valid && tag === typeTag(t) && (mem_ctrl.div || mem_ctrl.sqrt) && !divSqrt_inFlight
       divSqrt.io.sqrtOp := mem_ctrl.sqrt
       divSqrt.io.a := maxType.unsafeConvert(fpiu.io.out.bits.in.in1, t)
