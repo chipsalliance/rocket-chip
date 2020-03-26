@@ -671,8 +671,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
     when (!(cmd_fma || cmd_addsub)) { in.in3 := zero }
   }
 
-  // See  NOTE-2361 above
-  val fma = withReset(false.B){Module(new MulAddRecFNPipe((latency-1) min 2, t.exp, t.sig))}
+  val fma = Module(new MulAddRecFNPipe((latency-1) min 2, t.exp, t.sig))
   fma.io.validin := valid
   fma.io.op := in.fmaCmd
   fma.io.roundingMode := in.rm
