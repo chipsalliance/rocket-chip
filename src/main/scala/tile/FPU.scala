@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 import chisel3.withClock
 import chisel3.internal.sourceinfo.SourceInfo
@@ -392,7 +393,7 @@ trait HasFPUParameters {
   }
 }
 
-abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters
+abstract class FPUModule(implicit val p: Parameters) extends Module with HasCoreParameters with HasFPUParameters
 
 class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   class Output extends Bundle {
@@ -438,7 +439,6 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     when (!in.ren2) { // fcvt
       val cvtType = in.typ.extract(log2Ceil(nIntTypes), 1)
       intType := cvtType
-
       val conv = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, xLen))
       conv.io.in := in.in1
       conv.io.roundingMode := in.rm
@@ -593,10 +593,9 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
 
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
-    val mulAddRecFNToRaw_preMul =
-        Module(new hardfloat.MulAddRecFNToRaw_preMul(expWidth, sigWidth))
-    val mulAddRecFNToRaw_postMul =
-        Module(new hardfloat.MulAddRecFNToRaw_postMul(expWidth, sigWidth))
+
+    val mulAddRecFNToRaw_preMul = Module(new hardfloat.MulAddRecFNToRaw_preMul(expWidth, sigWidth))
+    val mulAddRecFNToRaw_postMul = Module(new hardfloat.MulAddRecFNToRaw_postMul(expWidth, sigWidth))
 
     mulAddRecFNToRaw_preMul.io.op := io.op
     mulAddRecFNToRaw_preMul.io.a  := io.a
@@ -622,6 +621,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
+
     val roundRawFNToRecFN = Module(new hardfloat.RoundRawFNToRecFN(expWidth, sigWidth, 0))
 
     val round_regs = if(latency==2) 1 else 0
