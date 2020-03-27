@@ -3,6 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.util.random.LFSR
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -97,7 +98,7 @@ class TestRobin(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) 
   val sink = Wire(DecoupledIO(UInt(width=3)))
   val count = RegInit(UInt(0, width=8))
 
-  val lfsr = LFSR16(Bool(true))
+  val lfsr = LFSR(16, Bool(true))
   val valid = lfsr(0)
   val ready = lfsr(15)
 
