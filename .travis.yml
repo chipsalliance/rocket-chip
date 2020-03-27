@@ -7,7 +7,10 @@ cache:
   directories:
     $HOME/.ivy2
     regression/install
-    emulator/verilator
+env:
+  global:
+    # Comes from SiFive prebuilt verilator.deb
+    - INSTALLED_VERILATOR=/usr/local/bin/verilator
 
 dist: xenial
 
@@ -68,11 +71,14 @@ jobs:
         - export CXX=g++-4.8 CC=gcc-4.8
       before_cache:
         - ls -t regression/install | tail -n+2 | sed s@^@regression/install/@ | xargs rm -rf
-    - stage: prepare cache-verilator
+    - stage: set up verilator
       script:
-        - travis_wait 120 make verilator -C regression SUITE=none
-      before_install:
-        - export CXX=g++-4.8 CC=gcc-4.8
+        # This installs into /usr/local/bin/verilator
+        - |
+          set -eo pipefail
+          version=$(cat verilator.version)
+          curl -L -o /tmp/verilator.deb https://github.com/sifive/verilator/releases/download/${version}-0sifive1/verilator_${version}-0sifive1_amd64.deb
+          sudo apt install -y /tmp/verilator.deb
     - &test
       stage: Test
       script:

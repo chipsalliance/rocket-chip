@@ -29,7 +29,7 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 	mv -f $@.tmp $@
 
 # Build and install our own Verilator, to work around versionining issues.
-VERILATOR_VERSION=4.008
+VERILATOR_VERSION := $(shell cat $(base_dir)/verilator.version)
 VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
 VERILATOR_TARGET := $(abspath verilator/install/bin/verilator)
 INSTALLED_VERILATOR ?= $(VERILATOR_TARGET)
