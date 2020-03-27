@@ -49,13 +49,13 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
 /* Composable partial function Configs to set individual parameters */
 
 class WithJustOneBus extends Config((site, here, up) => {
-  case TLNetworkTopologyLocated("InSubsystem") => List(
+  case TLNetworkTopologyLocated(InSubsystem) => List(
     JustOneBusTopologyParams(sbus = site(SystemBusKey))
   )
 })
 
 class WithIncoherentBusTopology extends Config((site, here, up) => {
-  case TLNetworkTopologyLocated("InSubsystem") => List(
+  case TLNetworkTopologyLocated(InSubsystem) => List(
     JustOneBusTopologyParams(sbus = site(SystemBusKey)),
     HierarchicalBusTopologyParams(
       pbus = site(PeripheryBusKey),
@@ -65,7 +65,7 @@ class WithIncoherentBusTopology extends Config((site, here, up) => {
 })
 
 class WithCoherentBusTopology extends Config((site, here, up) => {
-  case TLNetworkTopologyLocated("InSubsystem") => List(
+  case TLNetworkTopologyLocated(InSubsystem) => List(
     JustOneBusTopologyParams(sbus = site(SystemBusKey)),
     HierarchicalBusTopologyParams(
       pbus = site(PeripheryBusKey),

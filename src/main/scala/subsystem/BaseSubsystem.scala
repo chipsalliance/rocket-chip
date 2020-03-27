@@ -8,11 +8,13 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.prci._
+import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util._
 
 case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
 case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("async_clock_groups")))
-case class TLNetworkTopologyLocated(where: String) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
+case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
+case class TLManagerViewpointLocated(where: HierarchicalLocation) extends Field[Location[TLBusWrapper]](SBUS)
 
 class HierarchicalLocation(override val name: String) extends Location[LazyScope](name)
 case object InTile extends HierarchicalLocation("InTile")
@@ -57,10 +59,14 @@ trait HasConfigurablePRCILocations { this: HasPRCILocations =>
 /** Look up the topology configuration for the TL buses located within this layer of the hierarchy */
 trait HasConfigurableTLNetworkTopology { this: HasTileLinkLocations =>
   val location: HierarchicalLocation
+
   // Calling these functions populates tlBusWrapperLocationMap and connects the locations to each other.
-  val topology = p(TLNetworkTopologyLocated(location.name))
+  val topology = p(TLNetworkTopologyLocated(location))
   private val buses = topology.map(_.instantiate(this))
   topology.foreach(_.connect(this))
+
+  // This is used lazily at DTS binding time to get a view of the network
+  lazy val topManagers = tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location))).unifyManagers
 }
 
 /** Base Subsystem class with no peripheral devices, ports or cores added yet */
@@ -84,7 +90,6 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   val cbus = tlBusWrapperLocationMap.lift(CBUS).getOrElse(sbus)
 
   // Collect information for use in DTS
-  lazy val topManagers = sbus.unifyManagers
   ResourceBinding {
     val managers = topManagers
     val max = managers.flatMap(_.address).map(_.max).max
