@@ -11,9 +11,9 @@ import freechips.rocketchip.util._
 
 case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APBImp, TLImp)(
   dFn = { mp =>
-    TLClientPortParameters(
+    TLMasterPortParameters.v1(
       clients = mp.masters.map { m =>
-        TLClientParameters(name = m.name, nodePath = m.nodePath)
+        TLMasterParameters.v1(name = m.name, nodePath = m.nodePath)
       },
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)

@@ -265,7 +265,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
 
   val cfg = p(DebugModuleKey).get
 
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("debug")))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {

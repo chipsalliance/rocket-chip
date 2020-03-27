@@ -15,12 +15,12 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
   val node = TLAdapterNode(
     clientFn  = { cp =>
-      cp.copy(clients = Seq(TLClientParameters(
+      cp.v1copy(clients = Seq(TLMasterParameters.v1(
         name     = "TLBroadcast",
         sourceId = IdRange(0, 1 << log2Ceil(cp.endSourceId*4)))))
     },
     managerFn = { mp =>
-      mp.copy(
+      mp.v1copy(
         endSinkId  = numTrackers,
         managers   = mp.managers.map { m =>
           // We are the last level manager
@@ -31,7 +31,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
             val lowerBound = max(m.supportsPutFull.min, m.supportsGet.min)
             require (!m.supportsPutFull || m.supportsPutFull.contains(lineBytes), s"${m.name} only supports PutFull(${m.supportsPutFull}), which does not include $lineBytes")
             require (!m.supportsGet     || m.supportsGet    .contains(lineBytes), s"${m.name} only supports Get(${m.supportsGet}), which does not include $lineBytes")
-            m.copy(
+            m.v1copy(
               regionType         = RegionType.TRACKED,
               supportsAcquireB   = TransferSizes(lowerBound, lineBytes),
               supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, lineBytes) else TransferSizes.none,

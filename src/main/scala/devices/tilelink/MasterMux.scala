@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-class MasterMuxNode(uFn: Seq[TLClientPortParameters] => TLClientPortParameters)(implicit valName: ValName) extends TLCustomNode
+class MasterMuxNode(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(implicit valName: ValName) extends TLCustomNode
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (iStars == 0 && oStars == 0, "MasterMux node does not support :=* or :*=")
@@ -16,13 +16,13 @@ class MasterMuxNode(uFn: Seq[TLClientPortParameters] => TLClientPortParameters)(
     require (oKnown == 1, "MasterMux node expects exactly one output")
     (0, 0)
   }
-  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { Seq(uFn(p)) }
-  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { p ++ p }
+  def mapParamsD(n: Int, p: Seq[TLMasterPortParameters]): Seq[TLMasterPortParameters] = { Seq(uFn(p)) }
+  def mapParamsU(n: Int, p: Seq[TLSlavePortParameters]): Seq[TLSlavePortParameters] = { p ++ p }
 }
 
 class MuteMaster(name: String = "MuteMaster", maxProbe: Int = 0)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLClientNode(Seq(TLClientPortParameters(clients = Seq(TLClientParameters(
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(clients = Seq(TLMasterParameters.v1(
     name = name,
     supportsProbe = if (maxProbe > 0) TransferSizes(1, maxProbe) else TransferSizes.none)))))
 
@@ -38,7 +38,7 @@ class MuteMaster(name: String = "MuteMaster", maxProbe: Int = 0)(implicit p: Par
   }
 }
 
-class MasterMux(uFn: Seq[TLClientPortParameters] => TLClientPortParameters)(implicit p: Parameters) extends LazyModule
+class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(implicit p: Parameters) extends LazyModule
 {
   val node = new MasterMuxNode(uFn)
 

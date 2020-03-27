@@ -33,13 +33,13 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 {
   val node = TLNexusNode(
     clientFn  = { seq =>
-      seq(0).copy(
+      seq(0).v1copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
         requestFields = BundleField.union(seq.flatMap(_.requestFields)),
         responseKeys  = seq.flatMap(_.responseKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
         clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-          port.clients map { client => client.copy(
+          port.clients map { client => client.v1copy(
             sourceId = client.sourceId.shift(range.start)
           )}
         }
@@ -47,7 +47,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     },
     managerFn = { seq =>
       val fifoIdFactory = TLXbar.relabeler()
-      seq(0).copy(
+      seq(0).v1copy(
         responseFields = BundleField.union(seq.flatMap(_.responseFields)),
         requestKeys = seq.flatMap(_.requestKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
@@ -56,7 +56,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
           require (port.beatBytes == seq(0).beatBytes,
             s"Xbar data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
           val fifoIdMapper = fifoIdFactory()
-          port.managers map { manager => manager.copy(
+          port.managers map { manager => manager.v1copy(
             fifoId = manager.fifoId.map(fifoIdMapper(_))
           )}
         }
@@ -281,8 +281,8 @@ object TLXbar
     xbar.node
   }
 
-  def mapInputIds (ports: Seq[TLClientPortParameters ]) = assignRanges(ports.map(_.endSourceId))
-  def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
+  def mapInputIds (ports: Seq[TLMasterPortParameters]) = assignRanges(ports.map(_.endSourceId))
+  def mapOutputIds(ports: Seq[TLSlavePortParameters ]) = assignRanges(ports.map(_.endSinkId))
 
   def assignRanges(sizes: Seq[Int]) = {
     val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }

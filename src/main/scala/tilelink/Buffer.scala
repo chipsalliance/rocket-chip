@@ -13,8 +13,8 @@ class TLBufferNode (
   c: BufferParams,
   d: BufferParams,
   e: BufferParams)(implicit valName: ValName) extends TLAdapterNode(
-    clientFn  = { p => p.copy(minLatency = p.minLatency + b.latency + c.latency) },
-    managerFn = { p => p.copy(minLatency = p.minLatency + a.latency + d.latency) }
+    clientFn  = { p => p.v1copy(minLatency = p.minLatency + b.latency + c.latency) },
+    managerFn = { p => p.v1copy(minLatency = p.minLatency + a.latency + d.latency) }
 ) {
   override lazy val nodedebugstring = s"a:${a.toString}, b:${b.toString}, c:${c.toString}, d:${d.toString}, e:${e.toString}"
 

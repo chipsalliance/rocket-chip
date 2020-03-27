@@ -15,10 +15,10 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
 {
   val node = TLAdapterNode(
     clientFn = { cp =>
-      cp.copy(clients = cp.clients.map { c => c.copy(
+      cp.v1copy(clients = cp.clients.map { c => c.v1copy(
         sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
     managerFn = { mp =>
-      mp.copy(managers = mp.managers.map { m => m.copy(
+      mp.v1copy(managers = mp.managers.map { m => m.v1copy(
         supportsHint =
           if (m.supportsHint && passthrough) m.supportsHint
           else if (m.supportsPutPartial) m.supportsPutPartial
@@ -35,8 +35,8 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
       }
 
       val isHint = in.a.bits.opcode === TLMessages.Hint
-      def usePP (m: TLManagerParameters) = !(passthrough && m.supportsHint) && m.supportsPutPartial
-      def useGet(m: TLManagerParameters) = !(passthrough && m.supportsHint) && !m.supportsPutPartial
+      def usePP (m: TLSlaveParameters) = !(passthrough && m.supportsHint) && m.supportsPutPartial
+      def useGet(m: TLSlaveParameters) = !(passthrough && m.supportsHint) && !m.supportsPutPartial
 
       // Does the HintHandler help using PutPartial with this message?
       val helpPP = isHint && edgeOut.manager.fastProperty(in.a.bits.address, usePP, (b:Boolean) => b.B)

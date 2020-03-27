@@ -19,8 +19,8 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
 
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
 
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = address,
       resources          = device.reg("mem"),
       regionType         = RegionType.IDEMPOTENT,

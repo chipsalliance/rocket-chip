@@ -10,10 +10,10 @@ class TLJbar(clientRatio: Int, managerRatio: Int, policy: TLArbiter.Policy = TLA
 {
   val node = TLJunctionNode(clientRatio, managerRatio,
     clientFn  = { seq =>
-      Seq.fill(managerRatio)(seq(0).copy(
+      Seq.fill(managerRatio)(seq(0).v1copy(
         minLatency = seq.map(_.minLatency).min,
         clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-          port.clients map { client => client.copy(
+          port.clients map { client => client.v1copy(
             sourceId = client.sourceId.shift(range.start)
           )}
         }
@@ -21,14 +21,14 @@ class TLJbar(clientRatio: Int, managerRatio: Int, policy: TLArbiter.Policy = TLA
     },
     managerFn = { seq =>
       val fifoIdFactory = TLXbar.relabeler()
-      Seq.fill(clientRatio)(seq(0).copy(
+      Seq.fill(clientRatio)(seq(0).v1copy(
         minLatency = seq.map(_.minLatency).min,
         endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
         managers = seq.flatMap { port =>
           require (port.beatBytes == seq(0).beatBytes,
             s"Xbar data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
           val fifoIdMapper = fifoIdFactory()
-          port.managers map { manager => manager.copy(
+          port.managers map { manager => manager.v1copy(
             fifoId = manager.fifoId.map(fifoIdMapper(_))
           )}
         }
