@@ -3,7 +3,6 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.util._
-import chisel3.experimental.{withClockAndReset}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._

@@ -5,14 +5,14 @@ package freechips.rocketchip.tile
 
 import Chisel._
 import Chisel.ImplicitConversions._
-
+import chisel3.withClock
+import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental._
 
 case class FPUParams(
   minFLen: Int = 32,
