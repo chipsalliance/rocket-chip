@@ -88,11 +88,15 @@ class RocketTile private(
 
   val itimProperty = frontend.icache.itimProperty.toSeq.flatMap(p => Map("sifive,itim" -> p))
 
+  val beuProperty = bus_error_unit.map(d => Map(
+          "sifive,buserror0" -> d.device.asProperty)).getOrElse(Nil)
+
   val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
-      Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
+      Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty
+                  ++ tileProperties ++ dtimProperty ++ itimProperty ++ beuProperty)
     }
   }
 
