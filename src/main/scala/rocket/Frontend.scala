@@ -75,7 +75,7 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
 
 @chiselName
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
-    with HasRocketCoreParameters
+    with HasCoreParameters
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
   implicit val edge = outer.masterNode.edges.out(0)
@@ -89,7 +89,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.clock_enabled := clock_en
   assert(!(io.cpu.req.valid || io.cpu.sfence.valid || io.cpu.flush_icache || io.cpu.bht_update.valid || io.cpu.btb_update.valid) || io.cpu.might_request)
   val gated_clock =
-    if (!rocketParams.clockGate) clock
+    if (!coreParams.clockGate) clock
     else ClockGate(clock, clock_en, "icache_clock_gate")
 
   icache.clock := gated_clock
@@ -332,7 +332,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.errors := icache.io.errors
 
   // gate the clock
-  clock_en_reg := !rocketParams.clockGate ||
+  clock_en_reg := !coreParams.clockGate ||
     io.cpu.might_request || // chicken bit
     icache.io.keep_clock_enabled || // I$ miss or ITIM access
     s1_valid || s2_valid || // some fetch in flight
