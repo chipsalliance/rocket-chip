@@ -19,8 +19,8 @@ class RegionReplicator(mask: BigInt = 0, region: Option[AddressSet] = Some(Addre
 
   val node = TLAdapterNode(
     clientFn  = { cp => cp },
-    managerFn = { mp => mp.copy(managers = mp.managers.map { m =>
-      m.copy(address = m.address.flatMap { a =>
+    managerFn = { mp => mp.v1copy(managers = mp.managers.map { m =>
+      m.v1copy(address = m.address.flatMap { a =>
         if (region.map(_.contains(a)).getOrElse(false)) { ids.map { id => AddressSet(a.base | id, a.mask) } }
         else { Seq(a) }
       })

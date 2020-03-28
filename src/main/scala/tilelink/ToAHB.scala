@@ -20,7 +20,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
   },
   uFn = { case sp =>
     val managers = sp.slaves.map { case s =>
-      TLManagerParameters(
+      TLSlaveParameters.v1(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
@@ -35,7 +35,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
         fifoId             = Some(0),
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(
+    TLSlavePortParameters.v1(
       managers   = managers,
       beatBytes  = sp.beatBytes,
       endSinkId  = 0,

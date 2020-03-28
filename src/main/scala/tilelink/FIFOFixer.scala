@@ -11,7 +11,7 @@ import scala.math.max
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
 {
-  private def fifoMap(seq: Seq[TLManagerParameters]) = {
+  private def fifoMap(seq: Seq[TLSlaveParameters]) = {
     val (flatManagers, keepManagers) = seq.partition(policy)
     // We need to be careful if one flatManager and one keepManager share an existing domain
     // Erring on the side of caution, we will also flatten the keepManager in this case
@@ -38,7 +38,7 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
     clientFn  = { cp => cp },
     managerFn = { mp =>
       val (fixMap, _) = fifoMap(mp.managers)
-      mp.copy(managers = (fixMap zip mp.managers) map { case (id, m) => m.copy(fifoId = id) })
+      mp.v1copy(managers = (fixMap zip mp.managers) map { case (id, m) => m.v1copy(fifoId = id) })
     })
 
   lazy val module = new LazyModuleImp(this) {
@@ -49,11 +49,11 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       val a_notFIFO = edgeIn.manager.fastProperty(in.a.bits.address, _.fifoId != Some(0), (b:Boolean) => Bool(b))
       // Compact the IDs of the cases we serialize
       val compacted = ((fixMap zip splatMap) zip edgeOut.manager.managers) flatMap {
-        case ((f, s), m) => if (f == Some(0)) Some(m.copy(fifoId = s)) else None
+        case ((f, s), m) => if (f == Some(0)) Some(m.v1copy(fifoId = s)) else None
       }
       val sinks = if (compacted.exists(_.supportsAcquireB)) edgeOut.manager.endSinkId else 0
       val a_id = if (compacted.isEmpty) UInt(0) else
-        edgeOut.manager.copy(managers = compacted, endSinkId = sinks).findFifoIdFast(in.a.bits.address)
+        edgeOut.manager.v1copy(managers = compacted, endSinkId = sinks).findFifoIdFast(in.a.bits.address)
       val a_noDomain = a_id === UInt(0)
 
       if (false) {
@@ -134,7 +134,7 @@ object TLFIFOFixer
 {
   // Which slaves should have their FIFOness combined?
   // NOTE: this transformation is still only applied for masters with requestFifo
-  type Policy = TLManagerParameters => Boolean
+  type Policy = TLSlaveParameters => Boolean
   import RegionType._
 
   val all:            Policy = m => true

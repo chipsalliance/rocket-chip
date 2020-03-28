@@ -3,6 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
+import chisel3.util.random.LFSR
 
 abstract class Decoding
 {
@@ -183,7 +184,7 @@ object ErrGen
   // generate a 1-bit error with approximate probability 2^-f
   def apply(width: Int, f: Int): UInt = {
     require(width > 0 && f >= 0 && log2Up(width) + f <= 16)
-    UIntToOH(LFSR16()(log2Up(width)+f-1,0))(width-1,0)
+    UIntToOH(LFSR(16)(log2Up(width)+f-1,0))(width-1,0)
   }
   def apply(x: UInt, f: Int): UInt = x ^ apply(x.getWidth, f)
 }

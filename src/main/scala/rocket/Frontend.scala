@@ -5,7 +5,9 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.experimental._
+import chisel3.{withClock,withReset}
+import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -13,8 +15,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{ICacheLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.ICacheLogicalTreeNode
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)

@@ -5,14 +5,15 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import chisel3.withClock
+import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental._
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {

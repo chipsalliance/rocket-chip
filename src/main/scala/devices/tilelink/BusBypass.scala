@@ -17,8 +17,8 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false, buffer
   val node = NodeHandle(nodeIn, nodeOut)
 
   protected val bar = LazyModule(new TLBusBypassBar(dFn = { mp =>
-    mp.copy(managers = mp.managers.map { m =>
-      m.copy(
+    mp.v1copy(managers = mp.managers.map { m =>
+      m.v1copy(
         mayDenyPut = m.mayDenyPut || !deadlock,
         mayDenyGet = m.mayDenyGet || !deadlock)
     })
@@ -47,7 +47,7 @@ class TLBusBypass(beatBytes: Int, bufferError: Boolean = false, maxAtomic: Int =
   }
 }
 
-class TLBypassNode(dFn: TLManagerPortParameters => TLManagerPortParameters)(implicit valName: ValName) extends TLCustomNode
+class TLBypassNode(dFn: TLSlavePortParameters => TLSlavePortParameters)(implicit valName: ValName) extends TLCustomNode
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (iStars == 0 && oStars == 0, "TLBypass node does not support :=* or :*=")
@@ -55,11 +55,11 @@ class TLBypassNode(dFn: TLManagerPortParameters => TLManagerPortParameters)(impl
     require (oKnown == 2, "TLBypass node expects exactly two outputs")
     (0, 0)
   }
-  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { p ++ p }
-  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { Seq(dFn(p.last).copy(minLatency = p.map(_.minLatency).min))}
+  def mapParamsD(n: Int, p: Seq[TLMasterPortParameters]): Seq[TLMasterPortParameters] = { p ++ p }
+  def mapParamsU(n: Int, p: Seq[TLSlavePortParameters]): Seq[TLSlavePortParameters] = { Seq(dFn(p.last).copy(minLatency = p.map(_.minLatency).min))}
 }
 
-class TLBusBypassBar(dFn: TLManagerPortParameters => TLManagerPortParameters)(implicit p: Parameters) extends LazyModule
+class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implicit p: Parameters) extends LazyModule
 {
   val node = new TLBypassNode(dFn)
 

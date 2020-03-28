@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.experimental.{withClockAndReset, withReset}
+import chisel3.{withClockAndReset, withReset}
 
 /** Reset: asynchronous assert,
   *  synchronous de-assert
