@@ -11,7 +11,8 @@ import freechips.rocketchip.diplomacy._
   *              continue to send traffic to it !!!
   */
 class TLDeadlock(params: DevNullParams, beatBytes: Int = 4)(implicit p: Parameters)
-    extends DevNullDevice(params, beatBytes, new SimpleDevice("deadlock-device", Seq("sifive,deadlock0")))
+    extends DevNullDevice(params, minLatency = 1, // technically not true but we don't want to add extra logic to handle minLatency = 0
+      beatBytes, new SimpleDevice("deadlock-device", Seq("sifive,deadlock0")))
 {
   lazy val module = new LazyModuleImp(this) {
     val (in, _) = node.in(0)
