@@ -1068,4 +1068,9 @@ class CSRFile(
   def isaStringToMask(s: String) = s.map(x => 1 << (x - 'A')).foldLeft(0)(_|_)
   def formFS(fs: UInt) = if (coreParams.haveFSDirty) fs else Fill(2, fs.orR)
   def formVS(vs: UInt) = if (usingVector) vs else 0.U
+
+  val csrMonitorBundle = Wire(new CSRMonitorBundle(xLen))
+
+  csrMonitorBundle.mie := reg_mie
+  csrMonitorBundle.mip := read_mip
 }

@@ -55,7 +55,8 @@ trait HasRocketTiles extends HasTiles
   }
 
   def coreMonitorBundles = (rocketTiles map { t =>
-    t.module.core.rocketImpl.coreMonitorBundle
+    (t.module.core.rocketImpl.coreMonitorBundle,
+      t.module.core.rocketImpl.csr.csrMonitorBundle)
   }).toList
 }
 

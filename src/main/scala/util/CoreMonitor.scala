@@ -22,7 +22,12 @@ class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
   val inst = UInt(width = 32.W)
 }
 
+class CSRMonitorBundle(val xLen: Int) extends Bundle with Clocked {
+  val mie = UInt(width = xLen.W)
+  val mip = UInt(width = xLen.W)
+}
+
 // mark a module that has cores with CoreMonitorBundles
 trait HasCoreMonitorBundles {
-    def coreMonitorBundles: List[CoreMonitorBundle]
+    def coreMonitorBundles: List[Tuple2[CoreMonitorBundle, CSRMonitorBundle]]
 }
