@@ -471,7 +471,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
 
     val dmControlRegFields = RegFieldGroup("dmcontrol", Some("debug module control register"), Seq(
-      WNotifyVal(1, DMCONTROLReg.dmactive,    DMCONTROLWrData.dmactive, dmactiveWrEn,
+      WNotifyVal(1, DMCONTROLReg.dmactive & io.ctrl.dmactiveAck, DMCONTROLWrData.dmactive, dmactiveWrEn,
         RegFieldDesc("dmactive", "debug module active", reset=Some(0))),
       WNotifyVal(1, DMCONTROLReg.ndmreset,    DMCONTROLWrData.ndmreset, ndmresetWrEn,
         RegFieldDesc("ndmreset", "debug module reset output", reset=Some(0))),
@@ -654,9 +654,11 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
     withClockAndReset(childClock, childReset) {
       dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
 
-      dmiBypass.module.io.bypass := ~io.ctrl.dmactive | ~AsyncResetSynchronizerShiftReg(in=io.ctrl.dmactiveAck, sync=3, name=Some("dmactiveAckSync"))
+      val dmactiveAck = AsyncResetSynchronizerShiftReg(in=io.ctrl.dmactiveAck, sync=3, name=Some("dmactiveAckSync"))
+      dmiBypass.module.io.bypass := ~io.ctrl.dmactive | ~dmactiveAck
 
       io.ctrl <> dmOuter.module.io.ctrl
+      dmOuter.module.io.ctrl.dmactiveAck := dmactiveAck   // send synced version down to dmOuter
       io.innerCtrl <> ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset))
       dmOuter.module.io.hgDebugInt := io.hgDebugInt
       io.hartResetReq.foreach { x => dmOuter.module.io.hartResetReq.foreach {y => x := y}}
