@@ -874,9 +874,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.timer := csr.io.time(31,0)
   coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
   coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen)
-  coreMonitorBundle.wrdst := Mux(rf_wen && !(wb_set_sboard && wb_wen), rf_waddr, UInt(0))
-  coreMonitorBundle.wrdata := rf_wdata
-  coreMonitorBundle.wren := rf_wen
+  coreMonitorBundle.wrdst := rf_waddr
+  coreMonitorBundle.wren := rf_wen && !(wb_set_sboard && wb_wen)
+  coreMonitorBundle.wrdata := Mux(coreMonitorBundle.wren, rf_wdata, 0.U)
   coreMonitorBundle.rd0src := wb_reg_inst(19,15)
   coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
   coreMonitorBundle.rd1src := wb_reg_inst(24,20)
@@ -910,13 +910,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
   else {
-    printf("C%d: %d [%d] pc=[%x] W[r%d=%x] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
+    when (csr.io.trace(0).valid) {
+      printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.hartid, coreMonitorBundle.timer, coreMonitorBundle.valid,
          coreMonitorBundle.pc,
-         Mux(coreMonitorBundle.wren, coreMonitorBundle.wrdst, UInt(0)), coreMonitorBundle.wrdata,
+         coreMonitorBundle.wrdst, coreMonitorBundle.wrdata, coreMonitorBundle.wren,
          coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
          coreMonitorBundle.rd1src, coreMonitorBundle.rd1val,
          coreMonitorBundle.inst, coreMonitorBundle.inst)
+    }
   }
 
   PlusArg.timeout(
