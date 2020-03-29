@@ -18,12 +18,12 @@ object TLArbiter
   val roundRobin: Policy = (width, valids, select) => if (width == 1) UInt(1, width=1) else {
     val valid = valids(width-1, 0)
     assert (valid === valids)
-    val maskn = RegInit(UInt(0, width=width)) // val mask = RegInit(~UInt(0, width=width)) fails with AsyncReset
-    val filter = Cat(valid & maskn, valid)
-    val unready = (rightOR(filter, width*2, width) >> 1) | (~maskn << width)
+    val mask = RegInit(UInt((BigInt(1) << width)-1, width = width))
+    val filter = Cat(valid & ~mask, valid)
+    val unready = (rightOR(filter, width*2, width) >> 1) | (mask << width)
     val readys = ~((unready >> width) & unready(width-1, 0))
     when (select && valid.orR) {
-      maskn := ~leftOR(readys & valid, width)
+      mask := leftOR(readys & valid, width)
     }
     readys(width-1, 0)
   }
