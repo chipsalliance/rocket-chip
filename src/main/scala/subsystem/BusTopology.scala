@@ -60,9 +60,9 @@ case class HierarchicalBusTopologyParams(
     (FBUS, fbus),
     (CBUS, cbus)),
   connections = List(
-    (SBUS, CBUS, TLBusWrapperCrossToConnection  (xTypes.sbusToCbusXType)()),
-    (CBUS, PBUS, TLBusWrapperCrossToConnection  (xTypes.cbusToPbusXType)()),
-    (SBUS, FBUS, TLBusWrapperCrossFromConnection(xTypes.fbusToSbusXType)()))
+    (SBUS, CBUS, TLBusWrapperConnection  .crossTo(xTypes.sbusToCbusXType)),
+    (CBUS, PBUS, TLBusWrapperConnection  .crossTo(xTypes.cbusToPbusXType)),
+    (FBUS, SBUS, TLBusWrapperConnection.crossFrom(xTypes.fbusToSbusXType)))
 )
 
 case class CoherentBusTopologyParams(
@@ -74,7 +74,7 @@ case class CoherentBusTopologyParams(
     (MBUS, mbus),
     (L2, CoherenceManagerWrapperParams(sbus.blockBytes, sbus.beatBytes, L2.name)(l2.coherenceManager)))),
   connections = (if (l2.nBanks == 0) Nil else List(
-    (SBUS, L2,   TLBusWrapperCrossToConnection  (NoCrossing)()),
-    (L2,   MBUS, TLBusWrapperCrossToConnection  (NoCrossing)())
+    (SBUS, L2,   TLBusWrapperConnection.crossTo(NoCrossing)),
+    (L2,   MBUS, TLBusWrapperConnection.crossTo(NoCrossing))
   ))
 )
