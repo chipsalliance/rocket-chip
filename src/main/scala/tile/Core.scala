@@ -41,7 +41,7 @@ trait CoreParams {
   val nL2TLBEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
-  val clockGate: Boolean = false
+  val clockGate: Boolean
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def instBytes: Int = instBits / 8
@@ -89,6 +89,7 @@ trait HasCoreParameters extends HasTileParameters {
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable
+  val clockGate = coreParams.clockGate
 
   def vLen = coreParams.vLen
   def sLen = coreParams.sLen

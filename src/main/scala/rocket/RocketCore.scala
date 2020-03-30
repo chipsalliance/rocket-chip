@@ -39,7 +39,7 @@ case class RocketCoreParams(
   fastLoadWord: Boolean = true,
   fastLoadByte: Boolean = false,
   branchPredictionModeCSR: Boolean = false,
-  //clockGate: Boolean = false,
+  clockGate: Boolean = false,
   mvendorid: Int = 0, // 0 means non-commercial implementation
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
