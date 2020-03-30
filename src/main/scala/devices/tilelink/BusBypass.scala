@@ -56,7 +56,7 @@ class TLBypassNode(dFn: TLSlavePortParameters => TLSlavePortParameters)(implicit
     (0, 0)
   }
   def mapParamsD(n: Int, p: Seq[TLMasterPortParameters]): Seq[TLMasterPortParameters] = { p ++ p }
-  def mapParamsU(n: Int, p: Seq[TLSlavePortParameters]): Seq[TLSlavePortParameters] = { Seq(dFn(p.last).copy(minLatency = p.map(_.minLatency).min))}
+  def mapParamsU(n: Int, p: Seq[TLSlavePortParameters]): Seq[TLSlavePortParameters] = { Seq(dFn(p.last).v1copy(minLatency = p.map(_.minLatency).min))}
 }
 
 class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implicit p: Parameters) extends LazyModule
