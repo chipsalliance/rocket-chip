@@ -30,6 +30,7 @@ case class PeripheryBusParams(
 {
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
     val pbus = LazyModule(new PeripheryBus(this, loc.name))
+    pbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> pbus)
     pbus
   }

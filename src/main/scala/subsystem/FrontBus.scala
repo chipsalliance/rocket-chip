@@ -20,6 +20,7 @@ case class FrontBusParams(
 {
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): FrontBus = {
     val fbus = LazyModule(new FrontBus(this, loc.name))
+    fbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> fbus)
     fbus
   }
