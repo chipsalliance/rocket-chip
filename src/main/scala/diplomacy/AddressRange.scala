@@ -53,6 +53,7 @@ object AddressRange
         case Some(z) => z :: tail
         case None => x :: head :: tail
       }
+      case (head, tail) => head ++ Seq(tail)
     }.reverse
   }
   // Set subtraction... O(n*n) b/c I am lazy
