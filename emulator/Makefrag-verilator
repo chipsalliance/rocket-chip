@@ -29,7 +29,7 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 	mv -f $@.tmp $@
 
 # Build and install our own Verilator, to work around versionining issues.
-VERILATOR_VERSION=4.008
+VERILATOR_VERSION=4.028
 VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
 VERILATOR_TARGET := $(abspath verilator/install/bin/verilator)
 INSTALLED_VERILATOR ?= $(VERILATOR_TARGET)
@@ -60,6 +60,10 @@ verilator: $(INSTALLED_VERILATOR)
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
 VERILATOR_THREADS ?= 2
+# --max-num-width is set to 1024^2 to avoid an error with compiling a Verilated
+# circuit with a width greater than the default of 65536, which can easily
+# happen with Chisel-generated Verilog code. See
+# https://github.com/chipsalliance/rocket-chip/pull/2377#issuecomment-605846516
 VERILATOR_FLAGS := --top-module $(MODEL) \
   +define+PRINTF_COND=\$$c\(\"verbose\",\"\&\&\"\,\"done_reset\"\) \
   +define+RANDOMIZE_GARBAGE_ASSIGN \
@@ -69,7 +73,8 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   --threads $(VERILATOR_THREADS) -Wno-UNOPTTHREADS \
 	-Wno-STMTDLY --x-assign unique \
   -I$(vsrc) \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs" \
+  --max-num-width 1048576
 cppfiles = $(addprefix $(csrc)/, $(addsuffix .cc, $(CXXSRCS)))
 headers = $(wildcard $(csrc)/*.h)
 
