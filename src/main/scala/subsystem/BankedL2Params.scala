@@ -36,7 +36,11 @@ case class BankedL2Params(
 }
 
 
-case class CoherenceManagerWrapperParams(blockBytes: Int, beatBytes: Int, name: String)
+case class CoherenceManagerWrapperParams(
+    blockBytes: Int,
+    beatBytes: Int,
+    nBanks: Int,
+    name: String)
   (val coherenceManager: CoherenceManagerWrapper.CoherenceManagerInstantiationFn)
   extends HasTLBusParams 
   with TLBusWrapperInstantiationLike
@@ -56,9 +60,14 @@ object CoherenceManagerWrapper {
 }
 
 class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: HasTileLinkLocations)(implicit p: Parameters) extends TLBusWrapper(params, params.name) {
-  val (temp, outwardNode, halt) = params.coherenceManager(context)
+  val (tempIn, tempOut, halt) = params.coherenceManager(context)
+
   // TODO could remove temp if we could get access to .edges from InwardNodeHandle
   val viewNode = TLIdentityNode()
-  val inwardNode = temp :*= viewNode
   def busView: TLEdge = viewNode.edges.out.head
+  val inwardNode = tempIn :*= viewNode
+
+  private def banked(node: TLOutwardNode): TLOutwardNode =
+    if (params.nBanks == 0) node else { TLTempNode() :=* BankBinder(params.nBanks, params.blockBytes) :*= node }
+  val outwardNode = banked(tempOut)
 }
