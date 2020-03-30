@@ -30,7 +30,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   // Address Adjustment requires many things about the downstream devices, captured here as helper functions:
 
   // Report whether a region of addresses fully contains a particular manager
-  def isDeviceContainedBy(region: Seq[AddressSet], m: TLManagerParameters): Boolean = {
+  def isDeviceContainedBy(region: Seq[AddressSet], m: TLSlaveParameters): Boolean = {
     val addr = masked(m.address)
     val any_in  = region.exists { f => addr.exists { a => f.overlaps(a) } }
     val any_out = region.exists { f => addr.exists { a => !f.contains(a) } }
@@ -41,7 +41,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   }
 
   // Confirm that bits of an address are repeated according to the mask
-  def requireMaskRepetition(managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
+  def requireMaskRepetition(managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
     val sorted = m.address.sorted
     bits.foreach { b =>
       val flipped = m.address.map(a => AddressSet((a.base ^ b) & ~a.mask, a.mask)).sorted
@@ -50,7 +50,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   }
 
   // Confirm that everything supported by the remote PMA (which will be the final PMA) can be taken to the error device
-  def requireErrorSupport(errorDev: TLManagerParameters, managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
+  def requireErrorSupport(errorDev: TLSlaveParameters, managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
     require (errorDev.supportsAcquireT  .contains(m.supportsAcquireT  ), s"Error device cannot cover ${m.name}'s AcquireT")
     require (errorDev.supportsAcquireB  .contains(m.supportsAcquireB  ), s"Error device cannot cover ${m.name}'s AcquireB")
     require (errorDev.supportsArithmetic.contains(m.supportsArithmetic), s"Error device cannot cover ${m.name}'s Arithmetic")
@@ -62,14 +62,14 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   }
 
   // Confirm that a subset of managers have homogeneous FIFO ids
-  def requireFifoHomogeneity(managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
+  def requireFifoHomogeneity(managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
     require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId,
       s"${m.name} had fifoId ${m.fifoId}, " +
       s"which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
   }
 
   // Confirm that a particular manager r can successfully handle all operations targetting another manager l
-  def requireContainerSupport(l: TLManagerParameters, r: TLManagerParameters): Unit = {
+  def requireContainerSupport(l: TLSlaveParameters, r: TLSlaveParameters): Unit = {
     require (l.regionType >= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
     require (!l.executable || r.executable, s"Device ${l.name} cannot be executable if ${r.name} is not")
     require (!l.mayDenyPut || r.mayDenyPut, s"Device ${l.name} cannot deny Put if ${r.name} does not")
@@ -87,7 +87,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   }
 
   // Utility debug printer
-  def printManagers(kind: String, managers: Seq[TLManagerParameters]): Unit = {
+  def printManagers(kind: String, managers: Seq[TLSlaveParameters]): Unit = {
     println(s"$kind:")
     println(managers.map(m => s"\t${m.name} ${m.address.head} ${m.fifoId}").mkString("\n"))
   }
@@ -105,12 +105,12 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
 
       val adjustableRemoteManagers = remote.managers.flatMap { m =>
         val intersection = m.address.flatMap(a => adjustableRegion.map(a.intersect(_))).flatten
-        if (intersection.isEmpty) None else Some(m.copy(address = intersection))
+        if (intersection.isEmpty) None else Some(m.v1copy(address = intersection))
       }
 
       val fixedRemoteManagers = remote.managers.flatMap { m =>
         val subtraction = m.address.flatMap(a => adjustableRegion.map(a.subtract(_))).flatten
-        if (subtraction.isEmpty) None else Some(m.copy(address = subtraction))
+        if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
       }
 
       if (false) {
@@ -156,7 +156,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
         // Any address space holes in the local adjustable region will be plugged with the error device.
         // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
         // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
-        l.copy(
+        l.v1copy(
           address            = AddressSet.unify(masked(l.address) ++ (if (l == errorDev) holes else Nil)),
           regionType         = r.regionType,
           executable         = r.executable,
@@ -176,16 +176,16 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
 
       // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
       val newRemotes = ids.tail.zipWithIndex.flatMap { case (id, i) => adjustableRemoteManagers.map { r =>
-        r.copy(
+        r.v1copy(
           address = AddressSet.unify(masked(r.address, offset = id)),
           fifoId = Some(i+1))
       } }
 
       // Relable the FIFO domains for certain manager subsets
       val fifoIdFactory = TLXbar.relabeler()
-      def relabelFifo(managers: Seq[TLManagerParameters]): Seq[TLManagerParameters] = {
+      def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
         val fifoIdMapper = fifoIdFactory()
-        managers.map(m => m.copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
+        managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
       }
 
       val newManagerList =
@@ -193,7 +193,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
         relabelFifo(fixedLocalManagers) ++
         relabelFifo(fixedRemoteManagers)
 
-      Seq(local.copy(
+      Seq(local.v1copy(
         managers   = newManagerList,
         endSinkId  = local.endSinkId + remote.endSinkId,
         minLatency = local.minLatency min remote.minLatency))

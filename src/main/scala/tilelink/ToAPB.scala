@@ -19,7 +19,7 @@ case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
   },
   uFn = { sp =>
     val managers = sp.slaves.map { case s =>
-      TLManagerParameters(
+      TLSlaveParameters.v1(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
@@ -31,7 +31,7 @@ case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
         fifoId             = Some(0), // a common FIFO domain
         mayDenyPut         = true)
     }
-    TLManagerPortParameters(
+    TLSlavePortParameters.v1(
       managers   = managers,
       beatBytes  = sp.beatBytes,
       endSinkId  = 0,

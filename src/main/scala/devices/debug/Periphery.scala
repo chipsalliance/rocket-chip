@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.core.IntParam
+import chisel3.experimental.IntParam
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
@@ -174,8 +174,8 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
     }
   }
 
-  setResource("/vsrc/SimDTM.v")
-  setResource("/csrc/SimDTM.cc")
+  addResource("/vsrc/SimDTM.v")
+  addResource("/csrc/SimDTM.cc")
 }
 
 class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
@@ -210,10 +210,10 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     }
   }
 
-  setResource("/vsrc/SimJTAG.v")
-  setResource("/csrc/SimJTAG.cc")
-  setResource("/csrc/remote_bitbang.h")
-  setResource("/csrc/remote_bitbang.cc")
+  addResource("/vsrc/SimJTAG.v")
+  addResource("/csrc/SimJTAG.cc")
+  addResource("/csrc/remote_bitbang.h")
+  addResource("/csrc/remote_bitbang.cc")
 }
 
 object Debug {

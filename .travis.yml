@@ -33,7 +33,7 @@ addons:
       - texinfo
       - device-tree-compiler
       - libusb-1.0-0-dev
-      - python-pexpect
+      - python3-pexpect
       - libre2-dev
 
 
@@ -93,7 +93,6 @@ jobs:
         - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest32 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
         - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest32 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
         - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest8 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest8 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
     - <<: *test
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteB JVM_MEMORY=3G

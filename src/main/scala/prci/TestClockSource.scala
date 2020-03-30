@@ -2,6 +2,7 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.util.HasBlackBoxInline
+import chisel3.experimental.DoubleParam
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -13,7 +14,7 @@ class ClockSourceIO extends Bundle {
 
 /** This clock source is only intended to be used in test harnesses, and does not work correctly in verilator. */
 class ClockSourceAtFreq(val freqMHz: Double) extends BlackBox(Map(
-  "PERIOD_PS" -> core.DoubleParam(1000000/freqMHz)
+  "PERIOD_PS" -> DoubleParam(1000000/freqMHz)
 )) with HasBlackBoxInline {
   val io = IO(new ClockSourceIO)
 

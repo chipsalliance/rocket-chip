@@ -25,15 +25,15 @@ case class DevNullParams(
   * They may discard writes, refuse to respond to requests, issue error responses,
   * or otherwise violate 'expected' memory behavior.
   */
-abstract class DevNullDevice(params: DevNullParams, beatBytes: Int, device: SimpleDevice)
+abstract class DevNullDevice(params: DevNullParams, minLatency: Int, beatBytes: Int, device: SimpleDevice)
                             (implicit p: Parameters)
     extends LazyModule with HasClockDomainCrossing {
   val xfer = if (params.maxTransfer > 0) TransferSizes(1, params.maxTransfer) else TransferSizes.none
   val atom = if (params.maxAtomic > 0) TransferSizes(1, params.maxAtomic) else TransferSizes.none
   val acq  = if (params.acquire) xfer else TransferSizes.none
   val hint = if (params.hint) xfer else TransferSizes.none
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = params.address,
       resources          = device.reg,
       regionType         = params.region,
@@ -52,6 +52,6 @@ abstract class DevNullDevice(params: DevNullParams, beatBytes: Int, device: Simp
       alwaysGrantsT      = params.acquire)),
     beatBytes  = beatBytes,
     endSinkId  = if (params.acquire) 1 else 0,
-    minLatency = 1))) // no bypass needed for this device
+    minLatency = minLatency)))
   val tl_xing = this.crossIn(node)
 }

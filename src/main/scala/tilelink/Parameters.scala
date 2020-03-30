@@ -283,7 +283,7 @@ class TLSlaveParameters private(
       fifoId        = fifoId)
   }
 
-  @deprecated("Use v1copy","")
+  @deprecated("Use v1copy instead of copy","")
   def copy(
     address:            Seq[AddressSet] = address,
     resources:          Seq[Resource]   = resources,
@@ -369,7 +369,7 @@ object TLSlaveParameters {
 }
 
 object TLManagerParameters {
-  @deprecated("Use TLSlaveParameters.v1() instead of TLManagerParameters()","")
+  @deprecated("Use TLSlaveParameters.v1 instead of TLManagerParameters","")
   def apply(
     address:            Seq[AddressSet],
     resources:          Seq[Resource] = Seq(),
@@ -575,7 +575,7 @@ class TLSlavePortParameters private(
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + "Manager Port MinLatency = " + minLatency + "\n\n" + managers.map(_.infoString).mkString
 
   def v1copy(
     managers:   Seq[TLSlaveParameters] = slaves,
@@ -594,6 +594,7 @@ class TLSlavePortParameters private(
       requestKeys    = requestKeys)
   }
 
+  @deprecated("Use v1copy instead of copy","")
   def copy(
     managers:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
@@ -629,10 +630,11 @@ object TLSlavePortParameters {
       responseFields = responseFields,
       requestKeys    = requestKeys)
   }
+
 }
 
 object TLManagerPortParameters {
-  @deprecated("Use TLSlavePortParameters.v1","")
+  @deprecated("Use TLSlavePortParameters.v1 instead of TLManagerPortParameters","")
   def apply(
     managers:   Seq[TLSlaveParameters],
     beatBytes:  Int,
@@ -822,7 +824,7 @@ object TLMasterParameters {
 }
   
 object TLClientParameters {
-  @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters","")
+  @deprecated("Use TLMasterParameters.v1 instead of TLClientParameters","")
   def apply(
     name:                String,
     sourceId:            IdRange         = IdRange(0,1),
@@ -957,7 +959,7 @@ class TLMasterPortParameters private(
       responseKeys  = responseKeys)
   }
 
-  @deprecated("Use v1copy","")
+  @deprecated("Use v1copy instead of copy","")
   def copy(
     clients: Seq[TLClientParameters] = masters,
     minLatency: Int = minLatency,
@@ -975,7 +977,7 @@ class TLMasterPortParameters private(
 }
 
 object TLClientPortParameters {
-  @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters()","")
+  @deprecated("Use TLMasterPortParameters.v1 instead of TLClientPortParameters","")
   def apply(
     clients: Seq[TLClientParameters],
     minLatency: Int = 0,
@@ -1141,13 +1143,13 @@ object ManagerUnification
       map.get(k) match {
         case None => map.update(k, m)
         case Some(n) => {
-          map.update(k, m.copy(
+          map.update(k, m.v1copy(
             address = m.address ++ n.address,
             fifoId  = None)) // Merging means it's not FIFO anymore!
         }
       }
     }
-    map.values.map(m => m.copy(address = AddressSet.unify(m.address))).toList
+    map.values.map(m => m.v1copy(address = AddressSet.unify(m.address))).toList
   }
 }
 

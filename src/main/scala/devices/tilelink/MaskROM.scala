@@ -12,8 +12,8 @@ case class MaskROMParams(address: BigInt, name: String, depth: Int = 2048, width
 
 class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
   val beatBytes = c.width/8
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = AddressSet.misaligned(c.address, c.depth*beatBytes),
       resources          = new SimpleDevice("rom", Seq("sifive,maskrom0")).reg("mem"),
       regionType         = RegionType.UNCACHED,

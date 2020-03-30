@@ -13,10 +13,10 @@ case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends Mi
   dFn = { case mp =>
     mp.masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = mp.masters.map(_.maxFlight.get).max
-    TLClientPortParameters(
+    TLMasterPortParameters.v1(
       clients = mp.masters.filter(_.maxFlight != Some(0)).flatMap { m =>
         for (id <- m.id.start until m.id.end)
-          yield TLClientParameters(
+          yield TLMasterParameters.v1(
             name        = s"${m.name} ID#${id}",
             sourceId    = IdRange(id * maxFlight*2, (id+1) * maxFlight*2), // R+W ids are distinct
             nodePath    = m.nodePath,

@@ -13,6 +13,7 @@ import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.dontTouch
+import chisel3.util.random.LFSR
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -51,7 +52,7 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 
 class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
-  val masterNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters(
+  val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
     sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
     name = s"Core ${hartId} ICache")))))
 
@@ -76,8 +77,8 @@ class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parame
 
   private val wordBytes = icacheParams.fetchBytes
   val slaveNode =
-    TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters(
-      Seq(TLManagerParameters(
+    TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLSlavePortParameters.v1(
+      Seq(TLSlaveParameters.v1(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
         regionType      = RegionType.IDEMPOTENT,
@@ -188,7 +189,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   val repl_way = if (isDM) UInt(0) else {
     // pick a way that is not used by the scratchpad
-    val v0 = LFSR16(refill_fire)(log2Up(nWays)-1,0)
+    val v0 = LFSR(16, refill_fire)(log2Up(nWays)-1,0)
     var v = v0
     for (i <- log2Ceil(nWays) - 1 to 0 by -1) {
       val mask = nWays - (BigInt(1) << (i + 1))

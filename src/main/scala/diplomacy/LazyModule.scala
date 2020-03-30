@@ -112,12 +112,19 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
   }
 
-  def nodeIterator(iterfunc: (LazyModule) => Unit): Unit = {
+  def childrenIterator(iterfunc: (LazyModule) => Unit): Unit = {
     iterfunc(this)
-    children.foreach( _.nodeIterator(iterfunc) )
+    children.foreach( _.childrenIterator(iterfunc) )
+  }
+
+  def nodeIterator(iterfunc: (BaseNode) => Unit): Unit = {
+    nodes.foreach(iterfunc)
+    childrenIterator(_.nodes.foreach(iterfunc))
   }
 
   def getChildren = children
+
+  def getNodes = nodes
 }
 
 object LazyModule
