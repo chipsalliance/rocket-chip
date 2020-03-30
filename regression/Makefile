@@ -150,13 +150,15 @@ stamps/other-submodules.stamp:
 	git -C $(abspath $(TOP)) submodule update --init --recursive $(submodule_names)
 	date > $@
 
+ROCKET_TOOLS_CHECKOUT_DEPTH ?= 50
+
 stamps/rocket-tools_checkout.stamp:
 	mkdir -p $(dir $@)
 	git -C $(abspath $(TOP)) clone -n https://github.com/freechipsproject/rocket-tools.git
 	git -C $(RISCV_TOOLS) checkout $(TOOLS_HASH)
-	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim  riscv-tests riscv-pk riscv-openocd fsf-binutils-gdb
-	git -C $(RISCV_TOOLS) submodule update --init riscv-gnu-toolchain
-	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils-gdb riscv-gcc riscv-newlib
+	git -C $(RISCV_TOOLS) submodule update --init --recursive --depth=$(ROCKET_TOOLS_CHECKOUT_DEPTH) riscv-isa-sim  riscv-tests riscv-pk riscv-openocd fsf-binutils-gdb
+	git -C $(RISCV_TOOLS) submodule update --init --depth=$(ROCKET_TOOLS_CHECKOUT_DEPTH) riscv-gnu-toolchain
+	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init --depth=$(ROCKET_TOOLS_CHECKOUT_DEPTH) riscv-binutils-gdb riscv-gcc riscv-newlib
 	rm -f $(RISCV_TOOLS)/.travis.yml
 	mkdir -p $(dir $@)
 	date > $@
