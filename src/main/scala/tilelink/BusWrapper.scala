@@ -186,10 +186,10 @@ class TLBusWrapperTopology(
   with CanConnectWithinContextThatHasTileLinkLocations
 {
   def instantiate(context: HasTileLinkLocations)(implicit p: Parameters): Unit = {
-    instantiations.foreach { case (loc, params) => params.instantiate(context, loc) }
+    instantiations.foreach { case (loc, params) => context { params.instantiate(context, loc) } }
   }
   def connect(context: HasTileLinkLocations)(implicit p: Parameters): Unit = {
-    connections.foreach { case (master, slave, params) => { params.connect(context, master, slave) } }
+    connections.foreach { case (master, slave, params) => context { params.connect(context, master, slave) } }
   }
 }
 

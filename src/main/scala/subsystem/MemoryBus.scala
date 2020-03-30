@@ -41,7 +41,7 @@ class MemoryBus(params: MemoryBusParams, name: String = "memory_bus")(implicit p
     if (params.replicatorMask == 0) node else { node :=* RegionReplicator(params.replicatorMask) }
   private def bank(node: TLInwardNode): TLInwardNode =
     if (params.nInwardBanks == 0) node else { node :=* BankBinder(params.nInwardBanks, blockBytes) :*= TLTempNode() }
-  def inwardNode: TLInwardNode = bank(replicate(xbar.node))
+  def inwardNode: TLInwardNode = this { bank(replicate(xbar.node)) }
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
 
