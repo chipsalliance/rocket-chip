@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import chisel3.dontTouch
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -98,6 +99,7 @@ trait HasCoreMemOp extends HasCoreParameters {
   val cmd  = Bits(width = M_SZ)
   val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
   val signed = Bool()
+  val dprv = UInt(width = PRV.SZ)
 }
 
 trait HasCoreData extends HasCoreParameters {
@@ -190,8 +192,9 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
   def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(
-    cacheClientParameters ++ mmioClientParameters,
-    minLatency = 1)))
+    clients = cacheClientParameters ++ mmioClientParameters,
+    minLatency = 1,
+    requestFields = tileParams.core.useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
   val module: HellaCacheModule
 
