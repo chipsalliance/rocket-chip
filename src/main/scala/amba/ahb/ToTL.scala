@@ -110,9 +110,10 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
             x.fetch      := !in.hprot(0)
             x.privileged :=  in.hprot(1)
             x.bufferable :=  in.hprot(2)
-            x.cacheable  :=  in.hprot(3)
-            x.secure     := false.B
             x.modifiable :=  in.hprot(3)
+            x.secure     := false.B
+            x.readalloc  :=  in.hprot(3)
+            x.writealloc :=  in.hprot(3)
           }
         }
       }

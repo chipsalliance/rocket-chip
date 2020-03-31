@@ -448,13 +448,16 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     val user_bit_cacheable = edge_out.manager.supportsAcquireTFast(refill_paddr, lgCacheBlockBytes.U)
 
     x.privileged  := io.privileged || user_bit_cacheable    // privileged if machine mode or memory port
-    x.cacheable   := user_bit_cacheable
+
+    // enable outer caches for cacheable address PMAs
+    x.bufferable  := user_bit_cacheable
+    x.modifiable  := user_bit_cacheable
+    x.readalloc   := user_bit_cacheable
+    x.writealloc  := user_bit_cacheable
 
     // Following are always tied off
     x.fetch       := true.B
     x.secure      := true.B
-    x.bufferable  := false.B
-    x.modifiable  := false.B
   }
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)

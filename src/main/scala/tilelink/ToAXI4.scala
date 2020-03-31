@@ -189,8 +189,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         prot(2) :=  x.fetch
         cache(0) := x.bufferable
         cache(1) := x.modifiable
-        cache(2) := x.cacheable
-        cache(3) := x.cacheable
+        cache(2) := x.readalloc
+        cache(3) := x.writealloc
         arw.prot  := Cat(prot.reverse)
         arw.cache := Cat(cache.reverse)
       }

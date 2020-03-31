@@ -557,13 +557,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     val user_bit_cacheable = edge.manager.supportsAcquireTFast(access_address, a_size)
 
     x.privileged  := s2_req.dprv === PRV.M || user_bit_cacheable
-    x.cacheable   := user_bit_cacheable
+    // if the address is cacheable, enable outer caches
+    x.bufferable  := user_bit_cacheable
+    x.modifiable  := user_bit_cacheable
+    x.readalloc   := user_bit_cacheable
+    x.writealloc  := user_bit_cacheable
 
     // Following are always tied off
     x.fetch       := false.B
     x.secure      := true.B
-    x.bufferable  := false.B
-    x.modifiable  := false.B
   }
 
   // Set pending bits for outstanding TileLink transaction
