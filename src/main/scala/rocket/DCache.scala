@@ -554,7 +554,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // Drive APROT Bits
   tl_out_a.bits.user.lift(AMBAProt).foreach { x =>
-    val user_bit_cacheable = edge.manager.supportsAcquireTFast(access_address, a_size)
+    val user_bit_cacheable = s2_pma.cacheable
 
     x.privileged  := s2_req.dprv === PRV.M || user_bit_cacheable
     // if the address is cacheable, enable outer caches

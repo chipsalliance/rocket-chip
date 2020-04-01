@@ -124,8 +124,6 @@ class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
 
   val clock_enabled = Bool(INPUT)
   val keep_clock_enabled = Bool(OUTPUT)
-
-  val privileged = Bool(INPUT)
 }
 
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
@@ -445,10 +443,12 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
   // Drive APROT information
   tl_out.a.bits.user.lift(AMBAProt).foreach { x =>
-    x.privileged  := io.privileged  // privileged if machine mode or memory port
+    // Rocket caches all fetch requests, and it's difficult to differentiate privileged/unprivileged on
+    // cached data, so mark as privileged
+    val user_bit_cacheable = true.B
 
     // enable outer caches for all fetches
-    val user_bit_cacheable = true.B
+    x.privileged  := user_bit_cacheable
     x.bufferable  := user_bit_cacheable
     x.modifiable  := user_bit_cacheable
     x.readalloc   := user_bit_cacheable
