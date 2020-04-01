@@ -163,7 +163,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_can_speculatively_refill = s2_tlb_resp.cacheable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableSpeculativeICacheRefill
   icache.io.s2_kill := s2_speculative && !s2_can_speculatively_refill || s2_xcpt
   icache.io.s2_prefetch := s2_tlb_resp.prefetchable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableICachePrefetch
-  icache.io.privileged := io.ptw.status.prv === PRV.M
 
   fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc

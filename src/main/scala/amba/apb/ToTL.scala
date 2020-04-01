@@ -92,8 +92,9 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
         prot.secure     := !in.pprot(1)
         prot.fetch      :=  in.pprot(2)
         prot.bufferable :=  true.B
-        prot.cacheable  :=  true.B
         prot.modifiable :=  true.B
+        prot.readalloc  :=  true.B
+        prot.writealloc :=  true.B
       }
       when (out.a.fire()) {
         assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
