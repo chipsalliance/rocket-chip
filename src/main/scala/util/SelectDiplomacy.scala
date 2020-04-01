@@ -218,9 +218,9 @@ object SelectDiplomacy {
     def diplChildren(parent: RTreeData, children: List[LazyModule]): Unit = {
       children.foreach{c =>
         if(! s"${c.getClass.getName}".contains("anon")) {
-          diplNodes(parent, c.nodesAop())
+          diplNodes(parent, c.nodesAOP)
           digraph.addVertex(parent)
-          val a = diplChildren(parent, c.childrenAop())
+          val a = diplChildren(parent, c.childrenAOP)
           val c1 = RTreeData(c)
           digraph.addVertex(c1)
           digraph.addEdge(parent, c1)
@@ -246,8 +246,8 @@ object SelectDiplomacy {
       if(! (s"${lm.getClass.getName}".contains("anon"))) {
         val data = RTreeData(imp)
         digraph.addVertex(data)
-        diplChildren(data,  lm.childrenAop())
-        diplNodes(data, lm.nodesAop())
+        diplChildren(data,  lm.childrenAOP)
+        diplNodes(data, lm.nodesAOP)
       }
     }
     this

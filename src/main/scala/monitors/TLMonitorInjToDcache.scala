@@ -50,7 +50,7 @@ import scala.reflect.ClassTag
   *  }}}
  */
 
-case class AopTestModule (wide: Int) extends Module {
+case class AOPTestModule (wide: Int) extends Module {
   val io = IO(new Bundle {
     val inc = Input(Bool())
     val random = Output(UInt(wide.W))
@@ -68,7 +68,7 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
     dontTouch(dummyWire)
 
     println(s"DEBUG from object TLMonitorInjToDcache test moule inject")
-    val aopTestMod = Module(new AopTestModule(16))
+    val aopTestMod = Module(new AOPTestModule(16))
     aopTestMod.io.inc := 1.U
     dontTouch(aopTestMod.io.inc)
 
@@ -83,7 +83,6 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
   
     val aopTLMon = Module(new TLMonitor(args))
     aopTLMon.io.in := bundle
-
   })
 
 

@@ -17,9 +17,8 @@ abstract class LazyModule()(implicit val p: Parameters)
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   protected[diplomacy] val parent = LazyModule.scope
 
-
-  var childrenAop = ()=>children
-  var nodesAop = ()=>nodes
+  def childrenAOP = children
+  def nodesAOP = nodes
 
   // code snippets from 'InModuleBody' injection
   protected[diplomacy] var inModuleBody = List[() => Unit]()
@@ -123,7 +122,6 @@ abstract class LazyModule()(implicit val p: Parameters)
   }
 
   def getChildren() = children
-//  def getNodes() = nodes
 
 }
 
