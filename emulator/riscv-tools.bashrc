@@ -3,7 +3,6 @@ export PATH="$(perl -e 'print join(":", grep { ! m{^/work/tools/riscv-tools/[0-9
 
 # Add latest tools to RISCV and PATH:
 
-export FSGCC=$(cat $(dirname $(readlink -f ${BASH_SOURCE[0]}))/../../freedom-studio-toolchain.path)
 export RISCV=/work/tools/riscv-tools/$(cat $(dirname $(readlink -f ${BASH_SOURCE[0]}))/../../rocket-chip/riscv-tools.hash)
 export VAGCC=/work/tools/vector_assembler
 export PATH=$RISCV/bin:$PATH

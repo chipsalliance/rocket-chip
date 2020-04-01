@@ -1,4 +1,3 @@
-module load synopsys/vcs/P-2019.06-SP2
 module load synopsys/verdi/P-2019.06-SP2
 module load cadence/xcelium/18.09.004
 module load clang/9.0.0
