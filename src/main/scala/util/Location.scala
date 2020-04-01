@@ -6,6 +6,7 @@ import scala.language.dynamics
 import scala.collection.mutable.Map
 
 class Location[T](val name: String) extends Dynamic {
+  def selectDynamic[A](portname: String): Location[A] = new Location[A](s"${name}_${portname}")
   def applyDynamic[A](portname: String)(args: A*): (Location[A], A) = {
     require(args.size == 1, "Location: can't support multiple things at one port yet")
     (new Location[A](s"${name}_${portname}"), args.head)
@@ -25,8 +26,8 @@ class LocationMap[T] private (val internalMap: Map[String, T]) extends Map[Locat
   // TODO override def default to provide specific exception on missing location?
   // TODO figure out how to be more clever about applying sub-type casting
   //      for other the other Map trait methods
-  def required[L <: T](key: Location[L]): L = internalMap(key.name).asInstanceOf[L]
-  def optional[L <: T](key: Location[L]): Option[L] = internalMap.lift(key.name).map(_.asInstanceOf[L])
+  def required[L <: T](key: Location[_]): L = internalMap(key.name).asInstanceOf[L]
+  def optional[L <: T](key: Location[_]): Option[L] = internalMap.lift(key.name).map(_.asInstanceOf[L])
 }
 
 object LocationMap {
