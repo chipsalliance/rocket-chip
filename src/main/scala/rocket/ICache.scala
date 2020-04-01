@@ -445,11 +445,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
   // Drive APROT information
   tl_out.a.bits.user.lift(AMBAProt).foreach { x =>
-    val user_bit_cacheable = edge_out.manager.supportsAcquireTFast(refill_paddr, lgCacheBlockBytes.U)
+    x.privileged  := io.privileged  // privileged if machine mode or memory port
 
-    x.privileged  := io.privileged || user_bit_cacheable    // privileged if machine mode or memory port
-
-    // enable outer caches for cacheable address PMAs
+    // enable outer caches for all fetches
+    val user_bit_cacheable = true.B
     x.bufferable  := user_bit_cacheable
     x.modifiable  := user_bit_cacheable
     x.readalloc   := user_bit_cacheable
