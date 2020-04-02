@@ -140,6 +140,21 @@ object TLBusWrapperConnection {
   }
 }
 
+/** TLBusWrapperConnection is a parameterization of a connection between two TLBusWrappers.
+  * It has the following serializable parameters:
+  *   - xType: What type of TL clock crossing adapter to insert between the buses.
+  *       The appropriate half of the crossing adapter ends up inside each bus.
+  *   - driveClockFromMaster: if None, don't bind the bus's diplomatic clockGroupNode,
+  *       otherwise have either the master or the slave bus bind the other one's clockGroupNode,
+  *       assuming the inserted crossing type is not asynchronous.
+  *   - nodeBinding: fine-grained control of multi-edge cardinality resolution for diplomatic bindings within the connection.
+  *   - flipRendering: fine-grained control of the graphML rendering of the connection.
+  * If has the following non-serializable parameters:
+  *   - slaveNodeView: programmatic control of the specific attachment point within the slave bus.
+  *   - masterNodeView: programmatic control of the specific attachment point within the master bus.
+  *   - injectNode: programmatic injection of additional nodes into the middle of the connection.
+  * The connect method applies all these parameters to create a diplomatic connection between two Location[TLBusWrapper]s.
+  */
 class TLBusWrapperConnection
     (val xType: ClockCrossingType,
      val driveClockFromMaster: Option[Boolean],
