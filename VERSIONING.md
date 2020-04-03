@@ -25,10 +25,11 @@ The Rocket-Chip API is:
   * The version(s) of Chisel, FIRRTL, rocket-tools pointed to by rocket-chip.
   * Any code that generates IO(s) of any Module
   * The cmd line interface to scripts like vlsi-mem-gen
+  * `public val`s within `LazyModule`s which translate to diplomatic nodes (?? -- this could go either way)
 
 The following is NOT part of the API:
-  * public vals within `Module`s which translate to Wires, Regs, module instance names
-    * We note that this may cause issues for people using Cross-Module references
+  * `public val`s within `Module`s which translate to Wires, Regs, module instances
+    * (We note that this may cause issues for people using Cross-Module references)
   * Internals of scripts like vlsi-mem-gen, the contents of such scripts
   * Internals of any verilog black boxes
   * C Code ...?
