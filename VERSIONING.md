@@ -8,7 +8,7 @@ Version Naming
 * The format is YYYY.MM.DD.MINOR
 * MINOR changes include:
   * API Additions
-  * Bug Fixes (which can result in changes in the emitted hardware considered buges)
+  * Bug Fixes (which can result in changes in the emitted hardware considered bugs)
 * MINOR changes do NOT include:
   * Changes in top-level I/Os for < level of hierarchy >
   * Backwards incompatible changes in the API (see below)
@@ -52,4 +52,3 @@ Previous Versions
 -----------------
 
 Many 1.2.x versions have been released previously as needed.
-
