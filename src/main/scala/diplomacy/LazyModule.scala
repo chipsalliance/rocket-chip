@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.{RawModule, MultiIOModule, withClockAndReset}
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
+import chisel3.{RawModule, MultiIOModule, withClockAndReset, Reset}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap,ListMap}
@@ -198,9 +199,9 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   // It is recommended to drive these even if you manually shove most of your children
   // Otherwise, anonymous children (Monitors for example) will not be clocked
   val childClock = Wire(Clock())
-  val childReset = Wire(Bool())
+  val childReset = Wire(Reset())
   childClock := Bool(false).asClock
-  childReset := Bool(true)
+  childReset := chisel3.DontCare
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
   }
