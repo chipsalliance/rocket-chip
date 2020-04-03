@@ -1,6 +1,8 @@
-= Rocket Chip Versioning Strategy
+Rocket Chip Versioning Strategy ** All Strawman to be discussed**
+===============================
 
-== Version Naming
+Version Naming
+--------------
 
 * Rocket Chip uses a Calendar Versioning release strategy (https://calver.org/).
 * The format is YYYY.MM.DD.MINOR
@@ -11,7 +13,8 @@
   * Changes in top-level I/Os for < level of hierarchy >
   * Backwards incompatible changes in the API (see below)
 
-== API **Strawman -- to be discussed **
+API
+---
 
 The Rocket-Chip API is: 
   * All public Scala methods and classes
@@ -30,7 +33,8 @@ The following is NOT part of the API:
   * Internals of any verilog black boxes
   * C Code ...?
       
-== Roadmap
+Roadmap
+-------
 
 * Upcoming Versions:
 
@@ -44,7 +48,8 @@ The following is NOT part of the API:
 
 * We attempt to deprecate APIs gracefully over at least 2 quarterly releases
 
-== Previous Versions
+Previous Versions
+-----------------
 
 Many 1.2.x versions have been released previously as needed.
 
