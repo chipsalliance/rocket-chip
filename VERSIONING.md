@@ -47,7 +47,7 @@ Roadmap
     
 * Following versions released quarterly
 
-* We attempt to deprecate APIs gracefully over at least 2 quarterly releases
+* We attempt to deprecate APIs gracefully over at least 2 quarterly releases, but do not guarantee this.
 
 Previous Versions
 -----------------
