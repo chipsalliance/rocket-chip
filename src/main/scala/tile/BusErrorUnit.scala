@@ -33,6 +33,22 @@ class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors
       dcache.uncorrectable.map((_, "D_UNCORRECTABLE", "Data cache uncorrectable ECC error")))
 }
 
+class TLBusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors {
+
+  val corrupt = Valid(UInt(paddrBits.W))
+  val denied = Valid(UInt(paddrBits.W))
+  def toErrorList = List(None, None,
+      None,
+      None,
+      None,
+      Some((denied, "BUS", "Load or store TileLink bus error")),
+      Some((corrupt, "BUS", "Load or store TileLink bus error")),
+      None,
+      None
+      )
+}
+
+
 case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
 
 class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams, logicalTreeNode: LogicalTreeNode)(implicit p: Parameters) extends LazyModule {
