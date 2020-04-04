@@ -5,7 +5,11 @@ Version Naming
 --------------
 
 * Rocket Chip uses a Calendar Versioning release strategy (https://calver.org/).
-* The format is YYYY.MM.DD.MINOR
+* The format is YYYY.0M.0D.MINOR
+* Example:
+  * 2020.04.04.0 is the release which occurred on April 4, 2020.
+  * 2020.04.04.1 is a release that could occur at any time, but introduces only MINOR changes over the 2020.04.04.0 release
+  * 2020.06.01.0 is a release that occurs on June 1, 2020, with MAJOR (API breaking) changes over the 2020.04.04.X release.
 * MINOR changes include:
   * API Additions
   * Bug Fixes (which can result in changes in the emitted hardware considered bugs)
