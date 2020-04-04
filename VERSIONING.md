@@ -59,7 +59,18 @@ Development occurs for the next YYYY.0M.0D.0 release on the `master` branch.
 When the YYYY.0M.0D.0 is made, a protected branch is created with the name: `YYYY.0M.0D.X`.
 The MINOR releases will be made as tagged commits on `YYYY.0M.0D.X branch`.
 
+Naming Your Own Releases
+---------------------------
 
+
+If you would like to fork rocket-chip and release your own derivative versions, we suggest:
+  * If you fork and cut a specific release off an existing commit off this repo:
+    * Name it as <release>-SNAPSHOT-<git commit hash>
+    * For example if you want to make a specific release off commit hash `1234beef` which is a commit after the 2020.04.04.2 release, call it `2020.04.04.2-SNAPSHOT-1234beef`
+  * If you fork and modify a release branch and want to make a release:
+    * Name it as <release>-<identifier>-<arbitrary number with meaning decided by the entity doing the release>
+  * For example, if GitHub user `@mwachs5` did this: `2020.04.04.2-mwachs5-0`
+ * This document suggests no requirements/restrictions on the changes made in such forks
 
 Previous Versions
 -----------------
