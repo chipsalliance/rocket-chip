@@ -43,7 +43,7 @@ Roadmap
 * Upcoming Versions:
 
   - Version ~2020.04.04.0: Released approximately before the breaking changes discussed for version NEXT:
-  - Version NEXT YY.0M.0D.0: To be released after:
+  - Version NEXT YYYY.0M.0D.0: To be released after:
     - Chisel is bumped to 3.3
     - FIRRTL is bumped to X.XX
     - Command line interface updated for staged generator
@@ -51,6 +51,15 @@ Roadmap
 * Following versions released quarterly
 
 * We attempt to deprecate APIs gracefully over at least 2 quarterly releases, but do not guarantee this.
+
+Version Branches
+-----------------
+
+Development occurs for the next YYYY.0M.0D.0 release on the `master` branch.
+When the YYYY.0M.0D.0 is made, a protected branch is created with the name: `YYYY.0M.0D.X`.
+The MINOR releases will be made as tagged commits on `YYYY.0M.0D.X branch`.
+
+
 
 Previous Versions
 -----------------
