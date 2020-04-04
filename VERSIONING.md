@@ -14,7 +14,6 @@ Version Naming
   * API Additions
   * Bug Fixes (which can result in changes in the emitted hardware considered bugs)
 * MINOR changes do NOT include:
-  * Changes in top-level I/Os for < level of hierarchy >
   * Backwards incompatible changes in the API (see below)
 
 API
