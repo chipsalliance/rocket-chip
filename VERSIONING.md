@@ -44,7 +44,7 @@ Roadmap
 * Upcoming Versions:
 
   - Version ~2020.04.04.0: Released approximately before the breaking changes discussed for version NEXT:
-  - Version NEXT YY.MM.DD.0: To be released after:
+  - Version NEXT YY.0M.0D.0: To be released after:
     - Chisel is bumped to 3.3
     - FIRRTL is bumped to X.XX
     - Command line interface updated for staged generator
