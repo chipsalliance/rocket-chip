@@ -88,3 +88,22 @@ jobs:
           CXX: g++-4.8
           CC: gcc-4.8
         run: make verilator -C regression SUITE=none
+
+
+  check-wake-compilation:
+    name: Check Wake Compilation
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use SBT Cache
+        # TODO: Use v2 once it is released. See the first occurrance of
+        # actions/cache in this file for more details.
+        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.sbt
+          key: sbt-${{ hashFiles('**/build.sbt') }}-v1
+
+      - run: ci-tests/wake_scala_compilation
