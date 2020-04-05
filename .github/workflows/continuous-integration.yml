@@ -16,3 +16,49 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: ci-tests/check_submodules
+
+
+  prepare-riscv-tools-cache:
+    name: Prepare riscv-tools Cache
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - id: cache
+        # We use an unreleased version of the cache action that adds support for
+        # multiple paths to cache. This can be changed to a normal version
+        # number (likely v2) once it is released. See
+        # https://github.com/actions/cache/pull/212
+        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        with:
+          path: |
+            ./regression/install
+            ./regression/stamps/rocket-tools_checkout.stamp
+          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
+
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            autotools-dev \
+            bison \
+            build-essential \
+            device-tree-compiler \
+            flex \
+            g++-4.8 \
+            gawk \
+            gcc-4.8 \
+            gperf \
+            libgmp-dev \
+            libmpc-dev \
+            libmpfr-dev \
+            libusb-1.0-0-dev \
+            texinfo
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CXX: g++-4.8
+          CC: gcc-4.8
+        run: make tools -C regression SUITE=none
