@@ -68,3 +68,29 @@ jobs:
           CXX: g++-4.8
           CC: gcc-4.8
         run: make tools -C regression SUITE=none
+
+
+  prepare-verilator-cache:
+    name: Prepare Verilator Cache
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+
+        # TODO: Use v2 once it is released. See the first occurrance of
+        # actions/cache in this file for more details.
+      - uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        with:
+          path: ./emulator/verilator
+          key: verilator-${{ hashFiles('./verilator.hash') }}-v1
+
+      # WARNING: The version of gcc used to compile Verilator MUST match the
+      # version of gcc used to compile the fesvr. There is some bug related to
+      # some C struct not being ABI-compatible across gcc 4 and 5, which we have
+      # not debugged yet.
+      - name: Install Dependencies
+        run: sudo apt-get install -y autoconf bison flex g++-4.8 gcc-4.8
+
+      - env:
+          CXX: g++-4.8
+          CC: gcc-4.8
+        run: make verilator -C regression SUITE=none
