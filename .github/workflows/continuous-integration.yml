@@ -113,3 +113,64 @@ jobs:
           key: sbt-${{ hashFiles('**/build.sbt') }}-v1
 
       - run: ci-tests/wake_scala_compilation
+
+  # This job is defined as a matrix job, where the definitions of each test
+  # bucket is located in a shell script at ./regression/run-test-bucket.
+  test:
+    name: Test
+    runs-on: ubuntu-16.04
+    needs: [prepare-riscv-tools-cache, prepare-verilator-cache]
+    strategy:
+      fail-fast: false
+      matrix:
+        bucket: [1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use riscv-tools Cache
+        # TODO: Use v2 once it is released. See the first occurrance of
+        # actions/cache in this file for more details.
+        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        with:
+          path: |
+            ./regression/install
+            ./regression/stamps/rocket-tools_checkout.stamp
+          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
+
+      - name: Use Verilator Cache
+        # TODO: Use v2 once it is released. See the first occurrance of
+        # actions/cache in this file for more details.
+        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        with:
+          path: ./emulator/verilator
+          key: verilator-${{ hashFiles('./verilator.hash') }}-v1
+
+      - name: Use SBT Cache
+        # TODO: Use v2 once it is released. See the first occurrance of
+        # actions/cache in this file for more details.
+        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.sbt
+          key: sbt-${{ hashFiles('**/build.sbt') }}-v1
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get install -y \
+            device-tree-compiler \
+            g++-4.8 \
+            gcc-4.8
+          python3 -m pip install pexpect==4.3.1
+
+      - env:
+          CXX: g++-4.8
+          CC: gcc-4.8
+        run: ./regression/run-test-bucket ${{ matrix.bucket }}
+
+      - if: failure()
+        name: Upload Artifacts on Failure
+        uses: actions/upload-artifact@v1
+        with:
+          name: test-bucket-${{ matrix.bucket }}-failures
+          path: emulator/output
