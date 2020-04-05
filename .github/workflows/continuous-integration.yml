@@ -1,0 +1,24 @@
+# This file describes the GitHub Actions workflow for continuous integration of rocket-chip.
+#
+# See
+# https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# for API reference documentation on this file format.
+
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+
+jobs:
+  check-wit:
+    name: Check Wit Manifest
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - run: ci-tests/check_submodules
