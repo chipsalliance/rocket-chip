@@ -2,12 +2,12 @@
 
 package freechips.rocketchip.regmapper
 
-import Chisel._
+import Chisel.Data
+import chisel3.util.{isPow2}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tilelink._
 
+/** Parameters which apply to any RegisterRouter. */
 case class RegisterRouterParams(
   name: String,
   compat: Seq[String],
@@ -18,6 +18,7 @@ case class RegisterRouterParams(
   undefZero: Boolean = true,
   executable: Boolean = false)
 
+/** Subclasses of RegisterRouter are LazyModules comprising software-visible devices that contain a set of MMIO registers. */
 abstract class RegisterRouter(devParams: RegisterRouterParams)(implicit p: Parameters)
     extends LazyModule
     with HasClockDomainCrossing {
@@ -40,6 +41,9 @@ abstract class RegisterRouter(devParams: RegisterRouterParams)(implicit p: Param
   protected def regmap(mapping: RegField.Map*): Unit
 }
 
+/** Subclasses of IORegisterRouter are RegisterRouters that also contain an external IO port that is encapsulated as a BundleBridgeSource.
+  * - Type parameter T is the Data subclass represention the IO's ports wire representation.
+  */
 abstract class IORegisterRouter[T <: Data](devParams: RegisterRouterParams, portBundle: => T)(implicit p: Parameters)
     extends RegisterRouter(devParams) {
   val ioNode = BundleBridgeSource(() => portBundle.cloneType)
