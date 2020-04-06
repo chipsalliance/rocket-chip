@@ -11,13 +11,13 @@ import freechips.rocketchip.util._
 
 case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSlave, TLImp)(
   dFn = { case mp =>
-    TLClientPortParameters(
+    TLMasterPortParameters.v1(
       clients = mp.masters.map { m =>
         // AHB fixed length transfer size maximum is 16384 = 1024 * 16 bits, hsize is capped at 111 = 1024 bit transfer size and hburst is capped at 111 = 16 beat burst
         // This master can only produce:
         // emitsGet = TransferSizes(1, 2048),
         // emitsPutFull = TransferSizes(1, 2048)
-          TLClientParameters(name = m.name, nodePath = m.nodePath)
+          TLMasterParameters.v1(name = m.name, nodePath = m.nodePath)
       },
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)
@@ -110,9 +110,10 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
             x.fetch      := !in.hprot(0)
             x.privileged :=  in.hprot(1)
             x.bufferable :=  in.hprot(2)
-            x.cacheable  :=  in.hprot(3)
-            x.secure     := false.B
             x.modifiable :=  in.hprot(3)
+            x.secure     := false.B
+            x.readalloc  :=  in.hprot(3)
+            x.writealloc :=  in.hprot(3)
           }
         }
       }

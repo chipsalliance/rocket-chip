@@ -7,9 +7,10 @@ import freechips.rocketchip.util._
 
 package object amba {
   class AMBAProtBundle extends Bundle {
-    val cacheable  = Bool() // false => no need to probe other cores
     val bufferable = Bool() // writeback caching ok?
     val modifiable = Bool() // legal to read/write-combine/expand this request?
+    val readalloc  = Bool()
+    val writealloc = Bool()
     val privileged = Bool() // machine_mode=true,   user_mode=false
     val secure     = Bool() // secure_master=true,  normal=false
     val fetch      = Bool() // instruct_fetch=true, load/store=false
@@ -19,9 +20,10 @@ package object amba {
   case class AMBAProtField() extends BundleField(AMBAProt) {
     def data = Output(new AMBAProtBundle)
     def default(x: AMBAProtBundle) {
-      x.cacheable  := false.B
       x.bufferable := false.B
       x.modifiable := false.B
+      x.readalloc  := false.B
+      x.writealloc := false.B
       x.privileged := true.B
       x.secure     := true.B
       x.fetch      := false.B

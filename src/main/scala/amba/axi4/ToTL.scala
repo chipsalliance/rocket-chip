@@ -97,7 +97,8 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
         rprot.fetch      :=  in.ar.bits.prot(2)
         rprot.bufferable :=  in.ar.bits.cache(0)
         rprot.modifiable :=  in.ar.bits.cache(1)
-        rprot.cacheable  :=  in.ar.bits.cache(2) || in.ar.bits.cache(3)
+        rprot.readalloc  :=  in.ar.bits.cache(2)
+        rprot.writealloc :=  in.ar.bits.cache(3)
       }
 
       val r_sel = UIntToOH(in.ar.bits.id, numIds)
@@ -132,7 +133,8 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
         wprot.fetch      :=  in.aw.bits.prot(2)
         wprot.bufferable :=  in.aw.bits.cache(0)
         wprot.modifiable :=  in.aw.bits.cache(1)
-        wprot.cacheable  :=  in.aw.bits.cache(2) || in.aw.bits.cache(3)
+        wprot.readalloc  :=  in.aw.bits.cache(2)
+        wprot.writealloc :=  in.aw.bits.cache(3)
       }
 
       val w_sel = UIntToOH(in.aw.bits.id, numIds)

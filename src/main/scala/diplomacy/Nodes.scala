@@ -366,8 +366,14 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   // If you need access to the edges of a foreign Node, use this method (in/out create bundles)
   lazy val edges = Edges(edgesIn, edgesOut)
 
-  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => Wire(outer.bundleO(e)))
-  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => Wire(inner.bundleI(e)))
+  // These need to be chisel3.Wire because Chisel.Wire assigns Reset to a default value of Bool,
+  // and FIRRTL will not allow a Reset assigned to Bool to later be assigned to AsyncReset.
+  // If the diplomatic Bundle contains Resets this will hamstring them into synchronous resets.
+  // The jury is still out on whether the lack of ability to override the reset type
+  // is a  Chisel/firrtl bug or whether this should be supported,
+  // but as of today it does not work to do so.
+  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
+  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
 
   protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(

@@ -4,6 +4,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
@@ -550,6 +551,22 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Mux(!s2_write, get,
     Mux(s2_req.cmd === M_PWR, putpartial,
     Mux(!s2_read, put, atomics))))
+
+  // Drive APROT Bits
+  tl_out_a.bits.user.lift(AMBAProt).foreach { x =>
+    val user_bit_cacheable = s2_pma.cacheable
+
+    x.privileged  := s2_req.dprv === PRV.M || user_bit_cacheable
+    // if the address is cacheable, enable outer caches
+    x.bufferable  := user_bit_cacheable
+    x.modifiable  := user_bit_cacheable
+    x.readalloc   := user_bit_cacheable
+    x.writealloc  := user_bit_cacheable
+
+    // Following are always tied off
+    x.fetch       := false.B
+    x.secure      := true.B
+  }
 
   // Set pending bits for outstanding TileLink transaction
   val a_sel = UIntToOH(a_source, maxUncachedInFlight+mmioOffset) >> mmioOffset

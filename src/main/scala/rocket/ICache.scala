@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
@@ -52,9 +53,12 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 
 class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
-  val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
-    sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
-    name = s"Core ${hartId} ICache")))))
+  val useVM = p(TileKey).core.useVM
+  val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(
+    clients = Seq(TLMasterParameters.v1(
+      sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
+      name = s"Core ${hartId} ICache")),
+    requestFields = useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
   val itim_control_offset = size - icacheParams.nSets * icacheParams.blockBytes
@@ -406,6 +410,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
                     fromSource = UInt(0),
                     toAddress = (refill_paddr >> blockOffBits) << blockOffBits,
                     lgSize = lgCacheBlockBytes)._2
+
   if (cacheParams.prefetch) {
     val (crosses_page, next_block) = Split(refill_paddr(pgIdxBits-1, blockOffBits) +& 1, pgIdxBits-blockOffBits)
     when (tl_out.a.fire()) {
@@ -435,6 +440,23 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     ccover(refill_valid && (tl_out.d.fire() && !refill_one_beat), "PREFETCH_D_BEFORE_MISS_D", "I$ prefetch resolves before miss")
     ccover(!refill_valid && (tl_out.d.fire() && !refill_one_beat), "PREFETCH_D_AFTER_MISS_D", "I$ prefetch resolves after miss")
     ccover(tl_out.a.fire() && hint_outstanding, "PREFETCH_D_AFTER_MISS_A", "I$ prefetch resolves after second miss")
+  }
+  // Drive APROT information
+  tl_out.a.bits.user.lift(AMBAProt).foreach { x =>
+    // Rocket caches all fetch requests, and it's difficult to differentiate privileged/unprivileged on
+    // cached data, so mark as privileged
+    val user_bit_cacheable = true.B
+
+    // enable outer caches for all fetches
+    x.privileged  := user_bit_cacheable
+    x.bufferable  := user_bit_cacheable
+    x.modifiable  := user_bit_cacheable
+    x.readalloc   := user_bit_cacheable
+    x.writealloc  := user_bit_cacheable
+
+    // Following are always tied off
+    x.fetch       := true.B
+    x.secure      := true.B
   }
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)

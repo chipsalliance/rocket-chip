@@ -283,6 +283,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
       val rdLoad       = Output(Vec(cfg.maxSupportedSBAccess/8, Bool()))
       val sbStateOut   = Output(UInt(log2Ceil(SystemBusAccessState.maxId).W))
     })
+    val rf_reset       = IO(Input(Reset()))
 
     import SystemBusAccessState._
  
