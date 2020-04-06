@@ -8,7 +8,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 
 import scala.math.min
@@ -27,6 +26,11 @@ case class TLRegisterRouterExtraField(sourceBits: Int, sizeBits: Int) extends Bu
   }
 }
 
+/** TLRegisterNode is a specialized TL SinkNode that encapsulates MMIO registers.
+  * It provides functionality for describing and outputting metdata about the registers in several formats.
+  * It also provides a concrete implementation of a regmap function that will be used
+  * to wire a map of internal registers associated with this node to the node's interconnect port.
+  */
 case class TLRegisterNode(
     address:     Seq[AddressSet],
     device:      Device,
@@ -127,8 +131,7 @@ case class TLRegisterNode(
   }
 }
 
-// register mapped device from a totally abstract register mapped device.
-
+@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
 abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   // Allow devices to extend the DTS mapping
@@ -141,20 +144,23 @@ abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val
   }
 
   val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
+  import freechips.rocketchip.interrupts._
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
 }
 
+@deprecated("TLRegBundleArg is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 case class TLRegBundleArg()(implicit val p: Parameters)
 
+@deprecated("TLRegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
 {
   implicit val p = arg.p
 }
 
-@deprecated("Use HasTLControlRegMap trait in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.4")
+@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
 class TLRegBundle[P](val params: P, val arg: TLRegBundleArg) extends TLRegBundleBase(arg)
 
-@deprecated("Use HasTLControlRegMap trait in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.4")
+@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
 class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
@@ -164,7 +170,7 @@ class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, r
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
-@deprecated("Use HasTLControlRegMap trait in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.4")
+@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
 class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
      val base:        BigInt,
      val devname:     String,
@@ -185,9 +191,11 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
   lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg()), this)
 }
 
-// !!! eliminate third trait
-
-/** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
+/** Mix HasTLControlRegMap into any subclass of RegisterRouter to gain helper functions for attaching a device control register map to TileLink.
+  * - The intended use case is that controlNode will diplomatically publish a SW-visible device's memory-mapped control registers.
+  * - Use the clock crossing helper controlXing to externally connect controlNode to a TileLink interconnect. 
+  * - Use the mapping helper function regmap to internally fill out the space of devince control registers.
+  */
 trait HasTLControlRegMap { this: RegisterRouter =>
   protected val controlNode = TLRegisterNode(
     address = address,
