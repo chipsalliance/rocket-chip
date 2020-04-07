@@ -96,6 +96,9 @@ trait HasAPBControlRegMap { this: RegisterRouter =>
     undefZero = undefZero,
     executable = executable)
 
+  // Backwards-compatibility default node accessor with no clock crossing
+  lazy val node: APBInwardNode = controlNode
+
   // Internally, this function should be used to populate the control port with registers
   protected def regmap(mapping: RegField.Map*): Unit = { controlNode.regmap(mapping:_*) }
 }

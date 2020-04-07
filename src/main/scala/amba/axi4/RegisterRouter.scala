@@ -132,6 +132,9 @@ trait HasAXI4ControlRegMap { this: RegisterRouter =>
   // Externally, this helper should be used to connect the register control port to a bus
   val controlXing: AXI4InwardCrossingHelper = this.crossIn(controlNode)
 
+  // Backwards-compatibility default node accessor with no clock crossing
+  lazy val node: AXI4InwardNode = controlXing(NoCrossing)
+
   // Internally, this function should be used to populate the control port with registers
   protected def regmap(mapping: RegField.Map*): Unit = { controlNode.regmap(mapping:_*) }
 }
