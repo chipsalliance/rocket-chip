@@ -6,23 +6,24 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
 
-class RRTest0(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, 0, 32, 0, 4)(
-  new AXI4RegBundle((), _)    with RRTest0Bundle)(
-  new AXI4RegModule((), _, _) with RRTest0Module)
+class AXI4RRTest0(address: BigInt)(implicit p: Parameters)
+  extends RRTest0(address)
+  with HasAXI4ControlRegMap
 
-class RRTest1(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, 0, 32, 6, 4, false)(
-  new AXI4RegBundle((), _)    with RRTest1Bundle)(
-  new AXI4RegModule((), _, _) with RRTest1Module)
+class AXI4RRTest1(address: BigInt)(implicit p: Parameters)
+  extends RRTest1(address, concurrency = 6, undefZero = false)
+  with HasAXI4ControlRegMap
 
 class AXI4LiteFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AXI4LiteFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
-  val gpio  = LazyModule(new RRTest1(0x400))
+  val gpio  = LazyModule(new AXI4RRTest1(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
   xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node
@@ -44,7 +45,7 @@ class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyMod
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AXI4LiteFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
-  val gpio  = LazyModule(new RRTest1(0x400))
+  val gpio  = LazyModule(new AXI4RRTest1(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
   xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node
@@ -66,7 +67,7 @@ class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val fuzz  = LazyModule(new TLFuzzer(txns))
   val model = LazyModule(new TLRAMModel("AXI4FullFuzzRAM"))
   val xbar  = LazyModule(new TLXbar)
-  val gpio  = LazyModule(new RRTest0(0x400))
+  val gpio  = LazyModule(new AXI4RRTest0(0x400))
   val ram   = LazyModule(new AXI4RAM(AddressSet(0x0, 0x3ff)))
 
   xbar.node := TLDelayer(0.1) := TLBuffer(BufferParams.flow) := TLDelayer(0.2) := model.node := fuzz.node

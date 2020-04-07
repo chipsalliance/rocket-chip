@@ -249,7 +249,7 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   val model = LazyModule(new TLRAMModel("TLFuzzRAM"))
   val ram  = LazyModule(new TLRAM(AddressSet(0x800, 0x7ff)))
   val ram2 = LazyModule(new TLRAM(AddressSet(0, 0x3ff), beatBytes = 16))
-  val gpio = LazyModule(new RRTest1(0x400))
+  val gpio = LazyModule(new TLRRTest1(0x400))
   val xbar = LazyModule(new TLXbar)
   val xbar2= LazyModule(new TLXbar)
   val fuzz = LazyModule(new TLFuzzer(txns))

@@ -209,6 +209,9 @@ trait HasTLControlRegMap { this: RegisterRouter =>
   // Externally, this helper should be used to connect the register control port to a bus
   val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
 
+  // Backwards-compatibility default node accessor with no clock crossing
+  lazy val node: TLInwardNode = controlXing(NoCrossing)
+
   // Internally, this function should be used to populate the control port with registers
   protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
 }

@@ -6,16 +6,17 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.tilelink.TLTestRAM
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
 
-class RRTest0(address: BigInt)(implicit p: Parameters) extends AHBRegisterRouter(address, 0, 32, 0, 4)(
-  new AHBRegBundle((), _)    with RRTest0Bundle)(
-  new AHBRegModule((), _, _) with RRTest0Module)
+class AHBRRTest0(address: BigInt)(implicit p: Parameters)
+  extends RRTest0(address)
+  with HasAHBControlRegMap
 
-class RRTest1(address: BigInt)(implicit p: Parameters) extends AHBRegisterRouter(address, 0, 32, 1, 4, false)(
-  new AHBRegBundle((), _)    with RRTest1Bundle)(
-  new AHBRegModule((), _, _) with RRTest1Module)
+class AHBRRTest1(address: BigInt)(implicit p: Parameters) 
+  extends RRTest1(address, concurrency = 1, undefZero = false)
+  with HasAHBControlRegMap
 
 class AHBFuzzNative(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule
 {
@@ -24,11 +25,11 @@ class AHBFuzzNative(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   val arb   = LazyModule(new AHBArbiter)
   val xbar  = LazyModule(new AHBFanout)
   val ram   = LazyModule(new AHBRAM(AddressSet(0x0, 0xff)))
-  val gpio  = LazyModule(new RRTest0(0x100))
+  val gpio  = LazyModule(new AHBRRTest0(0x100))
 
   xbar.node := arb.node := TLToAHB(aFlow) := TLDelayer(0.1) := model.node := fuzz.node
   ram.node  := xbar.node
-  gpio.node := xbar.node
+  gpio.controlNode := xbar.node
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
