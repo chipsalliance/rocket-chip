@@ -235,6 +235,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     to("memory_controller" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= _ }", "rocket-chip 1.3")
   def toSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -242,16 +243,19 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     to("slave" named name) { gen :*= TLBuffer(buffer) :*= outwardNode }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ node :*= TLFragmenter(bus.beatBytes, bus.blockBytes) :*= _ }", "rocket-chip 1.3")
   def toVariableWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: TLInwardNode): Unit = {
     toVariableWidthSlaveNodeOption(name, buffer)(Some(node))
   }
 
+  @deprecated("Replace with e.g. node.foreach { n => bus.coupleTo(s\"slave_named_${name}\"){ b => n :*= TLFragmenter(bus.beatBytes, bus.blockBytes) :*= b } }", "rocket-chip 1.3")
   def toVariableWidthSlaveNodeOption(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: Option[TLInwardNode]): Unit = {
     node foreach { n => to("slave" named name) {
       n :*= TLFragmenter(beatBytes, blockBytes) :*= TLBuffer(buffer) :*= outwardNode
     }}
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(bus.beatBytes, bus.blockBytes) :*= _ }", "rocket-chip 1.3")
   def toVariableWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -261,10 +265,12 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.control :*= TLWidthWidget(bus.beatBytes) :*= node }", "rocket-chip 1.3")
   def toFixedWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(gen: TLInwardNode): Unit = {
     to("slave" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLWidthWidget(bus.beatBytes) :*= _ }", "rocket-chip 1.3")
   def toFixedWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -272,6 +278,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     to("slave" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(widthBytes, bus.blockBytes) :*= TLWidthWidget(bus.beatBytes) :*= node }", "rocket-chip 1.3")
   def toFixedWidthSingleBeatSlaveNode
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: TLInwardNode): Unit = {
@@ -280,6 +287,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(widthBytes, bus.blockBytes) :*= TLWidthWidget(bus.beatBytes) :*= _ }", "rocket-chip 1.3")
   def toFixedWidthSingleBeatSlave[D,U,E,B <: Data]
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -289,6 +297,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(bus.beatBytes, <maxXferBytes>) :*= _ }", "rocket-chip 1.3")
   def toLargeBurstSlave[D,U,E,B <: Data]
       (maxXferBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -298,6 +307,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(bus.beatBytes, <maxXferBytes>) :*= _ }", "rocket-chip 1.3")
   def toFixedWidthPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
@@ -317,6 +327,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleFrom(s\"master_named_${name}\"){ _ :=* TLFIFOFixer(TLFIFOFixer.all) :=* node }", "rocket-chip 1.3")
   def fromMasterNode
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: TLOutwardNode): Unit = {
@@ -325,6 +336,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleFrom(s\"master_named_${name}\"){ _ :=* TLFIFOFixer(TLFIFOFixer.all) :=* master.node }", "rocket-chip 1.3")
   def fromMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
@@ -334,6 +346,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleFrom(s\"port_named_${name}\"){ _ :=* TLFIFOFixer(TLFIFOFixer.all) :=* master.node }", "rocket-chip 1.3")
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
@@ -343,6 +356,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
+  @deprecated("Replace with e.g. bus.coupleFrom(s\"coherent_master_named_${name}\"){ _ :=* TLFIFOFixer(TLFIFOFixer.all) :=* master.node }", "rocket-chip 1.3")
   def fromCoherentMaster[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
