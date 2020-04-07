@@ -189,7 +189,8 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
-  @deprecated("Replace with e.g. bus.coupleFrom(s\"port_named_${name}\"){ _ :=* TLFIFOFixer(TLFIFOFixer.all) :=* master.node }", "rocket-chip 1.3")
+  // TODO also deprecate this once debug module isn't using it
+  //@deprecated("Replace with e.g. bus.coupleFrom(s\"port_named_${name}\"){ _ :=* TLFIFOFixer(TLFIFOFixer.all) :=* master.node }", "rocket-chip 1.3")
   def fromPort[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[D,U,E,B,TLClientPortParameters,TLManagerPortParameters,TLEdgeOut,TLBundle] =
