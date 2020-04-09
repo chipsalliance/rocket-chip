@@ -875,8 +875,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.timer := csr.io.time(31,0)
   coreMonitorBundle.valid := csr.io.trace(0).valid && !csr.io.trace(0).exception
   coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen)
-  coreMonitorBundle.wrdst := rf_waddr
-  coreMonitorBundle.wren := rf_wen && !(wb_set_sboard && wb_wen)
+  coreMonitorBundle.wren := wb_wen && !wb_set_sboard
+  coreMonitorBundle.wrdst := wb_waddr
   coreMonitorBundle.wrdata := Mux(coreMonitorBundle.wren, rf_wdata, 0.U)
   coreMonitorBundle.rd0src := wb_reg_inst(19,15)
   coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
