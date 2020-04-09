@@ -85,21 +85,26 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
 // These convenience methods below combine to make it possible to create a AXI4
 // register mapped device from a totally abstract register mapped device.
 
+@deprecated("Use HasAXI4ControlRegMap+HasInterruptSources traits in place of AXI4RegisterRouter+AXI4RegBundle+AXI4RegModule", "rocket-chip 1.3")
 abstract class AXI4RegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4RegisterNode(address, concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
+@deprecated("AXI4RegBundleArg is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 case class AXI4RegBundleArg()(implicit val p: Parameters)
 
+@deprecated("AXI4RegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 class AXI4RegBundleBase(arg: AXI4RegBundleArg) extends Bundle
 {
   implicit val p = arg.p
 }
 
+@deprecated("Use HasAXI4ControlRegMap+HasInterruptSources traits in place of AXI4RegisterRouter+AXI4RegBundle+AXI4RegModule", "rocket-chip 1.3")
 class AXI4RegBundle[P](val params: P, arg: AXI4RegBundleArg) extends AXI4RegBundleBase(arg)
 
+@deprecated("Use HasAXI4ControlRegMap+HasInterruptSources traits in place of AXI4RegisterRouter+AXI4RegBundle+AXI4RegModule", "rocket-chip 1.3")
 class AXI4RegModule[P, B <: AXI4RegBundleBase](val params: P, bundleBuilder: => B, router: AXI4RegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
@@ -108,6 +113,7 @@ class AXI4RegModule[P, B <: AXI4RegBundleBase](val params: P, bundleBuilder: => 
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
+@deprecated("Use HasAXI4ControlRegMap+HasInterruptSources traits in place of AXI4RegisterRouter+AXI4RegBundle+AXI4RegModule", "rocket-chip 1.3")
 class AXI4RegisterRouter[B <: AXI4RegBundleBase, M <: LazyModuleImp]
    (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
    (bundleBuilder: AXI4RegBundleArg => B)
