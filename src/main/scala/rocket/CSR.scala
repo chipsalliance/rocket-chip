@@ -466,15 +466,17 @@ class CSRFile(
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
 
-  val read_fcsr = Cat(reg_frm, reg_fflags) | (reg_vxsat.getOrElse(0.U) << 8) | (reg_vxrm.getOrElse(0.U) << 9)
+  val read_fcsr = Cat(reg_frm, reg_fflags)
   val fp_csrs = LinkedHashMap[Int,Bits]() ++
     usingFPU.option(CSRs.fflags -> reg_fflags) ++
     usingFPU.option(CSRs.frm -> reg_frm) ++
-    (usingFPU || usingVector).option(CSRs.fcsr -> read_fcsr) ++
-    reg_vxsat.map(CSRs.vxsat -> _) ++
-    reg_vxrm.map(CSRs.vxrm -> _)
+    (usingFPU || usingVector).option(CSRs.fcsr -> read_fcsr)
 
+  val read_vcsr = Cat(reg_vxrm.getOrElse(0.U), reg_vxsat.getOrElse(0.U))
   val vector_csrs = if (!usingVector) LinkedHashMap() else LinkedHashMap[Int,Bits](
+    CSRs.vxsat -> reg_vxsat.get,
+    CSRs.vxrm -> reg_vxrm.get,
+    CSRs.vcsr -> read_vcsr,
     CSRs.vstart -> reg_vstart.get,
     CSRs.vtype -> reg_vconfig.get.vtype.asUInt,
     CSRs.vl -> reg_vconfig.get.vl,
@@ -786,7 +788,7 @@ class CSRFile(
   io.vector.foreach { vio =>
     when (vio.set_vxsat) {
       reg_vxsat.get := true
-      set_fs_dirty := true
+      set_vs_dirty := true
     }
   }
 
@@ -858,14 +860,10 @@ class CSRFile(
     if (usingFPU) {
       when (decoded_addr(CSRs.fflags)) { set_fs_dirty := true; reg_fflags := wdata }
       when (decoded_addr(CSRs.frm))    { set_fs_dirty := true; reg_frm := wdata }
-    }
-    if (usingFPU || usingVector) {
       when (decoded_addr(CSRs.fcsr)) {
         set_fs_dirty := true
         reg_fflags := wdata
         reg_frm := wdata >> reg_fflags.getWidth
-        reg_vxsat.foreach(_ := wdata >> 8)
-        reg_vxrm.foreach(_ := wdata >> 9)
       }
     }
     if (usingDebug) {
@@ -964,8 +962,13 @@ class CSRFile(
     }
     if (usingVector) {
       when (decoded_addr(CSRs.vstart)) { set_vs_dirty := true; reg_vstart.get := wdata }
-      when (decoded_addr(CSRs.vxrm))   { set_fs_dirty := true; reg_vxrm.get := wdata }
-      when (decoded_addr(CSRs.vxsat))  { set_fs_dirty := true; reg_vxsat.get := wdata }
+      when (decoded_addr(CSRs.vxrm))   { set_vs_dirty := true; reg_vxrm.get := wdata }
+      when (decoded_addr(CSRs.vxsat))  { set_vs_dirty := true; reg_vxsat.get := wdata }
+      when (decoded_addr(CSRs.vcsr))   {
+        set_vs_dirty := true
+        reg_vxsat.get := wdata
+        reg_vxrm.get := wdata >> 1
+      }
     }
   }
 

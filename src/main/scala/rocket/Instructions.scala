@@ -782,6 +782,7 @@ object CSRs {
   val vstart = 0x8
   val vxsat = 0x9
   val vxrm = 0xa
+  val vcsr = 0xf
   val uscratch = 0x40
   val uepc = 0x41
   val ucause = 0x42
