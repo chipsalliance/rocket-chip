@@ -27,8 +27,7 @@ class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)
       val interrupts = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
       Seq(OMErrorDevice(
         memoryRegions = memRegions,
-        interrupts = interrupts,
-        specifications = Nil
+        interrupts = interrupts
       ))
     }
   }
