@@ -25,7 +25,7 @@ case class DevNullParams(
   * They may discard writes, refuse to respond to requests, issue error responses,
   * or otherwise violate 'expected' memory behavior.
   */
-abstract class DevNullDevice(params: DevNullParams, minLatency: Int, beatBytes: Int, device: SimpleDevice)
+abstract class DevNullDevice(params: DevNullParams, minLatency: Int, beatBytes: Int, protected val device: SimpleDevice)
                             (implicit p: Parameters)
     extends LazyModule with HasClockDomainCrossing {
   val xfer = if (params.maxTransfer > 0) TransferSizes(1, params.maxTransfer) else TransferSizes.none

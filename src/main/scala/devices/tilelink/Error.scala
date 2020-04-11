@@ -9,12 +9,30 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import scala.math.min
 
+import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, HasLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMErrorDevice, OMComponent}
+
 /** Adds a /dev/null slave that generates TL error response messages */
 class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters)
     extends DevNullDevice(params,
       minLatency = if (buffer) 1 else 0,
       beatBytes, new SimpleDevice("error-device", Seq("sifive,error0")))
+    with HasLogicalTreeNode
 {
+  lazy val logicalTreeNode: LogicalTreeNode = new LogicalTreeNode(() => Some(device)) {
+    def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil) = {
+      val Description(name, mapping) = device.describe(resourceBindings)
+      val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions(name, resourceBindings, None)
+      val interrupts = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
+      Seq(OMErrorDevice(
+        memoryRegions = memRegions,
+        interrupts = interrupts,
+        specifications = Nil
+      ))
+    }
+  }
+
   lazy val module = new LazyModuleImp(this) {
     import TLMessages._
     import TLPermissions._
