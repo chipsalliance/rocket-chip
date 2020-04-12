@@ -134,20 +134,17 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
     }
   }
 
-  lazy val logicalTreeNode = {
-    val subsystemLogicalTreeNode = new SubsystemLogicalTreeNode()
-    val builtInDevices = Seq(
-      pbus.builtInDevices,
-      fbus.builtInDevices,
-      mbus.builtInDevices,
-      cbus.builtInDevices
-    )
-    for (builtIn <- builtInDevices) {
-      builtIn.errorOpt.foreach { error =>
-        LogicalModuleTree.add(subsystemLogicalTreeNode, error.logicalTreeNode)
-      }
-    }
-    subsystemLogicalTreeNode
+  lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
+
+  private val builtInDevices = Seq(
+    sbus.builtInDevices,
+    pbus.builtInDevices,
+    fbus.builtInDevices,
+    mbus.builtInDevices,
+    cbus.builtInDevices
+  )
+  for (builtIn <- builtInDevices; error <- builtIn.errorOpt) {
+    LogicalModuleTree.add(logicalTreeNode, error.logicalTreeNode)
   }
 }
 
