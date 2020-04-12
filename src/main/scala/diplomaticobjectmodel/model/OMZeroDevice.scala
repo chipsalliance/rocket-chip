@@ -3,8 +3,8 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 
-case class OMErrorDevice(
+case class OMZeroDevice(
   memoryRegions: Seq[OMMemoryRegion],
   interrupts: Seq[OMInterrupt],
-  _types: Seq[String] = Seq("OMErrorDevice", "OMDevice", "OMComponent", "OMCompoundType")
+  _types: Seq[String] = Seq("OMZeroDevice", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
