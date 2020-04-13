@@ -757,6 +757,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val haltedBitRegs    = Reg(Vec(nComponents, Bool()))
     val resumeReqRegs    = Reg(Vec(nComponents, Bool()))
     val haveResetBitRegs = Reg(Vec(nComponents, Bool()))
+    val resumeAcks       = Wire(Vec(nComponents, Bool()))
 
     // --- regmapper outputs
 
@@ -878,13 +879,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         DMSTATUSRdData.anyhalted    := ((~io.debugUnavail &  haltedBitRegs) &  hamaskFull).reduce(_ | _)
         DMSTATUSRdData.anyrunning   := ((~io.debugUnavail & ~haltedBitRegs) &  hamaskFull).reduce(_ | _)
         DMSTATUSRdData.anyhavereset := (haveResetBitRegs &  hamaskFull).reduce(_ | _)
-        DMSTATUSRdData.anyresumeack := (~resumeReqRegs &  hamaskFull).reduce(_ | _)
+        DMSTATUSRdData.anyresumeack := (resumeAcks &  hamaskFull).reduce(_ | _)
         when (~DMSTATUSRdData.anynonexistent) {  // if one hart is nonexistent, no 'all' status is set
           DMSTATUSRdData.allunavail   := (io.debugUnavail | ~hamaskFull).reduce(_ & _)
           DMSTATUSRdData.allhalted    := ((~io.debugUnavail &  haltedBitRegs) | ~hamaskFull).reduce(_ & _)
           DMSTATUSRdData.allrunning   := ((~io.debugUnavail & ~haltedBitRegs) | ~hamaskFull).reduce(_ & _)
           DMSTATUSRdData.allhavereset := (haveResetBitRegs | ~hamaskFull).reduce(_ & _)
-          DMSTATUSRdData.allresumeack := (~resumeReqRegs | ~hamaskFull).reduce(_ & _)
+          DMSTATUSRdData.allresumeack := (resumeAcks | ~hamaskFull).reduce(_ & _)
         }
       }
 
@@ -1223,6 +1224,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           resumeReqRegs(component) := true.B
         }
       }
+      resumeAcks(component) := ~resumeReqRegs(component) && ~(resumereq && hamaskWrSel(component))
     }
 
     //---- AUTHDATA
