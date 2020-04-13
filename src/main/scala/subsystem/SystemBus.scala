@@ -29,7 +29,7 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   def outwardNode: TLOutwardNode = system_bus_xbar.node
   def busView: TLEdge = system_bus_xbar.node.edges.in.head
 
-  val builtInDevices = attachBuiltInDevices(params)
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 
   def fromTile
       (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)

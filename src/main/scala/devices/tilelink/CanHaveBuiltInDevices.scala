@@ -16,14 +16,14 @@ sealed trait BuiltInDevices {
   def zeroOpt: Option[TLZero]
 }
 
-/* Optionally add some built-in devices to a bus wrapper */
-trait CanHaveBuiltInDevices { this: TLBusWrapper =>
-
-  def attachBuiltInDevices(params: HasBuiltInDeviceParams): BuiltInDevices = new BuiltInDevices {
+object BuiltInDevices {
+  def attach(
+    params: HasBuiltInDeviceParams with HasTLBusParams,
+    outwardNode: TLOutwardNode)(implicit p: Parameters) = new BuiltInDevices {
     val errorOpt = params.errorDevice.map { dnp => LazyScope("wrapped_error_device") {
       val error = LazyModule(new TLError(
         params = dnp,
-        beatBytes = beatBytes))
+        beatBytes = params.beatBytes))
 
       error.node := TLBuffer() := outwardNode
       error
@@ -32,10 +32,15 @@ trait CanHaveBuiltInDevices { this: TLBusWrapper =>
     val zeroOpt = params.zeroDevice.map { addr => LazyScope("wrapped_zero_device") {
       val zero = LazyModule(new TLZero(
         address = addr,
-        beatBytes = beatBytes))
-      zero.node := TLFragmenter(beatBytes, blockBytes) := TLBuffer() := outwardNode
+        beatBytes = params.beatBytes))
+      zero.node := TLFragmenter(params.beatBytes, params.blockBytes) := TLBuffer() := outwardNode
       zero
     }}
   }
+}
+
+/* Optionally add some built-in devices to a bus wrapper */
+trait CanHaveBuiltInDevices {
+  def builtInDevices: BuiltInDevices
 }
 

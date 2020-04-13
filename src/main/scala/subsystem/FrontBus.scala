@@ -20,5 +20,5 @@ class FrontBus(params: FrontBusParams)(implicit p: Parameters)
     with CanHaveBuiltInDevices
     with CanAttachTLMasters
     with HasTLXbarPhy {
-  val builtInDevices = attachBuiltInDevices(params)
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 }

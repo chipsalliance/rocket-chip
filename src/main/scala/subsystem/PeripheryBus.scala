@@ -51,7 +51,7 @@ class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Paramet
   def outwardNode: TLOutwardNode = node
   def busView: TLEdge = fixer.node.edges.in.head
 
-  val builtInDevices = attachBuiltInDevices(params)
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 
   def toTile
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
