@@ -106,7 +106,6 @@ global def runRocketChipGenerator options =
   def targetDir = options.getRocketChipGeneratorOptionsTargetDir
 
   def cmdline =
-    def rootPackage = "_root_"
     def main = "freechips.rocketchip.system.Generator"
     def configs = catWith "," options.getRocketChipGeneratorOptionsConfigNames
     def topModule = options.getRocketChipGeneratorOptionsTopModuleName
@@ -117,10 +116,9 @@ global def runRocketChipGenerator options =
       Some name = name, Nil
       None = Nil
     which "java", "-cp", classpath, main,
-    relTargetDir,
-    rootPackage, topModule,
-    rootPackage, configs,
-    baseFileName
+    "-td", relTargetDir,
+    "-T", topModule,
+    "-C", configs, Nil
 
   def inputs =
     def bootrom = source 'rocket-chip/bootrom/bootrom.img'
@@ -139,7 +137,10 @@ global def runRocketChipGenerator options =
     head, tail = Some head
 
   def allOutputs = generatorJob.getJobOutputs
-  def annoFile    = getFile `.*\.anno\.json`
+  def topModPackage =
+    tokenize `\.` (options.getRocketChipGeneratorOptionsTopModuleName) | reverse | tail | reverse
+    | catWith "." | quote
+  def annoFile    = getFile (regExpCat (`.*`, topModPackage, `.*\.anno\.json`, Nil))
   def firrtlFile  = getFile `.*\.fir`
   def romConfFile = getFile `.*\.rom\.conf`
   def dtsFile     = getFile `.*\.dts`
