@@ -143,8 +143,13 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
     mbus.builtInDevices,
     cbus.builtInDevices
   )
-  for (builtIn <- builtInDevices; error <- builtIn.errorOpt) {
-    LogicalModuleTree.add(logicalTreeNode, error.logicalTreeNode)
+  builtInDevices.foreach { builtIn => 
+    builtIn.errorOpt.foreach { error => 
+      LogicalModuleTree.add(logicalTreeNode, error.logicalTreeNode)
+     }
+    builtIn.zeroOpt.foreach { zero => 
+      LogicalModuleTree.add(logicalTreeNode, zero.logicalTreeNode)
+    }
   }
 }
 
