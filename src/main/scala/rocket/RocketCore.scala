@@ -877,7 +877,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.pc := csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen)
   coreMonitorBundle.wren := wb_wen && !wb_set_sboard
   coreMonitorBundle.wrdst := wb_waddr
-  coreMonitorBundle.wrdata := Mux(coreMonitorBundle.wren, rf_wdata, 0.U)
+  coreMonitorBundle.wrdata := rf_wdata
   coreMonitorBundle.rd0src := wb_reg_inst(19,15)
   coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
   coreMonitorBundle.rd1src := wb_reg_inst(24,20)
@@ -917,9 +917,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.hartid, coreMonitorBundle.timer, coreMonitorBundle.valid,
          coreMonitorBundle.pc,
-         coreMonitorBundle.wrdst, coreMonitorBundle.wrdata, coreMonitorBundle.wren,
-         coreMonitorBundle.rd0src, coreMonitorBundle.rd0val,
-         coreMonitorBundle.rd1src, coreMonitorBundle.rd1val,
+         Mux(wb_ctrl.wxd || wb_ctrl.wfd, coreMonitorBundle.wrdst, 0.U),
+         Mux(coreMonitorBundle.wren, coreMonitorBundle.wrdata, 0.U),
+         coreMonitorBundle.wren,
+         Mux(wb_ctrl.rxs1 || wb_ctrl.rfs1, coreMonitorBundle.rd0src, 0.U),
+         Mux(wb_ctrl.rxs1 || wb_ctrl.rfs1, coreMonitorBundle.rd0val, 0.U),
+         Mux(wb_ctrl.rxs2 || wb_ctrl.rfs2, coreMonitorBundle.rd1src, 0.U),
+         Mux(wb_ctrl.rxs2 || wb_ctrl.rfs2, coreMonitorBundle.rd1val, 0.U),
          coreMonitorBundle.inst, coreMonitorBundle.inst)
     }
   }
