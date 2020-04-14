@@ -115,10 +115,11 @@ global def runRocketChipGenerator options =
     def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
       Some name = "--name", name, Nil
       None = Nil
-    (which "java", "-cp", classpath, main,
-    "-td", relTargetDir,
-    "-T", topModule,
-    "-C", configs, Nil) ++ baseFileName
+    which "java", "-cp", classpath, main,
+    "--target-dir", relTargetDir,
+    "--top-module", topModule,
+    "--configs", configs,
+    baseFileName
 
   def inputs =
     def bootrom = source 'rocket-chip/bootrom/bootrom.img'
