@@ -113,12 +113,12 @@ global def runRocketChipGenerator options =
     def classpath = catWith ":" relJars
     def relTargetDir = relative runDir targetDir.getPathName
     def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
-      Some name = name, Nil
+      Some name = "--name", name, Nil
       None = Nil
-    which "java", "-cp", classpath, main,
+    (which "java", "-cp", classpath, main,
     "-td", relTargetDir,
     "-T", topModule,
-    "-C", configs, Nil
+    "-C", configs, Nil) ++ baseFileName
 
   def inputs =
     def bootrom = source 'rocket-chip/bootrom/bootrom.img'
@@ -139,8 +139,12 @@ global def runRocketChipGenerator options =
   def allOutputs = generatorJob.getJobOutputs
   def topModPackage =
     tokenize `\.` (options.getRocketChipGeneratorOptionsTopModuleName) | reverse | tail | reverse
-    | catWith "." | quote
-  def annoFile    = getFile (regExpCat (`.*`, topModPackage, `.*\.anno\.json`, Nil))
+    | catWith "."
+  def annoRegexStr =
+    if (isSome (options.getRocketChipGeneratorOptionsBaseFileName)) then
+      options | getRocketChipGeneratorOptionsBaseFileName | getOrElse "Invalid"
+    else topModPackage
+  def annoFile    = getFile (regExpCat (`.*`, (annoRegexStr | quote), `.*\.anno\.json`, Nil))
   def firrtlFile  = getFile `.*\.fir`
   def romConfFile = getFile `.*\.rom\.conf`
   def dtsFile     = getFile `.*\.dts`
