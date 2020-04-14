@@ -118,9 +118,25 @@ abstract class LazyModule()(implicit val p: Parameters)
     children.foreach( _.childrenIterator(iterfunc) )
   }
 
+  def childrenFinder(filter: LazyModule => Boolean): LazyModule = {
+    val found = scala.collection.mutable.ListBuffer[LazyModule]()
+    childrenIterator(lm => if (filter(lm)) found += lm)
+    require(found.nonEmpty, s"no LazyModule found")
+    require(found.size == 1, s"constraint of filter is too loose, found ${found.size} LazyModules")
+    found.head
+  }
+
   def nodeIterator(iterfunc: (BaseNode) => Unit): Unit = {
     nodes.foreach(iterfunc)
     childrenIterator(_.nodes.foreach(iterfunc))
+  }
+
+  def nodeFinder(filter: BaseNode => Boolean): BaseNode = {
+    val found = scala.collection.mutable.ListBuffer[BaseNode]()
+    nodeIterator(node => if (filter(node)) found += node)
+    require(found.nonEmpty, s"no BaseNode found")
+    require(found.size == 1, s"constraint of filter is too loose, found ${found.size} LazyModules")
+    found.head
   }
 
   def getChildren = children
