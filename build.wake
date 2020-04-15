@@ -139,12 +139,12 @@ global def runRocketChipGenerator options =
 
   def allOutputs = generatorJob.getJobOutputs
   def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
-    Some fileName = fileName
+    Some fileName = fileName.quote, `\.anno\.json`, Nil
     None =
       def topModuleName = options.getRocketChipGeneratorOptionsTopModuleName
       def packageName = topModuleName | tokenize `\.` | reverse | tail | reverse | catWith "."
-      packageName
-  def annoFile    = getFile (regExpCat (`.*`, baseFileName.quote, `.*\.anno\.json`, Nil))
+      packageName.quote, `.*\.anno\.json`, Nil
+  def annoFile    = getFile (regExpCat (`.*`, baseFileName))
   def firrtlFile  = getFile `.*\.fir`
   def romConfFile = getFile `.*\.rom\.conf`
   def dtsFile     = getFile `.*\.dts`
