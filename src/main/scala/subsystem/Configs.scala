@@ -223,10 +223,9 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(master = r.master.copy(cork = Some(true)))
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
-    val node = TLNameNode("no_coherence_manager")
-    (node, node, None)
-  })
+  case BankedL2Key => up(BankedL2Key, site).copy(
+    coherenceManager = CoherenceManagerWrapper.incoherentManager
+  )
 })
 
 class WithRV32 extends Config((site, here, up) => {
