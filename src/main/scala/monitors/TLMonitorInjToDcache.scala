@@ -19,7 +19,7 @@ import freechips.rocketchip.stage.{ConfigsAnnotation, TopModuleAnnotation}
 import freechips.rocketchip.system._
 import chisel3.internal.firrtl._
 //import freechips.rocketchip.util.HasRocketChipStageUtils
-import freechips.rocketchip.util.SelectDiplomacy
+import freechips.rocketchip.util.{SelectDiplomacy, PlusArg}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.formal._
 import freechips.rocketchip.diplomacy._
@@ -58,6 +58,28 @@ case class AOPTestModule (wide: Int) extends Module {
   io.random := 0.U
 }
 
+case object MonitorPrintPrefix extends Field[Option[String]](None)
+
+object BundlePrintTest {
+  def print_bundle(bundle: TLBundle, edge: TLEdge) {
+    edge.params(MonitorPrintPrefix).foreach { prefix =>
+//      val print_this_prefix = PlusArg(s"verbose_${prefix}", docstring=s"Enable printing for ${prefix} Monitor}",
+//        width=1).asBool
+//      val print_all_prefix = PlusArg("verbose_all", docstring=s"Enable printing for all Monitors", width=1).asBool
+//      when (print_this_prefix || print_all_prefix) {
+        val a = bundle.a.bits
+        when (bundle.a.fire()) { printf(p"SULTAN $prefix $a")}
+        when (bundle.d.fire()) { printf(p"$prefix ${bundle.d.bits}")}
+        if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
+          when (bundle.b.fire()) { printf(p"SULTAN $prefix ${bundle.b.bits}")}
+          when (bundle.c.fire()) { printf(p"$prefix ${bundle.c.bits}")}
+          when (bundle.e.fire()) { printf(p"$prefix ${bundle.e.bits}")}
+        }
+//      }
+    }
+  }
+}
+
 case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule](
   {top: RawModule => Select.collectDeep(top) { case d: DCacheModule => d }},
   {d: DCacheModule => 
@@ -83,6 +105,8 @@ case object TLMonitorInjToDcache extends InjectorAspect[RawModule, DCacheModule]
   
     val aopTLMon = Module(new TLMonitor(args))
     aopTLMon.io.in := bundle
+
+    BundlePrintTest.print_bundle(bundle, edge)
   })
 
 
