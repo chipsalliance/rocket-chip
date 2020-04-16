@@ -62,7 +62,7 @@ trait HasConfigurableTLNetworkTopology { this: HasTileLinkLocations =>
 
   // Calling these functions populates tlBusWrapperLocationMap and connects the locations to each other.
   val topology = p(TLNetworkTopologyLocated(location))
-  private val buses = topology.map(_.instantiate(this))
+  topology.map(_.instantiate(this))
   topology.foreach(_.connect(this))
 
   // This is used lazily at DTS binding time to get a view of the network
@@ -115,7 +115,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 
   lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
 
-  buses.foreach { bus =>
+  tlBusWrapperLocationMap.values.foreach { bus =>
     val builtIn = bus.builtInDevices
     builtIn.errorOpt.foreach { error =>
       LogicalModuleTree.add(logicalTreeNode, error.logicalTreeNode)

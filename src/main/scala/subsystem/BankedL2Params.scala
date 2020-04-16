@@ -4,6 +4,7 @@ package freechips.rocketchip.subsystem
 
 import chisel3.util.isPow2
 import freechips.rocketchip.config._
+import freechips.rocketchip.devices.tilelink.BuiltInDevices
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
@@ -56,6 +57,7 @@ class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: Ha
   val viewNode = TLIdentityNode()
   def busView: TLEdge = viewNode.edges.out.head
   val inwardNode = tempIn :*= viewNode
+  val builtInDevices = BuiltInDevices.none
 
   private def banked(node: TLOutwardNode): TLOutwardNode =
     if (params.nBanks == 0) node else { TLTempNode() :=* BankBinder(params.nBanks, params.blockBytes) :*= node }
