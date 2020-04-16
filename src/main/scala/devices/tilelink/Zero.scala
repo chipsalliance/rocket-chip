@@ -36,7 +36,10 @@ class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
       val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions(name, resourceBindings, None)
       val interrupts = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
       Seq(OMZeroDevice(
-        memoryRegions = memRegions,
+        memoryRegions = memRegions.map(_.copy(
+          name = "zerodevice",
+          description = "Zero Device"
+        )),
         interrupts = interrupts
       ))
     }

@@ -26,7 +26,10 @@ class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)
       val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions(name, resourceBindings, None)
       val interrupts = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
       Seq(OMErrorDevice(
-        memoryRegions = memRegions,
+        memoryRegions = memRegions.map(_.copy(
+          name = "errordevice",
+          description = "Error Device"
+        )),
         interrupts = interrupts
       ))
     }
