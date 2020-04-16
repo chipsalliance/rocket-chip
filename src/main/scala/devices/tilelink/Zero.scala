@@ -7,6 +7,10 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.TLMessages
 
+import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, HasLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMZeroDevice, OMComponent}
+
 /** This /dev/null device accepts single beat gets/puts, as well as atomics.
   * Response data is always 0. Reequests to write data have no effect.
   */
@@ -22,7 +26,25 @@ class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
       mayDenyPut = false),
     minLatency = 1,
     beatBytes = beatBytes,
-    device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0"))) {
+    device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0")))
+    with HasLogicalTreeNode
+{
+
+  lazy val logicalTreeNode: LogicalTreeNode = new LogicalTreeNode(() => Some(device)) {
+    def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil) = {
+      val Description(name, mapping) = device.describe(resourceBindings)
+      val memRegions = DiplomaticObjectModelAddressing.getOMMemoryRegions(name, resourceBindings, None)
+      val interrupts = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
+      Seq(OMZeroDevice(
+        memoryRegions = memRegions.map(_.copy(
+          name = "zerodevice",
+          description = "Zero Device"
+        )),
+        interrupts = interrupts
+      ))
+    }
+  }
+
   lazy val module = new LazyModuleImp(this) {
     val (in, edge) = node.in(0)
 

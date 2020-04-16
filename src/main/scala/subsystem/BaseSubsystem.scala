@@ -81,7 +81,7 @@ case object ResetAsynchronousFull extends SubsystemResetScheme
 case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSynchronous)
 
 /** Base Subsystem class with no peripheral devices or ports added */
-abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem 
+abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
     with Attachable {
 
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
@@ -135,6 +135,24 @@ abstract class BaseSubsystem(implicit p: Parameters) extends BareSubsystem
   }
 
   lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
+
+  private val buses = Seq(
+    sbus,
+    pbus,
+    fbus,
+    mbus,
+    cbus
+  )
+
+  buses.foreach { bus =>
+    val builtIn = bus.builtInDevices
+    builtIn.errorOpt.foreach { error =>
+      LogicalModuleTree.add(logicalTreeNode, error.logicalTreeNode)
+    }
+    builtIn.zeroOpt.foreach { zero =>
+      LogicalModuleTree.add(logicalTreeNode, zero.logicalTreeNode)
+    }
+  }
 }
 
 

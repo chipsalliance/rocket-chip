@@ -59,7 +59,7 @@ class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
     if (params.replicatorMask == 0) xbar.node else { xbar.node :=* RegionReplicator(params.replicatorMask) }
   def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
-  attachBuiltInDevices(params)
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 
   def toDRAMController[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
