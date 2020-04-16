@@ -17,6 +17,11 @@ sealed trait BuiltInDevices {
 }
 
 object BuiltInDevices {
+  def none = new BuiltInDevices {
+    val errorOpt = None
+    val zeroOpt = None
+  }
+
   def attach(
     params: HasBuiltInDeviceParams with HasTLBusParams,
     outwardNode: TLOutwardNode)(implicit p: Parameters) = new BuiltInDevices {
