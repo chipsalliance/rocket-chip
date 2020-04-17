@@ -23,7 +23,7 @@ The Rocket-Chip API is:
   * All public Scala methods and classes
   * All public Scala methods and classes of included Scala libraries (hardfloat, CDE, etc)
   * The command line used to invoke the generator
-  * All Verilog interfaces (I/Os and parameterization) for verilog files
+  * All Verilog interfaces (I/Os and parameterization) for verilog resources
   * C code...?
   * The version(s) of Chisel, FIRRTL, rocket-tools pointed to by rocket-chip.
   * Any code that generates IO(s) of any Module
