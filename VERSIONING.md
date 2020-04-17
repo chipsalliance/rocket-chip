@@ -36,6 +36,8 @@ The following is NOT part of the API:
   * Internals of scripts like vlsi-mem-gen, the contents of such scripts
   * Internals of any verilog black boxes
   * C Code ...?
+  * Makefiles and Makefile fragments
+  
       
 Roadmap
 -------
