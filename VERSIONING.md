@@ -38,7 +38,14 @@ The following is NOT part of the API:
   * C Code ...?
   * Makefiles and Makefile fragments
   
-      
+API Dependencies on included libraries/dependencies:
+------------------------------------------------------
+
+* A new MINOR release may update `firrtl`, `chisel`, and `rocket-tools` to a newer minor release of those dependencies.
+* A new MAJOR release may update `firrtl`, `chisel`, and `rocket-tools` to a newer major release of those dependencies.
+
+* A new MINOR release may update `wit` dependencies listed in `wit-manifest.json` to newer minor release of those dependencies.
+* A new MAJOR release may update `wit` dependencies listed in `wit-manifest.json` to newer major release of those dependencies.
 Roadmap
 -------
 
