@@ -94,11 +94,12 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportCease(could_cease: Option[Bool]) {
     val (cease, _) = ceaseNode.out(0)
-    cease(0) := could_cease.map{
-      val cease = (RegNext(_)).getOrElse(false.B)
-      // Test-Only Code
-      val prev_cease = RegNext(cease(0), false.B)
-      assert((!(prev_cease & !cease(0)) | reset.asBool), "CEASE line can not glitch once raised")
+    cease(0) := could_cease.map{ c => 
+      val cease = (RegNext(c)).getOrElse(false.B)
+      // Test-Only Code --
+      val prev_cease = RegNext(c, false.B)
+      assert((!(prev_cease & !c) | reset.asBool), "CEASE line can not glitch once raised") 
+      cease
   }
 
   // Report when the tile is waiting for an interrupt
