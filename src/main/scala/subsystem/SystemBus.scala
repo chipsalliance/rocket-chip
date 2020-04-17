@@ -16,13 +16,20 @@ case class SystemBusParams(
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None)
-  extends HasTLBusParams with HasBuiltInDeviceParams
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
+  with TLBusWrapperInstantiationLike
+{
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
+    val sbus = LazyModule(new SystemBus(this, loc.name))
+    sbus.suggestName(loc.name)
+    context.tlBusWrapperLocationMap += (loc -> sbus)
+    sbus
+  }
+}
 
-class SystemBus(params: SystemBusParams)(implicit p: Parameters)
-    extends TLBusWrapper(params, "system_bus")
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves
-    with CanAttachTLMasters
+class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p: Parameters)
+    extends TLBusWrapper(params, name)
 {
   private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
   def inwardNode: TLInwardNode = system_bus_xbar.node
@@ -30,12 +37,4 @@ class SystemBus(params: SystemBusParams)(implicit p: Parameters)
   def busView: TLEdge = system_bus_xbar.node.edges.in.head
 
   val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
-
-  def fromTile
-      (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
-      (gen: => TLOutwardNode): NoHandle = {
-    from("tile" named name) {
-      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* gen
-    }
-  }
 }

@@ -17,7 +17,7 @@ case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCus
     val oStar = if (oStars == 0) 0 else (ports - oKnown) / oStars
     val iStar = if (iStars == 0) 0 else (ports - iKnown) / iStars
     require (ports == iKnown + iStar*iStars, s"${name} must have ${ports} inputs, but has ${iKnown} + ${iStar}*${iStars} (at ${lazyModule.line})")
-    require (ports == oKnown + oStar*oStars, s"${name} must have ${ports} outputs, but has ${iKnown} + ${iStar}*${iStars} (at ${lazyModule.line})")
+    require (ports == oKnown + oStar*oStars, s"${name} must have ${ports} outputs, but has ${oKnown} + ${oStar}*${oStars} (at ${lazyModule.line})")
     (iStar, oStar)
   }
 
@@ -67,5 +67,10 @@ object BankBinder
   def apply(mask: BigInt)(implicit p: Parameters): TLNode = {
     val binder = LazyModule(new BankBinder(mask))
     binder.node
+  }
+
+  def apply(nBanks: Int, granularity: Int)(implicit p: Parameters): TLNode = {
+    if (nBanks > 0) apply(granularity * (nBanks-1))
+    else TLTempNode()
   }
 }

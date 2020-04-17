@@ -26,12 +26,19 @@ case class PeripheryBusParams(
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
+  with TLBusWrapperInstantiationLike
+{
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
+    val pbus = LazyModule(new PeripheryBus(this, loc.name))
+    pbus.suggestName(loc.name)
+    context.tlBusWrapperLocationMap += (loc -> pbus)
+    pbus
+  }
+}
 
 class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Parameters)
     extends TLBusWrapper(params, name)
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves {
-
+{
   private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val node: TLNode = params.atomics.map { pa =>
     val in_xbar = LazyModule(new TLXbar)
@@ -52,12 +59,4 @@ class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Paramet
   def busView: TLEdge = fixer.node.edges.in.head
 
   val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
-
-  def toTile
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => TLInwardNode): NoHandle = {
-    to("tile" named name) { FlipRendering { implicit p =>
-      gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode
-    }}
-  }
 }
