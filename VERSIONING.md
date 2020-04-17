@@ -5,11 +5,11 @@ Version Naming
 --------------
 
 * Rocket Chip uses a Calendar Versioning release strategy (https://calver.org/).
-* The format is YYYY.0M.0D.MINOR
+* The format is YYYY.0M.MINOR
 * Example:
-  * 2020.04.04.0 is the release which occurred on April 4, 2020.
-  * 2020.04.04.1 is a release that could occur at any time, but introduces only MINOR changes over the 2020.04.04.0 release
-  * 2020.06.01.0 is a release that occurs on June 1, 2020, with MAJOR (API breaking) changes over the 2020.04.04.X release.
+  * 2020.04.0 is the release which occurred in April, 2020.
+  * 2020.04.1 is a release that could occur at any time, but introduces only MINOR changes over the 2020.04.0 release
+  * 2020.06.0 is a release that occurs in June 2020, with MAJOR (API breaking) changes over the 2020.04.X release(s).
 * MINOR changes include:
   * API Additions
   * Bug Fixes (which can result in changes in the emitted hardware considered bugs)
@@ -42,8 +42,8 @@ Roadmap
 
 * Upcoming Versions:
 
-  - Version ~2020.04.04.0: Released approximately before the breaking changes discussed for version NEXT:
-  - Version NEXT YYYY.0M.0D.0: To be released after:
+  - Version 2020.04.0: To be released just before the breaking changes discussed for version NEXT:
+  - Version NEXT YYYY.0M.0: To be released after:
     - Chisel is bumped to 3.3
     - FIRRTL is bumped to X.XX
     - Command line interface updated for staged generator
@@ -55,9 +55,9 @@ Roadmap
 Version Branches
 -----------------
 
-Development occurs for the next YYYY.0M.0D.0 release on the `master` branch.
-When the YYYY.0M.0D.0 is made, a protected branch is created with the name: `YYYY.0M.0D.X`.
-The MINOR releases will be made as tagged commits on `YYYY.0M.0D.X branch`.
+Development occurs for the next major YYYY.0M.0 release on the `master` branch.
+When the YYYY.0M.0 release is made, a protected (no force-pushing) branch is created with the name: `YYYY.0M.X`.
+The first MAJOR and subsequent MINOR releases will be made as tagged commits on `YYYY.0M.X branch`.
 
 Naming Your Own Releases
 ---------------------------
@@ -66,10 +66,10 @@ Naming Your Own Releases
 If you would like to fork rocket-chip and release your own derivative versions, we suggest:
   * If you fork and cut a specific release off an existing commit off this repo:
     * Name it as <release>-SNAPSHOT-<git commit hash>
-    * For example if you want to make a specific release off commit hash `1234beef` which is a commit after the 2020.04.04.2 release, call it `2020.04.04.2-SNAPSHOT-1234beef`
+    * For example if you want to make a specific release off commit hash `1234beef` which is a commit after the 2020.04.2 release, call it `2020.04.2-SNAPSHOT-1234beef`
   * If you fork and modify a release branch and want to make a release:
     * Name it as <release>-<identifier>-<arbitrary number with meaning decided by the entity doing the release>
-  * For example, if GitHub user `@mwachs5` did this: `2020.04.04.2-mwachs5-0`
+    * For example, if GitHub user `@mwachs5` did this: `2020.04.2-mwachs5-0`
  * This document suggests no requirements/restrictions on the changes made in such forks
 
 Previous Versions
