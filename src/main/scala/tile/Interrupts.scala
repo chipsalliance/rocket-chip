@@ -92,9 +92,17 @@ trait SourcesExternalNotifications { this: BaseTile =>
   // Report when the tile has ceased to retire instructions
   val ceaseNode = IntSourceNode(IntSourcePortSimple())
 
-  def reportCease(could_cease: Option[Bool]) {
+  def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8) {
+    def waitForQuiescence(cease: Bool): Bool = {
+      // don't report cease until signal is stable for longer than any pipeline depth
+      val count = Reg(UInt(log2Ceil(quiescenceCycles + 1).W))
+      val saturated = count >= quiescenceCycles.U
+      when (!cease) { count := 0.U }
+      when (cease && !saturated) { count := count + 1.U }
+      saturated
+    }
     val (cease, _) = ceaseNode.out(0)
-    cease(0) := could_cease.map(RegNext(_)).getOrElse(false.B)
+    cease(0) := could_cease.map(waitForQuiescence(_)).getOrElse(false.B)
   }
 
   // Report when the tile is waiting for an interrupt
