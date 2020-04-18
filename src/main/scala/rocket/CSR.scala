@@ -815,7 +815,7 @@ class CSRFile(
         }
       }
 
-      if (usingVM || usingFPU || usingVector) reg_mstatus.fs := formFS(new_mstatus.fs)
+      if (usingVM || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
       reg_mstatus.vs := formVS(new_mstatus.vs)
       if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
