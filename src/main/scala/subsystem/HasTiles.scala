@@ -92,8 +92,8 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
       plicOpt .map { _.intnode }
         .getOrElse { meipNode.get }
 
-    //    From PLIC: "seip" (only if vm/supervisor mode is enabled)
-    if (tile.tileParams.core.useVM) {
+    //    From PLIC: "seip" (only if supervisor mode is enabled)
+    if (tile.tileParams.core.hasSupervisorMode) {
       tile.crossIntIn() :=
         plicOpt .map { _.intnode }
           .getOrElse { NullIntSource() }

@@ -17,6 +17,7 @@ case object U extends OMExtensionType
 case object S extends OMExtensionType
 
 trait OMAddressTranslationMode extends OMEnum
+case object Bare extends OMAddressTranslationMode
 case object Sv32 extends OMAddressTranslationMode
 case object Sv39 extends OMAddressTranslationMode
 case object Sv48 extends OMAddressTranslationMode
@@ -81,6 +82,7 @@ object OMISA {
     }
 
     val addressTranslationModes = xLen match {
+        case _ if !coreParams.useVM => Bare
         case 32 => Sv32
         case 64 => Sv39
         case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
@@ -95,8 +97,8 @@ object OMISA {
       f = coreParams.fpu.map(x => isaExtSpec(F, "2.0")),
       d = coreParams.fpu.filter(_.fLen > 32).map(x => isaExtSpec(D, "2.0")),
       c = coreParams.useCompressed.option(isaExtSpec(C, " 2.0")),
-      u = (coreParams.useVM || coreParams.useUser).option(isaExtSpec(U, "1.10")),
-      s = coreParams.useVM.option(isaExtSpec(S, "1.10")),
+      u = (coreParams.hasSupervisorMode || coreParams.useUser).option(isaExtSpec(U, "1.10")),
+      s = coreParams.hasSupervisorMode.option(isaExtSpec(S, "1.10")),
       addressTranslationModes = Seq(addressTranslationModes),
       customExtensions = customExtensions
     )
