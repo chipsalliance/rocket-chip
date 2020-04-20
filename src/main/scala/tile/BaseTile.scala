@@ -37,7 +37,8 @@ trait HasNonDiplomaticTileParameters {
   def tileParams: TileParams = p(TileKey)
 
   def usingVM: Boolean = tileParams.core.useVM
-  def usingUser: Boolean = tileParams.core.useUser || usingVM
+  def usingUser: Boolean = tileParams.core.useUser || usingSupervisor
+  def usingSupervisor: Boolean = tileParams.core.hasSupervisorMode
   def usingDebug: Boolean = tileParams.core.useDebug
   def usingRoCC: Boolean = !p(BuildRoCC).isEmpty
   def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0

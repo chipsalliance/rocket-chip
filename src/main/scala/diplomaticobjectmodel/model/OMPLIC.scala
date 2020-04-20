@@ -8,8 +8,8 @@ case object OMSupervisorMode extends OMPrivilegeMode
 case object OMUserMode extends OMPrivilegeMode
 
 object OMModes {
-  def getModes(useVM: Boolean): Seq[OMPrivilegeMode] = {
-    useVM match {
+  def getModes(hasSupervisorMode: Boolean): Seq[OMPrivilegeMode] = {
+    hasSupervisorMode match {
       case false => Seq(OMMachineMode)
       case true => Seq(OMMachineMode, OMSupervisorMode)
     }
