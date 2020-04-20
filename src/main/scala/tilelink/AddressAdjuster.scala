@@ -93,7 +93,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   }
 
   // Now we create a custom node that joins the local and remote manager parameters, changing the PMAs of devices in the adjustable region
-  val node = TLJunctionNode(1, 2,
+  val node = TLJunctionNode(
     clientFn  = { cp => cp ++ cp },
     managerFn = { mp =>
       val remote = mp(0)
