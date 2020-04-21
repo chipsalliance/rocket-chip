@@ -41,17 +41,17 @@ trait AMBA extends OMProtocol
 
 case class AXI4(
   specification: Option[OMSpecification],
-  _types: Seq[String] = Seq("AXI4", "AMBA",  "OMProtocol")
+  _types: Seq[String] = Seq("AXI", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class AXI4_Lite(
   specification: Option[OMSpecification],
-  val _types: Seq[String] = Seq("AXI4_Lite", "AMBA",  "OMProtocol")
+  val _types: Seq[String] = Seq("AXI", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class AHB_Lite(
   specification: Option[OMSpecification],
-  val _types: Seq[String] = Seq("AHB_Lite", "AMBA",  "OMProtocol")
+  val _types: Seq[String] = Seq("AHB", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class AHB(
@@ -125,15 +125,15 @@ case class SystemPort(
 
 object OMPortMaker {
   val protocolSpecifications = Map[ProtocolType, String](
-    AHBProtocol -> "AMBA 3 AHB-Lite Protocol",
-    AXI4Protocol -> "AMBA 3 AXI4-Lite Protocol",
-    APBProtocol -> "AMBA 3 APB Protocol",
+    AHBProtocol -> "AHB Protocol",
+    AXI4Protocol -> "AXI Protocol",
+    APBProtocol -> "APB Protocol",
     TLProtocol -> "TileLink specification"
   )
 
   val protocolSpecificationVersions = Map[ProtocolType, String](
-    AHBProtocol -> "1.0",
-    AXI4Protocol -> "1.0",
+    AHBProtocol -> "3",
+    AXI4Protocol -> "4",
     APBProtocol -> "1.0",
     TLProtocol -> "1.8"
   )
