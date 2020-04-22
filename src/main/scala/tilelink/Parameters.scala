@@ -261,7 +261,7 @@ class TLSlaveParameters private(
     fifoId:             Option[Int]     = fifoId) =
   {
     new TLSlaveParameters(
-      setName       = name,
+      setName       = setName,
       address       = address,
       resources     = resources,
       regionType    = regionType,
