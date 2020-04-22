@@ -99,7 +99,7 @@ case class TLSlaveToMasterTransferSizes(
   override def toString = {
     def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
     def flags = Vector(
-      str(probe,      "T"),
+      str(probe,      "P"),
       str(arithmetic, "A"),
       str(logical,    "L"),
       str(get,        "G"),
