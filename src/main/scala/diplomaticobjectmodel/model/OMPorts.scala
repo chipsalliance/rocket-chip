@@ -51,7 +51,7 @@ case class AXI4_Lite(
 
 case class AHB_Lite(
   specification: Option[OMSpecification],
-  val _types: Seq[String] = Seq("AHB", "AMBA",  "OMProtocol")
+  val _types: Seq[String] = Seq("AHB_Lite", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class AHB(
