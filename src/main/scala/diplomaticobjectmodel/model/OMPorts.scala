@@ -41,12 +41,12 @@ trait AMBA extends OMProtocol
 
 case class AXI4(
   specification: Option[OMSpecification],
-  _types: Seq[String] = Seq("AXI", "AMBA",  "OMProtocol")
+  _types: Seq[String] = Seq("AXI4", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class AXI4_Lite(
   specification: Option[OMSpecification],
-  val _types: Seq[String] = Seq("AXI", "AMBA",  "OMProtocol")
+  val _types: Seq[String] = Seq("AXI4_Lite", "AMBA",  "OMProtocol")
 ) extends AMBA
 
 case class AHB_Lite(
