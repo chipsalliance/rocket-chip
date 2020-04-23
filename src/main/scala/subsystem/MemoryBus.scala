@@ -10,32 +10,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-// TODO: applies to all caches, for now
-case object CacheBlockBytes extends Field[Int](64)
-
-/** L2 Broadcast Hub configuration */
-case class BroadcastParams(
-  nTrackers:  Int     = 4,
-  bufferless: Boolean = false)
-
-case object BroadcastKey extends Field(BroadcastParams())
-
-/** L2 memory subsystem configuration */
-case class BankedL2Params(
-  nBanks: Int = 1,
-  coherenceManager: BaseSubsystem => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode]) = { subsystem =>
-    implicit val p = subsystem.p
-    val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
-    val bh = LazyModule(new TLBroadcast(subsystem.sbus.blockBytes, nTrackers, bufferless))
-    val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes))
-    val ss = TLSourceShrinker(nTrackers)
-    ww.node :*= bh.node
-    ss :*= ww.node
-    (bh.node, ss, None)
-  }) {
-  require (isPow2(nBanks) || nBanks == 0)
-}
-
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(
   beatBytes: Int,
@@ -47,24 +21,26 @@ case class MemoryBusParams(
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
+  with TLBusWrapperInstantiationLike
+{
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): MemoryBus = {
+    val mbus = LazyModule(new MemoryBus(this, loc.name))
+    mbus.suggestName(loc.name)
+    context.tlBusWrapperLocationMap += (loc -> mbus)
+    mbus
+  }
+}
 
 /** Wrapper for creating TL nodes from a bus connected to the back of each mem channel */
-class MemoryBus(params: MemoryBusParams)(implicit p: Parameters)
-    extends TLBusWrapper(params, "memory_bus")(p)
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves {
-
+class MemoryBus(params: MemoryBusParams, name: String = "memory_bus")(implicit p: Parameters)
+    extends TLBusWrapper(params, name)(p)
+{
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
-  def inwardNode: TLInwardNode =
-    if (params.replicatorMask == 0) xbar.node else { xbar.node :=* RegionReplicator(params.replicatorMask) }
-  def outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
+  private def replicate(node: TLInwardNode): TLInwardNode =
+    if (params.replicatorMask == 0) node else { node :*=* RegionReplicator(params.replicatorMask) }
+  val inwardNode: TLInwardNode = replicate(xbar.node)
+  val outwardNode: TLOutwardNode = ProbePicker() :*= xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
-  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 
-  def toDRAMController[D,U,E,B <: Data]
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => NodeHandle[ TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle, D,U,E,B] =
-        TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
-    to("memory_controller" named name) { gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
-  }
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 }

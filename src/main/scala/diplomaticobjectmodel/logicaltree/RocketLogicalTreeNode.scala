@@ -66,7 +66,7 @@ class RocketLogicalTreeNode(
   def getOMInterruptTargets(): Seq[OMInterruptTarget] = {
     Seq(OMInterruptTarget(
       hartId = tile.rocketParams.hartId,
-      modes = OMModes.getModes(tile.rocketParams.core.useVM)
+      modes = OMModes.getModes(tile.rocketParams.core.hasSupervisorMode)
     ))
   }
 

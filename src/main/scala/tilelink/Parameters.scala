@@ -99,7 +99,7 @@ case class TLSlaveToMasterTransferSizes(
   override def toString = {
     def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
     def flags = Vector(
-      str(probe,      "T"),
+      str(probe,      "P"),
       str(arithmetic, "A"),
       str(logical,    "L"),
       str(get,        "G"),
@@ -134,7 +134,7 @@ trait TLCommonTransferSizes {
 class TLSlaveParameters private(
   val nodePath:           Seq[BaseNode],
   val resources:          Seq[Resource],
-  setName:                String,
+  setName:                Option[String],
   val address:            Seq[AddressSet],
   val regionType:         RegionType.T,
   val executable:         Boolean,
@@ -195,7 +195,7 @@ class TLSlaveParameters private(
   require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
   require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
-  val name = if (setName != "") setName else nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val name = setName.orElse(nodePath.lastOption.map(_.lazyModule.name)).getOrElse("disconnected")
   val maxTransfer = List( // Largest supported transfer of all types
     supportsAcquireT.max,
     supportsAcquireB.max,
@@ -261,7 +261,7 @@ class TLSlaveParameters private(
     fifoId:             Option[Int]     = fifoId) =
   {
     new TLSlaveParameters(
-      setName       = name,
+      setName       = setName,
       address       = address,
       resources     = resources,
       regionType    = regionType,
@@ -345,7 +345,7 @@ object TLSlaveParameters {
     fifoId:             Option[Int] = None) =
   {
     new TLSlaveParameters(
-      setName       = "",
+      setName       = None,
       address       = address,
       resources     = resources,
       regionType    = regionType,

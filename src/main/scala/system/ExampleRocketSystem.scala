@@ -12,7 +12,6 @@ import freechips.rocketchip.util.DontTouch
 
 /** Example Top with periphery devices and ports, and a Rocket subsystem */
 class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
-    with HasHierarchicalBusTopology
     with HasAsyncExtInterrupts
     with CanHaveMasterAXI4MemPort
     with CanHaveMasterAXI4MMIOPort

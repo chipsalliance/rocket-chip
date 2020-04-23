@@ -3,7 +3,6 @@
 package freechips.rocketchip.stage.phases
 
 import chisel3.stage.ChiselOutputFileAnnotation
-import chisel3.stage.phases.Emitter
 import firrtl.AnnotationSeq
 import firrtl.options.Viewer.view
 import firrtl.options.{Phase, PreservesAll}
@@ -14,7 +13,7 @@ import freechips.rocketchip.util.HasRocketChipStageUtils
 class TransformAnnotations extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
   override val prerequisites = Seq(classOf[Checks])
-  override val dependents = Seq(classOf[Emitter])
+  override val dependents = Seq(classOf[chisel3.stage.phases.AddImplicitOutputFile])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     /** Construct output file annotation for emission */

@@ -52,12 +52,17 @@ case class TLJunctionNode(
   extends JunctionNode(TLImp)(clientRatio, managerRatio, clientFn, managerFn) with TLFormatNode
 
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)() with TLFormatNode
-case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)()
 
 object TLNameNode {
   def apply(name: ValName) = TLIdentityNode()(name)
   def apply(name: Option[String]): TLIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
   def apply(name: String): TLIdentityNode = apply(Some(name))
+}
+
+case class TLEphemeralNode()(implicit valName: ValName) extends EphemeralNode(TLImp)()
+
+object TLTempNode {
+  def apply(): TLEphemeralNode = TLEphemeralNode()(ValName("temp"))
 }
 
 case class TLNexusNode(

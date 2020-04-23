@@ -14,7 +14,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
   val mtip = Bool()
   val msip = Bool()
   val meip = Bool()
-  val seip = usingVM.option(Bool())
+  val seip = usingSupervisor.option(Bool())
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
 }
 
@@ -55,7 +55,7 @@ trait SinksExternalInterrupts { this: BaseTile =>
   // debug, msip, mtip, meip, seip, lip offsets in CSRs
   def csrIntMap: List[Int] = {
     val nlips = tileParams.core.nLocalInterrupts
-    val seip = if (usingVM) Seq(9) else Nil
+    val seip = if (usingSupervisor) Seq(9) else Nil
     List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
   }
 
@@ -92,14 +92,23 @@ trait SourcesExternalNotifications { this: BaseTile =>
   // Report when the tile has ceased to retire instructions
   val ceaseNode = IntSourceNode(IntSourcePortSimple())
 
-  def reportCease(could_cease: Option[Bool]) {
+  def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8) {
+    def waitForQuiescence(cease: Bool): Bool = {
+      // don't report cease until signal is stable for longer than any pipeline depth
+      val count = Reg(UInt(log2Ceil(quiescenceCycles + 1).W))
+      val saturated = count >= quiescenceCycles.U
+      when (!cease) { count := 0.U }
+      when (cease && !saturated) { count := count + 1.U }
+      saturated
+    }
     val (cease, _) = ceaseNode.out(0)
     cease(0) := could_cease.map{ c => 
-      val cease = (RegNext(c)).getOrElse(false.B)
+      val cease = (waitForQuiescence(c))
       // Test-Only Code --
       val prev_cease = RegNext(c, false.B)
       assert((!(prev_cease & !c) | reset.asBool), "CEASE line can not glitch once raised") 
       cease
+    }.getOrElse(false.B)
   }
 
   // Report when the tile is waiting for an interrupt

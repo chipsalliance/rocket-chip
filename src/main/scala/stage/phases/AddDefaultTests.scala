@@ -7,7 +7,7 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3.stage.phases.Elaborate
 import firrtl.AnnotationSeq
 import firrtl.annotations.NoTargetAnnotation
-import firrtl.options.{Phase, PreservesAll}
+import firrtl.options.{Phase, PreservesAll, Unserializable}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.subsystem.RocketTilesKey
@@ -19,7 +19,7 @@ import freechips.rocketchip.system.DefaultTestSuites._
 import scala.collection.mutable
 
 /** Annotation that contains a list of [[RocketTestSuite]]s to run */
-case class RocketTestSuiteAnnotation(tests: Seq[RocketTestSuite]) extends NoTargetAnnotation
+case class RocketTestSuiteAnnotation(tests: Seq[RocketTestSuite]) extends NoTargetAnnotation with Unserializable
 
 /** Generates [[RocketTestSuiteAnnotation]] depending on whether the top-module project is part of
  *  [[freechips.rocketchip.system]] or not (e.g. for unit tests).
