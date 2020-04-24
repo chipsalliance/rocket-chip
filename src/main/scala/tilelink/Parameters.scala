@@ -1076,11 +1076,15 @@ object TLBundleParameters
 }
 
 case class TLEdgeParameters(
-  client:  TLClientPortParameters,
-  manager: TLManagerPortParameters,
+  master: TLMasterPortParameters,
+  slave:  TLSlavePortParameters,
   params:  Parameters,
   sourceInfo: SourceInfo) extends FormatEdge
 {
+  // legacy names:
+  def manager = slave
+  def client = master
+
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
 
