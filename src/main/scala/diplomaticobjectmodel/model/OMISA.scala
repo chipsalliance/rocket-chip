@@ -56,7 +56,7 @@ case class OMVectorExtension(
 )
 
 object OMISA {
-  def rocketISA(tile: RocketTile, xLen: Int): OMISA = {
+  def rocketISA(tile: RocketTile, xLen: Int, pgLevels: Int): OMISA = {
     val coreParams = tile.rocketParams.core
 
     val baseInstructionSet = xLen match {
@@ -82,10 +82,11 @@ object OMISA {
     }
 
     val addressTranslationModes = xLen match {
-        case _ if !coreParams.useVM => Bare
-        case 32 => Sv32
-        case 64 => Sv39
-        case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen: $xLen")
+      case _ if !coreParams.useVM => Bare
+      case 32 if (pgLevels == 2) => Sv32
+      case 64 if (pgLevels == 3) => Sv39
+      case 64 if (pgLevels == 4) => Sv48
+      case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen/PgLevels combination: $xLen/$pgLevels")
     }
 
     OMISA(
