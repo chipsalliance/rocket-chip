@@ -41,20 +41,23 @@ class RegionReplicator(val params: ReplicatedRegion)(implicit p: Parameters) ext
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
+      // Is every slave contained by the replication region?
+      val totalContainment = edgeIn.slave.slaves.forall(_.address.forall(params.region contains _))
+
       // Which address within the mask routes to local devices?
       val local_prefix = RegNext(prefix.bundle)
       assert (params.isLegalPrefix(local_prefix))
 
       val a_addr = in.a.bits.address
-      val a_contained = params.region.contains(a_addr)
+      val a_contained = params.region.contains(a_addr) || totalContainment.B
       out.a.bits.address := Mux(a_contained, ~(~a_addr | params.replicationMask.U), a_addr)
 
       val b_addr = out.b.bits.address
-      val b_contained = params.region.contains(b_addr)
+      val b_contained = params.region.contains(b_addr) || totalContainment.B
       in.b.bits.address := Mux(b_contained, b_addr | (local_prefix & params.replicationMask.U), b_addr)
 
       val c_addr = in.c.bits.address
-      val c_contained = params.region.contains(c_addr)
+      val c_contained = params.region.contains(c_addr) || totalContainment.B
       out.c.bits.address := Mux(c_contained, ~(~c_addr | params.replicationMask.U), c_addr)
     }
   }
