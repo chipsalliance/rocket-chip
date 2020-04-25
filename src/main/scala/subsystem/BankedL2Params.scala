@@ -57,6 +57,7 @@ class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: Ha
   def busView: TLEdge = coherent_jbar.node.edges.out.head
   val inwardNode = tempIn :*= coherent_jbar.node
   val builtInDevices = BuiltInDevices.none
+  val prefixNode = None
 
   private def banked(node: TLOutwardNode): TLOutwardNode =
     if (params.nBanks == 0) node else { TLTempNode() :=* BankBinder(params.nBanks, params.blockBytes) :*= node }

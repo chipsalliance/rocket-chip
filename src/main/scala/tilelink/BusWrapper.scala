@@ -62,6 +62,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
   def busView: TLEdge
+  val prefixNode: Option[BundleBridgeSink[UInt]]
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
@@ -401,5 +402,6 @@ class TLJBarWrapper(params: TLJBarWrapperParams, name: String)(implicit p: Param
   val inwardNode: TLInwardNode = jbar.node
   val outwardNode: TLOutwardNode = jbar.node
   def busView: TLEdge = jbar.node.edges.in.head
+  val prefixNode = None
   val builtInDevices = BuiltInDevices.none
 }
