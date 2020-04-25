@@ -100,9 +100,11 @@ abstract class BaseNode(implicit val valName: ValName)
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
 
+  protected[diplomacy] def flexibleArityDirection: Boolean = false
   protected[diplomacy] val sinkCard: Int
   protected[diplomacy] val sourceCard: Int
   protected[diplomacy] val flexes: Seq[BaseNode]
+  protected[diplomacy] val flexOffset: Int
 }
 
 object BaseNode
@@ -258,7 +260,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
                                              iBindings.filter(_._3 == BIND_FLEX).map(_._2)
   protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
     def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
-      if (visited.contains(v.serial)) {
+      if (visited.contains(v.serial) || !v.flexibleArityDirection) {
         visited
       } else {
         v.flexes.foldLeft(visited + (v.serial -> v))((sum, n) => DFS(n, sum))
@@ -267,9 +269,20 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     val flexSet = DFS(this, Map()).values
     val allSink   = flexSet.map(_.sinkCard).sum
     val allSource = flexSet.map(_.sourceCard).sum
-    require (flexSet.size == 1 || allSink == 0 || allSource == 0,
+    require (allSink == 0 || allSource == 0,
       s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have ${allSink} :*= operators and ${allSource} :=* operators connected to them, making it impossible to determine cardinality inference direction.")
     allSink - allSource
+  }
+
+  protected[diplomacy] def edgeArityDirection(n: BaseNode): Int = {
+    if (  flexibleArityDirection)   flexOffset else
+    if (n.flexibleArityDirection) n.flexOffset else
+    0
+  }
+
+  protected[diplomacy] def edgeAritySelect(n: BaseNode, l: => Int, r: => Int): Int = {
+    val dir = edgeArityDirection(n)
+    if (dir < 0) l else if (dir > 0) r else 1
   }
 
   private var starCycleGuard = false
@@ -277,27 +290,27 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     try {
       if (starCycleGuard) throw StarCycleException()
       starCycleGuard = true
-      val oStars = oBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset <  0) }
-      val iStars = iBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset >= 0) }
+      val oStars = oBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) < 0) }
+      val iStars = iBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) > 0) }
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) 0 else n.iStar }
+        case BIND_FLEX  => edgeAritySelect(n, 0, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) 0 else n.oStar }
+        case BIND_FLEX  => edgeAritySelect(n, n.oStar, 0)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) oStar else n.iStar }
+        case BIND_FLEX  => edgeAritySelect(n, oStar, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
+        case BIND_FLEX  => edgeAritySelect(n, n.oStar, iStar)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
       val oTotal = oSum.lastOption.getOrElse(0)
@@ -527,6 +540,7 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   extends MixedNode(inner, outer)
 {
   override def description = "adapter"
+  protected[diplomacy] override def flexibleArityDirection = true
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"$context appears left of a :*= $iStars times and right of a :=* $oStars times; at most once is allowed")
     if (oStars > 0) {
