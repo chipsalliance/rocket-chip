@@ -51,7 +51,7 @@ class RocketTile private(
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
-  val rocketLogicalTree = new RocketLogicalTreeNode(this, p(XLen))
+  val rocketLogicalTree = new RocketLogicalTreeNode(this, p(XLen), pgLevels)
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map { s =>
     val coreParams = {
