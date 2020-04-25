@@ -92,111 +92,110 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
     clientFn  = { cp => Seq.fill(node.dRatio) { cp(0) } },
     managerFn = { mp =>
       require (node.uRatio == 1)
-      require (node.dRatio <= 2)
+      require (node.dRatio == 2)
 
-      if (node.dRatio == 1) { mp } else {
-        val local  = mp(0)
-        val remote = mp(1)
+      val local  = mp(0)
+      val remote = mp(1)
 
-        // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
-        val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
-        val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
+      // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
+      val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
+      val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
 
-        val adjustableRemoteManagers = remote.managers.flatMap { m =>
-          val intersection = m.address.flatMap(a => params.region.intersect(a))
-          if (intersection.isEmpty) None else Some(m.v1copy(address = intersection))
-        }
+      val adjustableRemoteManagers = remote.managers.flatMap { m =>
+        val intersection = m.address.flatMap(a => params.region.intersect(a))
+        if (intersection.isEmpty) None else Some(m.v1copy(address = intersection))
+      }
 
-        val fixedRemoteManagers = remote.managers.flatMap { m =>
-          val subtraction = m.address.flatMap(a => a.subtract(params.region))
-          if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
-        }
+      val fixedRemoteManagers = remote.managers.flatMap { m =>
+        val subtraction = m.address.flatMap(a => a.subtract(params.region))
+        if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
+      }
 
-        if (false) {
-          printManagers("Adjustable Local", adjustableLocalManagers)
-          printManagers("Adjustable Remote",adjustableRemoteManagers)
-          printManagers("Fixed Local", fixedLocalManagers)
-          printManagers("Fixed Remote",fixedRemoteManagers)
-        }
+      if (false) {
+        printManagers("Adjustable Local", adjustableLocalManagers)
+        printManagers("Adjustable Remote",adjustableRemoteManagers)
+        printManagers("Fixed Local", fixedLocalManagers)
+        printManagers("Fixed Remote",fixedRemoteManagers)
+      }
 
-        // For address adjustment to be possible, we have to calculate some specific things about the downstream addess map:
+      // For address adjustment to be possible, we have to calculate some specific things about the downstream addess map:
 
-        // Find the downstream error device
-        val errorDevs = local.managers.filter(_.nodePath.last.lazyModule.className == "TLError")
-        require (!errorDevs.isEmpty, s"There is no TLError reachable from ${name}. One must be instantiated.")
-        val errorDev = errorDevs.head
+      // Find the downstream error device
+      val errorDevs = local.managers.filter(_.nodePath.last.lazyModule.className == "TLError")
+      require (!errorDevs.isEmpty, s"There is no TLError reachable from ${name}. One must be instantiated.")
+      val errorDev = errorDevs.head
 
-        // Find all the holes in local routing
-        val holes = {
-          val ra = masked(adjustableRemoteManagers.flatMap(_.address))
-          val la = masked(adjustableLocalManagers .flatMap(_.address))
-          la.foldLeft(ra) { case (holes, la) => holes.flatMap(_.subtract(la)) }
-        }
+      // Find all the holes in local routing
+      val holes = {
+        val ra = masked(adjustableRemoteManagers.flatMap(_.address))
+        val la = masked(adjustableLocalManagers .flatMap(_.address))
+        la.foldLeft(ra) { case (holes, la) => holes.flatMap(_.subtract(la)) }
+      }
 
-        // Confirm that the PMAs of all adjustable devices are replicated according to the mask
-        requireMaskRepetition(adjustableLocalManagers ++ adjustableRemoteManagers)
+      // Confirm that the PMAs of all adjustable devices are replicated according to the mask
+      requireMaskRepetition(adjustableLocalManagers ++ adjustableRemoteManagers)
 
-        // Confirm that the error device can supply all the same capabilities as the remote path
-        requireErrorSupport(errorDev, adjustableRemoteManagers)
+      // Confirm that the error device can supply all the same capabilities as the remote path
+      requireErrorSupport(errorDev, adjustableRemoteManagers)
 
-        // Confirm that each subset of adjustable managers have homogeneous FIFO ids
-        requireFifoHomogeneity(adjustableLocalManagers)
-        requireFifoHomogeneity(adjustableRemoteManagers)
+      // Confirm that each subset of adjustable managers have homogeneous FIFO ids
+      requireFifoHomogeneity(adjustableLocalManagers)
+      requireFifoHomogeneity(adjustableRemoteManagers)
 
-        // Actually rewrite the PMAs for the adjustable local devices
-        val newLocals = adjustableLocalManagers.map { l =>
-          // Ensure that every local device has a matching remote device
-          val container = adjustableRemoteManagers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
-          require (!container.isEmpty, s"There is no remote manager which contains the addresses of ${l.name} (${l.address})")
-          val r = container.get
-          requireContainerSupport(l, r)
+      // Actually rewrite the PMAs for the adjustable local devices
+      val newLocals = adjustableLocalManagers.map { l =>
+        // Ensure that every local device has a matching remote device
+        val container = adjustableRemoteManagers.find { r => l.address.forall { la => r.address.exists(_.contains(la)) } }
+        require (!container.isEmpty, s"There is no remote manager which contains the addresses of ${l.name} (${l.address})")
+        val r = container.get
+        requireContainerSupport(l, r)
 
-          // The address can be dynamically adjusted to anywhere in the adjustable region, but we take the 0 setting as default for DTS output
-          // Any address space holes in the local adjustable region will be plugged with the error device.
-          // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
-          // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
-          l.v1copy(
-            address            = AddressSet.unify(masked(l.address) ++ (if (l == errorDev) holes else Nil)),
-            regionType         = r.regionType,
-            executable         = r.executable,
-            supportsAcquireT   = r.supportsAcquireT,
-            supportsAcquireB   = r.supportsAcquireB,
-            supportsArithmetic = r.supportsArithmetic,
-            supportsLogical    = r.supportsLogical,
-            supportsGet        = r.supportsGet,
-            supportsPutFull    = r.supportsPutFull,
-            supportsPutPartial = r.supportsPutPartial,
-            supportsHint       = r.supportsHint,
-            mayDenyGet         = r.mayDenyGet,
-            mayDenyPut         = r.mayDenyPut,
-            alwaysGrantsT      = r.alwaysGrantsT,
-            fifoId             = Some(if (isDeviceContainedBy(forceLocal, l)) ids.size else 0))
-        }
+        // The address can be dynamically adjusted to anywhere in the adjustable region, but we take the 0 setting as default for DTS output
+        // Any address space holes in the local adjustable region will be plugged with the error device.
+        // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
+        // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
+        l.v1copy(
+          address            = AddressSet.unify(masked(l.address) ++ (if (l == errorDev) holes else Nil)),
+          regionType         = r.regionType,
+          executable         = r.executable,
+          supportsAcquireT   = r.supportsAcquireT,
+          supportsAcquireB   = r.supportsAcquireB,
+          supportsArithmetic = r.supportsArithmetic,
+          supportsLogical    = r.supportsLogical,
+          supportsGet        = r.supportsGet,
+          supportsPutFull    = r.supportsPutFull,
+          supportsPutPartial = r.supportsPutPartial,
+          supportsHint       = r.supportsHint,
+          mayDenyGet         = r.mayDenyGet,
+          mayDenyPut         = r.mayDenyPut,
+          alwaysGrantsT      = r.alwaysGrantsT,
+          fifoId             = Some(if (isDeviceContainedBy(forceLocal, l)) ids.size else 0))
+      }
 
-        // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
-        val newRemotes = ids.tail.zipWithIndex.flatMap { case (id, i) => adjustableRemoteManagers.map { r =>
-          r.v1copy(
-            address = AddressSet.unify(masked(r.address, offset = id)),
-            fifoId = Some(i+1))
-        } }
+      // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
+      val newRemotes = ids.tail.zipWithIndex.flatMap { case (id, i) => adjustableRemoteManagers.map { r =>
+        r.v1copy(
+          address = AddressSet.unify(masked(r.address, offset = id)),
+          fifoId = Some(i+1))
+      } }
 
-        // Relable the FIFO domains for certain manager subsets
-        val fifoIdFactory = TLXbar.relabeler()
-        def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
-          val fifoIdMapper = fifoIdFactory()
-          managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
-        }
+      // Relable the FIFO domains for certain manager subsets
+      val fifoIdFactory = TLXbar.relabeler()
+      def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
+        val fifoIdMapper = fifoIdFactory()
+        managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
+      }
 
-        val newManagerList =
-          relabelFifo(newLocals ++ newRemotes) ++
-          relabelFifo(fixedLocalManagers) ++
-          relabelFifo(fixedRemoteManagers)
+      val newManagerList =
+        relabelFifo(newLocals ++ newRemotes) ++
+        relabelFifo(fixedLocalManagers) ++
+        relabelFifo(fixedRemoteManagers)
 
-        Seq(local.v1copy(
-          managers   = newManagerList,
-          endSinkId  = local.endSinkId + remote.endSinkId,
-          minLatency = local.minLatency min remote.minLatency))
-    } })
+      Seq(local.v1copy(
+        managers   = newManagerList,
+        endSinkId  = local.endSinkId + remote.endSinkId,
+        minLatency = local.minLatency min remote.minLatency))
+    })
 
   val prefix = BundleBridgeSink[UInt]()
 
