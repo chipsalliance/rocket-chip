@@ -222,9 +222,7 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
 
       def isAdjustable(addr: UInt) = containsAddress(Seq(params.region), addr)
       def isDynamicallyLocal(addr: UInt) = (local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr))
-      def isStaticallyLocal(addr: UInt) = containsAddress(AddressSet.unify(localEdge.manager.managers.flatMap(_.address)), addr)
-
-      def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
+      def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), true.B)
 
       // Route A by address, but reroute unsupported operations
       val a_local = routeLocal(parent.a.bits.address)
@@ -234,7 +232,8 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       local .a.bits  := parent.a.bits
       remote.a.bits  := parent.a.bits
 
-      val a_contained = isStaticallyLocal(parent.a.bits.address)
+      def isLocallyLegal(addr: UInt) = containsAddress(AddressSet.unify(localEdge.manager.managers.flatMap(_.address)), addr)
+      val a_legal = isLocallyLegal(parent.a.bits.address)
 
       val acquire_ok =
         Mux(parent.a.bits.param === TLPermissions.toT,
@@ -251,7 +250,7 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
         acquire_ok, acquire_ok)(parent.a.bits.opcode)
 
       val errorSet = localEdge.manager.managers.filter(_.nodePath.last.lazyModule.className == "TLError").head.address.head
-      val a_error = !a_contained || !a_support
+      val a_error = !a_legal || !a_support
       local.a.bits.address := Cat(
         Mux(!a_error, parent.a.bits.address, errorSet.base.U) >> log2Ceil(errorSet.alignment),
         parent.a.bits.address(log2Ceil(errorSet.alignment)-1, 0))
