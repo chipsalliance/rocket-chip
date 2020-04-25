@@ -217,11 +217,10 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       val local_prefix = RegNext(prefix.bundle)
       assert (params.isLegalPrefix(local_prefix))
 
-      def containsAddress(region: Seq[AddressSet], addr: UInt): Bool =
-        region.foldLeft(false.B)(_ || _.contains(addr))
-
-      def isAdjustable(addr: UInt) = containsAddress(Seq(params.region), addr)
-      def isDynamicallyLocal(addr: UInt) = (local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr))
+      def containsAddress(region: Seq[AddressSet], addr: UInt): Bool = region.foldLeft(false.B)(_ || _.contains(addr))
+      val totalContainment = parentEdge.slave.slaves.forall(_.address.forall(params.region contains _))
+      def isAdjustable(addr: UInt) = containsAddress(Seq(params.region), addr) || totalContainment.B
+      def isDynamicallyLocal(addr: UInt) = local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr)
       def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), true.B)
 
       // Route A by address, but reroute unsupported operations
