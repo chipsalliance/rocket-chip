@@ -156,9 +156,9 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.traceSourceNode.bundle <> core.io.trace
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
-  core.io.hartid := constants.hartid
-  outer.dcache.module.io.hartid := constants.hartid
-  outer.frontend.module.io.hartid := constants.hartid
+  core.io.hartid := RegNext(constants.hartid)
+  outer.dcache.module.io.hartid := RegNext(constants.hartid)
+  outer.frontend.module.io.hartid := RegNext(constants.hartid)
   outer.frontend.module.io.reset_vector := constants.reset_vector
 
   // Connect the core pipeline to other intra-tile modules
