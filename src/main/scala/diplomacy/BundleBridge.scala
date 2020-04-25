@@ -48,7 +48,7 @@ case class BundleBridgeNexus[T <: Data]()(implicit valName: ValName) extends Nex
   uFn = _ => BundleBridgeNull(),
   inputRequiresOutput = false)
 
-class BundleBroadcast[T <: Data]()(implicit p: Parameters) extends LazyModule
+class BundleBroadcast[T <: Data](registered: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   val node = BundleBridgeNexus[T]()
 
@@ -64,14 +64,18 @@ class BundleBroadcast[T <: Data]()(implicit p: Parameters) extends LazyModule
       case ActualDirection.Unspecified => ()
       case _ => require(false, "BundleBroadcast can only be used with Output-directed Bundles")
     } }
-    node.out.foreach { case (out, _) => out := in }
+
+    def reg[T <: Data](x: T) = { if (registered) RegNext(x) else x }
+
+    val ireg = reg(in)
+    node.out.foreach { case (out, _) => out := reg(ireg) }
   }
 }
 
 object BundleBroadcast
 {
-  def apply[T <: Data](name: Option[String] = None)(implicit p: Parameters): BundleBridgeNexus[T] = {
-    val broadcast = LazyModule(new BundleBroadcast[T])
+  def apply[T <: Data](name: Option[String] = None, registered: Boolean = false)(implicit p: Parameters): BundleBridgeNexus[T] = {
+    val broadcast = LazyModule(new BundleBroadcast[T](registered))
     name.map(broadcast.suggestName)
     broadcast.node
   }
