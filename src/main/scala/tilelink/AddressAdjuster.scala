@@ -219,9 +219,11 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
 
       def containsAddress(region: Seq[AddressSet], addr: UInt): Bool = region.foldLeft(false.B)(_ || _.contains(addr))
       val totalContainment = parentEdge.slave.slaves.forall(_.address.forall(params.region contains _))
-      def isAdjustable(addr: UInt) = containsAddress(Seq(params.region), addr) || totalContainment.B
+      def isAdjustable(addr: UInt) = params.region.contains(addr) || totalContainment.B
       def isDynamicallyLocal(addr: UInt) = local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr)
-      def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), true.B)
+      val staticLocal = AddressSet.unify(localEdge.manager.managers.flatMap(_.address).filter(a => !params.region.contains(a)))
+      def isStaticallyLocal(addr: UInt) = containsAddress(staticLocal, addr)
+      def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
 
       // Route A by address, but reroute unsupported operations
       val a_local = routeLocal(parent.a.bits.address)
@@ -231,27 +233,30 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       local .a.bits  := parent.a.bits
       remote.a.bits  := parent.a.bits
 
-      def isLocallyLegal(addr: UInt) = containsAddress(AddressSet.unify(localEdge.manager.managers.flatMap(_.address)), addr)
-      val a_legal = isLocallyLegal(parent.a.bits.address)
+      val dynamicLocal = AddressSet.unify(localEdge.manager.managers.flatMap(_.address).filter(a => params.region.contains(a)))
+      val a_legal = containsAddress(dynamicLocal, parent.a.bits.address)
+
+      val dynamicLocalManagers = localEdge.manager.v1copy(
+        managers = localEdge.manager.managers.filter(m => isDeviceContainedBy(Seq(params.region), m)))
 
       val acquire_ok =
         Mux(parent.a.bits.param === TLPermissions.toT,
-          localEdge.manager.supportsAcquireTFast(parent.a.bits.address, parent.a.bits.size),
-          localEdge.manager.supportsAcquireBFast(parent.a.bits.address, parent.a.bits.size))
+          dynamicLocalManagers.supportsAcquireTFast(parent.a.bits.address, parent.a.bits.size),
+          dynamicLocalManagers.supportsAcquireBFast(parent.a.bits.address, parent.a.bits.size))
 
       val a_support = VecInit(
-        localEdge.manager.supportsPutFullFast   (parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsPutPartialFast(parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsArithmeticFast(parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsLogicalFast   (parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsGetFast       (parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsHintFast      (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsPutFullFast   (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsPutPartialFast(parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsArithmeticFast(parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsLogicalFast   (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsGetFast       (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsHintFast      (parent.a.bits.address, parent.a.bits.size),
         acquire_ok, acquire_ok)(parent.a.bits.opcode)
 
       val errorSet = localEdge.manager.managers.filter(_.nodePath.last.lazyModule.className == "TLError").head.address.head
-      val a_error = !a_legal || !a_support
+      val a_ok = !isAdjustable(parent.a.bits.address) || (a_legal && a_support)
       local.a.bits.address := Cat(
-        Mux(!a_error, parent.a.bits.address, errorSet.base.U) >> log2Ceil(errorSet.alignment),
+        Mux(a_ok, parent.a.bits.address, errorSet.base.U) >> log2Ceil(errorSet.alignment),
         parent.a.bits.address(log2Ceil(errorSet.alignment)-1, 0))
 
       // Rewrite sink in D
