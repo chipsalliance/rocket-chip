@@ -33,7 +33,7 @@ FIRRTL_TRANSFORMS := \
 
 CHISEL_OPTIONS := \
   --with-linting \
-  --linting-whitelist Valid.scala,Counter.scala,Reg.scala \
+  --linting-whitelist Valid.scala,Counter.scala,Reg.scala,Decoupled.scala \
 
 ROCKET_CLASSES ?= "$(base_dir)/target/scala-2.12/classes:$(base_dir)/chisel3/target/scala-2.12/*"
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
