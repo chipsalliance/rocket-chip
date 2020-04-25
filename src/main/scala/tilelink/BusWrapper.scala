@@ -355,7 +355,7 @@ case class AddressAdjusterWrapperParams(
   blockBytes: Int,
   beatBytes: Int,
   replication: Option[ReplicatedRegion],
-  forceLocal: Seq[AddressSet]
+  forceLocal: Seq[AddressSet] = Nil
 )
   extends HasTLBusParams
   with TLBusWrapperInstantiationLike
