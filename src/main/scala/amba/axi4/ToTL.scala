@@ -78,7 +78,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       val r_size = OH1ToUInt(r_size1)
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)
       val r_addr = Mux(r_ok, in.ar.bits.addr, UInt(error) | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
-      val r_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
+      val r_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) }).suggestName("r_count")
       val r_id = if (maxFlight == 1) {
         Cat(in.ar.bits.id, UInt(0, width=1))
       } else {
@@ -111,7 +111,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       val w_size = OH1ToUInt(w_size1)
       val w_ok = edgeOut.manager.supportsPutPartialSafe(in.aw.bits.addr, w_size)
       val w_addr = Mux(w_ok, in.aw.bits.addr, UInt(error) | in.aw.bits.addr(log2Up(beatBytes)-1, 0))
-      val w_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
+      val w_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) }).suggestName("w_count")
       val w_id = if (maxFlight == 1) {
         Cat(in.aw.bits.id, UInt(1, width=1))
       } else {
@@ -173,7 +173,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 
       // We need to prevent sending B valid before the last W beat is accepted
       // TileLink allows early acknowledgement of a write burst, but AXI does not.
-      val b_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
+      val b_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) }).suggestName("b_count")
       val b_allow = b_count(in.b.bits.id) =/= w_count(in.b.bits.id)
       val b_sel = UIntToOH(in.b.bits.id, numIds)
 

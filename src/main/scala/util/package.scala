@@ -72,7 +72,7 @@ package object util {
   }
 
   implicit class SeqMemToAugmentedSeqMem[T <: Data](val x: SeqMem[T]) extends AnyVal {
-    def readAndHold(addr: UInt, enable: Bool): T = x.read(addr, enable) holdUnless RegNext(enable)
+    def readAndHold(addr: UInt, enable: Bool): T = x.read(addr, enable) holdUnless RegNext(enable).suggestName("enable_reg")
   }
 
   implicit class StringToAugmentedString(val x: String) extends AnyVal {

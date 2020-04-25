@@ -161,7 +161,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       val beatBytes = edgeIn.manager.beatBytes
       val maxSize   = UInt(log2Ceil(beatBytes))
-      val doneAW    = RegInit(Bool(false))
+      val doneAW    = RegInit(Bool(false)).suggestName("doneAW")
       when (in.a.fire()) { doneAW := !a_last }
 
       val arw = out_arw.bits
@@ -206,7 +206,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       out_w.bits.user.lift(AMBACorrupt).foreach { _ := in.a.bits.corrupt }
 
       // R and B => D arbitration
-      val r_holds_d = RegInit(Bool(false))
+      val r_holds_d = RegInit(Bool(false)).suggestName("r_holds_d")
       when (out.r.fire()) { r_holds_d := !out.r.bits.last }
       // Give R higher priority than B
       val r_wins = out.r.valid || r_holds_d
@@ -218,7 +218,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       // If the first beat of the AXI RRESP is RESP_DECERR, treat this as a denied
       // request. We must pulse extend this value as AXI is allowed to change the
       // value of RRESP on every beat, and ChipLink may not.
-      val r_first = RegInit(Bool(true))
+      val r_first = RegInit(Bool(true)).suggestName("r_first")
       when (out.r.fire()) { r_first := out.r.bits.last }
       val r_denied  = out.r.bits.resp === AXI4Parameters.RESP_DECERR holdUnless r_first
       val r_corrupt = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
@@ -248,8 +248,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         // means that a TileLink master which performs early source reuse can
         // have one more transaction inflight than we promised AXI; stall it too.
         val maxCount = n.getOrElse(1)
-        val count = RegInit(UInt(0, width = log2Ceil(maxCount + 1)))
-        val write = Reg(Bool())
+        val count = RegInit(UInt(0, width = log2Ceil(maxCount + 1))).suggestName("count")
+        val write = Reg(Bool()).suggestName("write")
         val idle = count === UInt(0)
 
         val inc = as && out_arw.fire()

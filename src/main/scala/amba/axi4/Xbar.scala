@@ -105,8 +105,8 @@ class AXI4Xbar(
               val legalFlight = master.maxFlight.getOrElse(maxFlightPerId+1)
               val flight = legalFlight min maxFlightPerId
               val canOverflow = legalFlight > flight
-              val count = RegInit(UInt(0, width = log2Ceil(flight+1)))
-              val last = Reg(UInt(width = log2Ceil(io_out.size)))
+              val count = RegInit(UInt(0, width = log2Ceil(flight+1))).suggestName("count")
+              val last = Reg(UInt(width = log2Ceil(io_out.size))).suggestName("last")
               count := count + req_fire.asUInt - resp_fire.asUInt
               assert (!resp_fire || count =/= UInt(0))
               assert (!req_fire  || count =/= UInt(flight))
@@ -243,7 +243,7 @@ object AXI4Arbiter
     require (!sources.isEmpty)
 
     // The arbiter is irrevocable; when !idle, repeat last request
-    val idle = RegInit(Bool(true))
+    val idle = RegInit(Bool(true)).suggestName("idle")
 
     // Who wants access to the sink?
     val valids = sources.map(_.valid)
@@ -262,7 +262,7 @@ object AXI4Arbiter
     assert (!anyValid || winner.reduce(_||_))
 
     // The one-hot source granted access in the previous cycle
-    val state = RegInit(Vec.fill(sources.size)(Bool(false)))
+    val state = RegInit(Vec.fill(sources.size)(Bool(false))).suggestName("state")
     val muxState = Mux(idle, winner, state)
     state := muxState
 

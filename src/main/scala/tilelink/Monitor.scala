@@ -378,11 +378,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge) {
     val a_first = edge.first(a.bits, a.fire())
-    val opcode  = Reg(UInt())
-    val param   = Reg(UInt())
-    val size    = Reg(UInt())
-    val source  = Reg(UInt())
-    val address = Reg(UInt())
+    val opcode  = Reg(UInt()).suggestName("opcode")
+    val param   = Reg(UInt()).suggestName("param")
+    val size    = Reg(UInt()).suggestName("size")
+    val source  = Reg(UInt()).suggestName("source")
+    val address = Reg(UInt()).suggestName("address")
     when (a.valid && !a_first) {
       monAssert (a.bits.opcode === opcode, "'A' channel opcode changed within multibeat operation" + extra)
       monAssert (a.bits.param  === param,  "'A' channel param changed within multibeat operation" + extra)
@@ -401,11 +401,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge) {
     val b_first = edge.first(b.bits, b.fire())
-    val opcode  = Reg(UInt())
-    val param   = Reg(UInt())
-    val size    = Reg(UInt())
-    val source  = Reg(UInt())
-    val address = Reg(UInt())
+    val opcode  = Reg(UInt()).suggestName("opcode")
+    val param   = Reg(UInt()).suggestName("param")
+    val size    = Reg(UInt()).suggestName("size")
+    val source  = Reg(UInt()).suggestName("source")
+    val address = Reg(UInt()).suggestName("address")
     when (b.valid && !b_first) {
       monAssert (b.bits.opcode === opcode, "'B' channel opcode changed within multibeat operation" + extra)
       monAssert (b.bits.param  === param,  "'B' channel param changed within multibeat operation" + extra)
@@ -506,11 +506,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
     val c_first = edge.first(c.bits, c.fire())
-    val opcode  = Reg(UInt())
-    val param   = Reg(UInt())
-    val size    = Reg(UInt())
-    val source  = Reg(UInt())
-    val address = Reg(UInt())
+    val opcode  = Reg(UInt()).suggestName("opcode ")
+    val param   = Reg(UInt()).suggestName("param")
+    val size    = Reg(UInt()).suggestName("size")
+    val source  = Reg(UInt()).suggestName("source")
+    val address = Reg(UInt()).suggestName("address")
     when (c.valid && !c_first) {
       monAssert (c.bits.opcode === opcode, "'C' channel opcode changed within multibeat operation" + extra)
       monAssert (c.bits.param  === param,  "'C' channel param changed within multibeat operation" + extra)
@@ -527,14 +527,16 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
+  @chiselName
   def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge) {
     val d_first = edge.first(d.bits, d.fire())
-    val opcode  = Reg(UInt())
-    val param   = Reg(UInt())
-    val size    = Reg(UInt())
-    val source  = Reg(UInt())
-    val sink    = Reg(UInt())
-    val denied  = Reg(Bool())
+    val opcode  = Reg(UInt()).suggestName("opcode")
+    val param   = Reg(UInt()).suggestName("param")
+    //sys.error("BAD")
+    val size    = Reg(UInt()).suggestName("size")
+    val source  = Reg(UInt()).suggestName("source")
+    val sink    = Reg(UInt()).suggestName("sink")
+    val denied  = Reg(Bool()).suggestName("denied")
     when (d.valid && !d_first) {
       assume (d.bits.opcode === opcode, "'D' channel opcode changed within multibeat operation" + extra)
       assume (d.bits.param  === param,  "'D' channel param changed within multibeat operation" + extra)
@@ -553,6 +555,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
+  @chiselName
   def legalizeMultibeat(bundle: TLBundle, edge: TLEdge) {
     legalizeMultibeatA(bundle.a, edge)
     legalizeMultibeatD(bundle.d, edge)
@@ -681,7 +684,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     inflight_opcodes := (inflight_opcodes | a_opcodes_set) & ~d_opcodes_clr
     inflight_sizes := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
 
-    val watchdog = RegInit(0.U(32.W))
+    val watchdog = RegInit(0.U(32.W)).suggestName("watchdog")
     val limit = PlusArg("tilelink_timeout",
       docstring="Kill emulation after INT waiting TileLink cycles. Off if 0.")
     monAssert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
@@ -691,7 +694,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeDESink(bundle: TLBundle, edge: TLEdge) {
-    val inflight = RegInit(0.U(edge.manager.endSinkId.W))
+    val inflight = RegInit(0.U(edge.manager.endSinkId.W)).suggestName("inflight")
 
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
     val e_first = true.B
@@ -741,6 +744,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
+  @chiselName
   def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset) {
     legalizeFormat    (bundle, edge)
     legalizeMultibeat (bundle, edge)

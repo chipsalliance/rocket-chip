@@ -54,9 +54,9 @@ class RAS(nras: Int) {
   def clear(): Unit = count := UInt(0)
   def isEmpty: Bool = count === UInt(0)
 
-  private val count = Reg(UInt(width = log2Up(nras+1)))
-  private val pos = Reg(UInt(width = log2Up(nras)))
-  private val stack = Reg(Vec(nras, UInt()))
+  private val count = Reg(UInt(width = log2Up(nras+1))).suggestName("count")
+  private val pos = Reg(UInt(width = log2Up(nras))).suggestName("pos")
+  private val stack = Reg(Vec(nras, UInt())).suggestName("stack")
 }
 
 class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {
@@ -111,7 +111,7 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
   }
 
   private val table = Mem(params.nEntries, UInt(width = params.counterLength))
-  val history = Reg(UInt(width = params.historyLength))
+  val history = Reg(UInt(width = params.historyLength)).suggestName("history")
 }
 
 object CFIType {

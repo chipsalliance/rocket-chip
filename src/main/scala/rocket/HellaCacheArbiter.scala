@@ -6,6 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import freechips.rocketchip.config.Parameters
 
+
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {
   val io = new Bundle {
@@ -16,8 +17,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
   if (n == 1) {
     io.mem <> io.requestor.head
   } else {
-    val s1_id = Reg(UInt())
-    val s2_id = Reg(next=s1_id)
+    val s1_id = Reg(UInt()).suggestName("s1_id")
+    val s2_id = Reg(next=s1_id).suggestName("s2_id")
 
     io.mem.keep_clock_enabled := io.requestor.map(_.keep_clock_enabled).reduce(_||_)
 

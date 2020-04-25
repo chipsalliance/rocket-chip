@@ -227,7 +227,7 @@ class TLEdge(
 
   def firstlastHelper(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val beats1   = numBeats1(bits)
-    val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes)))
+    val counter  = RegInit(UInt(0, width = log2Up(maxTransfer / manager.beatBytes))).suggestName("counter")
     val counter1 = counter - UInt(1)
     val first = counter === UInt(0)
     val last  = counter === UInt(1) || beats1 === UInt(0)

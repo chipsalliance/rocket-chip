@@ -290,7 +290,7 @@ object Debug {
     // The unit should also be clocked when dmactive is high.
     withClockAndReset(c, debug_reset.asAsyncReset) {
       val dmactiveAck = ResetSynchronizerShiftReg(in=debug.dmactive, sync=3, name=Some("dmactiveAck"))
-      val clock_en = RegNext(next=dmactiveAck, init=true.B)
+      val clock_en = RegNext(next=dmactiveAck, init=true.B).suggestName("clock_en")
       val gated_clock =
         if (!p(DebugModuleKey).get.clockGate) c
         else ClockGate(c, clock_en, "debug_clock_gate")

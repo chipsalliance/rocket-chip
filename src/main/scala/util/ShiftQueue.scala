@@ -18,8 +18,8 @@ class ShiftQueue[T <: Data](gen: T,
     val mask = Output(UInt(entries.W))
   })
 
-  private val valid = RegInit(VecInit(Seq.fill(entries) { false.B }))
-  private val elts = Reg(Vec(entries, gen))
+  private val valid = RegInit(VecInit(Seq.fill(entries) { false.B })).suggestName("valid")
+  private val elts = Reg(Vec(entries, gen)).suggestName("elts")
 
   for (i <- 0 until entries) {
     def paddedValid(i: Int) = if (i == -1) true.B else if (i == entries) false.B else valid(i)
