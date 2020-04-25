@@ -39,7 +39,7 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
 
 class PseudoLRU(n: Int)
 {
-  private val state_reg = Reg(UInt(width = n-1))
+  private val state_reg = Reg(UInt(width = n-1)).suggestName("state_reg")
   def access(way: UInt) {
     state_reg := get_next_state(state_reg,way)
   }

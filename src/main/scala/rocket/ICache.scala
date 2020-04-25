@@ -176,7 +176,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val hint_outstanding = RegInit(false.B)
   val s2_miss = s2_valid && !s2_hit && !io.s2_kill
   val s1_can_request_refill = !(s2_miss || refill_valid)
-  val s2_request_refill = s2_miss && RegNext(s1_can_request_refill)
+  val s2_request_refill = s2_miss && RegNext(s1_can_request_refill).suggestName("s2_can_request_refill")
   val refill_paddr = RegEnable(io.s1_paddr, s1_valid && s1_can_request_refill)
   val refill_vaddr = RegEnable(s1_vaddr, s1_valid && s1_can_request_refill)
   val refill_tag = refill_paddr >> pgUntagBits

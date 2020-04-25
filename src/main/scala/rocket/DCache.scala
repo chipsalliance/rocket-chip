@@ -284,7 +284,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_no_xcpt = s2_valid && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
-  val s2_valid_masked = s2_valid_no_xcpt && Reg(next = !s1_nack)
+  val s2_not_nack = Reg(next = !s1_nack)
+  val s2_valid_masked = s2_valid_no_xcpt && s2_not_nack
   val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
   val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.size(0)
@@ -433,7 +434,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_probe) { lrscCount := 0 }
 
   // don't perform data correction if it might clobber a recent store
-  val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
+  val s2_any_pstore_valid = RegNext(any_pstore_valid)
+  val s2_correct = s2_data_error && !any_pstore_valid && !s2_any_pstore_valid && Bool(usingDataScratchpad)
   // pending store buffer
   val s2_valid_correct = s2_valid_hit_pre_data_ecc_and_waw && s2_correct && !io.cpu.s2_kill
   def s2_store_valid_pre_kill = s2_valid_hit && s2_write && !s2_sc_fail
@@ -449,7 +451,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_merge = s2_store_valid && s2_store_merge
   val pstore2_valid = Reg(Bool())
   val pstore_drain_opportunistic = !(io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)) && !(s1_valid && s1_waw_hazard)
-  val pstore_drain_on_miss = releaseInFlight || RegNext(io.cpu.s2_nack)
+  val pstore_cpu_s2_nack = RegNext(io.cpu.s2_nack)
+  val pstore_drain_on_miss = releaseInFlight || pstore_cpu_s2_nack
   val pstore1_held = Reg(Bool())
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
   def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && s2_write && !s2_kill || pstore1_held
@@ -516,7 +519,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_valid && s1_raw_hazard) { s1_nack := true }
 
   // performance hints to processor
-  io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard) || !(!s2_waw_hazard || s2_store_merge)
+  val s2_raw_hazard = RegNext(s1_raw_hazard)
+  io.cpu.s2_nack_cause_raw := s2_raw_hazard || !(!s2_waw_hazard || s2_store_merge)
 
   // Prepare a TileLink request message that initiates a transaction
   val a_source = PriorityEncoder(~uncachedInFlight.asUInt << mmioOffset) // skip the MSHR
@@ -827,7 +831,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
-  io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))
+  val s2_xcpt_valid = RegNext(s1_xcpt_valid)
+  io.cpu.s2_xcpt := Mux(s2_xcpt_valid, s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))
 
   if (usingDataScratchpad) {
     assert(!(s2_valid_masked && s2_req.cmd.isOneOf(M_XLR, M_XSC)))
@@ -901,8 +906,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // flushes
   val resetting = RegInit(false.B)
-  if (!usingDataScratchpad)
-    when (RegNext(reset)) { resetting := true }
+  if (!usingDataScratchpad) {
+    val regnext_reset = RegNext(reset).suggestName("regnext_reset")
+    when (regnext_reset) { resetting := true }
+  }
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays

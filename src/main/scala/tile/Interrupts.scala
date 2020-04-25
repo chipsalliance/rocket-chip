@@ -116,6 +116,6 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportWFI(could_wfi: Option[Bool]) {
     val (wfi, _) = wfiNode.out(0)
-    wfi(0) := could_wfi.map(RegNext(_)).getOrElse(false.B)
+    wfi(0) := could_wfi.map(RegNext(_).suggestName("reg_wfi")).getOrElse(false.B)
   }
 }

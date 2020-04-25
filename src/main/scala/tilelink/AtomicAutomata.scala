@@ -73,9 +73,9 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       if (camSize > 0) {
         val initval = Wire(new TLAtomicAutomata.CAM_S(params))
         initval.state := FREE
-        val cam_s = RegInit(Vec.fill(camSize)(initval))
-        val cam_a = Reg(Vec(camSize, new TLAtomicAutomata.CAM_A(params)))
-        val cam_d = Reg(Vec(camSize, new TLAtomicAutomata.CAM_D(params)))
+        val cam_s = RegInit(Vec.fill(camSize)(initval)).suggestName("cam_s")
+        val cam_a = Reg(Vec(camSize, new TLAtomicAutomata.CAM_A(params))).suggestName("cam_a")
+        val cam_d = Reg(Vec(camSize, new TLAtomicAutomata.CAM_D(params))).suggestName("cam_d")
 
         val cam_free   = cam_s.map(_.state === FREE)
         val cam_amo    = cam_s.map(_.state === AMO)

@@ -47,8 +47,8 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
         }
 
         // Which ID is being enqueued and dequeued?
-        val locked = RegInit(Bool(false))
-        val deq_id = Reg(UInt(width=log2Up(endId)))
+        val locked = RegInit(Bool(false)).suggestName("locked")
+        val deq_id = Reg(UInt(width=log2Up(endId))).suggestName("deq_id")
         val enq_id = out.r.bits.id
         val deq_OH = UIntToOH(deq_id, endId)
         val enq_OH = UIntToOH(enq_id, endId)
@@ -59,7 +59,7 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
           if (depth == 0) {
             Bool(false)
           } else {
-            val count = RegInit(UInt(0, width=log2Ceil(beats+1)))
+            val count = RegInit(UInt(0, width=log2Ceil(beats+1))).suggestName("count")
             val next = Wire(count)
             val inc = enq_OH(i) && out.r.fire() && out.r.bits.last
             val dec = deq_OH(i) && in.r.fire() && in.r.bits.last
