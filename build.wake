@@ -157,3 +157,50 @@ global def runRocketChipGenerator options =
   def omFile      = getFileOpt `.*\.objectModel\.json`
 
   RocketChipGeneratorOutputs dtsFile firrtlFile annoFile romConfFile allOutputs options omFile
+
+global def runRocketChipBloopGenerator options =
+  def jsons = options.getRocketChipGeneratorOptionsJars
+  def targetDir = "{workspace}/{options.getRocketChipGeneratorOptionsTargetDir.getPathName}"
+  def bootrom = source 'rocket-chip/bootrom/bootrom.img'
+  def foutputs _ = files targetDir `.*`
+  def project = match jsons.head
+    Some path = replace `.json$` '' path.getPathChild
+    _         = "rocketchip"
+
+  def cmdline =
+    def rootPackage = "_root_"
+    def main = "freechips.rocketchip.system.Generator"
+    def configs = catWith "," options.getRocketChipGeneratorOptionsConfigNames
+    def topModule = options.getRocketChipGeneratorOptionsTopModuleName
+    def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
+      Some name = "--name", name, Nil
+      None = Nil
+    def generatorArgs = "--target-dir", targetDir, "--top-module", topModule, "--configs", configs, baseFileName
+    def args = generatorArgs | map ("--args", _, Nil) | flatten
+
+    which "bloop", "run",
+    "--projects", project,
+    "--main", main,
+    args
+
+  def generatorJob =
+    makePlan cmdline (bootrom, jsons)
+    | editPlanResources ("bloop/1.4.0-RC1", _)
+    | setPlanFnOutputs foutputs
+    | setPlanLocalOnly True
+    | runJob
+
+  def filterFiles regex = filter (matches regex _.getPathName) allOutputs
+  def getFile regex = filterFiles regex | head | getOrElse (makeBadPath (makeError "File not found"))
+  def getFileOpt regex = match (filterFiles regex)
+    Nil        = None
+    head, tail = Some head
+
+  def allOutputs = generatorJob.getJobOutputs
+  def annoFile    = getFile `.*\.anno\.json`
+  def firrtlFile  = getFile `.*\.fir`
+  def romConfFile = getFile `.*\.rom\.conf`
+  def dtsFile     = getFile `.*\.dts`
+  def omFile      = getFileOpt `.*\.objectModel\.json`
+
+  RocketChipGeneratorOutputs dtsFile firrtlFile annoFile romConfFile allOutputs options omFile
