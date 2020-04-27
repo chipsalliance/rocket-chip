@@ -173,6 +173,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
 }
 
 class TraceAux extends Bundle {
+  val enable = Bool()
   val stall = Bool()
 }
 
