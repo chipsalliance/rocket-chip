@@ -31,10 +31,6 @@ SHELL := /bin/bash
 FIRRTL_TRANSFORMS := \
 	firrtl.passes.InlineInstances \
 
-CHISEL_OPTIONS := \
-  --with-linting \
-  --linting-whitelist Valid.scala,Counter.scala,Reg.scala \
-
 ROCKET_CLASSES ?= "$(base_dir)/target/scala-2.12/classes:$(base_dir)/chisel3/target/scala-2.12/*"
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
 FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp "$(FIRRTL_JAR)":"$(ROCKET_CLASSES)" firrtl.Driver
