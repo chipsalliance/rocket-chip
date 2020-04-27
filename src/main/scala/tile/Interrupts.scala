@@ -102,7 +102,13 @@ trait SourcesExternalNotifications { this: BaseTile =>
       saturated
     }
     val (cease, _) = ceaseNode.out(0)
-    cease(0) := could_cease.map(waitForQuiescence(_)).getOrElse(false.B)
+    cease(0) := could_cease.map{ c => 
+      val cease = (waitForQuiescence(c))
+      // Test-Only Code --
+      val prev_cease = RegNext(c, false.B)
+      assert(!(prev_cease & !c), "CEASE line can not glitch once raised") 
+      cease
+    }.getOrElse(false.B)
   }
 
   // Report when the tile is waiting for an interrupt
