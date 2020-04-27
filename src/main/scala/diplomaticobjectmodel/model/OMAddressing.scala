@@ -203,6 +203,21 @@ object OMRegister {
     groups.distinct.sortBy(_.name)
   }
 
+  private def makeAddressBlocks(mapping: Seq[(Int, Seq[RegField])]): Seq[OMAddressBlock] = {
+    val addressBlocks = for {
+      (_,seq) <- mapping
+      regField <- seq
+      desc <- regField.desc
+      ab <- desc.addressBlock
+    } yield  OMAddressBlock(
+      name = ab.name,
+      addressOffset = ab.addressOffset,
+      range = ab.range,
+      width = ab.width
+    )
+    groups.distinct.sortBy(_.addressOffset)
+  }
+
   private def makeRegisterMap(mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
     OMRegisterMap(
       registerFields = makeRegisters(mapping),
