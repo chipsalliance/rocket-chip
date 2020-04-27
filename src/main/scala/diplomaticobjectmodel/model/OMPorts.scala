@@ -124,21 +124,26 @@ case class SystemPort(
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
-  val protocolSpecifications = Map[ProtocolType, String](
-    AHBProtocol -> "AMBA 3 AHB-Lite Protocol",
-    AXI4Protocol -> "AMBA 3 AXI4-Lite Protocol",
-    APBProtocol -> "AMBA 3 APB Protocol",
-    TLProtocol -> "TileLink specification"
-  )
+  val protocolSpecifications: (ProtocolType, SubProtocolType) => String = {
+   case (AHBProtocol, AHBLiteSubProtocol) => "AHB Lite Protocol"
+   case (AHBProtocol, AHBFullSubProtocol) => "AHB Full Protocol"
+   case (AXI4Protocol, AXI4SubProtocol) => "AXI Protocol"
+   case (AXI4Protocol, AXI4LiteSubProtocol) => "AXI Lite Protocol"
+   case (APBProtocol, APBSubProtocol) => "APB Protocol"
+   case (TLProtocol, TL_UHSubProtocol) => "TileLink Protocol"
+   case (TLProtocol, TL_ULSubProtocol) => "TileLink Protocol"
+   case (TLProtocol, TL_CSubProtocol) => "TileLink Protocol"
+   case _ => "Invalid Protocol"
+  }
 
   val protocolSpecificationVersions = Map[ProtocolType, String](
-    AHBProtocol -> "1.0",
-    AXI4Protocol -> "1.0",
+    AHBProtocol -> "3",
+    AXI4Protocol -> "4",
     APBProtocol -> "1.0",
     TLProtocol -> "1.8"
   )
 
-  def specVersion(protocol: ProtocolType, version: String): Option[OMSpecification] = Some(OMSpecification(protocolSpecifications(protocol), version))
+  def specVersion(protocol: ProtocolType, subProtocol: SubProtocolType, version: String): Option[OMSpecification] = Some(OMSpecification(protocolSpecifications(protocol, subProtocol), version))
 
   val portNames = Map[PortType, String](
     SystemPortType -> "System Port",
@@ -158,14 +163,14 @@ object OMPortMaker {
     val documentationName = portNames(portType)
 
     val omProtocol = (protocol, subProtocol) match {
-      case (AXI4Protocol, AXI4SubProtocol) => AXI4(specification = specVersion(protocol, version))
-      case (AXI4Protocol, AXI4LiteSubProtocol) => AXI4_Lite(specification = specVersion(protocol, version))
-      case (AHBProtocol, AHBLiteSubProtocol) => AHB_Lite(specification = specVersion(protocol, version))
-      case (AHBProtocol, AHBFullSubProtocol) => AHB(specification = specVersion(protocol, version))
-      case (APBProtocol, APBSubProtocol) => APB(specification = specVersion(protocol, version))
-      case (TLProtocol, TL_UHSubProtocol) => TL_UH(specification = specVersion(protocol, version))
-      case (TLProtocol, TL_ULSubProtocol) => TL_UL(specification = specVersion(protocol, version))
-      case (TLProtocol, TL_CSubProtocol) => TL_C(specification = specVersion(protocol, version))
+      case (AXI4Protocol, AXI4SubProtocol) => AXI4(specification = specVersion(protocol, subProtocol, version))
+      case (AXI4Protocol, AXI4LiteSubProtocol) => AXI4_Lite(specification = specVersion(protocol, subProtocol, version))
+      case (AHBProtocol, AHBLiteSubProtocol) => AHB_Lite(specification = specVersion(protocol, subProtocol, version))
+      case (AHBProtocol, AHBFullSubProtocol) => AHB(specification = specVersion(protocol, subProtocol, version))
+      case (APBProtocol, APBSubProtocol) => APB(specification = specVersion(protocol, subProtocol, version))
+      case (TLProtocol, TL_UHSubProtocol) => TL_UH(specification = specVersion(protocol, subProtocol, version))
+      case (TLProtocol, TL_ULSubProtocol) => TL_UL(specification = specVersion(protocol, subProtocol, version))
+      case (TLProtocol, TL_CSubProtocol) => TL_C(specification = specVersion(protocol, subProtocol, version))
       case _ => throw new IllegalArgumentException(s"protocol $protocol, subProtocol $subProtocol")
     }
 
