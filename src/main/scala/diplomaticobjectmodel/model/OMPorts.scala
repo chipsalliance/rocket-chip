@@ -130,9 +130,9 @@ object OMPortMaker {
    case (AXI4Protocol, AXI4SubProtocol) => "AXI Protocol"
    case (AXI4Protocol, AXI4LiteSubProtocol) => "AXI Lite Protocol"
    case (APBProtocol, APBSubProtocol) => "APB Protocol"
-   case (TLProtocol, TL_UHSubProtocol) => "TileLink specification"
-   case (TLProtocol, TL_ULSubProtocol) => "TileLink specification"
-   case (TLProtocol, TL_CSubProtocol) => "TileLink specification"
+   case (TLProtocol, TL_UHSubProtocol) => "TileLink Protocol"
+   case (TLProtocol, TL_ULSubProtocol) => "TileLink Protocol"
+   case (TLProtocol, TL_CSubProtocol) => "TileLink Protocol"
    case _ => "Invalid Protocol"
   }
 
