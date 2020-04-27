@@ -125,7 +125,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val predicted_taken = Wire(init = Bool(false))
 
   val s2_replay = Wire(Bool())
-  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid, true.B).suggestName("reg")
+  s2_replay := (s2_valid && !fq.io.enq.fire()) || RegNext(s2_replay && !s0_valid, true.B)
   val npc = Mux(s2_replay, s2_pc, predicted_npc)
 
   s1_pc := io.cpu.npc
@@ -164,8 +164,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s2_kill := s2_speculative && !s2_can_speculatively_refill || s2_xcpt
   icache.io.s2_prefetch := s2_tlb_resp.prefetchable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableICachePrefetch
 
-  val s1_valid_regnext = RegNext(s1_valid)
-  fq.io.enq.valid := s1_valid_regnext && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
+  fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
 

@@ -577,7 +577,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
-  div.io.kill := killm_common && Reg(next = div.io.req.fire()).suggestName("div_io_req_fire_reg")
+  div.io.kill := killm_common && Reg(next = div.io.req.fire())
   val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem
 
   // writeback stage
@@ -866,7 +866,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
   // evaluate performance counters
-  val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid).suggestName("imem_resp_valid_reg"))
+  val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
@@ -882,9 +882,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.wrdst := wb_waddr
   coreMonitorBundle.wrdata := rf_wdata
   coreMonitorBundle.rd0src := wb_reg_inst(19,15)
-  coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)).suggestName("ex_rs_0_reg")).suggestName("ex_rs_0_reg_reg")
+  coreMonitorBundle.rd0val := Reg(next=Reg(next=ex_rs(0)))
   coreMonitorBundle.rd1src := wb_reg_inst(24,20)
-  coreMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)).suggestName("ex_rs_1_reg")).suggestName("ex_rs_1_reg_reg")
+  coreMonitorBundle.rd1val := Reg(next=Reg(next=ex_rs(1)))
   coreMonitorBundle.inst := csr.io.trace(0).insn
   coreMonitorBundle.excpt := csr.io.trace(0).exception
   coreMonitorBundle.priv_mode := csr.io.trace(0).priv
@@ -966,7 +966,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     def read(addr: UInt): Bool = r(addr)
     def readBypassed(addr: UInt): Bool = _next(addr)
 
-    private val _r = Reg(init=Bits(0, n)).suggestName("reg_r")
+    private val _r = Reg(init=Bits(0, n))
     private val r = if (zero) (_r >> 1 << 1) else _r
     private var _next = r
     private var ens = Bool(false)

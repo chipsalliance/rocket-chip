@@ -178,9 +178,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         // Whatever toggle bit the D is reassembling, A will use the opposite.
 
         // First, handle the return path
-        val acknum = RegInit(UInt(0, width = counterBits)).suggestName("acknum")
-        val dOrig = Reg(UInt()).suggestName("dOrig")
-        val dToggle = RegInit(Bool(false)).suggestName("dToggle")
+        val acknum = RegInit(UInt(0, width = counterBits))
+        val dOrig = Reg(UInt())
+        val dToggle = RegInit(Bool(false))
         val dFragnum = out.d.bits.source(fragmentBits-1, 0)
         val dFirst = acknum === UInt(0)
         val dLast = dFragnum === UInt(0) // only for AccessAck (!Data)
@@ -279,7 +279,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val aHasData = edgeIn.hasData(in_a.bits)
         val aMask = Mux(aHasData, UInt(0), aFragOH1)
 
-        val gennum = RegInit(UInt(0, width = counterBits)).suggestName("gennum")
+        val gennum = RegInit(UInt(0, width = counterBits))
         val aFirst = gennum === UInt(0)
         val old_gennum1 = Mux(aFirst, aOrigOH1 >> log2Ceil(beatBytes), gennum - UInt(1))
         val new_gennum = ~(~old_gennum1 | (aMask >> log2Ceil(beatBytes))) // ~(~x|y) is width safe

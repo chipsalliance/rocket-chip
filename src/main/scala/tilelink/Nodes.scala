@@ -3,7 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import chisel3.experimental.chiselName
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
@@ -22,7 +21,6 @@ object TLImp extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEd
 
   def render(ei: TLEdgeIn) = RenderedEdge(colour = "#000000" /* black */, label = (ei.manager.beatBytes * 8).toString)
 
-  @chiselName
   override def monitor(bundle: TLBundle, edge: TLEdgeIn) {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
     monitor.io.in := bundle

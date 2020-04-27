@@ -70,7 +70,7 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
 
       // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
       // Sources unused in the stall signal calculation should be pruned by DCE
-      val flight = RegInit(Vec.fill(edgeIn.client.endSourceId) { Bool(false) }).suggestName("flight")
+      val flight = RegInit(Vec.fill(edgeIn.client.endSourceId) { Bool(false) })
       when (a_first && in.a.fire()) { flight(in.a.bits.source) := !a_notFIFO }
       when (d_first && in.d.fire()) { flight(in.d.bits.source) := Bool(false) }
 
@@ -106,7 +106,7 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
      
       cover(in.a.valid && stall, "COVER FIFOFIXER STALL", "Cover: Stall occured for a valid transaction")
 
-      val SourceIdFIFOed = RegInit(UInt(0, width = edgeIn.client.endSourceId)).suggestName("SourceIdFIFOed")
+      val SourceIdFIFOed = RegInit(UInt(0, width = edgeIn.client.endSourceId))
       val SourceIdSet = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
       val SourceIdClear = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
 

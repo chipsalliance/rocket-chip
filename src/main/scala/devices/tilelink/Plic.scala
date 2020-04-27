@@ -184,7 +184,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       fanin.io.prio := priority
       fanin.io.ip   := enableVec(hart) & pendingUInt
       maxDevs(hart) := fanin.io.dev
-      harts(hart)   := ShiftRegister(Reg(next = fanin.io.max).suggestName("fanin_max_reg") > threshold(hart), params.intStages)
+      harts(hart)   := ShiftRegister(Reg(next = fanin.io.max) > threshold(hart), params.intStages)
     }
 
     def priorityRegDesc(i: Int) =
@@ -308,7 +308,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       cover(completed && RegEnable(completed, false.B, claimed || completed), "TWO_COMPLETES", "two completes with no intervening claim")
 
       val ep = enables(0).asUInt & pending.asUInt
-      val ep2 = RegNext(ep).suggestName("ep2")
+      val ep2 = RegNext(ep)
       val diff = ep & ~ep2
       cover((diff & (diff - 1)) =/= 0, "TWO_INTS_PENDING", "two enabled interrupts became pending on same cycle")
 

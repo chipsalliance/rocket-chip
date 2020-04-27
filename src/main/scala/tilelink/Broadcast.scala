@@ -149,9 +149,9 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       TLArbiter.lowestFromSeq(edgeOut, out.a, putfull +: trackers.map(_.out_a))
 
       // The Probe FSM walks all caches and probes them
-      val probe_todo = RegInit(UInt(0, width = max(1, caches.size))).suggestName("probe_todo")
-      val probe_line = Reg(UInt()).suggestName("probe_line")
-      val probe_perms = Reg(UInt(width = 2)).suggestName("probe_perms")
+      val probe_todo = RegInit(UInt(0, width = max(1, caches.size)))
+      val probe_line = Reg(UInt())
+      val probe_perms = Reg(UInt(width = 2))
       val probe_next = probe_todo & ~(leftOR(probe_todo) << 1)
       val probe_busy = probe_todo.orR()
       val probe_target = if (caches.size == 0) UInt(0) else Mux1H(probe_next, cache_targets)

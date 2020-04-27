@@ -40,7 +40,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
       } else {
         // State tracking
         val sourceIdMap = Mem(maxInFlight, in.a.bits.source)
-        val allocated = RegInit(UInt(0, width = maxInFlight)).suggestName("allocated")
+        val allocated = RegInit(UInt(0, width = maxInFlight))
         val nextFreeOH = ~(leftOR(~allocated) << 1) & ~allocated
         val nextFree = OHToUInt(nextFreeOH)
         val full = allocated.andR()

@@ -58,9 +58,9 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       def fragment(a: IrrevocableIO[AXI4BundleA], supportedSizes1: Seq[Int]): (IrrevocableIO[AXI4BundleA], Bool, UInt) = {
         val out = Wire(a)
 
-        val busy   = RegInit(Bool(false)).suggestName("busy")
-        val r_addr = Reg(UInt(width = a.bits.params.addrBits)).suggestName("r_addr")
-        val r_len  = Reg(UInt(width = AXI4Parameters.lenBits)).suggestName("r_len")
+        val busy   = RegInit(Bool(false))
+        val r_addr = Reg(UInt(width = a.bits.params.addrBits))
+        val r_len  = Reg(UInt(width = AXI4Parameters.lenBits))
 
         val len  = Mux(busy, r_len,  a.bits.len)
         val addr = Mux(busy, r_addr, a.bits.addr)
@@ -148,7 +148,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.ar.bits.echo(AXI4FragLast) := ar_last
 
       // When does W channel start counting a new transfer
-      val wbeats_latched = RegInit(Bool(false)).suggestName("wbeats_latched")
+      val wbeats_latched = RegInit(Bool(false))
       val wbeats_ready = Wire(Bool())
       val wbeats_valid = Wire(Bool())
       when (wbeats_valid && wbeats_ready) { wbeats_latched := Bool(true) }
@@ -162,7 +162,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.aw.bits.echo(AXI4FragLast) := aw_last
 
       // We need to inject 'last' into the W channel fragments, count!
-      val w_counter = RegInit(UInt(0, width = AXI4Parameters.lenBits+1)).suggestName("w_counter")
+      val w_counter = RegInit(UInt(0, width = AXI4Parameters.lenBits+1))
       val w_idle = w_counter === UInt(0)
       val w_todo = Mux(w_idle, Mux(wbeats_valid, w_beats, UInt(0)), w_counter)
       val w_last = w_todo === UInt(1)
@@ -190,7 +190,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.b.ready := in.b.ready || !b_last
 
       // Merge errors from dropped B responses
-      val error = RegInit(Vec.fill(edgeIn.master.endId) { UInt(0, width = AXI4Parameters.respBits)}).suggestName("error")
+      val error = RegInit(Vec.fill(edgeIn.master.endId) { UInt(0, width = AXI4Parameters.respBits)})
       in.b.bits.resp := out.b.bits.resp | error(out.b.bits.id)
       (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).asBools) foreach { case (reg, sel) =>
         when (sel && out.b.fire()) { reg := Mux(b_last, UInt(0), reg | out.b.bits.resp) }

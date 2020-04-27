@@ -18,7 +18,7 @@ object TLArbiter
   val roundRobin: Policy = (width, valids, select) => if (width == 1) UInt(1, width=1) else {
     val valid = valids(width-1, 0)
     assert (valid === valids)
-    val mask = RegInit(UInt((BigInt(1) << width)-1, width = width)).suggestName("mask")
+    val mask = RegInit(UInt((BigInt(1) << width)-1, width = width))
     val filter = Cat(valid & ~mask, valid)
     val unready = (rightOR(filter, width*2, width) >> 1) | (mask << width)
     val readys = ~((unready >> width) & unready(width-1, 0))
@@ -51,7 +51,7 @@ object TLArbiter
       val sourcesIn = pairs.map(_._2)
 
       // The number of beats which remain to be sent
-      val beatsLeft = RegInit(UInt(0)).suggestName("beatsLeft")
+      val beatsLeft = RegInit(UInt(0))
       val idle = beatsLeft === UInt(0)
       val latch = idle && sink.ready // winner (if any) claims sink
 
@@ -76,7 +76,7 @@ object TLArbiter
       beatsLeft := Mux(latch, initBeats, beatsLeft - sink.fire())
 
       // The one-hot source granted access in the previous cycle
-      val state = RegInit(Vec.fill(sources.size)(Bool(false))).suggestName("state")
+      val state = RegInit(Vec.fill(sources.size)(Bool(false)))
       val muxState = Mux(idle, winner, state)
       state := muxState
 
@@ -96,7 +96,7 @@ import freechips.rocketchip.unittest._
 class TestRobin(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val sources = Wire(Vec(6, DecoupledIO(UInt(width=3))))
   val sink = Wire(DecoupledIO(UInt(width=3)))
-  val count = RegInit(UInt(0, width=8)).suggestName("count")
+  val count = RegInit(UInt(0, width=8))
 
   val lfsr = LFSR(16, Bool(true))
   val valid = lfsr(0)

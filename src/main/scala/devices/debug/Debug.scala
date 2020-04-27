@@ -389,7 +389,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     }
 
     val HAWINDOWSELNxt = WireInit(0.U.asTypeOf(new HAWINDOWSELFields()))
-    val HAWINDOWSELReg = RegNext(next=HAWINDOWSELNxt, init=0.U.asTypeOf(HAWINDOWSELNxt)).suggestName("HAWINDOWSELReg")
+    val HAWINDOWSELReg = RegNext(next=HAWINDOWSELNxt, init=0.U.asTypeOf(HAWINDOWSELNxt))
 
     if (supportHartArray) {
       val HAWINDOWSELReset = WireInit(0.U.asTypeOf(new HAWINDOWSELFields()))
@@ -843,7 +843,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     withReset(reset.asAsyncReset) {          // ensure interrupt requests are negated at first clock edge
-      val hrDebugIntReg = RegInit(VecInit(Seq.fill(nComponents) { false.B } )).suggestName("hrDebugIntReg")
+      val hrDebugIntReg = RegInit(VecInit(Seq.fill(nComponents) { false.B } ))
       when (~io.dmactive || ~dmAuthenticated) {
         hrDebugIntReg := hrReset
       }.otherwise {
