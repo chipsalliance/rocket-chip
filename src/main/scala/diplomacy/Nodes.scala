@@ -100,9 +100,11 @@ abstract class BaseNode(implicit val valName: ValName)
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
 
+  protected[diplomacy] def flexibleArityDirection: Boolean = false
   protected[diplomacy] val sinkCard: Int
   protected[diplomacy] val sourceCard: Int
   protected[diplomacy] val flexes: Seq[BaseNode]
+  protected[diplomacy] val flexOffset: Int
 }
 
 object BaseNode
@@ -258,7 +260,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
                                              iBindings.filter(_._3 == BIND_FLEX).map(_._2)
   protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
     def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
-      if (visited.contains(v.serial)) {
+      if (visited.contains(v.serial) || !v.flexibleArityDirection) {
         visited
       } else {
         v.flexes.foldLeft(visited + (v.serial -> v))((sum, n) => DFS(n, sum))
@@ -267,9 +269,20 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     val flexSet = DFS(this, Map()).values
     val allSink   = flexSet.map(_.sinkCard).sum
     val allSource = flexSet.map(_.sourceCard).sum
-    require (flexSet.size == 1 || allSink == 0 || allSource == 0,
+    require (allSink == 0 || allSource == 0,
       s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have ${allSink} :*= operators and ${allSource} :=* operators connected to them, making it impossible to determine cardinality inference direction.")
     allSink - allSource
+  }
+
+  protected[diplomacy] def edgeArityDirection(n: BaseNode): Int = {
+    if (  flexibleArityDirection)   flexOffset else
+    if (n.flexibleArityDirection) n.flexOffset else
+    0
+  }
+
+  protected[diplomacy] def edgeAritySelect(n: BaseNode, l: => Int, r: => Int): Int = {
+    val dir = edgeArityDirection(n)
+    if (dir < 0) l else if (dir > 0) r else 1
   }
 
   private var starCycleGuard = false
@@ -277,27 +290,27 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     try {
       if (starCycleGuard) throw StarCycleException()
       starCycleGuard = true
-      val oStars = oBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset <  0) }
-      val iStars = iBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset >= 0) }
+      val oStars = oBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) < 0) }
+      val iStars = iBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) > 0) }
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) 0 else n.iStar }
+        case BIND_FLEX  => edgeAritySelect(n, 0, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) 0 else n.oStar }
+        case BIND_FLEX  => edgeAritySelect(n, n.oStar, 0)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) oStar else n.iStar }
+        case BIND_FLEX  => edgeAritySelect(n, oStar, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
+        case BIND_FLEX  => edgeAritySelect(n, n.oStar, iStar)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
       val oTotal = oSum.lastOption.getOrElse(0)
@@ -457,63 +470,66 @@ abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]
   implicit valName: ValName)
   extends MixedCustomNode(imp, imp)
 
+/* A JunctionNode creates multiple parallel arbiters.
+ * For example,
+ *   val jbar = LazyModule(new JBar)
+ *   slave1.node := jbar.node
+ *   slave2.node := jbar.node
+ *   extras.node :=* jbar.node
+ *   jbar.node :*= masters1.node
+ *   jbar.node :*= masters2.node
+ * In the above example, only the first two connections have their multiplicity specified.
+ * All the other connections include a '*' on the JBar's side, so the JBar decides the multiplicity.
+ * Thus, in this example, we get 2x crossbars with 2 masters like this:
+ *    {slave1, extras.1} <= jbar.1 <= {masters1.1, masters2.1}
+ *    {slave2, extras.2} <= jbar.2 <= {masters1.2, masters2,2}
+ * Here is another example:
+ *   val jbar = LazyModule(new JBar)
+ *   jbar.node :=* masters.node
+ *   slaves1.node :=* jbar.node
+ *   slaves2.node :=* jbar.node
+ * In the above example, the first connection takes multiplicity (*) from the right (masters).
+ * Supposing masters.node had 3 edges, this would result in these three arbiters:
+ *   {slaves1.1, slaves2.1} <= jbar.1 <= { masters.1 }
+ *   {slaves1.2, slaves2.2} <= jbar.2 <= { masters.2 }
+ *   {slaves1.3, slaves2.3} <= jbar.3 <= { masters.3 }
+ */
 class MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
-  uRatio: Int,
-  dRatio: Int,
   dFn: Seq[DI] => Seq[DO],
   uFn: Seq[UO] => Seq[UI])(
   implicit valName: ValName)
   extends MixedNode(inner, outer)
 {
-  require (dRatio >= 1)
-  require (uRatio >= 1)
+  protected[diplomacy] var multiplicity = 0
+
+  def uRatio = iPorts.size / multiplicity
+  def dRatio = oPorts.size / multiplicity
 
   override def description = "junction"
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iStars <= uRatio, s"$context appears left of a :*= $iStars times; at most $uRatio (uRatio) is allowed")
-    require (oStars <= dRatio, s"$context appears right of a :=* $oStars times; at most $dRatio (dRatio) is allowed")
-    val iFixed = uRatio - iStars
-    val oFixed = dRatio - oStars
-    require (oFixed != 0 || iFixed != 0, s"$context has flexible bindings for every in/out ratio; it cannot resolve the cardinality")
-    require (oFixed == 0 || oKnown % oFixed == 0, s"$context is connected to $oKnown fixed outputs, but this must be divisible by the inflexible ratio $oFixed")
-    require (iFixed == 0 || iKnown % iFixed == 0, s"$context is connected to $iKnown fixed inputs, but this must be divisible by the inflexible ratio $iFixed")
-    require (iFixed == 0 || oFixed == 0 || oKnown/oFixed == iKnown/iFixed, s"$context has ${oKnown/oFixed} output multiplicity, which does not equal the ${iKnown/iFixed} input multiplicity")
-    val multiplier = if (iFixed == 0) { oKnown/oFixed } else { iKnown/iFixed }
-    (multiplier, multiplier)
-  }
-  private def wrapDFn(in: Seq[DI]): Seq[DO] = {
-    val out = dFn(in)
-    require (in.size  == uRatio, s"$context has the wrong number of parameters in for dFn (${in.size} != ${uRatio})")
-    require (out.size == dRatio, s"$context has the wrong number of parameters out of dFn (${out.size} != ${dRatio})")
-    out
-  }
-  private def wrapUFn(out: Seq[UO]): Seq[UI] = {
-    val in = uFn(out)
-    require (in.size  == uRatio, s"$context has the wrong number of parameters out of uFn (${in.size} != ${uRatio})")
-    require (out.size == dRatio, s"$context has the wrong number of parameters in for uFn (${out.size} != ${dRatio})")
-    in
+    require (iKnown == 0 || oKnown == 0, s"$context appears left of a :=* or a := AND right of a :*= or :=. Only one side may drive multiplicity.")
+    multiplicity = iKnown max oKnown
+   (multiplicity, multiplicity)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] =
-    p.grouped(p.size/uRatio).toList.transpose.map(wrapDFn).transpose.flatten
+    p.grouped(multiplicity).toList.transpose.map(dFn).transpose.flatten
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] =
-    p.grouped(p.size/dRatio).toList.transpose.map(wrapUFn).transpose.flatten
+    p.grouped(multiplicity).toList.transpose.map(uFn).transpose.flatten
 
   def inoutGrouped: Seq[(Seq[(BI, EI)], Seq[(BO, EO)])] = {
-    val iGroups = in .grouped(in .size/uRatio).toList.transpose
-    val oGroups = out.grouped(out.size/dRatio).toList.transpose
+    val iGroups = in .grouped(multiplicity).toList.transpose
+    val oGroups = out.grouped(multiplicity).toList.transpose
     iGroups zip oGroups
   }
 }
 
 class JunctionNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
-  uRatio: Int,
-  dRatio: Int,
   dFn: Seq[D] => Seq[D],
   uFn: Seq[U] => Seq[U])(
   implicit valName: ValName)
-    extends MixedJunctionNode[D, U, EI, B, D, U, EO, B](imp, imp)(uRatio, dRatio, dFn, uFn)
+    extends MixedJunctionNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
 
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
@@ -524,6 +540,7 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   extends MixedNode(inner, outer)
 {
   override def description = "adapter"
+  protected[diplomacy] override def flexibleArityDirection = true
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"$context appears left of a :*= $iStars times and right of a :=* $oStars times; at most once is allowed")
     if (oStars > 0) {

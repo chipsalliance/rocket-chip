@@ -13,14 +13,20 @@ import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
 
 // TODO: how specific are these to RocketTiles?
-case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
-case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
+case class TileMasterPortParams(
+  buffers: Int = 0,
+  cork: Option[Boolean] = None,
+  where: TLBusWrapperLocation = SBUS)
+
+case class TileSlavePortParams(
+  buffers: Int = 0,
+  blockerCtrlAddr: Option[BigInt] = None,
+  where: TLBusWrapperLocation = CBUS)
 
 case class RocketCrossingParams(
-    crossingType: ClockCrossingType = SynchronousCrossing(),
-    master: TileMasterPortParams = TileMasterPortParams(),
-    slave: TileSlavePortParams = TileSlavePortParams()) {
-}
+  crossingType: ClockCrossingType = SynchronousCrossing(),
+  master: TileMasterPortParams = TileMasterPortParams(),
+  slave: TileSlavePortParams = TileSlavePortParams())
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))

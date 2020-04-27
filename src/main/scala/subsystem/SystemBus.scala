@@ -15,7 +15,8 @@ case class SystemBusParams(
     policy: TLArbiter.Policy = TLArbiter.roundRobin,
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
-    errorDevice: Option[DevNullParams] = None)
+    errorDevice: Option[DevNullParams] = None,
+    replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with TLBusWrapperInstantiationLike
@@ -31,9 +32,12 @@ case class SystemBusParams(
 class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p: Parameters)
     extends TLBusWrapper(params, name)
 {
+  private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
+  val prefixNode = replicator.map(_.prefix)
+
   private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
-  def inwardNode: TLInwardNode = system_bus_xbar.node
-  def outwardNode: TLOutwardNode = system_bus_xbar.node
+  val inwardNode: TLInwardNode = system_bus_xbar.node :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* replicator.map(_.node).getOrElse(TLTempNode())
+  val outwardNode: TLOutwardNode = system_bus_xbar.node
   def busView: TLEdge = system_bus_xbar.node.edges.in.head
 
   val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)

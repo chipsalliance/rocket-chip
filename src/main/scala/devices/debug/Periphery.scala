@@ -89,8 +89,8 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     }
 
     debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-      locateTLBusWrapper(p(ExportDebug).masterWhere).asInstanceOf[CanAttachTLMasters].fromPort(Some("debug_sb")){
-        FlipRendering { implicit p => TLWidthWidget(1) := sb2tl.node }
+      locateTLBusWrapper(p(ExportDebug).masterWhere).coupleFrom("debug_sb") {
+        _ := TLWidthWidget(1) := sb2tl.node
       }
     }
     debug

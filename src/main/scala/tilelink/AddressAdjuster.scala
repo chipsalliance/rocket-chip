@@ -7,10 +7,9 @@ import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
-// mask=0 -> passthrough
-// adjustableRegion -> only devices in this regions get adjusted
-// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in adjustableRegion
-class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(AddressSet.everything), forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
+// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in params.region
+class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
+  val mask = params.replicationMask
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
   // Which ids must we route within that mask?
@@ -19,10 +18,6 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   private def masked(region: Seq[AddressSet], offset: BigInt = 0): Seq[AddressSet] = {
     region.flatMap { _.intersect(AddressSet(offset, ~mask)) }
   }
-
-  // if mask == 0, we are going to do nothing other than merge the two downstream ports, make sure this agrees with the optionality of adjustableRegion
-  require((mask == 0 && !adjustableRegion.isDefined) || (mask !=0 && adjustableRegion.isDefined),
-    s"AddressAdjuster mask ($mask)and Adjustable region ($adjustableRegion) mismatch")
 
   // forceLocal better only go one place (the low index)
   forceLocal.foreach { as => require((as.max & mask) == 0) }
@@ -61,6 +56,28 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
     require (errorDev.supportsHint      .contains(m.supportsHint      ), s"Error device cannot cover ${m.name}'s Hint")
   }
 
+  def sameSupport(local: Seq[TLSlaveParameters], remote: Seq[TLSlaveParameters]): (Boolean, Seq[AddressSet]) = {
+    val ra = masked(remote.flatMap(_.address))
+    val la = masked(local .flatMap(_.address))
+    val holes = la.foldLeft(ra) { case (holes, la) => holes.flatMap(_.subtract(la)) }
+    val covered = remote.forall { r =>
+      r.address.forall { ra =>
+        local.forall { l =>
+          !l.address.exists(_.overlaps(ra)) || (
+            l.supportsAcquireT   .contains(r.supportsAcquireT)   &&
+            l.supportsAcquireB   .contains(r.supportsAcquireB)   &&
+            l.supportsArithmetic .contains(r.supportsArithmetic) &&
+            l.supportsLogical    .contains(r.supportsLogical)    &&
+            l.supportsGet        .contains(r.supportsGet)        &&
+            l.supportsPutFull    .contains(r.supportsPutFull)    &&
+            l.supportsPutPartial .contains(r.supportsPutPartial) &&
+            l.supportsHint       .contains(r.supportsHint))
+        }
+      }
+    }
+    (covered, AddressSet.unify(holes))
+  }
+
   // Confirm that a subset of managers have homogeneous FIFO ids
   def requireFifoHomogeneity(managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
     require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId,
@@ -93,23 +110,26 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
   }
 
   // Now we create a custom node that joins the local and remote manager parameters, changing the PMAs of devices in the adjustable region
-  val node = TLJunctionNode(1, 2,
-    clientFn  = { cp => cp ++ cp },
+  val node: TLJunctionNode = TLJunctionNode(
+    clientFn  = { cp => Seq.fill(node.dRatio) { cp(0) } },
     managerFn = { mp =>
-      val remote = mp(0)
-      val local  = mp(1)
+      require (node.uRatio == 1)
+      require (node.dRatio == 2)
+
+      val local  = mp(0)
+      val remote = mp(1)
 
       // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
-      val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(adjustableRegion.toList, m))
-      val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(adjustableRegion.toList, m))
+      val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
+      val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
 
       val adjustableRemoteManagers = remote.managers.flatMap { m =>
-        val intersection = m.address.flatMap(a => adjustableRegion.map(a.intersect(_))).flatten
+        val intersection = m.address.flatMap(a => params.region.intersect(a))
         if (intersection.isEmpty) None else Some(m.v1copy(address = intersection))
       }
 
       val fixedRemoteManagers = remote.managers.flatMap { m =>
-        val subtraction = m.address.flatMap(a => adjustableRegion.map(a.subtract(_))).flatten
+        val subtraction = m.address.flatMap(a => a.subtract(params.region))
         if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
       }
 
@@ -120,25 +140,20 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
         printManagers("Fixed Remote",fixedRemoteManagers)
       }
 
+      // Does the local support exceed the remote support?
+      val (allSame, holes) = sameSupport(adjustableLocalManagers, adjustableRemoteManagers)
+
       // For address adjustment to be possible, we have to calculate some specific things about the downstream addess map:
 
       // Find the downstream error device
-      val errorDevs = local.managers.filter(_.nodePath.last.lazyModule.className == "TLError")
-      require (!errorDevs.isEmpty, s"There is no TLError reachable from ${name}. One must be instantiated.")
-      val errorDev = errorDevs.head
-
-      // Find all the holes in local routing
-      val holes = {
-        val ra = masked(adjustableRemoteManagers.flatMap(_.address))
-        val la = masked(adjustableLocalManagers .flatMap(_.address))
-        la.foldLeft(ra) { case (holes, la) => holes.flatMap(_.subtract(la)) }
-      }
+      val errorDev = local.managers.filter(_.nodePath.last.lazyModule.className == "TLError").headOption
+      require ((allSame && holes.isEmpty) || !errorDev.isEmpty, s"There is no TLError reachable from ${name}. One must be instantiated.")
 
       // Confirm that the PMAs of all adjustable devices are replicated according to the mask
       requireMaskRepetition(adjustableLocalManagers ++ adjustableRemoteManagers)
 
       // Confirm that the error device can supply all the same capabilities as the remote path
-      requireErrorSupport(errorDev, adjustableRemoteManagers)
+      errorDev.foreach { e => requireErrorSupport(e, adjustableRemoteManagers) }
 
       // Confirm that each subset of adjustable managers have homogeneous FIFO ids
       requireFifoHomogeneity(adjustableLocalManagers)
@@ -157,7 +172,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
         // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
         // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
         l.v1copy(
-          address            = AddressSet.unify(masked(l.address) ++ (if (l == errorDev) holes else Nil)),
+          address            = AddressSet.unify(masked(l.address) ++ (if (Some(l) == errorDev) holes else Nil)),
           regionType         = r.regionType,
           executable         = r.executable,
           supportsAcquireT   = r.supportsAcquireT,
@@ -199,7 +214,7 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
         minLatency = local.minLatency min remote.minLatency))
     })
 
-  val chip_id = BundleBridgeSink[UInt]()
+  val prefix = BundleBridgeSink[UInt]()
 
   lazy val module = new LazyModuleImp(this) {
     val edgesInSize = node.edges.in.size
@@ -209,23 +224,28 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
     require (edgesOutSize / 2  == edgesInSize,
       s"AddressAdjuster requires two out edges for every one in edge, but: out($edgesOutSize}) / 2 != in($edgesInSize)")
 
-    node.inoutGrouped.collect { case (Seq((parent, parentEdge)), Seq((remote, remoteEdge), (local, localEdge))) =>
+    node.inoutGrouped.collect { case (Seq((parent, parentEdge)), Seq((local, localEdge), (remote, remoteEdge))) =>
 
       require (localEdge.manager.beatBytes == remoteEdge.manager.beatBytes,
         s"Port width mismatch ${localEdge.manager.beatBytes} (${localEdge.manager.managers.map(_.name)}) != ${remoteEdge.manager.beatBytes} (${remoteEdge.manager.managers.map(_.name)})")
 
-      // Which address within the mask routes to local devices?
-      val local_address = (bits zip chip_id.bundle.asBools).foldLeft(0.U) {
-        case (acc, (bit, sel)) => acc | Mux(sel, bit.U, 0.U)
+      val adjustableLocalManagers  = localEdge.manager.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
+      val fixedLocalManagers       = localEdge.manager.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
+      val adjustableRemoteManagers = remoteEdge.manager.managers.flatMap { m =>
+        val intersection = m.address.flatMap(a => params.region.intersect(a))
+        if (intersection.isEmpty) None else Some(m.v1copy(address = intersection))
       }
 
-      def containsAddress(region: Seq[AddressSet], addr: UInt): Bool =
-        region.foldLeft(false.B)(_ || _.contains(addr))
+      // Which address within the mask routes to local devices?
+      val local_prefix = RegNext(prefix.bundle)
+      assert (params.isLegalPrefix(local_prefix))
 
-      def isAdjustable(addr: UInt) = containsAddress(adjustableRegion.toList, addr)
-      def isDynamicallyLocal(addr: UInt) = (local_address === (addr & mask.U) || containsAddress(forceLocal, addr))
-      def isStaticallyLocal(addr: UInt) = containsAddress(AddressSet.unify(localEdge.manager.managers.flatMap(_.address)), addr)
-
+      def containsAddress(region: Seq[AddressSet], addr: UInt): Bool = region.foldLeft(false.B)(_ || _.contains(addr))
+      val totalContainment = parentEdge.slave.slaves.forall(_.address.forall(params.region contains _))
+      def isAdjustable(addr: UInt) = params.region.contains(addr) || totalContainment.B
+      def isDynamicallyLocal(addr: UInt) = local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr)
+      val staticLocal = AddressSet.unify(fixedLocalManagers.flatMap(_.address))
+      def isStaticallyLocal(addr: UInt) = containsAddress(staticLocal, addr)
       def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
 
       // Route A by address, but reroute unsupported operations
@@ -236,27 +256,40 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
       local .a.bits  := parent.a.bits
       remote.a.bits  := parent.a.bits
 
-      val a_contained = isStaticallyLocal(parent.a.bits.address)
+      val (allSame, holes) = sameSupport(adjustableLocalManagers, adjustableRemoteManagers)
+
+      val dynamicLocal = AddressSet.unify(adjustableLocalManagers.flatMap(_.address))
+      val a_legal = containsAddress(dynamicLocal, parent.a.bits.address) || holes.isEmpty.B
+
+      val dynamicLocalManagers = localEdge.manager.v1copy(
+        managers = localEdge.manager.managers.filter(m => isDeviceContainedBy(Seq(params.region), m)))
 
       val acquire_ok =
         Mux(parent.a.bits.param === TLPermissions.toT,
-          localEdge.manager.supportsAcquireTFast(parent.a.bits.address, parent.a.bits.size),
-          localEdge.manager.supportsAcquireBFast(parent.a.bits.address, parent.a.bits.size))
+          dynamicLocalManagers.supportsAcquireTFast(parent.a.bits.address, parent.a.bits.size),
+          dynamicLocalManagers.supportsAcquireBFast(parent.a.bits.address, parent.a.bits.size))
 
       val a_support = VecInit(
-        localEdge.manager.supportsPutFullFast   (parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsPutPartialFast(parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsArithmeticFast(parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsLogicalFast   (parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsGetFast       (parent.a.bits.address, parent.a.bits.size),
-        localEdge.manager.supportsHintFast      (parent.a.bits.address, parent.a.bits.size),
-        acquire_ok, acquire_ok)(parent.a.bits.opcode)
+        dynamicLocalManagers.supportsPutFullFast   (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsPutPartialFast(parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsArithmeticFast(parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsLogicalFast   (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsGetFast       (parent.a.bits.address, parent.a.bits.size),
+        dynamicLocalManagers.supportsHintFast      (parent.a.bits.address, parent.a.bits.size),
+        acquire_ok, acquire_ok)(parent.a.bits.opcode) || allSame.B
 
-      val errorSet = localEdge.manager.managers.filter(_.nodePath.last.lazyModule.className == "TLError").head.address.head
-      val a_error = !a_contained || !a_support
-      local.a.bits.address := Cat(
-        Mux(!a_error, parent.a.bits.address, errorSet.base.U) >> log2Ceil(errorSet.alignment),
-        parent.a.bits.address(log2Ceil(errorSet.alignment)-1, 0))
+      // If there is no error device, then all accesses are legal and we don't modify the local address
+      localEdge.manager.managers
+        .filter(_.nodePath.last.lazyModule.className == "TLError")
+        .flatMap(_.address)
+        .headOption
+        .map
+      { errorSet =>
+        val a_ok = !isAdjustable(parent.a.bits.address) || (a_legal && a_support)
+        local.a.bits.address := Cat(
+          Mux(a_ok, parent.a.bits.address, errorSet.base.U) >> log2Ceil(errorSet.alignment),
+          parent.a.bits.address(log2Ceil(errorSet.alignment)-1, 0))
+      }
 
       // Rewrite sink in D
       val sink_threshold = localEdge.manager.endSinkId.U // more likely to be 0 than remote.endSinkId
@@ -273,8 +306,8 @@ class AddressAdjuster(mask: BigInt, adjustableRegion: Option[AddressSet] = Some(
 
       if (parentEdge.manager.anySupportAcquireB && parentEdge.client.anySupportProbe) {
         // Merge probe channels
-        assert (!local .b.valid || ((local .b.bits.address & mask.U) === local_address))
-        assert (!remote.b.valid || ((remote.b.bits.address & mask.U) =/= local_address))
+        assert (!local .b.valid || ((local .b.bits.address & mask.U) === local_prefix))
+        assert (!remote.b.valid || ((remote.b.bits.address & mask.U) =/= local_prefix))
         TLArbiter.robin(parentEdge, parent.b, local.b, remote.b)
 
         // Route C by address
