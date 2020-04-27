@@ -69,7 +69,7 @@ case class OMAddressBlock (
   name: String,
   addressOffset:  BigInt,
   range: BigInt,
-  size: Int,
+  width: Int,
   _types: Seq[String] = Seq("OMAddressBlock", "OMCompoundType")
 ) extends OMCompoundType
 
