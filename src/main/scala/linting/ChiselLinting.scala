@@ -26,24 +26,27 @@ case class LintExceptions(seq: Seq[LintError]) extends FirrtlUserException(
      """.stripMargin
 )
 
-case class LintWhitelist(whiteList: Set[String]) extends NoTargetAnnotation with ChiselAnnotation {
+case class LintAnonymousRegsWhitelist(whiteList: Set[String]) extends NoTargetAnnotation with ChiselAnnotation {
   override def toFirrtl = this
 }
 
-final class ChiselLinting extends Transform with RegisteredLibrary {
+final class LintAnonymousRegisters extends Transform with RegisteredLibrary {
 
   val options = Seq(
     new ShellOption[Unit](
-      longOption = "with-linting",
-      toAnnotationSeq = { _ => Seq(RunFirrtlTransformAnnotation(this)) },
-      helpText = "Flag indicates linting is turned on.",
+      longOption = "lint-anon-regs",
+      toAnnotationSeq = { _ => Seq(RunFirrtlTransform(this)) },
+      helpText = "Enable linting anonymous registers for all files.",
     ),
     new ShellOption[Seq[String]](
-      longOption = "linting-whitelist",
+      longOption = "lint-anon-regsW",
       toAnnotationSeq = {
-        case whitelist: Seq[String] => Seq(LintWhitelist(whitelist.toSet))
+        case whitelist: Seq[String] => Seq(
+          RunFirrtlTransform(this),
+          LintWhitelist(whitelist.toSet)
+        )
       },
-      helpText = "Arguments indicate whitelisted *.scala files.",
+      helpText = "Enable linting anonymous registers for all files except provided files.",
       helpValueName = Some("<filename1>.scala[,<filename2>.scala]*")
     )
   )
@@ -67,11 +70,15 @@ final class ChiselLinting extends Transform with RegisteredLibrary {
     if(es.nonEmpty) throw LintExceptions(es) else state
   }
 
-  /** Determines whether name is prepended with an underscore, indicating a bad name
-    */
+  /** Determines whether name is prepended with an underscore, indicating a bad name */
   def isTemporary(name: String): Boolean = name.nonEmpty && name.head == '_'
+
+  /** Determines whether name is prepended with an underscore, indicating a bad name */
   def isTemporary(expr: Expression): Boolean = isTemporary(getName(expr))
 
+  /** Returns the root reference name of an Expression
+    * @throws Exception
+    */
   def getName(expr: Expression): String = expr match {
     case r: WRef => r.name
     case f: WSubField => getName(f.expr)
@@ -80,10 +87,14 @@ final class ChiselLinting extends Transform with RegisteredLibrary {
     case other => throw new Exception(s"Unexpected match! $other")
   }
 
-  val infoRegex = "\\s*(.*\\.scala \\d+:\\d+):.*\\.fir@\\d+\\.\\d+\\s*".r
+  /** Splits an info into non-nested Infos
+    * Right now the FIRRTL parser concatenates the infos if using both .fir and .scala source locators, instead of using
+    *   MultiInfo. This code will work with both the current concatenation and a future FIRRTL change to migrate to MultiInfo.
+    */
   def flatten(info: Info): Seq[Info] = info match {
     case MultiInfo(seq) => seq.flatMap(flatten)
     case f: FileInfo =>
+      val infoRegex = "\\s*(.*\\.scala \\d+:\\d+):.*\\.fir@\\d+\\.\\d+\\s*".r
       f.info.serialize match {
         case infoRegex(scala) => Seq(FileInfo(StringLit(scala)))
         case other => Seq(f)
@@ -91,10 +102,12 @@ final class ChiselLinting extends Transform with RegisteredLibrary {
     case other => println(other); Seq(other)
   }
 
+  /** Returns the first .scala source location contained inside info */
   def getScalaInfo(info: Info): Option[FileInfo] = flatten(info).collectFirst {
     case i: FileInfo if i.serialize.contains("scala") => i
   }
 
+  /** Returns whether the given file is contained in the whiteList */
   def isWhitelisted(info: FileInfo, whiteList: Set[String]): Boolean = {
     val file = info.info.serialize.split(' ').head
     whiteList.contains(file)
@@ -115,7 +128,6 @@ final class ChiselLinting extends Transform with RegisteredLibrary {
     s foreach lintStatement(errors, mname)
     s match {
       case r: DefRegister  if isTemporary(r.name) => updateErrors(r.info, r.name)
-      case i: WDefInstance if isTemporary(i.name) => updateErrors(i.info, i.name)
       case other =>
     }
   }
