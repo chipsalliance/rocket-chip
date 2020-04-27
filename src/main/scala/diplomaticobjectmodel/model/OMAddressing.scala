@@ -48,6 +48,8 @@ case class OMRegFieldDesc(
   volatile: Boolean,
   resetValue: Option[BigInt],
   enumerations: Seq[OMRegFieldEnumeration] = Seq(),
+  addressBlock: Option[String] = None,
+  // TODO: register files?
   _types: Seq[String] = Seq("OMRegFieldDesc", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -61,6 +63,22 @@ case class OMRegFieldGroup (
   name: String,
   description: Option[String],
   _types: Seq[String] = Seq("OMRegFieldGroup", "OMCompoundType")
+) extends OMCompoundType
+
+case class OMAddressBlock (
+  name: String,
+  addressOffset:  BigInt,
+  range: BigInt,
+  size: Int,
+  _types: Seq[String] = Seq("OMAddressBlock", "OMCompoundType")
+) extends OMCompoundType
+
+// TODO: where are these actually supposed to go?
+case class OMRegFieldRegisterFile (
+  name: String,
+  addressOffset:  BigInt,
+  range: BigInt,
+  _types: Seq[String] = Seq("OMRegFieldRegisterFile", "OMCompoundType")
 ) extends OMCompoundType
 
 case class OMRegisterMap (
@@ -79,7 +97,9 @@ case class OMMemoryRegion (
   description: String,
   addressSets: Seq[OMAddressSet],
   permissions: OMPermissions,
-  registerMap: Option[OMRegisterMap],
+  // would it make more sense to add a name: Option[String] to OMAddressSet? This seems redundant
+  addressBlocks: Seq[OMAddressBlock] = Nil,
+  registerMap: Option[OMRegisterMap] = None,
   _types: Seq[String] = Seq("OMMemoryRegion", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -144,7 +164,9 @@ object OMRegister {
           rdAction = getRegFieldRdAction(rfd),
           volatile = rfd.volatile,
           resetValue = rfd.reset,
-          enumerations = getRegFieldEnumerations(rfd.enumerations)
+          enumerations = getRegFieldEnumerations(rfd.enumerations),
+          addressBlock = rfd.addressBlock.map{_.name}
+            // TODO: register files?
         )
     }
   }
