@@ -31,6 +31,8 @@ SHELL := /bin/bash
 FIRRTL_TRANSFORMS := \
 	firrtl.passes.InlineInstances \
 
+# Runs Chisel Linting
+# TODO(azidar): Whitelisting chisel3.util._ files which contain anonymous registers, until they are fixed
 CHISEL_OPTIONS := \
   --with-linting \
   --linting-whitelist Valid.scala,Counter.scala,Reg.scala \
