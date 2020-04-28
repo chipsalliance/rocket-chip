@@ -17,7 +17,7 @@ case class LintExceptions(seq: Seq[LintError]) extends FirrtlUserException(
      |Please fix using @chiselName, *.suggestName(...). Otherwise, whitelist the file via the Chisel commandline option:
      |    --linting-whitelist <filename>.scala
      |or via annotations in your Chisel code:
-     |    annotate(LintWhitelist("<filename>.scala")).
+     |    annotate(LintAnonymousRegsWhitelist("<filename>.scala")).
      |
      |Only showing first few exceptions:
      |${seq.zip(0 until 20)
@@ -35,15 +35,15 @@ final class LintAnonymousRegisters extends Transform with RegisteredLibrary {
   val options = Seq(
     new ShellOption[Unit](
       longOption = "lint-anon-regs",
-      toAnnotationSeq = { _ => Seq(RunFirrtlTransform(this)) },
+      toAnnotationSeq = { _ => Seq(RunFirrtlTransformAnnotation(this)) },
       helpText = "Enable linting anonymous registers for all files.",
     ),
     new ShellOption[Seq[String]](
       longOption = "lint-anon-regsW",
       toAnnotationSeq = {
         case whitelist: Seq[String] => Seq(
-          RunFirrtlTransform(this),
-          LintWhitelist(whitelist.toSet)
+          RunFirrtlTransformAnnotation(this),
+          LintAnonymousRegsWhitelist(whitelist.toSet)
         )
       },
       helpText = "Enable linting anonymous registers for all files except provided files.",
@@ -61,7 +61,7 @@ final class LintAnonymousRegisters extends Transform with RegisteredLibrary {
     val errors = new Errors()
     val whitelist = state.annotations.foldLeft(Set.empty[String]) {
       (WL, anno) => anno match {
-        case LintWhitelist(wl) => WL ++ wl
+        case LintAnonymousRegsWhitelist(wl) => WL ++ wl
         case other => WL
       }
     }
