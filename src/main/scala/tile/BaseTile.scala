@@ -172,16 +172,26 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
+  // Node for legacy instruction trace from core
   val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
+  // Trace sideband signals into core
   val traceAuxNode = BundleBridgeNexus[TraceAux]()
   val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
   val traceAuxDefaultNode = BundleBridgeSource(() => new TraceAux)
   traceAuxSinkNode := traceAuxNode := traceAuxDefaultNode
 
-  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch(tileParams.core.retireWidth)))
+  // Node for instruction trace conforming to RISC-V Processor Trace spec V1.0
+  val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(new TraceCoreParams()))
+  val traceCoreBroadcastNode = BundleBroadcast[TraceCoreInterface](Some("tracecore"))
+  traceCoreBroadcastNode := traceCoreSourceNode
+  def traceCoreNode: BundleBridgeNexus[TraceCoreInterface] = traceCoreBroadcastNode
+
+  // Node for watchpoints to control trace
+  def getBpwatchParams: (Int, Int) = { (tileParams.core.nBreakpoints, tileParams.core.retireWidth) }
+  val bpwatchSourceNode = BundleBridgeSource(() => Vec(getBpwatchParams._1, new BPWatch(getBpwatchParams._2)))
   val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
   bpwatchNode := bpwatchSourceNode
 
@@ -253,8 +263,11 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
 
   outer.traceAuxDefaultNode.bundle.stall := false.B
-  val (in, _) = outer.traceAuxNode.in.last   // select active source if any, or the default source
-  outer.traceAuxNode.out.foreach { case (out, _) => out := in }
+  outer.traceAuxDefaultNode.bundle.enable := false.B
+  val aux = Wire(new TraceAux)
+  aux.stall := outer.traceAuxNode.in.map(in => in._1.stall).orR
+  aux.enable := outer.traceAuxNode.in.map(in => in._1.enable).orR
+  outer.traceAuxNode.out.foreach { case (out, _) => out := aux }
 
   val constants = IO(new TileInputConstants)
 }
