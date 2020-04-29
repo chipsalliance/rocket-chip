@@ -96,6 +96,7 @@ class AXISMasterParameters private (
   val name:       String,
   val emitsSizes: TransferSizes,
   val sourceId:   IdRange,
+  val resources:  Seq[Resource],
   val nodePath:   Seq[BaseNode])
 {
   require (!emitsSizes.none)
@@ -105,12 +106,14 @@ class AXISMasterParameters private (
     name:       String        = name,
     emitsSizes: TransferSizes = emitsSizes,
     sourceId:   IdRange       = sourceId,
+    resources:  Seq[Resource] = resources,
     nodePath:   Seq[BaseNode] = nodePath) =
   {
     new AXISMasterParameters(
       name       = name,
       emitsSizes = emitsSizes,
       sourceId   = sourceId,
+      resources  = resources,
       nodePath   = nodePath)
   }
 }
@@ -120,12 +123,14 @@ object AXISMasterParameters {
     name:       String,
     emitsSizes: TransferSizes,
     sourceId:   IdRange       = IdRange(0,1),
+    resources:  Seq[Resource] = Nil,
     nodePath:   Seq[BaseNode] = Nil) =
   {
     new AXISMasterParameters(
       name       = name,
       emitsSizes = emitsSizes,
       sourceId   = sourceId,
+      resources  = resources,
       nodePath   = nodePath)
   }
 }
