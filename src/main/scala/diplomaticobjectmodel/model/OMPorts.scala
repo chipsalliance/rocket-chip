@@ -124,12 +124,16 @@ case class SystemPort(
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
-  val protocolSpecifications = Map[ProtocolType, String](
-    AHBProtocol -> "AMBA 3 AHB-Lite Protocol",
-    AXI4Protocol -> "AMBA 3 AXI4-Lite Protocol",
-    APBProtocol -> "AMBA 3 APB Protocol",
-    TLProtocol -> "TileLink specification"
-  )
+  val protocolSpecifications = Map[(ProtocolType, SubProtocolType), String](
+   (AHBProtocol, AHBLiteSubProtocol)   -> "AHB Lite Protocol",
+   (AHBProtocol, AHBFullSubProtocol)   -> "AHB Full Protocol",
+   (AXI4Protocol, AXI4SubProtocol)     -> "AXI Protocol",
+   (AXI4Protocol, AXI4LiteSubProtocol) -> "AXI Lite Protocol",
+   (APBProtocol, APBSubProtocol)       -> "APB Protocol",
+   (TLProtocol, TL_UHSubProtocol)      -> "TileLink Protocol",
+   (TLProtocol, TL_ULSubProtocol)      -> "TileLink Protocol",
+   (TLProtocol, TL_CSubProtocol)       -> "TileLink Protocol"
+ )
 
   val protocolSpecificationVersions = Map[ProtocolType, String](
     AHBProtocol -> "1.0",
