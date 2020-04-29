@@ -60,7 +60,8 @@ class ICacheLogicalTreeNode(icache: ICache, deviceOpt: Option[SimpleDevice], par
 
 class RocketLogicalTreeNode(
   tile: RocketTile,
-  XLen: Int
+  XLen: Int,
+  PgLevels: Int
 ) extends LogicalTreeNode(() => Some(tile.cpuDevice)) {
 
   def getOMInterruptTargets(): Seq[OMInterruptTarget] = {
@@ -83,7 +84,7 @@ class RocketLogicalTreeNode(
     val omBusError = components.collectFirst { case x: OMBusError => x }
 
     Seq(OMRocketCore(
-      isa = OMISA.rocketISA(tile, XLen),
+      isa = OMISA.rocketISA(tile, XLen, PgLevels),
       mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, XLen)},
       fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
       performanceMonitor = PerformanceMonitor.perfmon(coreParams),

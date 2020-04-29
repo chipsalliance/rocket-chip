@@ -88,7 +88,7 @@ trait HasLazyRoCCModule extends CanHavePTWModule
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
     val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
-      ptwPorts ++= rocc.module.io.ptw
+      rocc.module.io.ptw ++=: ptwPorts
       rocc.module.io.cmd <> cmdRouter.io.out(i)
       val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
       dcIF.io.requestor <> rocc.module.io.mem
