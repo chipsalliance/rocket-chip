@@ -1,5 +1,3 @@
-https://github.com/freechipsproject/firrtl/blob/master/.github/PULL_REQUEST_TEMPLATE.md
-
 ### Contributor Checklist
 
 <!-- - [ ] Did you add Scaladoc to every public function/method? -->
