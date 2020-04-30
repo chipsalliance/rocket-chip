@@ -9,7 +9,7 @@ https://github.com/freechipsproject/firrtl/blob/master/.github/PULL_REQUEST_TEMP
 - [ ] Did you specify the type of improvement?
 - [ ] Did you state the API impact?
 - [ ] Did you specify the code generation impact?
-- [ ] Did you request a desired merge strategy?
+<!-- - [ ] Did you request a desired merge strategy? -->
 - [ ] Did you add text to be included in the Release Notes for this change in CHANGELOG.md?
 
 #### Relevant Issues/Discussion 
@@ -38,8 +38,8 @@ https://github.com/freechipsproject/firrtl/blob/master/.github/PULL_REQUEST_TEMP
 <!-- Does this change any generated Verilog?  -->
 <!-- How does it change it or in what circumstances would it?  -->
 
-#### Desired Merge Strategy
-
+<!-- #### Desired Merge Strategy -->
+<!-- -->
 <!-- If approved, how should this PR be merged? -->
 <!-- Options are: -->
 <!--   - Squash: The PR will be squashed and merged (choose this if you have no preference). -->
