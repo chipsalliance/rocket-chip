@@ -44,7 +44,7 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
         }
         Seq(RunFirrtlTransformAnnotation(this), displayOptions)
       },
-      helpText = "Runs all specified linting. Required to actually run linting.",
+      helpText = "Customize linting options, including error/warn or number of errors displayed.",
       helpValueName = Some("(strict|warn)[,displayTotal=<numError>][,display#<lintNumber>=<numError>]")
     )
   )
