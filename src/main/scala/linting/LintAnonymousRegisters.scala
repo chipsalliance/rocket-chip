@@ -16,7 +16,7 @@ final class LintAnonymousRegisters extends Linter {
   // Import useful utility functions
   import Linter.{isTemporary, getName, getScalaInfo, isWhitelisted, Errors, updateErrors}
 
-  val recommendedFix: String = "Use @chiselName or *.suggestName(...)"
+  val recommendedFix: String = "Use named intermediate val, or if that fails use @chiselName or *.suggestName(...)"
 
   val lintNumber = 0
 
