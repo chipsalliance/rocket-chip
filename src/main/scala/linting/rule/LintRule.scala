@@ -10,11 +10,11 @@ import firrtl.options.{RegisteredLibrary, ShellOption, Dependency, PreservesAll}
 import firrtl.stage.RunFirrtlTransformAnnotation
 
 abstract class LintRule extends Transform with RegisteredLibrary with DependencyAPIMigration with PreservesAll[Transform] {
-  val lintNumber: Int
   val lintName: String
+
   val recommendedFix: String
 
-  lazy val disableCLI: String = s"Omit $lintName or $lintNumber from --lint option"
+  lazy val disableCLI: String = s"Omit $lintName from --lint option"
 
   def scalaAPI(files: Seq[String]): String = {
     val setArg = files.map(f => s""""$f"""").mkString(",")
@@ -27,11 +27,11 @@ abstract class LintRule extends Transform with RegisteredLibrary with Dependency
 
   lazy val options = Seq(
     new ShellOption[String](
-      longOption = s"lint-whitelist#$lintNumber",
+      longOption = s"lint-whitelist:$lintName",
       toAnnotationSeq = {
         case whitelist: String => Seq(
           RunFirrtlTransformAnnotation(this),
-          Whitelist(lintNumber, whitelist.split(',').toSet)
+          Whitelist(lintName, whitelist.split(',').toSet)
         )
       },
       helpText = "Enable linting anonymous registers for all files except provided files.",
@@ -42,7 +42,7 @@ abstract class LintRule extends Transform with RegisteredLibrary with Dependency
   override def optionalPrerequisiteOf: Seq[Dependency[Transform]] = Seq(Dependency[LintReporter])
 
   def collectWhitelist(annotations: AnnotationSeq): Set[String] = annotations.flatMap {
-    case Whitelist(num, whitelist) if num == lintNumber => whitelist.toSeq
+    case Whitelist(name, whitelist) if name == lintName => whitelist.toSeq
     case other => Nil
   }.toSet
 

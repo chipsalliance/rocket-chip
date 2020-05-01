@@ -14,8 +14,6 @@ final class LintAnonymousRegisters extends LintRule {
 
   val recommendedFix: String = "Use named intermediate val, or if that fails use @chiselName or *.suggestName(...)"
 
-  val lintNumber = 0
-
   val lintName: String = "anon-regs"
 
   // Should run before LowerTypes so anonymous aggregate registers are reported as one register

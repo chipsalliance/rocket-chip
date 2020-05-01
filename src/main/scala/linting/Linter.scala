@@ -10,17 +10,9 @@ object Linter {
 
   /** Use to whitelist specific files from specific linting rules
     */
-  def whitelist(lintNumber: Int, filenames: String*) = {
-    lintMap.get(lintNumber.toString) match {
-      case Some(_) => annotate(Whitelist(lintNumber, filenames.toSet))
-      case None => 
-    }
-  }
   def whitelist(lintName: String, filenames: String*) = {
-    lintMap.get(lintName) match {
-      case Some(l) => annotate(Whitelist(l.lintNumber, filenames.toSet))
-      case None => 
-    }
+    require(lintMap.contains(lintName), s"Unknown lint name: $lintName")
+    annotate(Whitelist(lintName, filenames.toSet))
   }
 
   private[linting] lazy val linters = Seq(
@@ -29,7 +21,7 @@ object Linter {
   )
 
   private [linting] lazy val lintMap = linters.flatMap {
-    l => Seq(l.lintNumber.toString -> l, l.lintName -> l)
+    l => Seq(l.lintName -> l)
   }.toMap
 }
 

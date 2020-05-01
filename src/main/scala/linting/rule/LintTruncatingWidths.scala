@@ -19,8 +19,6 @@ final class LintTruncatingWidths extends LintRule {
   // Run prior to expand whens to get better fileinfo information
   override def optionalPrerequisiteOf = super.optionalPrerequisiteOf :+ Dependency[firrtl.passes.ExpandWhensAndCheck]
 
-  val lintNumber = 1
-
   val lintName: String = "trunc-widths"
 
   val recommendedFix: String = "Truncate width prior to connections"

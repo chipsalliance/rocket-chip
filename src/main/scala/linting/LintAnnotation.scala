@@ -23,10 +23,10 @@ case class Violation(linter: rule.LintRule, info: Info, message: String, modules
   }
 }
 
-case class Whitelist(lintNumber: Int, whiteList: Set[String]) extends LintAnnotation
+case class Whitelist(lintName: String, whiteList: Set[String]) extends LintAnnotation
 
 case class DisplayOptions(
     level: String  = "strict",
     totalLimit: Option[Int] = None,
-    perErrorLimit: Map[Int, Int] = Map.empty
+    perErrorLimit: Map[String, Int] = Map.empty
 ) extends LintAnnotation
