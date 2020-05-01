@@ -5,6 +5,7 @@ package freechips.rocketchip.linting
 import firrtl.FirrtlUserException
 import firrtl.ir.FileInfo
 
+/** Thrown to report all linting rule violations, according to the display options */
 case class LintException(seq: Seq[Violation], lintDisplayOptions: DisplayOptions) extends FirrtlUserException(
   LintException.buildMessage(seq, lintDisplayOptions)
 )
@@ -55,5 +56,3 @@ object LintException {
     reports.reverse.mkString("\n")
   }
 }
-
-

@@ -55,8 +55,7 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
     )
   )
 
-  override def optionalPrerequisites = Seq(Dependency[firrtl.transforms.DedupModules])
-
+  // Run before ExpandWhens
   override def optionalPrerequisiteOf = Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])
 
   override def execute(state: CircuitState): CircuitState = {

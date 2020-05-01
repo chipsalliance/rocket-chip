@@ -23,20 +23,20 @@ final class LintTruncatingWidths extends LintRule {
 
   val recommendedFix: String = "Truncate width prior to connections"
 
-  override protected def lintStatement(errors: Errors, mname: String)(s: Statement): Unit = {
+  override protected def lintStatement(violations: Violations, mname: String)(s: Statement): Unit = {
     s match {
       case c@Connect(info, loc, expr) => (loc.tpe, expr.tpe) match {
         case (GroundType(IntWidth(locWidth)), GroundType(IntWidth(exprWidth))) if exprWidth > locWidth =>
           val message = s"${c.copy(info = NoInfo).serialize} // Connecting width ${exprWidth} to width ${locWidth}"
           getScalaInfo(info) match {
             case Some(scalaInfo: FileInfo) =>
-              updateErrors(scalaInfo, message, errors, mname)
-            case None => updateErrors(info, message, errors, mname)
+              updateViolations(scalaInfo, message, violations, mname)
+            case None => updateViolations(info, message, violations, mname)
           }
         case other =>
       }
       case other =>
     }
-    super.lintStatement(errors, mname)(s)
+    super.lintStatement(violations, mname)(s)
   }
 }
