@@ -78,6 +78,7 @@ case class OMAddressBlock (
 case class OMRegisterMap (
   registerFields: Seq[OMRegField],
   groups: Seq[OMRegFieldGroup],
+  addressBlocks: Seq[OMAddressBlock] = Nil, // Note: this is intended to be used in the OMMemoryMap and is rather redundant here.
   _types: Seq[String] = Seq("OMRegisterMap", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -205,17 +206,18 @@ object OMRegister {
       ab <- desc.addressBlock
     } yield  OMAddressBlock(
       name = ab.name,
-      addressOffset = ab.addressOffset,
+      baseAddress = ab.addressOffset,
       range = ab.range,
       width = ab.width
     )
-    addressBlocks.distinct.sortBy(_.addressOffset)
+    addressBlocks.distinct.sortBy(_.baseAddress)
   }
 
   private def makeRegisterMap(mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
     OMRegisterMap(
       registerFields = makeRegisters(mapping),
-      groups = makeGroups(mapping)
+      groups = makeGroups(mapping),
+      addressBlocks = makeAddressBlocks(mapping)
     )
   }
 
