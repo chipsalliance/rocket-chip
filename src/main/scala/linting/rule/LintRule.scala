@@ -10,9 +10,6 @@ import firrtl.options.{RegisteredLibrary, ShellOption, Dependency, PreservesAll}
 import firrtl.stage.RunFirrtlTransformAnnotation
 
 abstract class LintRule extends Transform with RegisteredLibrary with DependencyAPIMigration with PreservesAll[Transform] {
-  // Import useful utility functions
-  import Linter._
-
   val lintNumber: Int
   val lintName: String
   val recommendedFix: String
@@ -44,7 +41,6 @@ abstract class LintRule extends Transform with RegisteredLibrary with Dependency
 
   override def optionalPrerequisiteOf: Seq[Dependency[Transform]] = Seq(Dependency[LintReporter])
 
-
   def collectWhitelist(annotations: AnnotationSeq): Set[String] = annotations.flatMap {
     case Whitelist(num, whitelist) if num == lintNumber => whitelist.toSeq
     case other => Nil
@@ -65,6 +61,6 @@ abstract class LintRule extends Transform with RegisteredLibrary with Dependency
   }
 
   protected def lintStatement(errors: Errors, mname: String)(s: Statement): Unit = {
-    s foreach lintStatement(errors, mname)
+    s.foreach(lintStatement(errors, mname))
   }
 }

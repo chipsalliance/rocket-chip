@@ -1,3 +1,5 @@
+// See LICENSE.SiFive for license details.
+
 package freechips.rocketchip.linting
 
 import firrtl._
