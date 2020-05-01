@@ -18,13 +18,13 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
     new ShellOption[String](
       longOption = s"lint",
       toAnnotationSeq = {
-        case "*" => Linter.lintMap.values.map(RunFirrtlTransformAnnotation(_)).toSeq
-        case other => other.split(',').toSeq.map { s =>
+        case "*" => RunFirrtlTransformAnnotation(this) +: (Linter.lintMap.values.map(RunFirrtlTransformAnnotation(_)).toSeq)
+        case other => RunFirrtlTransformAnnotation(this) +: (other.split(',').toSeq.map { s =>
           Linter.lintMap.get(s) match {
             case Some(l) => RunFirrtlTransformAnnotation(l)
             case None => sys.error(s"Unknown linter argument: $s")
           }
-        }
+        })
       },
       helpText = "Enable linting for specified linting rules, where * is all rules.",
       helpValueName = Some("[<lintingNumber>|<lintName>|*][,<lintingNumber>|<lintName>]...")
@@ -32,7 +32,7 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
     new ShellOption[String](
       longOption = "lint-options",
       toAnnotationSeq = { arg: String =>
-        val displayOptions = arg.split(',').toSeq.foldLeft(LintDisplayOptions()) { (opt, str) =>
+        val displayOptions = arg.split(',').toSeq.foldLeft(DisplayOptions()) { (opt, str) =>
           str match {
             case "strict" => opt.copy(level = "strict")
             case "warn" => opt.copy(level = "warn")
@@ -42,7 +42,7 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
             case other => throw sys.error(s"Unrecognized option passed to --lint: $other")
           }
         }
-        Seq(RunFirrtlTransformAnnotation(this), displayOptions)
+        Seq(displayOptions)
       },
       helpText = "Customize linting options, including error/warn or number of errors displayed.",
       helpValueName = Some("(strict|warn)[,displayTotal=<numError>][,display#<lintNumber>=<numError>]")
@@ -55,19 +55,19 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
 
   override def execute(state: CircuitState): CircuitState = {
     val grouped = state.annotations.groupBy {
-      case e: LintError => "e"
-      case o: LintDisplayOptions => "o"
+      case e: Violation => "v"
+      case o: DisplayOptions => "o"
       case other => "a"
     }
 
-    val errors = grouped.getOrElse("e", Nil).asInstanceOf[Seq[LintError]]
-    val options = grouped.getOrElse("o", Nil).headOption.getOrElse(LintDisplayOptions()).asInstanceOf[LintDisplayOptions]
+    val errors = grouped.getOrElse("v", Nil).asInstanceOf[Seq[Violation]]
+    val options = grouped.getOrElse("o", Nil).headOption.getOrElse(DisplayOptions()).asInstanceOf[DisplayOptions]
     val remainingAnnotations = grouped.getOrElse("a", Nil)
 
     if(errors.nonEmpty) {
       options.level match {
-        case "strict" => throw LintExceptions(errors.toSeq, options)
-        case "warn" => println(LintExceptions.buildMessage(errors.toSeq, options))
+        case "strict" => throw LintException(errors.toSeq, options)
+        case "warn" => println(LintException.buildMessage(errors.toSeq, options))
       }
     }
 

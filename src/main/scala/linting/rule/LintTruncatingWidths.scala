@@ -1,32 +1,29 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.linting
+package rule
 
-import firrtl._
 import firrtl.ir._
-import firrtl.traversals.Foreachers._
-import firrtl.annotations.NoTargetAnnotation
-import firrtl.options.{OptionsException, RegisteredLibrary, ShellOption, Dependency}
-import firrtl.stage.RunFirrtlTransformAnnotation
-import chisel3.experimental.ChiselAnnotation
-import scala.collection.mutable
+import firrtl.options.Dependency
 
+/** Reports all connections from a wider signal to a smaller signal
+  * Includes subfields of bulk connections
+  */
+final class LintTruncatingWidths extends LintRule {
 
-final class LintTruncatingWidths extends Linter {
-  // Import useful utility functions
-  import Linter.{isTemporary, getName, getScalaInfo, isWhitelisted, Errors, updateErrors}
-
-  val recommendedFix: String = "Truncate width prior to connections"
   override def optionalPrerequisites = Seq(
-    Dependency(firrtl.passes.ExpandConnects),
-    Dependency[firrtl.passes.InferWidths]
+    Dependency(firrtl.passes.ExpandConnects), // Require expanding connects to see subfield bulk assignments
+    Dependency[firrtl.passes.InferWidths]     // Require widths to have been inferred
   )
 
+  // Run prior to expand whens to get better fileinfo information
   override def optionalPrerequisiteOf = super.optionalPrerequisiteOf :+ Dependency[firrtl.passes.ExpandWhensAndCheck]
 
   val lintNumber = 1
 
   val lintName: String = "trunc-widths"
+
+  val recommendedFix: String = "Truncate width prior to connections"
 
   override protected def lintStatement(errors: Errors, mname: String)(s: Statement): Unit = {
     s match {
