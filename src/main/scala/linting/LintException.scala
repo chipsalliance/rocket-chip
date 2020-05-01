@@ -24,13 +24,13 @@ object LintException {
 
     val (_, reports) = groupedErrors.toSeq.sortBy(_._1).reverse.foldRight((0, Seq.empty[String])) {
       case ((lintNumber: Int, lintErrors: Seq[Violation]), (totalErrors: Int, reportsSoFar: Seq[String])) =>
-        val le = lintErrors.head.linter
-        val perErrorLimit = lintDisplayOptions.perErrorLimit.getOrElse(lintNumber, lintErrors.size)
-        val totalErrorLimit = lintDisplayOptions.totalLimit.map(t => t - totalErrors).getOrElse(perErrorLimit)
-        val actualNumErrors = totalErrorLimit.min(perErrorLimit)
-        val scalaFiles = lintErrors.flatMap(_.getScalaFiles).distinct
-        val lintString = makeNumber(maxErrorNumber, lintNumber, " ")
-        val report =
+        val le                  = lintErrors.head.linter
+        val perErrorLimit       = lintDisplayOptions.perErrorLimit.getOrElse(lintNumber, lintErrors.size)
+        val totalErrorLimit     = lintDisplayOptions.totalLimit.map(t => t - totalErrors).getOrElse(perErrorLimit)
+        val remainingErrorLimit = totalErrorLimit.min(perErrorLimit)
+        val scalaFiles          = lintErrors.flatMap(_.getScalaFiles).distinct
+        val lintString          = makeNumber(maxErrorNumber, lintNumber, " ")
+        val header =
           s"""
              |Lint Error #$lintNumber. ${le.lintName}: ${lintErrors.size} exceptions!
              | - Recommended fix:
@@ -41,10 +41,14 @@ object LintException {
              |     ${le.scalaAPI(scalaFiles)}
              | - Disable this linting check:
              |     ${le.disableCLI}
-             |${lintErrors.zip(1 to actualNumErrors)
-                   .map { case (lint: Violation, idx: Int) => s"#$lintString.${makeNumber(actualNumErrors - 1,idx,"0")}:${lint.info} ${lint.message} in ${lint.modules}"}
-                   .mkString("\n")}""".stripMargin
-        (totalErrors + actualNumErrors, report +: reportsSoFar)
+             |""".stripMargin
+
+        val errors = lintErrors.zip(1 to remainingErrorLimit).map {
+          case (lint: Violation, idx: Int) =>
+            s"#$lintString.${makeNumber(remainingErrorLimit - 1,idx,"0")}:${lint.info} ${lint.message} in ${lint.modules}"
+          }.mkString("\n")
+
+        (totalErrors + remainingErrorLimit, (header + errors) +: reportsSoFar)
     }
     reports.reverse.mkString("\n")
   }
