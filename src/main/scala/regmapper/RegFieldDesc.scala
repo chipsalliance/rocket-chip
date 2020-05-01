@@ -62,11 +62,8 @@ case class RegFieldDesc (
   // The IP-XACT concept of an addressBlock which this
   // register field can considered to be a part of, if exporting
   // IP-XACT or similar outputs. 
-  addressBlock: Option[AddressBlockInfo] = None,
-  // The IP-XACT concept of a register file (recursively)
-  // which this register field can be considered to be a part of,
-  // if exporting IP-XACT or similar outputs.
-  regFiles: Seq[RegFileInfo] = Nil
+  addressBlock: Option[AddressBlockInfo] = None
+  // TODO: registerFiles
 )
 
 object RegFieldDesc {
@@ -120,32 +117,4 @@ object RegFieldAddressBlock {
   }
 }
 
-// IP-XACT has the concept of a Register File
-// which registers can belong to.
-// In IP-XACT, Register Files can belong to more RegisterFiles or to
-// an Address Block directly.
-// Here we just treat them similar to "groups" in that
-// RegFields can belong to RegisterFile(s) independently of Groups or AddressBlocks.
-case class RegFileInfo(
-  // Short name for this RegisterFile, can be expected to be used in macros
-  name: String,
-  // Offset, in bytes of this Register File from its parent (addressBlock or RegisterFile)
-  // This is expected to be ignored for the computation of the offset of the RegFieldDesc itself
-  addressOffset: BigInt,
-  // Size of the RegisterFile (in bytes)
-  range: BigInt
-)
-
-// Add a sequence of RegisterFieldInfo (the first item in the sequence is the highest
-// in the hierarchy)
-// to a list of RegFields' descriptions. If they have no RegFieldDesc,
-// this has no effect.
-object RegFieldRegFiles {
-  def apply (regFileInfos: Seq[RegFileInfo], regs: Seq[RegField]): Seq[RegField] = {
-    regs.map {r =>
-      r.desc.map { d =>
-        r.copy(desc = Some(d.copy(regFiles = regFileInfos)))
-      }.getOrElse(r)
-    }
-  }
-}
+// TODO: RegisterFiles

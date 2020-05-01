@@ -49,7 +49,7 @@ case class OMRegFieldDesc(
   resetValue: Option[BigInt],
   enumerations: Seq[OMRegFieldEnumeration] = Seq(),
   addressBlock: Option[String] = None,
-  // TODO: register files?
+  // TODO: register files
   _types: Seq[String] = Seq("OMRegFieldDesc", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -67,19 +67,13 @@ case class OMRegFieldGroup (
 
 case class OMAddressBlock (
   name: String,
-  addressOffset:  BigInt,
+  baseAddress:  BigInt, // to match the IP-XACT terminology, though this is in practice an offset
   range: BigInt,
   width: Int,
   _types: Seq[String] = Seq("OMAddressBlock", "OMCompoundType")
 ) extends OMCompoundType
 
-// TODO: where are these actually supposed to go?
-case class OMRegFieldRegisterFile (
-  name: String,
-  addressOffset:  BigInt,
-  range: BigInt,
-  _types: Seq[String] = Seq("OMRegFieldRegisterFile", "OMCompoundType")
-) extends OMCompoundType
+// TODO: OMRegisterFile
 
 case class OMRegisterMap (
   registerFields: Seq[OMRegField],
@@ -98,8 +92,8 @@ case class OMMemoryRegion (
   addressSets: Seq[OMAddressSet],
   permissions: OMPermissions,
   // would it make more sense to add a name: Option[String] to OMAddressSet? This seems redundant
+  registerMap: Option[OMRegisterMap],
   addressBlocks: Seq[OMAddressBlock] = Nil,
-  registerMap: Option[OMRegisterMap] = None,
   _types: Seq[String] = Seq("OMMemoryRegion", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -166,7 +160,7 @@ object OMRegister {
           resetValue = rfd.reset,
           enumerations = getRegFieldEnumerations(rfd.enumerations),
           addressBlock = rfd.addressBlock.map{_.name}
-            // TODO: register files?
+          // TODO: register files
         )
     }
   }
