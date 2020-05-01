@@ -135,7 +135,8 @@ object DiplomaticObjectModelAddressing {
       description = description,
       addressSets = omRanges,
       permissions = omPerms(permissions),
-      registerMap = omRegMap
+      registerMap = omRegMap,
+      addressBlocks = omRegMap.map{ _.makeAddressBlocks }
     )
   }
 

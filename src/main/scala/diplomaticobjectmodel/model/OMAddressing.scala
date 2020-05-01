@@ -209,7 +209,7 @@ object OMRegister {
       range = ab.range,
       width = ab.width
     )
-    groups.distinct.sortBy(_.addressOffset)
+    addressBlocks.distinct.sortBy(_.addressOffset)
   }
 
   private def makeRegisterMap(mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
