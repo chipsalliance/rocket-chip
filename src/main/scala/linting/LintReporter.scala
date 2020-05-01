@@ -32,8 +32,8 @@ final class LintReporter extends Transform with RegisteredLibrary with Dependenc
           }
         })
       },
-      helpText = "Enable linting for specified linting rules, where * is all rules.",
-      helpValueName = Some("[<lintingNumber>|<lintName>|*][,<lintingNumber>|<lintName>]...")
+      helpText = s"Enable linting for specified rules, where * is all rules. Available rules: ${Linter.linters.map(l => l.lintName).mkString(",")}.",
+      helpValueName = Some("[*]|[<lintRule>,<lintRule>,...]")
     ),
     new ShellOption[String](
       longOption = "lint-options",
