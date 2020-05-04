@@ -11,7 +11,7 @@ trait LintAnnotation extends NoTargetAnnotation with ChiselAnnotation {
   override def toFirrtl = this
 }
 
-/** Represents a linting violation underr a given linter rule */
+/** Represents a linting violation under a given linter rule */
 case class Violation(linter: rule.LintRule, info: Info, message: String, modules: Set[String]) extends LintAnnotation {
   def getScalaFiles: Seq[String] = {
     val scala = "(.*\\.scala).*".r
@@ -25,7 +25,7 @@ case class Violation(linter: rule.LintRule, info: Info, message: String, modules
   }
 }
 
-/** A list of files to ignore lint violations on, fora  given lint rule */
+/** A list of files to ignore lint violations on, for a given lint rule */
 case class Whitelist(lintName: String, whiteList: Set[String]) extends LintAnnotation
 
 /** A container of lint rule violation display options */
