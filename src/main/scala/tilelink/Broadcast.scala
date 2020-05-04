@@ -16,13 +16,9 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
   val node = TLAdapterNode(
     clientFn  = { cp =>
-      cp.v1copy(
-        clients = Seq(TLMasterParameters.v1(
-          name     = "TLBroadcast",
-          sourceId = IdRange(0, 1 << log2Ceil(cp.endSourceId*4)))),
-        echoFields    = cp.echoFields,
-        requestFields = cp.requestFields,
-        responseKeys  = cp.responseKeys)
+      cp.v1copy(clients = Seq(TLMasterParameters.v1(
+        name     = "TLBroadcast",
+        sourceId = IdRange(0, 1 << log2Ceil(cp.endSourceId*4)))))
     },
     managerFn = { mp =>
       mp.v1copy(
