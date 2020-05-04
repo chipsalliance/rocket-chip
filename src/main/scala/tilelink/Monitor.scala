@@ -76,6 +76,16 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
+    // read params and check the opcode
+    if (!edge.manager.anySupportAcquireT) monAssert (bundle.opcode =/= TLMessages.AcquirePerm, "'A' channel should not see AcquirePerm")
+    if (!edge.manager.anySupportAcquireB) monAssert (bundle.opcode =/= TLMessages.AcquireBlock, "'A' channel should not see AcquireBlock")
+    if (!edge.manager.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, "'A' channel should not see ArithmeticData")
+    if (!edge.manager.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData., "'A' channel should not see LogicalData")
+    if (!edge.manager.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, "'A' channel should not see Get")
+    if (!edge.manager.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, "'A' channel should not see PutFullData")
+    if (!edge.manager.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, "'A' channel should not see PutPartialData")
+    if (!edge.manager.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, "'A' channel should not see Hint")
+
     when (bundle.opcode === TLMessages.AcquireBlock) {
       monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
       monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
