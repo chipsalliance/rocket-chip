@@ -252,6 +252,8 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   val param   = Reg(io.in_a.bits.param)
   val size    = Reg(io.in_a.bits.size)
   val source  = Reg(io.in_a.bits.source)
+  val user    = Reg(io.in_a.bits.user)
+  val echo    = Reg(io.in_a.bits.echo)
   val address = RegInit(UInt(id << lineShift, width = io.in_a.bits.address.getWidth))
   val count   = Reg(UInt(width = probeCountBits))
   val idle    = got_e && sent_d
@@ -265,6 +267,8 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
     param   := io.in_a.bits.param
     size    := io.in_a.bits.size
     source  := io.in_a.bits.source
+    user   :<= io.in_a.bits.user
+    echo   :<= io.in_a.bits.echo
     address := io.in_a.bits.address
     count   := io.probe
   }
@@ -314,6 +318,8 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, probeCountBits: Int, bufferles
   io.out_a.bits.mask    := o_data.bits.mask
   io.out_a.bits.data    := o_data.bits.data
   io.out_a.bits.corrupt := Bool(false)
+  io.out_a.bits.user   :<= user
+  io.out_a.bits.echo   :<= echo
 }
 
 object TLBroadcastConstants
