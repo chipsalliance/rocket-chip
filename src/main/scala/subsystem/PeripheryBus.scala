@@ -22,7 +22,7 @@ case class PeripheryBusParams(
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None,
-    replicatorMask: BigInt = 0)
+    replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
@@ -39,12 +39,14 @@ case class PeripheryBusParams(
 class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Parameters)
     extends TLBusWrapper(params, name)
 {
+  private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
+  val prefixNode = replicator.map(_.prefix)
+
   private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val node: TLNode = params.atomics.map { pa =>
     val in_xbar = LazyModule(new TLXbar)
     val out_xbar = LazyModule(new TLXbar)
-    val fixer_node =
-      if (params.replicatorMask == 0) fixer.node else { fixer.node :*= RegionReplicator(params.replicatorMask) }
+    val fixer_node = replicator.map(fixer.node :*= _.node).getOrElse(fixer.node)
     (out_xbar.node
       :*= fixer_node
       :*= TLBuffer(pa.buffer)

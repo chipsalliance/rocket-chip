@@ -44,25 +44,26 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   tileCeaseSinkNode := tileCeaseXbarNode
 
   protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
-    sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
+    locateTLBusWrapper(crossing.master.where).coupleFrom(tile.tileParams.name.getOrElse("tile")) { bus =>
+      (bus :=*
+        TLBuffer(crossing.master.buffers) :=*
         crossing.master.cork
           .map { u => TLCacheCork(unsafe = u) }
           .map { _ :=* tile.crossMasterPort() }
-          .getOrElse { tile.crossMasterPort() }
+          .getOrElse { tile.crossMasterPort() })
     }
   }
 
   protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
-
     DisableMonitors { implicit p =>
-      cbus.toTile(tile.tileParams.name) {
+      locateTLBusWrapper(crossing.slave.where).coupleTo(tile.tileParams.name.getOrElse("tile")) { bus =>
         crossing.slave.blockerCtrlAddr
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
             cbus.coupleTo("bus_blocker") { bbb.controlNode := TLFragmenter(cbus) := _ }
             tile.crossSlavePort() :*= bbb.node
-          } .getOrElse { tile.crossSlavePort() }
+          } .getOrElse { tile.crossSlavePort() } :*= bus
       }
     }
   }

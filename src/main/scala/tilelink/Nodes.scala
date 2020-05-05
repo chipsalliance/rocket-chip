@@ -44,12 +44,10 @@ case class TLAdapterNode(
   extends AdapterNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
 case class TLJunctionNode(
-  clientRatio:  Int,
-  managerRatio: Int,
   clientFn:     Seq[TLMasterPortParameters] => Seq[TLMasterPortParameters],
   managerFn:    Seq[TLSlavePortParameters]  => Seq[TLSlavePortParameters])(
   implicit valName: ValName)
-  extends JunctionNode(TLImp)(clientRatio, managerRatio, clientFn, managerFn) with TLFormatNode
+  extends JunctionNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
 case class TLIdentityNode()(implicit valName: ValName) extends IdentityNode(TLImp)() with TLFormatNode
 

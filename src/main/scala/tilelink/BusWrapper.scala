@@ -62,6 +62,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
   def busView: TLEdge
+  val prefixNode: Option[BundleBridgeSink[UInt]]
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
@@ -349,4 +350,58 @@ trait HasTLXbarPhy { this: TLBusWrapper =>
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
+}
+
+case class AddressAdjusterWrapperParams(
+  blockBytes: Int,
+  beatBytes: Int,
+  replication: Option[ReplicatedRegion],
+  forceLocal: Seq[AddressSet] = Nil,
+  policy: TLFIFOFixer.Policy = TLFIFOFixer.allVolatile
+)
+  extends HasTLBusParams
+  with TLBusWrapperInstantiationLike
+{
+  val dtsFrequency = None
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
+    val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, loc.name))
+    aaWrapper.suggestName(loc.name + "_wrapper")
+    context.tlBusWrapperLocationMap += (loc -> aaWrapper)
+    aaWrapper
+  }
+}
+
+class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)(implicit p: Parameters) extends TLBusWrapper(params, name) {
+  private val address_adjuster = params.replication.map { r => LazyModule(new AddressAdjuster(r, params.forceLocal)) }
+  private val viewNode = TLIdentityNode()
+  val inwardNode: TLInwardNode = address_adjuster.map(_.node :*=* TLFIFOFixer(params.policy) :*=* viewNode).getOrElse(viewNode)
+  def outwardNode: TLOutwardNode = address_adjuster.map(_.node).getOrElse(viewNode)
+  def busView: TLEdge = viewNode.edges.in.head
+  val prefixNode = address_adjuster.map(_.prefix)
+  val builtInDevices = BuiltInDevices.none
+}
+
+case class TLJBarWrapperParams(
+  blockBytes: Int,
+  beatBytes: Int
+)
+  extends HasTLBusParams
+  with TLBusWrapperInstantiationLike
+{
+  val dtsFrequency = None
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLJBarWrapper = {
+    val jbarWrapper = LazyModule(new TLJBarWrapper(this, loc.name))
+    jbarWrapper.suggestName(loc.name + "_wrapper")
+    context.tlBusWrapperLocationMap += (loc -> jbarWrapper)
+    jbarWrapper
+  }
+}
+
+class TLJBarWrapper(params: TLJBarWrapperParams, name: String)(implicit p: Parameters) extends TLBusWrapper(params, name) {
+  private val jbar = LazyModule(new TLJbar)
+  val inwardNode: TLInwardNode = jbar.node
+  val outwardNode: TLOutwardNode = jbar.node
+  def busView: TLEdge = jbar.node.edges.in.head
+  val prefixNode = None
+  val builtInDevices = BuiltInDevices.none
 }
