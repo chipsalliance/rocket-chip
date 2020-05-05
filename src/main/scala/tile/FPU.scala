@@ -8,7 +8,7 @@ import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 import chisel3.withClock
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.{chiselName, NoChiselNamePrefix}
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
@@ -703,7 +703,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
-  @chiselName class FPUImpl extends NoChiselNamePrefix { // entering gated-clock domain
+  @chiselName class FPUImpl { // entering gated-clock domain
 
   val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_cp_valid = io.cp_req.fire()

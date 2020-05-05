@@ -6,7 +6,7 @@ import chisel3.RawModule
 import chisel3.stage.ChiselGeneratorAnnotation
 import firrtl.AnnotationSeq
 import firrtl.options.Viewer.view
-import firrtl.options.{Dependency, Phase, PreservesAll}
+import firrtl.options.{Phase, PreservesAll}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.stage.RocketChipOptions
@@ -15,8 +15,8 @@ import freechips.rocketchip.util.HasRocketChipStageUtils
 /** Constructs a generator function that returns a top module with given config parameters */
 class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(Dependency[Checks])
-  override val dependents = Seq(Dependency[chisel3.stage.phases.Elaborate])
+  override val prerequisites = Seq(classOf[Checks])
+  override val dependents = Seq(classOf[chisel3.stage.phases.Elaborate])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
 

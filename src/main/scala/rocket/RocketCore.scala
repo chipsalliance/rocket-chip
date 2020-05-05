@@ -6,7 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.withClock
-import chisel3.experimental.{chiselName, NoChiselNamePrefix}
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -114,7 +114,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     if (!rocketParams.clockGate) clock
     else ClockGate(clock, clock_en, "rocket_clock_gate")
 
-  @chiselName class RocketImpl extends NoChiselNamePrefix { // entering gated-clock domain
+  @chiselName class RocketImpl { // entering gated-clock domain
 
   // performance counters
   def pipelineIDToWB[T <: Data](x: T): T =

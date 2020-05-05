@@ -13,7 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.{DontCare, WireInit, dontTouch, withClock}
-import chisel3.experimental.{chiselName, NoChiselNamePrefix}
+import chisel3.experimental.chiselName
 import chisel3.internal.sourceinfo.SourceInfo
 import TLMessages._
 
@@ -110,7 +110,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val gated_clock =
     if (!cacheParams.clockGate) clock
     else ClockGate(clock, clock_en_reg, "dcache_clock_gate")
-  @chiselName class DCacheModuleImpl extends NoChiselNamePrefix { // entering gated-clock domain
+  @chiselName class DCacheModuleImpl { // entering gated-clock domain
 
   val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)))
   val pma_checker = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)) with InlineInstance)

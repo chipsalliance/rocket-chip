@@ -5,7 +5,7 @@ package freechips.rocketchip.stage.phases
 import chisel3.stage.ChiselCircuitAnnotation
 import chisel3.stage.phases.{Convert, Elaborate}
 import firrtl.AnnotationSeq
-import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
+import firrtl.options.{Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
@@ -13,8 +13,8 @@ import freechips.rocketchip.util.HasRocketChipStageUtils
 /** Dumps ROM information into a file */
 class GenerateROMs extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(Dependency[Checks], Dependency[Elaborate])
-  override val dependents = Seq(Dependency[Convert])
+  override val prerequisites = Seq(classOf[Checks], classOf[Elaborate])
+  override val dependents = Seq(classOf[Convert])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
