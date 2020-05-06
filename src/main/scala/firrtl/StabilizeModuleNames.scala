@@ -137,17 +137,17 @@ object StabilizeModuleNames {
     if (nameMap.values.toSet.size == modules.size) Some(nameMap) else None
   }
 
-  def appendHashCode(originalName: String, hashCode: Int): String = {
-    originalName + "_" + f"${hashCode}%08X"
+  def appendHashCode(originalName: String, hashPrefix: String, hashCode: Int): String = {
+    s"${originalName}_$hashPrefix" + f"${hashCode}%08X"
   }
 
   def contentsStructureName(originalName: String)(module: Module): String = {
     val noNameModule = removeModuleNames(module)
-    appendHashCode(originalName, noNameModule.hashCode)
+    appendHashCode(originalName, "c", noNameModule.hashCode)
   }
 
   def contentsName(originalName: String)(module: Module): String = {
-    appendHashCode(originalName, removeModuleInfo(module).copy(name = emptyName).hashCode)
+    appendHashCode(originalName, "C", removeModuleInfo(module).copy(name = emptyName).hashCode)
   }
 
   def exactName(originalName: String)(module: Module): String = originalName
@@ -205,7 +205,7 @@ object StabilizeModuleNames {
 
   def ioStructureName(originalName: String)(module: Module): String = {
     val noNamePorts = module.ports.map(removePortNames(_))
-     appendHashCode(originalName, noNamePorts.hashCode)
+     appendHashCode(originalName, "p", noNamePorts.hashCode)
   }
 
   def removeModuleInfo(mod: Module): Module = {
