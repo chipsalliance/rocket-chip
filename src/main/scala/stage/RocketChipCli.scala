@@ -4,6 +4,8 @@ package freechips.rocketchip.stage
 
 import firrtl.options.Shell
 
+import freechips.rocketchip.firrtl.StabilizeQueuesAspect
+
 trait RocketChipCli { this: Shell =>
 
   parser.note("Rocket Chip Compiler Options")
@@ -11,6 +13,7 @@ trait RocketChipCli { this: Shell =>
     TopModuleAnnotation,
     ConfigsAnnotation,
     OutputBaseNameAnnotation,
+    StabilizeQueuesAspect,
   )
     .foreach(_.addOptions(parser))
 

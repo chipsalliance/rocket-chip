@@ -2,8 +2,8 @@
 
 package freechips.rocketchip
 
-import firrtl.AnnotationSeq
-import firrtl.options.OptionsView
+import _root_.firrtl.AnnotationSeq
+import _root_.firrtl.options.OptionsView
 
 package object stage {
 

@@ -5,8 +5,10 @@ package freechips.rocketchip.diplomacy
 import Chisel.{defaultCompileOptions => _, _}
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{RawModule, MultiIOModule, withClockAndReset, Reset}
+import chisel3.experimental.{annotate, ChiselAnnotation}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.firrtl.ModuleNameAnnotation
 import scala.collection.immutable.{SortedMap,ListMap}
 import scala.util.matching._
 
@@ -152,6 +154,10 @@ sealed trait LazyModuleImpLike extends RawModule
   val auto: AutoBundle
   protected[diplomacy] val dangles: Seq[Dangle]
 
+  private val outer = this
+  annotate(new ChiselAnnotation {
+    def toFirrtl = new ModuleNameAnnotation(outer.desiredName, outer.toTarget)
+  })
   // .module had better not be accessed while LazyModules are still being built!
   require (!LazyModule.scope.isDefined, s"${wrapper.name}.module was constructed before LazyModule() was run on ${LazyModule.scope.get.name}")
 
