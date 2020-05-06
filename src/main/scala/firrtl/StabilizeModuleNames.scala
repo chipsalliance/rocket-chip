@@ -40,13 +40,13 @@ case class ModuleNameAnnotation(
   }
 }
 
-case object StabilizeQueuesAspect extends Aspect[RawModule] with HasShellOptions {
+case object StabilizeNamesAspect extends Aspect[RawModule] with HasShellOptions {
   override val options = Seq(
     new ShellOption[String](
-      longOption = "queues",
+      longOption = "stabilize-names",
       toAnnotationSeq = a => Seq(this),
-      helpText = "<stabilize queue names>",
-      shortOption = Some("q")
+      helpText = "<stabilize names>",
+      shortOption = None
     )
   )
 
@@ -58,7 +58,7 @@ case object StabilizeQueuesAspect extends Aspect[RawModule] with HasShellOptions
       case _: TLFIFOFixer => true
       case _ => false
     }
-    val asdf = Select.collectDeep(top) {
+    Select.collectDeep(top) {
       case l: LazyModuleImpLike if commonLazyModule(l.wrapper) =>
         new ModuleNameAnnotation(l.desiredName, l.toTarget)
       case m: Queue[_] =>
@@ -66,8 +66,6 @@ case object StabilizeQueuesAspect extends Aspect[RawModule] with HasShellOptions
       case m: TLMonitor =>
         new ModuleNameAnnotation(m.desiredName, m.toTarget)
     }.toSeq
-    println(s"SDLJFLKDJSFLSDKJ: $asdf")
-    asdf
   }
 }
 
@@ -87,11 +85,6 @@ class StabilizeModuleNames extends Transform
     val result = strategies.foldLeft(None: Option[Map[String, String]]) {
       case (None, strategy) => StabilizeModuleNames.checkStrategy(strategy, originalName, modules)
       case (some, _) => some
-    }
-    result match {
-      case None =>
-        println(s"SADLFKJ: $originalName -> ${modules.map(_.name)}")
-      case _ =>
     }
     result.get
   }
