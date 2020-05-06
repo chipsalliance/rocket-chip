@@ -68,8 +68,6 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   def checkFormatOpcode(opcode: UInt, edge: TLEdge, format: String): Unit = {
     // read params and check the opcode
-    if (!edge.manager.anySupportAcquireT) monAssert (opcode =/= TLMessages.AcquirePerm, s"'${format} channel should not see AcquirePerm")
-    if (!edge.manager.anySupportAcquireB) monAssert (opcode =/= TLMessages.AcquireBlock, s"'${format} channel should not see AcquireBlock")
     if (!edge.manager.anySupportArithmetic) monAssert (opcode =/= TLMessages.ArithmeticData, s"'${format} channel should not see ArithmeticData")
     if (!edge.manager.anySupportLogical) monAssert (opcode =/= TLMessages.LogicalData, s"'${format} channel should not see LogicalData")
     if (!edge.manager.anySupportGet) monAssert (opcode =/= TLMessages.Get, s"'${format} channel should not see Get")
