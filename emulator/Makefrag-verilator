@@ -10,7 +10,7 @@ verilog = \
 
 $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG)"
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG) $(CHISEL_OPTIONS)"
 
 %.v %.conf: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
@@ -22,6 +22,7 @@ $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(boot
     -faf $*.anno.json \
     -td $(generated_dir)/$(long_name)/ \
     -fct $(subst $(SPACE),$(COMMA),$(FIRRTL_TRANSFORMS)) \
+    $(FIRRTL_OPTIONS) \
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(VLSI_MEM_GEN)
 	cd $(generated_dir) && \
