@@ -18,7 +18,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 def get_module_names(contents):
-    pattern = "^module\s+([A-Za-z_][A-Za-z_0-9]*_[A-F0-9]{8}).*$" # only compare hashed names
+    pattern = "^module\s+([A-Za-z_][A-Za-z_0-9]*_[pcC][A-F0-9]{8}).*$" # only compare hashed names
     return set(re.findall(pattern, contents, re.MULTILINE))
 
 def compareNames(short, pair1, pair2):

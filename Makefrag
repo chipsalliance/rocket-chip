@@ -37,7 +37,7 @@ FIRRTL_TRANSFORMS := \
 	firrtl.passes.InlineInstances \
 	freechips.rocketchip.firrtl.StabilizeModuleNames \
 
-CHISEL_OPTIONS := --stabilize-names ""
+CHISEL_OPTIONS := -n $(long_name) --stabilize-names 0
 
 else
 FIRRTL_TRANSFORMS := \
