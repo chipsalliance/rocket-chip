@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import chisel3.dontTouch
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -98,6 +99,7 @@ trait HasCoreMemOp extends HasCoreParameters {
   val cmd  = Bits(width = M_SZ)
   val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
   val signed = Bool()
+  val dprv = UInt(width = PRV.SZ)
 }
 
 trait HasCoreData extends HasCoreParameters {
@@ -177,21 +179,22 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
     with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
-  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters(
+  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
     name          = s"Core ${hartid} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
     supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
 
-  protected def mmioClientParameters = Seq(TLClientParameters(
+  protected def mmioClientParameters = Seq(TLMasterParameters.v1(
     name          = s"Core ${hartid} DCache MMIO",
     sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
     requestFifo   = true))
 
   def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
-  val node = TLClientNode(Seq(TLClientPortParameters(
-    cacheClientParameters ++ mmioClientParameters,
-    minLatency = 1)))
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(
+    clients = cacheClientParameters ++ mmioClientParameters,
+    minLatency = 1,
+    requestFields = tileParams.core.useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
   val module: HellaCacheModule
 

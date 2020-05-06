@@ -5,28 +5,28 @@ package freechips.rocketchip.regmapper
 import Chisel._
 
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{GenericParameterizedBundle, ReduceOthers, MuxSeq}
+import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 
 // A bus agnostic register interface to a register-based device
 
-case class RegMapperParams(indexBits: Int, maskBits: Int, extraBits: Int)
+case class RegMapperParams(indexBits: Int, maskBits: Int, extraFields: Seq[BundleFieldBase] = Nil)
 
-class RegMapperInput(params: RegMapperParams) extends GenericParameterizedBundle(params)
+class RegMapperInput(val params: RegMapperParams) extends Bundle
 {
   val read  = Bool()
   val index = UInt(width = params.indexBits)
   val data  = UInt(width = params.maskBits*8)
   val mask  = UInt(width = params.maskBits)
-  val extra = UInt(width = params.extraBits)
+  val extra = BundleMap(params.extraFields)
 }
 
-class RegMapperOutput(params: RegMapperParams) extends GenericParameterizedBundle(params)
+class RegMapperOutput(val params: RegMapperParams) extends Bundle
 {
   val read  = Bool()
   val data  = UInt(width = params.maskBits*8)
-  val extra = UInt(width = params.extraBits)
+  val extra = BundleMap(params.extraFields)
 }
 
 object RegMapper
@@ -152,10 +152,15 @@ object RegMapper
       val fname = field.desc.map{_.name}.getOrElse("")
       val fdesc = field.desc.map{_.desc + ":"}.getOrElse("")
 
-      cover(f_rivalid && f_riready, fname + "_Reg_read_start",  fdesc + " RegField Read Request Initiate")
-      cover(f_rovalid && f_roready, fname + "_Reg_read_out",    fdesc + " RegField Read Request Complete")
-      cover(f_wivalid && f_wiready, fname + "_Reg_write_start", fdesc + " RegField Write Request Initiate")
-      cover(f_wovalid && f_woready, fname + "_Reg_write_out",   fdesc + " RegField Write Request Complete")
+      val facct = field.desc.map{_.access}.getOrElse("")
+      if((facct == RegFieldAccessType.R) || (facct == RegFieldAccessType.RW)) {
+        cover(f_rivalid && f_riready, fname + "_Reg_read_start",  fdesc + " RegField Read Request Initiate")
+        cover(f_rovalid && f_roready, fname + "_Reg_read_out",    fdesc + " RegField Read Request Complete")
+      }
+      if((facct == RegFieldAccessType.W) || (facct == RegFieldAccessType.RW)) {
+        cover(f_wivalid && f_wiready, fname + "_Reg_write_start", fdesc + " RegField Write Request Initiate")
+        cover(f_wovalid && f_woready, fname + "_Reg_write_out",   fdesc + " RegField Write Request Complete")
+      }
 
       def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) Bool(true) else x || y
       // Add this field to the ready-valid signals for the register

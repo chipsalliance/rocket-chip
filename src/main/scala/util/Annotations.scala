@@ -172,7 +172,7 @@ trait DontTouch { self: RawModule =>
   // TODO: this is a workaround for firrtl #756
   def dontTouch(data: Data): Unit = data match {
      case agg: Aggregate => agg.getElements.foreach(dontTouch)
-     case elt: Element => chisel3.core.dontTouch(elt)
+     case elt: Element => chisel3.dontTouch(elt)
   }
 
   /** Marks every port as don't touch

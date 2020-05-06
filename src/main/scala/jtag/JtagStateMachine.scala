@@ -5,7 +5,6 @@ package freechips.rocketchip.jtag
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.util.{AsyncResetRegVec}
 import freechips.rocketchip.util.property._
 
 object JtagState {
@@ -67,7 +66,6 @@ object JtagState {
   * - 6.1.1.1b state transitions occur on TCK rising edge
   * - 6.1.1.1c actions can occur on the following TCK falling or rising edge
   *
-  *
   */
 class JtagStateMachine(implicit val p: Parameters) extends Module() {
   class StateMachineIO extends Bundle {
@@ -77,11 +75,7 @@ class JtagStateMachine(implicit val p: Parameters) extends Module() {
   val io = IO(new StateMachineIO)
 
   val nextState = WireInit(JtagState.TestLogicReset.U)
-  val currStateReg = Module (new AsyncResetRegVec(w = JtagState.State.width,
-    init = JtagState.State.toInt(JtagState.TestLogicReset)))
-  currStateReg.io.en := true.B
-  currStateReg.io.d  := nextState
-  val currState = currStateReg.io.q
+  val currState = RegNext(next=nextState, init=JtagState.TestLogicReset.U)
 
   switch (currState) {
     is (JtagState.TestLogicReset.U) {

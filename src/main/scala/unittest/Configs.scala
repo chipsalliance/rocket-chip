@@ -43,7 +43,6 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new TLUserTest(               txns=   txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(1,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),

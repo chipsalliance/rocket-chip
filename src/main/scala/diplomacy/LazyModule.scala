@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.{RawModule, MultiIOModule, withClockAndReset}
-import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
+import chisel3.{RawModule, MultiIOModule, withClockAndReset, Reset}
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap, ListMap}
 import scala.util.matching._
@@ -177,13 +178,24 @@ abstract class LazyModule()(implicit val p: Parameters)
     *
     * @param iterfunc Function to call on each descendant.
     */
-  def nodeIterator(iterfunc: (LazyModule) => Unit): Unit = {
+  def childrenIterator(iterfunc: (LazyModule) => Unit): Unit = {
     iterfunc(this)
-    children.foreach( _.nodeIterator(iterfunc) )
+    children.foreach( _.childrenIterator(iterfunc) )
+  }
+
+  /** Call function on all of this [[LazyModule]]'s [[nodes]].
+    *
+    * @param iterfunc Function to call on each descendant.
+    */
+  def nodeIterator(iterfunc: (BaseNode) => Unit): Unit = {
+    nodes.foreach(iterfunc)
+    childrenIterator(_.nodes.foreach(iterfunc))
   }
 
   /** Accessor for [[children]]. */
   def getChildren = children
+
+  def getNodes = nodes
 }
 
 object LazyModule
@@ -318,10 +330,10 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   /** drive clock explicitly. */
   val childClock = Wire(Clock())
   /** drive reset explicitly. */
-  val childReset = Wire(Bool())
+  val childReset = Wire(Reset())
   // the default is that these are disabled
   childClock := Bool(false).asClock
-  childReset := Bool(true)
+  childReset := chisel3.DontCare
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
   }

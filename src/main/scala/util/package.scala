@@ -29,7 +29,7 @@ package object util {
         val truncIdx =
           if (idx.isWidthKnown && idx.getWidth <= log2Ceil(x.size)) idx
           else (idx | UInt(0, log2Ceil(x.size)))(log2Ceil(x.size)-1, 0)
-        (x.head /: x.zipWithIndex.tail) { case (prev, (cur, i)) => Mux(truncIdx === i.U, cur, prev) }
+        x.zipWithIndex.tail.foldLeft(x.head) { case (prev, (cur, i)) => Mux(truncIdx === i.U, cur, prev) }
       }
     }
 
@@ -40,7 +40,7 @@ package object util {
     def rotate(n: UInt): Seq[T] = {
       require(isPow2(x.size))
       val amt = n.padTo(log2Ceil(x.size))
-      (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+      (0 until log2Ceil(x.size)).foldLeft(x)((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
     }
 
     def rotateRight(n: Int): Seq[T] = x.takeRight(n) ++ x.dropRight(n)
@@ -48,7 +48,7 @@ package object util {
     def rotateRight(n: UInt): Seq[T] = {
       require(isPow2(x.size))
       val amt = n.padTo(log2Ceil(x.size))
-      (x /: (0 until log2Ceil(x.size)))((r, i) => (r.rotateRight(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+      (0 until log2Ceil(x.size)).foldLeft(x)((r, i) => (r.rotateRight(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
     }
   }
 
@@ -134,14 +134,14 @@ package object util {
 
     def rotateRight(n: UInt): UInt = {
       val amt = n.padTo(log2Ceil(x.getWidth))
-      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+      (0 until log2Ceil(x.getWidth)).foldLeft(x)((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
     }
 
     def rotateLeft(n: Int): UInt = if (n == 0) x else Cat(x(x.getWidth-1-n,0), x(x.getWidth-1,x.getWidth-n))
 
     def rotateLeft(n: UInt): UInt = {
       val amt = n.padTo(log2Ceil(x.getWidth))
-      (x /: (0 until log2Ceil(x.getWidth)))((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
+      (0 until log2Ceil(x.getWidth)).foldLeft(x)((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
     }
 
     // compute (this + y) % n, given (this < n) and (y < n)
@@ -234,17 +234,26 @@ package object util {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
-  implicit class EnhancedChisel3Assign(val x: Data) extends AnyVal {
+  implicit class EnhancedChisel3Assign[T <: Data](val x: T) extends AnyVal {
     // Assign all output fields of x from y; note that the actual direction of x is irrelevant
-    def :<= (y: Data): Unit = FixChisel3.assignL(x, y)
+    def :<= (y: T): Unit = FixChisel3.assignL(x, y)
     // Assign all input fields of y from x; note that the actual direction of y is irrelevant
-    def :=> (y: Data): Unit = FixChisel3.assignR(x, y)
+    def :=> (y: T): Unit = FixChisel3.assignR(x, y)
     // Wire-friendly bulk connect
-    def :<> (y: Data): Unit = {
-      x :<= y
-      x :=> y
+    def :<> (y: T): Unit = {
+      FixChisel3.assignL(x, y)
+      FixChisel3.assignR(x, y)
     }
     // x <> y   is an 'actual-direction'-inferred 'x :<> y' or 'y :<> x'
     // x := y   is equivalent to 'x :<= y' + 'y :=> x'
+
+    // Versions of the operators that use the type from the RHS
+    // y :<=: x  ->  x.:<=:(y)  ->  y :<= x  ->  FixChisel3.assignL(y, x)
+    def :<=: (y: T): Unit = { FixChisel3.assignL(y, x) }
+    def :>=: (y: T): Unit = { FixChisel3.assignR(y, x) }
+    def :<>: (y: T): Unit = {
+      FixChisel3.assignL(y, x)
+      FixChisel3.assignR(y, x)
+    }
   }
 }

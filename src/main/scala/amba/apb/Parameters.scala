@@ -6,6 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util._
 import scala.math.max
 
 case class APBSlaveParameters(
@@ -37,7 +38,9 @@ case class APBSlaveParameters(
 
 case class APBSlavePortParameters(
   slaves:    Seq[APBSlaveParameters],
-  beatBytes: Int)
+  beatBytes: Int,
+  responseFields: Seq[BundleFieldBase] = Nil,
+  requestKeys:    Seq[BundleKeyBase]   = Nil)
 {
   require (!slaves.isEmpty)
   require (isPow2(beatBytes))
@@ -53,21 +56,19 @@ case class APBSlavePortParameters(
 }
 
 case class APBMasterParameters(
-  name:     String,
-  nodePath: Seq[BaseNode] = Seq(),
-  userBits: Seq[UserBits] = Nil) {
-    val userBitsWidth = userBits.map(_.width).sum
-}
+  name:       String,
+  nodePath:   Seq[BaseNode] = Seq())
 
 case class APBMasterPortParameters(
-  masters: Seq[APBMasterParameters]) {
-    val userBitsWidth = masters.map(_.userBitsWidth).max
-  }
+  masters: Seq[APBMasterParameters],
+  requestFields: Seq[BundleFieldBase] = Nil,
+  responseKeys:  Seq[BundleKeyBase]   = Nil)
 
 case class APBBundleParameters(
   addrBits: Int,
   dataBits: Int,
-  userBits: Int = 0)
+  requestFields:  Seq[BundleFieldBase] = Nil,
+  responseFields: Seq[BundleFieldBase] = Nil)
 {
   require (dataBits >= 8)
   require (addrBits >= 1)
@@ -80,19 +81,21 @@ case class APBBundleParameters(
     APBBundleParameters(
       max(addrBits, x.addrBits),
       max(dataBits, x.dataBits),
-      userBits)
+      BundleField.union(requestFields  ++ x.requestFields),
+      BundleField.union(responseFields ++ x.responseFields))
 }
 
 object APBBundleParameters
 {
-  val emptyBundleParams = APBBundleParameters(addrBits = 1, dataBits = 8, userBits = 0)
+  val emptyBundleParams = APBBundleParameters(addrBits = 1, dataBits = 8, requestFields = Nil, responseFields = Nil)
   def union(x: Seq[APBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
   def apply(master: APBMasterPortParameters, slave: APBSlavePortParameters) =
     new APBBundleParameters(
-      addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8,
-      userBits = master.userBitsWidth)
+      addrBits   = log2Up(slave.maxAddress+1),
+      dataBits   = slave.beatBytes * 8,
+      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
+      responseFields = BundleField.accept(slave.responseFields, master.responseKeys))
 }
 
 case class APBEdgeParameters(

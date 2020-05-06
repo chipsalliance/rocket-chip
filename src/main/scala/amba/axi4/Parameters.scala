@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.AsyncQueueParams
+import freechips.rocketchip.util._
 import scala.math.max
 
 case class AXI4SlaveParameters(
@@ -45,8 +45,9 @@ case class AXI4SlaveParameters(
 case class AXI4SlavePortParameters(
   slaves:     Seq[AXI4SlaveParameters],
   beatBytes:  Int,
-  wcorrupt:   Boolean = false,
-  minLatency: Int = 1)
+  minLatency: Int = 1,
+  responseFields: Seq[BundleFieldBase] = Nil,
+  requestKeys:    Seq[BundleKeyBase]   = Nil)
 {
   require (!slaves.isEmpty)
   require (isPow2(beatBytes))
@@ -82,12 +83,11 @@ case class AXI4MasterParameters(
 
 case class AXI4MasterPortParameters(
   masters:    Seq[AXI4MasterParameters],
-  opaqueBits: Int = 0, // length of bits that need to be propagated after userBits offset in the user field
-  userBits:   Int = 0)
+  echoFields:    Seq[BundleFieldBase] = Nil,
+  requestFields: Seq[BundleFieldBase] = Nil,
+  responseKeys:  Seq[BundleKeyBase]   = Nil)
 {
   val endId = masters.map(_.id.end).max
-  require (opaqueBits >= 0)
-  require (userBits >= 0)
 
   // Require disjoint ranges for ids
   IdRange.overlaps(masters.map(_.id)).foreach { case (x, y) =>
@@ -96,17 +96,18 @@ case class AXI4MasterPortParameters(
 }
 
 case class AXI4BundleParameters(
-  addrBits:   Int,
-  dataBits:   Int,
-  idBits:     Int,
-  opaqueBits: Int = 0,
-  userBits:   Int = 0,
-  wcorrupt:   Boolean = false)
+  addrBits: Int,
+  dataBits: Int,
+  idBits:   Int,
+  echoFields:     Seq[BundleFieldBase] = Nil,
+  requestFields:  Seq[BundleFieldBase] = Nil,
+  responseFields: Seq[BundleFieldBase] = Nil)
 {
   require (dataBits >= 8, s"AXI4 data bits must be >= 8 (got $dataBits)")
   require (addrBits >= 1, s"AXI4 addr bits must be >= 1 (got $addrBits)")
   require (idBits >= 1, s"AXI4 id bits must be >= 1 (got $idBits)")
   require (isPow2(dataBits), s"AXI4 data bits must be pow2 (got $dataBits)")
+  echoFields.foreach { f => require (f.key.isControl, s"${f} is not a legal echo field") }
 
   // Bring the globals into scope
   val lenBits   = AXI4Parameters.lenBits
@@ -123,24 +124,24 @@ case class AXI4BundleParameters(
       max(addrBits,   x.addrBits),
       max(dataBits,   x.dataBits),
       max(idBits,     x.idBits),
-      max(opaqueBits, x.opaqueBits),
-      max(userBits,   x.userBits),
-      wcorrupt || x.wcorrupt)
+      BundleField.union(echoFields ++ x.echoFields),
+      BundleField.union(requestFields ++ x.requestFields),
+      BundleField.union(responseFields ++ x.responseFields))
 }
 
 object AXI4BundleParameters
 {
-  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1, opaqueBits=0, userBits=0, wcorrupt=false)
+  val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1, echoFields=Nil, requestFields=Nil, responseFields=Nil)
   def union(x: Seq[AXI4BundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
   def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
     new AXI4BundleParameters(
-      addrBits   = log2Up(slave.maxAddress+1),
-      dataBits   = slave.beatBytes * 8,
-      idBits     = log2Up(master.endId),
-      opaqueBits = master.opaqueBits,
-      userBits   = master.userBits,
-      wcorrupt   = slave.wcorrupt)
+      addrBits = log2Up(slave.maxAddress+1),
+      dataBits = slave.beatBytes * 8,
+      idBits   = log2Up(master.endId),
+      echoFields     = master.echoFields,
+      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
+      responseFields = BundleField.accept(slave.responseFields, master.responseKeys))
 }
 
 case class AXI4EdgeParameters(

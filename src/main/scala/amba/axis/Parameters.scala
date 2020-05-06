@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.util.BundleField
+import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 
 class AXISSlaveParameters private (
@@ -96,6 +96,7 @@ class AXISMasterParameters private (
   val name:       String,
   val emitsSizes: TransferSizes,
   val sourceId:   IdRange,
+  val resources:  Seq[Resource],
   val nodePath:   Seq[BaseNode])
 {
   require (!emitsSizes.none)
@@ -105,12 +106,14 @@ class AXISMasterParameters private (
     name:       String        = name,
     emitsSizes: TransferSizes = emitsSizes,
     sourceId:   IdRange       = sourceId,
+    resources:  Seq[Resource] = resources,
     nodePath:   Seq[BaseNode] = nodePath) =
   {
     new AXISMasterParameters(
       name       = name,
       emitsSizes = emitsSizes,
       sourceId   = sourceId,
+      resources  = resources,
       nodePath   = nodePath)
   }
 }
@@ -120,19 +123,21 @@ object AXISMasterParameters {
     name:       String,
     emitsSizes: TransferSizes,
     sourceId:   IdRange       = IdRange(0,1),
+    resources:  Seq[Resource] = Nil,
     nodePath:   Seq[BaseNode] = Nil) =
   {
     new AXISMasterParameters(
       name       = name,
       emitsSizes = emitsSizes,
       sourceId   = sourceId,
+      resources  = resources,
       nodePath   = nodePath)
   }
 }
 
 class AXISMasterPortParameters private (
   val masters:      Seq[AXISMasterParameters],
-  val userFields:   Seq[BundleField],
+  val userFields:   Seq[BundleFieldBase],
   val isAligned:    Boolean, /* there are no 'Position byte's in transfers */
   val isContinuous: Boolean, /* there are no 'Null byte's except at the end of a transfer */
   val beatBytes:    Option[Int])
@@ -145,7 +150,7 @@ class AXISMasterPortParameters private (
 
   def v1copy(
     masters:      Seq[AXISMasterParameters] = masters,
-    userFields:   Seq[BundleField]          = userFields,
+    userFields:   Seq[BundleFieldBase]      = userFields,
     isAligned:    Boolean                   = isAligned,
     isContinuous: Boolean                   = isContinuous,
     beatBytes:    Option[Int]               = beatBytes) =
@@ -162,10 +167,10 @@ class AXISMasterPortParameters private (
 object AXISMasterPortParameters {
   def v1(
     masters:      Seq[AXISMasterParameters],
-    userFields:   Seq[BundleField] = Nil,
-    isAligned:    Boolean          = false,
-    isContinuous: Boolean          = false,
-    beatBytes:    Option[Int]      = None) =
+    userFields:   Seq[BundleFieldBase] = Nil,
+    isAligned:    Boolean              = false,
+    isContinuous: Boolean              = false,
+    beatBytes:    Option[Int]          = None) =
   {
     new AXISMasterPortParameters(
       masters      = masters,
@@ -180,7 +185,7 @@ class AXISBundleParameters private (
   val idBits:      Int,
   val destBits:    Int,
   val dataBits:    Int,
-  val userFields:  Seq[BundleField],
+  val userFields:  Seq[BundleFieldBase],
   val oneBeat:     Boolean,
   val aligned:     Boolean)
 {
@@ -203,17 +208,17 @@ class AXISBundleParameters private (
     idBits      = idBits   max x.idBits,
     destBits    = destBits max x.destBits,
     dataBits    = dataBits max x.dataBits,
-    userFields  = (userFields ++ x.userFields).distinct,
+    userFields  = BundleField.union(userFields ++ x.userFields),
     oneBeat     = oneBeat && x.oneBeat,
     aligned     = aligned && x.aligned)
 
   def v1copy(
-    idBits:      Int              = idBits,
-    destBits:    Int              = destBits,
-    dataBits:    Int              = dataBits,
-    userFields:  Seq[BundleField] = userFields,
-    oneBeat:     Boolean          = oneBeat,
-    aligned:     Boolean          = aligned) =
+    idBits:      Int = idBits,
+    destBits:    Int = destBits,
+    dataBits:    Int = dataBits,
+    userFields:  Seq[BundleFieldBase] = userFields,
+    oneBeat:     Boolean = oneBeat,
+    aligned:     Boolean = aligned) =
   {
     new AXISBundleParameters(
       idBits     = idBits,
@@ -239,7 +244,7 @@ object AXISBundleParameters {
     idBits:      Int,
     destBits:    Int,
     dataBits:    Int,
-    userFields:  Seq[BundleField],
+    userFields:  Seq[BundleFieldBase],
     oneBeat:     Boolean,
     aligned:     Boolean) =
   {

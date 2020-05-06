@@ -4,6 +4,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
@@ -12,7 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.{DontCare, WireInit, dontTouch, withClock}
-import chisel3.experimental.chiselName
+import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import chisel3.internal.sourceinfo.SourceInfo
 import TLMessages._
 
@@ -109,7 +110,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val gated_clock =
     if (!cacheParams.clockGate) clock
     else ClockGate(clock, clock_en_reg, "dcache_clock_gate")
-  @chiselName class DCacheModuleImpl { // entering gated-clock domain
+  @chiselName class DCacheModuleImpl extends NoChiselNamePrefix { // entering gated-clock domain
 
   val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)))
   val pma_checker = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)) with InlineInstance)
@@ -344,7 +345,27 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_data_corrected = (s2_data_decoded.map(_.corrected): Seq[UInt]).asUInt
   val s2_data_uncorrected = (s2_data_decoded.map(_.uncorrected): Seq[UInt]).asUInt
   val s2_valid_hit_maybe_flush_pre_data_ecc_and_waw = s2_valid_masked && !s2_meta_error && s2_hit
-  val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_readwrite
+  val s2_no_alloc_hazard = if (!usingVM || pgIdxBits >= untagBits) false.B else {
+    // make sure that any in-flight non-allocating accesses are ordered before
+    // any allocating accesses.  this can only happen if aliasing is possible.
+    val any_no_alloc_in_flight = Reg(Bool())
+    when (!uncachedInFlight.asUInt.orR) { any_no_alloc_in_flight := false }
+    when (s2_valid && s2_req.no_alloc) { any_no_alloc_in_flight := true }
+    val s1_need_check = any_no_alloc_in_flight || s2_valid && s2_req.no_alloc
+
+    val concerns = (uncachedInFlight zip uncachedReqs) :+ (s2_valid && s2_req.no_alloc, s2_req)
+    val s1_uncached_hits = concerns.map { c =>
+      val concern_wmask = new StoreGen(c._2.size, c._2.addr, UInt(0), wordBytes).mask
+      val addr_match = (c._2.addr ^ s1_paddr)(pgIdxBits+pgLevelBits-1, wordBytes.log2) === 0
+      val mask_match = (concern_wmask & s1_mask_xwr).orR || c._2.cmd === M_PWR || s1_req.cmd === M_PWR
+      val cmd_match = isWrite(c._2.cmd) || isWrite(s1_req.cmd)
+      c._1 && s1_need_check && cmd_match && addr_match && mask_match
+    }
+
+    val s2_uncached_hits = RegEnable(s1_uncached_hits.asUInt, s1_valid_not_nacked)
+    s2_uncached_hits.orR
+  }
+  val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_readwrite && !s2_no_alloc_hazard
   val s2_valid_flush_line = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_cmd_flush_line
   val s2_valid_hit_pre_data_ecc = s2_valid_hit_pre_data_ecc_and_waw && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_data_error = s2_valid_hit_pre_data_ecc_and_waw && s2_data_error
@@ -531,6 +552,22 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Mux(s2_req.cmd === M_PWR, putpartial,
     Mux(!s2_read, put, atomics))))
 
+  // Drive APROT Bits
+  tl_out_a.bits.user.lift(AMBAProt).foreach { x =>
+    val user_bit_cacheable = s2_pma.cacheable
+
+    x.privileged  := s2_req.dprv === PRV.M || user_bit_cacheable
+    // if the address is cacheable, enable outer caches
+    x.bufferable  := user_bit_cacheable
+    x.modifiable  := user_bit_cacheable
+    x.readalloc   := user_bit_cacheable
+    x.writealloc  := user_bit_cacheable
+
+    // Following are always tied off
+    x.fetch       := false.B
+    x.secure      := true.B
+  }
+
   // Set pending bits for outstanding TileLink transaction
   val a_sel = UIntToOH(a_source, maxUncachedInFlight+mmioOffset) >> mmioOffset
   when (tl_out_a.fire()) {
@@ -539,6 +576,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         when (s) {
           f := Bool(true)
           r := s2_req
+          r.cmd := Mux(s2_write, Mux(s2_req.cmd === M_PWR, M_PWR, M_XWR), M_XRD)
         }
       }
     }.otherwise {
@@ -819,6 +857,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     resp.bits.size := uncachedResp.size
     resp.bits.signed := uncachedResp.signed
     resp.bits.data := new LoadGen(uncachedResp.size, uncachedResp.signed, uncachedResp.addr, s1_uncached_data_word, false.B, wordBytes).data
+    resp.bits.data_raw := s1_uncached_data_word
     when (grantIsUncachedData && !resp.ready) {
       tl_out.d.ready := false
     }

@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.ahb
 
 import chisel3._
-import chisel3.core.Reset
 import freechips.rocketchip.config.Parameters
 
 case class AHBSlaveMonitorArgs(edge: AHBEdgeParameters)

@@ -3,16 +3,20 @@
 package freechips.rocketchip.amba.apb
 
 import Chisel._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.MaskGen
+import freechips.rocketchip.util._
 
 case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APBImp, TLImp)(
-  dFn = { case APBMasterPortParameters(masters) =>
-    TLClientPortParameters(clients = masters.map { m =>
-      TLClientParameters(name = m.name, nodePath = m.nodePath)
-    })
+  dFn = { mp =>
+    TLMasterPortParameters.v1(
+      clients = mp.masters.map { m =>
+        TLMasterParameters.v1(name = m.name, nodePath = m.nodePath)
+      },
+      requestFields = AMBAProtField() +: mp.requestFields,
+      responseKeys  = mp.responseKeys)
   },
   uFn = { mp => APBSlavePortParameters(
     slaves = mp.managers.map { m =>
@@ -24,14 +28,15 @@ case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APB
         nodePath      = m.nodePath,
         supportsWrite = m.supportsPutPartial.intersect(TransferSizes(1, mp.beatBytes)),
         supportsRead  = m.supportsGet.intersect(TransferSizes(1, mp.beatBytes)))},
-    beatBytes = mp.beatBytes)
+    beatBytes = mp.beatBytes,
+    responseFields = mp.responseFields,
+    requestKeys    = mp.requestKeys.filter(_ != AMBAProt))
   })
 
 class APBToTL()(implicit p: Parameters) extends LazyModule
 {
   val node = APBToTLNode()
 
-  
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.manager.beatBytes
@@ -81,6 +86,16 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       out.a.bits.source  := UInt(0)
       // TL requires addresses be aligned to their size.
       out.a.bits.address := aligned_addr
+      out.a.bits.user :<= in.pauser
+      out.a.bits.user.lift(AMBAProt).foreach { prot =>
+        prot.privileged :=  in.pprot(0)
+        prot.secure     := !in.pprot(1)
+        prot.fetch      :=  in.pprot(2)
+        prot.bufferable :=  true.B
+        prot.modifiable :=  true.B
+        prot.readalloc  :=  true.B
+        prot.writealloc :=  true.B
+      }
       when (out.a.fire()) {
         assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
       }
@@ -90,6 +105,7 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       // Note: we ignore in.pprot
       // Read
       in.prdata := out.d.bits.data
+      in.pduser :<= out.d.bits.user
 
       // Error
       in.pslverr := out.d.bits.corrupt || out.d.bits.denied || error_in_flight_reg

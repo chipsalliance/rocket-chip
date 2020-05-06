@@ -15,13 +15,13 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
   require (concurrency >= 1)
 
   val node = TLAdapterNode(
-    managerFn = { case mp => mp.copy(managers = mp.managers.map { m =>
+    managerFn = { case mp => mp.v1copy(managers = mp.managers.map { m =>
       val ourSupport = TransferSizes(1, mp.beatBytes)
       def widen(x: TransferSizes) = if (passthrough && x.min <= 2*mp.beatBytes) TransferSizes(1, max(mp.beatBytes, x.max)) else ourSupport
       val canDoit = m.supportsPutFull.contains(ourSupport) && m.supportsGet.contains(ourSupport)
       // Blow up if there are devices to which we cannot add Atomics, because their R|W are too inflexible
       require (!m.supportsPutFull || !m.supportsGet || canDoit, s"${m.name} has $ourSupport, needed PutFull(${m.supportsPutFull}) or Get(${m.supportsGet})")
-      m.copy(
+      m.v1copy(
         supportsArithmetic = if (!arithmetic || !canDoit) m.supportsArithmetic else widen(m.supportsArithmetic),
         supportsLogical    = if (!logical    || !canDoit) m.supportsLogical    else widen(m.supportsLogical),
         mayDenyGet         = m.mayDenyGet || m.mayDenyPut)
@@ -60,7 +60,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       // Don't overprovision the CAM
       val camSize = min(domainsNeedingHelp.size, concurrency)
       // Compact the fifoIds to only those we care about
-      def camFifoId(m: TLManagerParameters) = m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)
+      def camFifoId(m: TLSlaveParameters) = m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)
 
       // CAM entry state machine
       val FREE = UInt(0) // unused                   waiting on Atomic from A
@@ -164,7 +164,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           lgSize     = a_cam_a.bits.size,
           data       = amo_data,
           corrupt    = a_cam_a.bits.corrupt || a_cam_d.corrupt)._2
-        source_c.bits.user.map { _ := a_cam_a.bits.user.get }
+        source_c.bits.user :<= a_cam_a.bits.user
+        source_c.bits.echo :<= a_cam_a.bits.echo
 
         // Finishing an AMO from the CAM has highest priority
         TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(0), source_c), (edgeOut.numBeats1(in.a.bits), source_i))

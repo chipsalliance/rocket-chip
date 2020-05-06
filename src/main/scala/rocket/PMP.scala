@@ -136,7 +136,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
 
 class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {
   def apply(addr: UInt, pgLevel: UInt): Bool = {
-    ((true.B, 0.U.asTypeOf(new PMP)) /: pmps) { case ((h, prev), pmp) =>
+    pmps.foldLeft((true.B, 0.U.asTypeOf(new PMP))) { case ((h, prev), pmp) =>
       (h && pmp.homogeneous(addr, pgLevel, prev), pmp)
     }._1
   }
@@ -160,7 +160,7 @@ class PMPChecker(lgMaxSize: Int)(implicit val p: Parameters) extends Module
   pmp0.cfg.w := default
   pmp0.cfg.x := default
 
-  val res = (pmp0 /: (io.pmp zip (pmp0 +: io.pmp)).reverse) { case (prev, (pmp, prevPMP)) =>
+  val res = (io.pmp zip (pmp0 +: io.pmp)).reverse.foldLeft(pmp0) { case (prev, (pmp, prevPMP)) =>
     val hit = pmp.hit(io.addr, io.size, lgMaxSize, prevPMP)
     val ignore = default && !pmp.cfg.l
     val aligned = pmp.aligned(io.addr, io.size, lgMaxSize, prevPMP)

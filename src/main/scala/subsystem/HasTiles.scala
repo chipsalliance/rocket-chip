@@ -44,25 +44,26 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
   tileCeaseSinkNode := tileCeaseXbarNode
 
   protected def connectMasterPortsToSBus(tile: BaseTile, crossing: RocketCrossingParams) {
-    sbus.fromTile(tile.tileParams.name, crossing.master.buffers) {
+    locateTLBusWrapper(crossing.master.where).coupleFrom(tile.tileParams.name.getOrElse("tile")) { bus =>
+      (bus :=*
+        TLBuffer(crossing.master.buffers) :=*
         crossing.master.cork
           .map { u => TLCacheCork(unsafe = u) }
           .map { _ :=* tile.crossMasterPort() }
-          .getOrElse { tile.crossMasterPort() }
+          .getOrElse { tile.crossMasterPort() })
     }
   }
 
   protected def connectSlavePortsToCBus(tile: BaseTile, crossing: RocketCrossingParams)(implicit valName: ValName) {
-
     DisableMonitors { implicit p =>
-      cbus.toTile(tile.tileParams.name) {
+      locateTLBusWrapper(crossing.slave.where).coupleTo(tile.tileParams.name.getOrElse("tile")) { bus =>
         crossing.slave.blockerCtrlAddr
           .map { BasicBusBlockerParams(_, pbus.beatBytes, sbus.beatBytes) }
           .map { bbbp => LazyModule(new BasicBusBlocker(bbbp)) }
           .map { bbb =>
             cbus.coupleTo("bus_blocker") { bbb.controlNode := TLFragmenter(cbus) := _ }
             tile.crossSlavePort() :*= bbb.node
-          } .getOrElse { tile.crossSlavePort() }
+          } .getOrElse { tile.crossSlavePort() } :*= bus
       }
     }
   }
@@ -76,7 +77,7 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
     // 1. Debug interrupt is definitely asynchronous in all cases.
     tile.intInwardNode :=
       debugOpt
-        .map { tile { IntSyncCrossingSink(3) } := _.intnode }
+        .map { tile { IntSyncAsyncCrossingSink(3) } := _.intnode }
         .getOrElse { NullIntSource() }
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
@@ -92,8 +93,8 @@ trait HasTiles extends HasCoreMonitorBundles { this: BaseSubsystem =>
       plicOpt .map { _.intnode }
         .getOrElse { meipNode.get }
 
-    //    From PLIC: "seip" (only if vm/supervisor mode is enabled)
-    if (tile.tileParams.core.useVM) {
+    //    From PLIC: "seip" (only if supervisor mode is enabled)
+    if (tile.tileParams.core.hasSupervisorMode) {
       tile.crossIntIn() :=
         plicOpt .map { _.intnode }
           .getOrElse { NullIntSource() }

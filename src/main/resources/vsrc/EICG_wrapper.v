@@ -3,14 +3,15 @@
 module EICG_wrapper(
   output out,
   input en,
+  input test_en,
   input in
 );
 
   reg en_latched /*verilator clock_enable*/;
 
-  always @(en or in) begin
+  always @(*) begin
      if (!in) begin
-        en_latched = en;
+        en_latched = en || test_en;
      end
   end
 

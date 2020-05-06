@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 
 /** Implements the same interface as chisel3.util.Queue, but uses a shift
   * register internally.  It is less energy efficient whenever the queue
@@ -14,10 +15,10 @@ class ShiftQueue[T <: Data](gen: T,
                             flow: Boolean = false)
     extends Module {
   val io = IO(new QueueIO(gen, entries) {
-    val mask = UInt(OUTPUT, entries)
+    val mask = Output(UInt(entries.W))
   })
 
-  private val valid = RegInit(Vec.fill(entries) { Bool(false) })
+  private val valid = RegInit(VecInit(Seq.fill(entries) { false.B }))
   private val elts = Reg(Vec(entries, gen))
 
   for (i <- 0 until entries) {
@@ -26,13 +27,13 @@ class ShiftQueue[T <: Data](gen: T,
     val wdata = if (i == entries-1) io.enq.bits else Mux(valid(i+1), elts(i+1), io.enq.bits)
     val wen =
       Mux(io.deq.ready,
-          paddedValid(i+1) || io.enq.fire() && (Bool(i == 0 && !flow) || valid(i)),
+          paddedValid(i+1) || io.enq.fire() && ((i == 0 && !flow).B || valid(i)),
           io.enq.fire() && paddedValid(i-1) && !valid(i))
     when (wen) { elts(i) := wdata }
 
     valid(i) :=
       Mux(io.deq.ready,
-          paddedValid(i+1) || io.enq.fire() && (Bool(i == 0 && !flow) || valid(i)),
+          paddedValid(i+1) || io.enq.fire() && ((i == 0 && !flow).B || valid(i)),
           io.enq.fire() && paddedValid(i-1) || valid(i))
   }
 

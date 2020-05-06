@@ -41,28 +41,15 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
     // Transform input bundle sources (dest uses global namespace on both sides)
     val in = Wire(Vec(io_in.size, AXISBundle(wide_bundle)))
     for (i <- 0 until in.size) {
-      io_in(i).ready := in(i).ready
-      in(i).valid    := io_in(i).valid
-
-      (in(i).bits assignL io_in(i).bits) foreach {
-        // Assign the potentially widened AXI-ID
-        case AXISId => if (in(i).bits.params.hasId) { in(i).bits.id := io_in(i).bits.id | inputIdRanges(i).start.U }
-        // All other fields should remain the same
-        case key => in(i).bits(key) :<= io_in(i).bits(key)
-      }
+      in(i) :<> io_in(i)
+      in(i).bits.lift(AXISId) foreach { _ := io_in(i).bits.id | inputIdRanges(i).start.U }
     }
 
     // Transform output bundle sinks (id use global namespace on both sides)
     val out = Wire(Vec(io_out.size, AXISBundle(wide_bundle)))
     for (o <- 0 until out.size) {
-      out(o).ready        := io_out(o).ready
-      io_out(o).valid     := out(o).valid
-      (io_out(o).bits assignL out(o).bits) foreach {
-        // Simplify the potentially narrowed AXI-Dest
-        case AXISDest => if (io_out(o).params.hasDest) { io_out(o).bits.dest := trim(out(o).bits.dest, outputIdRanges(o).size) }
-        // All other fields should remain the same
-        case key => io_out(o).bits(key) :<= out(o).bits(key)
-      }
+      io_out(o) :<> out(o)
+      io_out(o).bits.lift(AXISDest) foreach { _ := trim(out(o).bits.dest, outputIdRanges(o).size) }
     }
 
     // Fanout the input sources to the output sinks
@@ -89,9 +76,7 @@ object AXISXbar
     if (sources.isEmpty) {
       sink.valid := false.B
     } else if (sources.size == 1) {
-      sink.valid := sources.head.valid
-      sink.bits  := sources.head.bits
-      sources.head.ready := sink.ready
+      sink :<> sources.head
     } else {
       // The number of beats which remain to be sent
       val idle = RegInit(true.B)
@@ -120,14 +105,14 @@ object AXISXbar
       val allowed = Mux(idle, readys, state)
       (sources zip allowed) foreach { case (s, r) => s.ready := sink.ready && r }
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
-      sink.bits := Mux1H(muxState, sources.map(_.bits))
+      sink.bits :<= Mux1H(muxState, sources.map(_.bits))
     }
   }
 
   def fanout(input: AXISBundle, select: Seq[Bool]): Seq[AXISBundle] = {
     val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
-      filtered(i).bits := input.bits
+      filtered(i).bits :<= input.bits
       filtered(i).valid := input.valid && (select(i) || (select.size == 1).B)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))

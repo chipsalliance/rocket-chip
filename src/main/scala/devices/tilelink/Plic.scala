@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
@@ -69,7 +70,7 @@ case class PLICParams(baseAddress: BigInt = 0xC000000, maxPriorities: Int = 7, i
 case object PLICKey extends Field[Option[PLICParams]](None)
 
 case class PLICAttachParams(
-  slaveWhere: BaseSubsystemBusAttachment = CBUS
+  slaveWhere: TLBusWrapperLocation = CBUS
 )
 
 case object PLICAttachKey extends Field(PLICAttachParams())
@@ -159,11 +160,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val prioBits = log2Ceil(nPriorities+1)
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices, UInt(width=prioBits)))
-      else Wire(init=Vec.fill(nDevices)(UInt(1)))
+      else Wire(init=Vec.fill(nDevices max 1)(UInt(1)))
     val threshold =
       if (nPriorities > 0) Reg(Vec(nHarts, UInt(width=prioBits)))
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
-    val pending = Reg(init=Vec.fill(nDevices){Bool(false)})
+    val pending = Reg(init=Vec.fill(nDevices max 1){Bool(false)})
 
     /* Construct the enable registers, chunked into 8-bit segments to reduce verilog size */
     val firstEnable = nDevices min 7
@@ -347,7 +348,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 /** Trait that will connect a PLIC to a subsystem */
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
-    val tlbus = attach(p(PLICAttachKey).slaveWhere)
+    val tlbus = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
     val plic = LazyModule(new TLPLIC(params, tlbus.beatBytes))
     plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ }
     plic.intnode :=* ibus.toPLIC

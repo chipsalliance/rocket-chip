@@ -3,18 +3,20 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
-
+import chisel3.withClock
+import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental._
 
 case class FPUParams(
+  minFLen: Int = 32,
   fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
@@ -250,19 +252,21 @@ case class FType(exp: Int, sig: Int) {
 }
 
 object FType {
+  val H = new FType(5, 11)
   val S = new FType(8, 24)
   val D = new FType(11, 53)
 
-  val all = List(S, D)
+  val all = List(H, S, D)
 }
 
 trait HasFPUParameters {
   require(fLen == 0 || FType.all.exists(_.ieeeWidth == fLen))
+  val minFLen: Int
   val fLen: Int
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
-  val floatTypes = FType.all.filter(_.ieeeWidth <= fLen)
+  val floatTypes = FType.all.filter(t => minFLen <= t.ieeeWidth && t.ieeeWidth <= fLen)
   def minType = floatTypes.head
   def maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
@@ -389,7 +393,7 @@ trait HasFPUParameters {
   }
 }
 
-abstract class FPUModule(implicit p: Parameters) extends CoreModule()(p) with HasFPUParameters
+abstract class FPUModule(implicit val p: Parameters) extends Module with HasCoreParameters with HasFPUParameters
 
 class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   class Output extends Bundle {
@@ -435,7 +439,6 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     when (!in.ren2) { // fcvt
       val cvtType = in.typ.extract(log2Ceil(nIntTypes), 1)
       intType := cvtType
-
       val conv = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, xLen))
       conv.io.in := in.in1
       conv.io.roundingMode := in.rm
@@ -590,10 +593,9 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
 
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
-    val mulAddRecFNToRaw_preMul =
-        Module(new hardfloat.MulAddRecFNToRaw_preMul(expWidth, sigWidth))
-    val mulAddRecFNToRaw_postMul =
-        Module(new hardfloat.MulAddRecFNToRaw_postMul(expWidth, sigWidth))
+
+    val mulAddRecFNToRaw_preMul = Module(new hardfloat.MulAddRecFNToRaw_preMul(expWidth, sigWidth))
+    val mulAddRecFNToRaw_postMul = Module(new hardfloat.MulAddRecFNToRaw_postMul(expWidth, sigWidth))
 
     mulAddRecFNToRaw_preMul.io.op := io.op
     mulAddRecFNToRaw_preMul.io.a  := io.a
@@ -619,6 +621,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
+
     val roundRawFNToRecFN = Module(new hardfloat.RoundRawFNToRecFN(expWidth, sigWidth, 0))
 
     val round_regs = if(latency==2) 1 else 0
@@ -700,7 +703,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
-  @chiselName class FPUImpl { // entering gated-clock domain
+  @chiselName class FPUImpl extends NoChiselNamePrefix { // entering gated-clock domain
 
   val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_cp_valid = io.cp_req.fire()
