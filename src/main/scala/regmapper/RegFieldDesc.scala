@@ -108,11 +108,19 @@ case class AddressBlockInfo (
 // Add the AddressBlock to a list of RegFields' descriptions. If they have no RegFieldDesc,
 // this has no effect.
 object RegFieldAddressBlock {
-  def apply (addressBlockInfo: AddressBlockInfo, regs: Seq[RegField]): Seq[RegField] = {
-    regs.map {r =>
-      r.desc.map { d =>
-        r.copy(desc = Some(d.copy(addressBlock = Some(addressBlockInfo))))
-      }.getOrElse(r)
+
+  def apply(addressBlockInfo: AddressBlockInfo, regmap: RegField.Map*): Seq[RegField.Map] = {
+    regmap.toList.map { regmapEntry =>
+      // each entry has a form like offset -> Seq[RegField]
+      // We want to keep the offset the same (base address is ignored)
+      // but update each of the child RegField's descriptions
+      val regFields = regmapEntry._2
+      val regFieldsWithAddressBlockAdded = regFields.map {r =>
+        r.desc.map { d =>
+          r.copy(desc = Some(d.copy(addressBlock = Some(addressBlockInfo))))
+        }.getOrElse(r)
+      }
+      regmapEntry._1 -> regFieldsWithAddressBlockAdded
     }
   }
 }
