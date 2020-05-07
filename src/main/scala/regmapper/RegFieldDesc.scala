@@ -109,18 +109,21 @@ case class AddressBlockInfo (
 // this has no effect.
 object RegFieldAddressBlock {
 
-  def apply(addressBlockInfo: AddressBlockInfo, regmap: RegField.Map*): Seq[RegField.Map] = {
+  def apply(addressBlockInfo: AddressBlockInfo,
+    addAddressOffset: Boolean,
+    regmap: RegField.Map*): Seq[RegField.Map] = {
     regmap.toList.map { regmapEntry =>
       // each entry has a form like offset -> Seq[RegField]
-      // We want to keep the offset the same (base address is ignored)
-      // but update each of the child RegField's descriptions
+      // We either add the addressBlockInfo.addressOffset or not
+      // and also update each of the child RegField's descriptions
       val regFields = regmapEntry._2
       val regFieldsWithAddressBlockAdded = regFields.map {r =>
         r.desc.map { d =>
           r.copy(desc = Some(d.copy(addressBlock = Some(addressBlockInfo))))
         }.getOrElse(r)
       }
-      regmapEntry._1 -> regFieldsWithAddressBlockAdded
+      val offsetIncrement = if (addAddressOffset) addressBlockInfo.addressOffset.toInt else 0
+      (regmapEntry._1 + offsetIncrement) -> regFieldsWithAddressBlockAdded
     }
   }
 }
