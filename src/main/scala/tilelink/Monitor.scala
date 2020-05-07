@@ -72,7 +72,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     if (!edge.manager.anySupportLogical) monAssert (opcode =/= TLMessages.LogicalData, s"'${format} channel should not see LogicalData")
     if (!edge.manager.anySupportGet) monAssert (opcode =/= TLMessages.Get, s"'${format} channel should not see Get")
     if (!edge.manager.anySupportPutFull) monAssert (opcode =/= TLMessages.PutFullData, s"'${format} channel should not see PutFullData")
-    if (!edge.manager.anySupportPutPartial) monAssert (opcode =/= TLMessages.PutPartialData, s"'${format} channel should not see PutPartialData")
+    //if (!edge.manager.anySupportPutPartial) monAssert (opcode =/= TLMessages.PutPartialData, s"'${format} channel should not see PutPartialData")
     if (!edge.manager.anySupportHint) monAssert (opcode =/= TLMessages.Hint, s"'${format} channel should not see Hint")
   }
 
