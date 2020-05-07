@@ -6,7 +6,14 @@ import chisel3._
 import chisel3.experimental._
 import chisel3.util.HasBlackBoxResource
 
-case class PlusArgInfo(default: BigInt, docstring: String)
+abstract class PlusArgInfo[T] {
+  val docstring: String
+  val default: Option[T]
+  def doctype: String
+}
+
+case class BigIntPlusArgInfo(default: Option[BigInt], docstring: String) extends PlusArgInfo[BigInt] { def doctype = "INT" }
+case class StringPlusArgInfo(default: Option[String], docstring: String) extends PlusArgInfo[String] { def doctype = "STRING" }
 
 class plusarg_reader(val format: String, val default: BigInt, val docstring: String, val width: Int) extends BlackBox(Map(
     "FORMAT"  -> StringParam(format),
@@ -55,18 +62,27 @@ object PlusArg
 }
 
 object PlusArgArtefacts {
-  private var artefacts: Map[String, PlusArgInfo] = Map.empty
+  private var artefacts: Map[String, PlusArgInfo[_]] = Map.empty
 
   /* Add a new PlusArg */
+  def append(name: String, default: Option[BigInt], docstring: String): Unit =
+    artefacts = artefacts ++ Map(name -> BigIntPlusArgInfo(default, docstring))
+
   def append(name: String, default: BigInt, docstring: String): Unit =
-    artefacts = artefacts ++ Map(name -> PlusArgInfo(default, docstring))
+    append(name, Some(default), docstring)
+
+  def appendString(name: String, default: Option[String], docstring: String): Unit =
+    artefacts = artefacts ++ Map(name -> StringPlusArgInfo(default, docstring))
+
+  def appendString(name: String, default: String, docstring: String): Unit =
+    appendString(name, Some(default), docstring)
 
   /* From plus args, generate help text */
   private def serializeHelp_cHeader(tab: String = ""): String = artefacts
-    .map{ case(arg, PlusArgInfo(default, docstring)) =>
-      s"""|$tab+$arg=INT\\n\\
-          |$tab${" "*20}$docstring\\n\\
-          |$tab${" "*22}(default=$default)""".stripMargin }.toSeq
+    .map{ case(arg, info) =>
+      s"""|$tab+$arg=${info.doctype}\\n\\
+          |$tab${" "*20}${info.docstring}\\n\\
+          |$tab${" "*22}(default=${info.default.getOrElse("NONE")})""".stripMargin }.toSeq
     .mkString("\\n\\\n") ++ "\""
 
   /* From plus args, generate a char array of their names */
