@@ -356,7 +356,8 @@ case class AddressAdjusterWrapperParams(
   blockBytes: Int,
   beatBytes: Int,
   replication: Option[ReplicatedRegion],
-  forceLocal: Seq[AddressSet] = Nil
+  forceLocal: Seq[AddressSet] = Nil,
+  localBaseAddressDefault: Option[BigInt] = None
 )
   extends HasTLBusParams
   with TLBusWrapperInstantiationLike
@@ -371,7 +372,7 @@ case class AddressAdjusterWrapperParams(
 }
 
 class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)(implicit p: Parameters) extends TLBusWrapper(params, name) {
-  private val address_adjuster = params.replication.map { r => LazyModule(new AddressAdjuster(r, params.forceLocal)) }
+  private val address_adjuster = params.replication.map { r => LazyModule(new AddressAdjuster(r, params.forceLocal, params.localBaseAddressDefault)) }
   private val viewNode = TLIdentityNode()
   val inwardNode: TLInwardNode = address_adjuster.map(_.node :*=* viewNode).getOrElse(viewNode)
   def outwardNode: TLOutwardNode = address_adjuster.map(_.node).getOrElse(viewNode)
