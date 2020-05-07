@@ -7,8 +7,11 @@ import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
-// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in params.region
-class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
+class AddressAdjuster(
+    val params: ReplicatedRegion, // only devices in this region get adjusted
+    val forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reacheable at id=0 even if in params.region
+    val localBaseAddressDefault: Option[BigInt] = None // default local base address used for reporting manager address metadata
+    )(implicit p: Parameters) extends LazyModule {
   val mask = params.replicationMask
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
@@ -16,9 +19,15 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
   private def prefix0(region: Seq[AddressSet]): Seq[AddressSet] = {
     region.flatMap { _.intersect(params.local) }
   }
-  private def prefixNot0(region: Seq[AddressSet]): Seq[AddressSet] = {
-    region.flatMap { _.subtract(params.local) }
+  // Default region is used to display address map metadata which corresponds to the expected default choice of prefix value
+  private val defaultRegion: AddressSet = params.local.copy(base = params.local.base + localBaseAddressDefault.getOrElse(0))
+  private def prefixDefault(region: Seq[AddressSet]): Seq[AddressSet] = {
+    region.flatMap { _.intersect(defaultRegion) }
   }
+  private def prefixNotDefault(region: Seq[AddressSet]): Seq[AddressSet] = {
+    region.flatMap { _.subtract(defaultRegion) }
+  }
+
   // forceLocal better only go one place (the low index)
   forceLocal.foreach { as => require((as.max & mask) == 0) }
 
@@ -167,12 +176,13 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
         val r = container.get
         requireContainerSupport(l, r)
 
-        // The address can be dynamically adjusted to anywhere in the adjustable region, but we take the 0 setting as default for DTS output
+        // The local address can be dynamically adjusted to any masked location in the adjustable region.
+        // We can report a particular local base address for DTS output, or default to reporting the 0th region.
         // Any address space holes in the local adjustable region will be plugged with the error device.
-        // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
-        // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
+        // All device PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
+        // Capabilities supported by the remote but not the local device will result in dynamic re-rerouting to the error device.
         l.v1copy(
-          address            = AddressSet.unify(prefix0(l.address) ++ (if (Some(l) == errorDev) holes else Nil)),
+          address            = AddressSet.unify(prefixDefault(l.address ++ (if (Some(l) == errorDev) holes else Nil))), 
           regionType         = r.regionType,
           executable         = r.executable,
           supportsAcquireT   = r.supportsAcquireT,
@@ -192,7 +202,7 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
       val newRemotes = adjustableRemoteManagers.map { r =>
         r.v1copy(
-          address = prefixNot0(r.address),
+          address = prefixNotDefault(r.address),
           fifoId = Some(0))
       }
 
