@@ -5,7 +5,8 @@ sudo: false
 cache:
   apt: true
   directories:
-    $HOME/.ivy2
+    $HOME/.cache/coursier
+    $HOME/.sbt
     regression/install
     emulator/verilator
 
