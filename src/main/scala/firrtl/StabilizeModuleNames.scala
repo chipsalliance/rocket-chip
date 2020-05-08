@@ -37,7 +37,7 @@ sealed trait NamingStrategy {
   def getName(desiredName: String)(module: Module): String
 }
 
-// only except the desired name
+// only accept the desired name
 case object ExactNamingStrategy extends NamingStrategy {
   def getName(desiredName: String)(module: Module): String = desiredName
 }
