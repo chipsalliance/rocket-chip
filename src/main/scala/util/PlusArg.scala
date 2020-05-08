@@ -50,7 +50,7 @@ object PlusArg
     * pass.
     */
   def apply(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32): UInt = {
-    PlusArgArtefacts.append(name, Some(default), docstring, "INT")
+    PlusArgArtefacts.append(name, Some(default), docstring)
     Module(new plusarg_reader(name + "=%d", default, docstring, width)).io.out
   }
 
@@ -59,7 +59,7 @@ object PlusArg
     * Default 0 will never assert.
     */
   def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt) {
-    PlusArgArtefacts.append(name, Some(default), docstring, "INT")
+    PlusArgArtefacts.append(name, Some(default), docstring)
     Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count := count
   }
 }
@@ -73,7 +73,7 @@ object PlusArgArtefacts {
     "Rocket Chip 2020.05"
   )
   def append(name: String, default: BigInt, docstring: String): Unit =
-    append(name, Some(default), docstring, "INT")
+    append(name, Some(default), docstring)
 
   /** Add a new PlusArg
     *
@@ -83,7 +83,7 @@ object PlusArgArtefacts {
     * @param docstring text to include in the help
     * @param doctype description of the Verilog type of the PlusArg value (e.g. STRING, INT)
     */
-  def append[A](name: String, default: Option[A], docstring: String, doctype: String): Unit =
+  def append[A](name: String, default: Option[A], docstring: String, doctype: String = "INT"): Unit =
     artefacts = artefacts ++ Map(name -> PlusArgContainer[A](default, docstring, doctype))
 
   /* From plus args, generate help text */
