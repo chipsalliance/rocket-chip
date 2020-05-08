@@ -1,6 +1,6 @@
 # Travis Notes for Administrators
 
-Administrators: Are PRs taking > 1 hr to run through Travis? If you look at the Travis logs is it building `rocket-tools`?
+Administrators: Are PRs taking > 1 hr to run through Travis? If you look at the Travis logs is it building `rocket-tools` or `verilator`?
 
 This is because someone committed a PR to `master` which bumped `riscv-tools` and/or `verilator`
 and the master cache needs to be updated.
