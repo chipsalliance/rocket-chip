@@ -5,7 +5,8 @@ package freechips.rocketchip.firrtl
 import firrtl._
 import firrtl.ir._
 import firrtl.annotations.{Target, SingleTargetAnnotation, IsModule, CircuitTarget}
-import firrtl.options.{HasShellOptions, PreservesAll, ShellOption}
+import firrtl.transforms.DedupModules
+import firrtl.options.{Dependency, HasShellOptions, PreservesAll, ShellOption}
 import firrtl.stage.Forms
 
 import chisel3.util.Queue
@@ -172,8 +173,8 @@ case object StabilizeNamesAspect extends Aspect[RawModule] with HasShellOptions 
 class StabilizeModuleNames extends Transform
   with DependencyAPIMigration
   with PreservesAll[Transform] {
-  override def prerequisites = Forms.LowForm
-  override def optionalPrerequisites = Seq.empty
+  override def prerequisites = Seq.empty
+  override def optionalPrerequisites = Seq(Dependency[DedupModules])
   override def optionalPrerequisiteOf = Forms.LowEmitters
 
   private def checkStrategy(
