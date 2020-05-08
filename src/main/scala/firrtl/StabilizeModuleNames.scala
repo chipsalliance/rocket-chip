@@ -31,8 +31,28 @@ object RenameModules {
   }
 }
 
+sealed trait NamingStrategy
+
+// only except the desired name
+case object ExactNamingStrategy extends NamingStrategy
+
+// use port structure hash naming strategy
+case object PortStructureNamingStrategy extends NamingStrategy
+
+// use name-agnostic module content hash naming strategy
+case object ContentStructureNamingStrategy extends NamingStrategy
+
+// use module content hash naming strategy
+case object ContentNamingStrategy extends NamingStrategy
+
+
+case class NamingStrategyAnnotation(
+  strategy: NamingStrategy,
+  target: IsModule
+)
+
 case class ModuleNameAnnotation(
-  name: String,
+  desiredName: String,
   target: IsModule
 ) extends SingleTargetAnnotation[IsModule] {
   def duplicate(newTarget: IsModule): ModuleNameAnnotation = {
@@ -51,20 +71,10 @@ case object StabilizeNamesAspect extends Aspect[RawModule] with HasShellOptions 
   )
 
   def toAnnotation(top: RawModule): AnnotationSeq = {
-    val commonLazyModule: LazyModule => Boolean = _ match {
-      case _: TLWidthWidget => true
-      case _: TLBuffer => true
-      case _: TLFragmenter => true
-      case _: TLFIFOFixer => true
-      case _ => false
-    }
     Select.collectDeep(top) {
-      case l: LazyModuleImpLike if commonLazyModule(l.wrapper) =>
-        new ModuleNameAnnotation(l.desiredName, l.toTarget)
-      case m: Queue[_] =>
-        new ModuleNameAnnotation(m.desiredName, m.toTarget)
-      case m: TLMonitor =>
-        new ModuleNameAnnotation(m.desiredName, m.toTarget)
+      case m: LazyModuleImpLike => new ModuleNameAnnotation(m.desiredName, m.toTarget)
+      case m: Queue[_] => new ModuleNameAnnotation(m.desiredName, m.toTarget)
+      case m: TLMonitor => new ModuleNameAnnotation(m.desiredName, m.toTarget)
     }.toSeq
   }
 }
@@ -76,16 +86,17 @@ class StabilizeModuleNames extends Transform
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.LowEmitters
 
-  type Strategy = String => Module => String
+  import StabilizeModuleNames.Strategy
 
-  def pickStrategies(
+  private def pickStrategies(
     strategies: Seq[Strategy],
-    originalName: String,
-    modules: Set[Module]): Map[String, String] = {
+    desiredName: String,
+    modules: Seq[Module]): Map[String, String] = {
     val result = strategies.foldLeft(None: Option[Map[String, String]]) {
-      case (None, strategy) => StabilizeModuleNames.checkStrategy(strategy, originalName, modules)
+      case (None, strategy) => StabilizeModuleNames.checkStrategy(strategy, desiredName, modules)
       case (some, _) => some
     }
+    require(result.isDefined, s"No naming strategy disambiguates modules for desired name: $desiredName")
     result.get
   }
 
@@ -94,19 +105,57 @@ class StabilizeModuleNames extends Transform
       case m: Module => m.name -> m
     }.toMap
 
-    val nameMap = state.annotations.collect {
-      case m: ModuleNameAnnotation => m
-    }.groupBy(_.name).mapValues(_.map(a => modMap(Target.referringModule(a.target).module)).toSet)
+    val namingStrategyAnnos = state.annotations.collect {
+      case a: NamingStrategyAnnotation if a.target.circuit == state.circuit.main => a
+    }
+
+    val strategyMap = namingStrategyAnnos.groupBy { a =>
+      val referringModule = Target.referringModule(a.target).module
+      require(modMap.contains(referringModule), "NamingStrategyAnnotation may not refer to blackboxes")
+      referringModule
+    }.map { case (module, annos) =>
+      val strategies = annos.map(_.strategy).distinct
+      require(strategies.size == 1, s"Conflicting naming strategies for module $module: ${strategies.mkString(", ")}")
+      module -> strategies.head
+    }
+
+    val moduleNameAnnos = state.annotations.collect {
+      case a: ModuleNameAnnotation if a.target.circuit == state.circuit.main => a
+    }
+
+    val nameMap = moduleNameAnnos.groupBy(_.desiredName).mapValues { annos =>
+      annos.distinct.map { a =>
+        val referringModule = Target.referringModule(a.target).module
+        require(modMap.contains(referringModule), "ModuleNameAnnotations may not refer to blackboxes")
+        modMap(referringModule)
+      }
+    }
 
     val strategies: Seq[Strategy] = Seq(
       StabilizeModuleNames.exactName,
-      StabilizeModuleNames.ioStructureName,
+      StabilizeModuleNames.portStructureName,
       StabilizeModuleNames.contentsStructureName,
       StabilizeModuleNames.contentsName,
     )
 
-    val nameMappings = nameMap.map { case (originalName, modules) =>
-      pickStrategies(strategies, originalName, modules)
+    val nameMappings = nameMap.map { case (desiredName, modules) =>
+      val strategyOpt = modules.collectFirst {
+        case m if strategyMap.contains(m.name) => strategyMap(m.name)
+      }
+      if (strategyOpt.isDefined) {
+        val strategy = strategyOpt.get match {
+          case ExactNamingStrategy => StabilizeModuleNames.exactName
+          case PortStructureNamingStrategy => StabilizeModuleNames.portStructureName
+          case ContentStructureNamingStrategy => StabilizeModuleNames.contentsStructureName
+          case ContentNamingStrategy => StabilizeModuleNames.contentsName
+        }
+
+        val result = StabilizeModuleNames.checkStrategy(strategy, desiredName, modules)
+        require(result.isDefined, s"Requested naming strategy $strategy does not disambiguate module collisions for desired name: $desiredName")
+        result.get
+      } else {
+        pickStrategies(strategies, desiredName, modules)
+      }
     }.flatten.toMap
 
     val circuit = RenameModules(nameMappings, state.circuit)
@@ -122,6 +171,8 @@ class StabilizeModuleNames extends Transform
 }
 
 object StabilizeModuleNames {
+  type Strategy = String => Module => String
+
   final val emptyName: String = ""
 
   def exact(nameMappings: Map[String, String], circuit: Circuit): Circuit = {
@@ -130,27 +181,27 @@ object StabilizeModuleNames {
 
   def checkStrategy(
     strategy: String => Module => String,
-    originalName: String,
-    modules: Set[Module]): Option[Map[String, String]] = {
-    val fn = strategy(originalName)
+    desiredName: String,
+    modules: Seq[Module]): Option[Map[String, String]] = {
+    val fn = strategy(desiredName)
     val nameMap = modules.map(m => m.name -> fn(m)).toMap
     if (nameMap.values.toSet.size == modules.size) Some(nameMap) else None
   }
 
-  def appendHashCode(originalName: String, hashPrefix: String, hashCode: Int): String = {
-    s"${originalName}_$hashPrefix" + f"${hashCode}%08X"
+  def appendHashCode(desiredName: String, hashPrefix: String, hashCode: Int): String = {
+    s"${desiredName}_$hashPrefix" + f"${hashCode}%08X"
   }
 
-  def contentsStructureName(originalName: String)(module: Module): String = {
+  val contentsStructureName: Strategy = (desiredName: String) => (module: Module) => {
     val noNameModule = removeModuleNames(module)
-    appendHashCode(originalName, "c", noNameModule.hashCode)
+    appendHashCode(desiredName, "c", noNameModule.hashCode)
   }
 
-  def contentsName(originalName: String)(module: Module): String = {
-    appendHashCode(originalName, "C", removeModuleInfo(module).copy(name = emptyName).hashCode)
+  val contentsName: Strategy = (desiredName: String) => (module: Module) => {
+    appendHashCode(desiredName, "C", removeModuleInfo(module).copy(name = emptyName).hashCode)
   }
 
-  def exactName(originalName: String)(module: Module): String = originalName
+  val exactName: Strategy = (desiredName: String) => (module: Module) => desiredName
 
 
   // remove name helpers
@@ -203,9 +254,9 @@ object StabilizeModuleNames {
     port.copy(info = NoInfo)
   }
 
-  def ioStructureName(originalName: String)(module: Module): String = {
+  val portStructureName: Strategy = (desiredName: String) => (module: Module) => {
     val noNamePorts = module.ports.map(removePortNames(_))
-     appendHashCode(originalName, "p", noNamePorts.hashCode)
+     appendHashCode(desiredName, "p", noNamePorts.hashCode)
   }
 
   def removeModuleInfo(mod: Module): Module = {
