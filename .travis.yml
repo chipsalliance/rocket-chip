@@ -1,7 +1,7 @@
 git:
   submodules: false
 language: scala
-sudo: false
+sudo: required
 cache:
   apt: true
   directories:
