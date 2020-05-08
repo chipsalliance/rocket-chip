@@ -66,16 +66,6 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       c.visibility.map(_.contains(address)).reduce(_ || _)
     }.reduce(_ && _)
 
-  def checkFormatOpcode(opcode: UInt, edge: TLEdge, format: String): Unit = {
-    // read params and check the opcode
-    if (!edge.manager.anySupportArithmetic) monAssert (opcode =/= TLMessages.ArithmeticData, s"'${format} channel should not see ArithmeticData")
-    if (!edge.manager.anySupportLogical) monAssert (opcode =/= TLMessages.LogicalData, s"'${format} channel should not see LogicalData")
-    if (!edge.manager.anySupportGet) monAssert (opcode =/= TLMessages.Get, s"'${format} channel should not see Get")
-    if (!edge.manager.anySupportPutFull) monAssert (opcode =/= TLMessages.PutFullData, s"'${format} channel should not see PutFullData")
-    //if (!edge.manager.anySupportPutPartial) monAssert (opcode =/= TLMessages.PutPartialData, s"'${format} channel should not see PutPartialData")
-    if (!edge.manager.anySupportHint) monAssert (opcode =/= TLMessages.Hint, s"'${format} channel should not see Hint")
-  }
-
   def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
     monAssert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
@@ -86,7 +76,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
-    checkFormatOpcode(bundle.opcode, edge, "A")
+    if (!edge.manager.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, s"''A' channel should not see ArithmeticData")
+    if (!edge.manager.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData, s"''A' channel should not see LogicalData")
+    if (!edge.manager.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, s"''A' channel should not see Get")
+    if (!edge.manager.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, s"''A' channel should not see PutFullData")
+    if (!edge.manager.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, s"''A' channel should not see PutPartialData")
 
     when (bundle.opcode === TLMessages.AcquireBlock) {
       monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
@@ -173,7 +167,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val mask = edge.full_mask(bundle)
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
 
-    checkFormatOpcode(bundle.opcode, edge, "B")
+    if (!edge.manager.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, s"''B' channel should not see ArithmeticData")
+    if (!edge.manager.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData, s"''B' channel should not see LogicalData")
+    if (!edge.manager.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, s"''B' channel should not see Get")
+    if (!edge.manager.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, s"''B' channel should not see PutFullData")
+    if (!edge.manager.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, s"''B' channel should not see PutPartialData")
 
     when (bundle.opcode === TLMessages.Probe) {
       monAssert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
@@ -250,7 +248,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'C' channel carries an address illegal for the specified bank visibility")
 
-    checkFormatOpcode(bundle.opcode, edge, "C")
+    if (!edge.manager.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, s"''C' channel should not see Hint")
 
     when (bundle.opcode === TLMessages.ProbeAck) {
       monAssert (address_ok, "'C' channel ProbeAck carries unmanaged address" + extra)
@@ -320,7 +318,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val deny_put_ok = edge.manager.mayDenyPut.B
     val deny_get_ok = edge.manager.mayDenyGet.B
 
-    checkFormatOpcode(bundle.opcode, edge, "D")
+    if (!edge.manager.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, s"''D' channel should not see Hint")
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assume (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
