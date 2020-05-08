@@ -167,11 +167,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val mask = edge.full_mask(bundle)
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
 
-    if (!edge.manager.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, s"''B' channel should not see ArithmeticData")
-    if (!edge.manager.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData, s"''B' channel should not see LogicalData")
-    if (!edge.manager.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, s"''B' channel should not see Get")
-    if (!edge.manager.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, s"''B' channel should not see PutFullData")
-    if (!edge.manager.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, s"''B' channel should not see PutPartialData")
+    if (!edge.client.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, s"''B' channel should not see ArithmeticData")
+    if (!edge.client.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData, s"''B' channel should not see LogicalData")
+    if (!edge.client.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, s"''B' channel should not see Get")
+    if (!edge.client.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, s"''B' channel should not see PutFullData")
+    if (!edge.client.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, s"''B' channel should not see PutPartialData")
 
     when (bundle.opcode === TLMessages.Probe) {
       monAssert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
@@ -318,7 +318,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val deny_put_ok = edge.manager.mayDenyPut.B
     val deny_get_ok = edge.manager.mayDenyGet.B
 
-    if (!edge.manager.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, s"''D' channel should not see Hint")
+    if (!edge.client.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, s"''D' channel should not see Hint")
 
     when (bundle.opcode === TLMessages.ReleaseAck) {
       assume (source_ok, "'D' channel ReleaseAck carries invalid source ID" + extra)
