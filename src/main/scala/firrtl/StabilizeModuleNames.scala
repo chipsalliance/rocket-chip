@@ -31,19 +31,104 @@ object RenameModules {
   }
 }
 
-sealed trait NamingStrategy
+sealed trait NamingStrategy {
+  def getName(desiredName: String)(module: Module): String
+}
 
 // only except the desired name
-case object ExactNamingStrategy extends NamingStrategy
+case object ExactNamingStrategy extends NamingStrategy {
+  def getName(desiredName: String)(module: Module): String = desiredName
+}
 
 // use port structure hash naming strategy
-case object PortStructureNamingStrategy extends NamingStrategy
+case object PortStructureNamingStrategy extends NamingStrategy {
+  def getName(desiredName: String)(module: Module): String = {
+    val noNamePorts = module.ports.map(NamingStrategy.removePortNames(_))
+     NamingStrategy.appendHashCode(desiredName, "p", noNamePorts.hashCode)
+  }
+}
 
 // use name-agnostic module content hash naming strategy
-case object ContentStructureNamingStrategy extends NamingStrategy
+case object ContentStructureNamingStrategy extends NamingStrategy {
+  def getName(desiredName: String)(module: Module): String = {
+    val noNameModule = NamingStrategy.removeModuleNames(module)
+    NamingStrategy.appendHashCode(desiredName, "c", noNameModule.hashCode)
+  }
+}
 
 // use module content hash naming strategy
-case object ContentNamingStrategy extends NamingStrategy
+case object ContentNamingStrategy extends NamingStrategy {
+  def getName(desiredName: String)(module: Module): String = {
+    val noInfoModule = NamingStrategy.removeModuleInfo(module).copy(name = NamingStrategy.emptyName)
+    NamingStrategy.appendHashCode(desiredName, "C", noInfoModule.hashCode)
+  }
+}
+
+object NamingStrategy {
+
+  final val emptyName: String = ""
+
+  def appendHashCode(desiredName: String, hashPrefix: String, hashCode: Int): String = {
+    s"${desiredName}_$hashPrefix" + f"${hashCode}%08X"
+  }
+
+
+  // remove name helpers
+
+  def removeTypeNames(tpe: Type): Type = tpe match {
+    case g: GroundType => g
+    case v: VectorType => v
+    case b: BundleType => b.copy(fields = b.fields.map { field =>
+      field.copy(name = emptyName)
+    })
+  }
+
+  def removeStatementNames(stmt: Statement): Statement = stmt match {
+    case i: DefInstance => i.copy(
+      name = emptyName,
+      module = emptyName,
+      info = NoInfo)
+    case i: WDefInstance => i.copy(
+      name = emptyName,
+      module = emptyName,
+      tpe = removeTypeNames(i.tpe),
+      info = NoInfo)
+    case _ => stmt
+      .mapStmt(removeStatementNames)
+      .mapString(_ => emptyName)
+      .mapInfo(_ => NoInfo)
+      .mapType(removeTypeNames)
+  }
+
+  def removePortNames(port: Port): Port = {
+    port.copy(name = emptyName, tpe = removeTypeNames(port.tpe), info = NoInfo)
+  }
+
+  def removeModuleNames(mod: Module): Module = {
+    mod.copy(
+      ports = mod.ports.map(removePortNames(_)),
+      body = removeStatementNames(mod.body),
+      name = emptyName,
+      info = NoInfo)
+  }
+
+  // remove Info helpers
+
+  def removeStatementInfo(stmt: Statement): Statement = {
+    stmt.mapStmt(removeStatementInfo).mapInfo(_ => NoInfo)
+  }
+
+  def removePortInfo(port: Port): Port = {
+    port.copy(info = NoInfo)
+  }
+
+  def removeModuleInfo(mod: Module): Module = {
+    mod.copy(
+      ports = mod.ports.map(removePortInfo(_)),
+      body = removeStatementInfo(mod.body),
+      info = NoInfo)
+  }
+}
 
 
 case class NamingStrategyAnnotation(
@@ -86,14 +171,21 @@ class StabilizeModuleNames extends Transform
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.LowEmitters
 
-  import StabilizeModuleNames.Strategy
+  def checkStrategy(
+    strategy: NamingStrategy,
+    desiredName: String,
+    modules: Seq[Module]): Option[Map[String, String]] = {
+    val fn = strategy.getName(desiredName)(_)
+    val nameMap = modules.map(m => m.name -> fn(m)).toMap
+    if (nameMap.values.toSet.size == modules.size) Some(nameMap) else None
+  }
 
   private def pickStrategies(
-    strategies: Seq[Strategy],
+    strategies: Seq[NamingStrategy],
     desiredName: String,
     modules: Seq[Module]): Map[String, String] = {
     val result = strategies.foldLeft(None: Option[Map[String, String]]) {
-      case (None, strategy) => StabilizeModuleNames.checkStrategy(strategy, desiredName, modules)
+      case (None, strategy) => checkStrategy(strategy, desiredName, modules)
       case (some, _) => some
     }
     require(result.isDefined, s"No naming strategy disambiguates modules for desired name: $desiredName")
@@ -131,11 +223,11 @@ class StabilizeModuleNames extends Transform
       }
     }
 
-    val strategies: Seq[Strategy] = Seq(
-      StabilizeModuleNames.exactName,
-      StabilizeModuleNames.portStructureName,
-      StabilizeModuleNames.contentsStructureName,
-      StabilizeModuleNames.contentsName,
+    val strategies = Seq(
+      ExactNamingStrategy,
+      PortStructureNamingStrategy,
+      ContentStructureNamingStrategy,
+      ContentNamingStrategy,
     )
 
     val nameMappings = nameMap.map { case (desiredName, modules) =>
@@ -143,14 +235,8 @@ class StabilizeModuleNames extends Transform
         case m if strategyMap.contains(m.name) => strategyMap(m.name)
       }
       if (strategyOpt.isDefined) {
-        val strategy = strategyOpt.get match {
-          case ExactNamingStrategy => StabilizeModuleNames.exactName
-          case PortStructureNamingStrategy => StabilizeModuleNames.portStructureName
-          case ContentStructureNamingStrategy => StabilizeModuleNames.contentsStructureName
-          case ContentNamingStrategy => StabilizeModuleNames.contentsName
-        }
-
-        val result = StabilizeModuleNames.checkStrategy(strategy, desiredName, modules)
+        val strategy = strategyOpt.get
+        val result = checkStrategy(strategy, desiredName, modules)
         require(result.isDefined, s"Requested naming strategy $strategy does not disambiguate module collisions for desired name: $desiredName")
         result.get
       } else {
@@ -167,102 +253,5 @@ class StabilizeModuleNames extends Transform
       renames.record(oldMain.module(from), newMain.module(to))
     }
     state.copy(circuit = circuit, renames = Some(renames))
-  }
-}
-
-object StabilizeModuleNames {
-  type Strategy = String => Module => String
-
-  final val emptyName: String = ""
-
-  def exact(nameMappings: Map[String, String], circuit: Circuit): Circuit = {
-    RenameModules(nameMappings, circuit)
-  }
-
-  def checkStrategy(
-    strategy: String => Module => String,
-    desiredName: String,
-    modules: Seq[Module]): Option[Map[String, String]] = {
-    val fn = strategy(desiredName)
-    val nameMap = modules.map(m => m.name -> fn(m)).toMap
-    if (nameMap.values.toSet.size == modules.size) Some(nameMap) else None
-  }
-
-  def appendHashCode(desiredName: String, hashPrefix: String, hashCode: Int): String = {
-    s"${desiredName}_$hashPrefix" + f"${hashCode}%08X"
-  }
-
-  val contentsStructureName: Strategy = (desiredName: String) => (module: Module) => {
-    val noNameModule = removeModuleNames(module)
-    appendHashCode(desiredName, "c", noNameModule.hashCode)
-  }
-
-  val contentsName: Strategy = (desiredName: String) => (module: Module) => {
-    appendHashCode(desiredName, "C", removeModuleInfo(module).copy(name = emptyName).hashCode)
-  }
-
-  val exactName: Strategy = (desiredName: String) => (module: Module) => desiredName
-
-
-  // remove name helpers
-
-  def removeTypeNames(tpe: Type): Type = tpe match {
-    case g: GroundType => g
-    case v: VectorType => v
-    case b: BundleType => b.copy(fields = b.fields.map { field =>
-      field.copy(name = emptyName)
-    })
-  }
-
-  def removeStatementNames(stmt: Statement): Statement = stmt match {
-    case i: DefInstance => i.copy(
-      name = emptyName,
-      module = emptyName,
-      info = NoInfo)
-    case i: WDefInstance => i.copy(
-      name = emptyName,
-      module = emptyName,
-      tpe = removeTypeNames(i.tpe),
-      info = NoInfo)
-    case _ => stmt
-      .mapStmt(removeStatementNames)
-      .mapString(_ => emptyName)
-      .mapInfo(_ => NoInfo)
-      .mapType(removeTypeNames)
-  }
-
-  def removePortNames(port: Port): Port = {
-    port.copy(name = emptyName, tpe = removeTypeNames(port.tpe), info = NoInfo)
-  }
-
-  def removeModuleNames(mod: Module): Module = {
-    mod.copy(
-      ports = mod.ports.map(removePortNames(_)),
-      body = removeStatementNames(mod.body),
-      name = emptyName,
-      info = NoInfo)
-  }
-
-
-  // remove Info helpers
-
-  def removeStatementInfo(stmt: Statement): Statement = {
-    stmt.mapStmt(removeStatementInfo).mapInfo(_ => NoInfo)
-  }
-
-  def removePortInfo(port: Port): Port = {
-    port.copy(info = NoInfo)
-  }
-
-  val portStructureName: Strategy = (desiredName: String) => (module: Module) => {
-    val noNamePorts = module.ports.map(removePortNames(_))
-     appendHashCode(desiredName, "p", noNamePorts.hashCode)
-  }
-
-  def removeModuleInfo(mod: Module): Module = {
-    mod.copy(
-      ports = mod.ports.map(removePortInfo(_)),
-      body = removeStatementInfo(mod.body),
-      info = NoInfo)
   }
 }
