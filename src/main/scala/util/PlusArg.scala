@@ -6,14 +6,17 @@ import chisel3._
 import chisel3.experimental._
 import chisel3.util.HasBlackBoxResource
 
-abstract class PlusArgInfo[T] {
-  val docstring: String
-  val default: Option[T]
-  def doctype: String
-}
+@deprecated("This will be removed in Rocket Chip 2020.08", "Rocket Chip 2020.05")
+case class PlusArgInfo(default: BigInt, docstring: String)
 
-case class BigIntPlusArgInfo(default: Option[BigInt], docstring: String) extends PlusArgInfo[BigInt] { def doctype = "INT" }
-case class StringPlusArgInfo(default: Option[String], docstring: String) extends PlusArgInfo[String] { def doctype = "STRING" }
+/** Case class for PlusArg information
+  *
+  * @tparam A scala type of the PlusArg value
+  * @param default optional default value
+  * @param docstring text to include in the help
+  * @param doctype description of the Verilog type of the PlusArg value (e.g. STRING, INT)
+  */
+private case class PlusArgContainer[A](default: Option[A], docstring: String, doctype: String)
 
 class plusarg_reader(val format: String, val default: BigInt, val docstring: String, val width: Int) extends BlackBox(Map(
     "FORMAT"  -> StringParam(format),
@@ -47,7 +50,7 @@ object PlusArg
     * pass.
     */
   def apply(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32): UInt = {
-    PlusArgArtefacts.append(name, default, docstring)
+    PlusArgArtefacts.append(name, Some(default), docstring, "INT")
     Module(new plusarg_reader(name + "=%d", default, docstring, width)).io.out
   }
 
@@ -56,34 +59,41 @@ object PlusArg
     * Default 0 will never assert.
     */
   def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt) {
-    PlusArgArtefacts.append(name, default, docstring)
+    PlusArgArtefacts.append(name, Some(default), docstring, "INT")
     Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count := count
   }
 }
 
 object PlusArgArtefacts {
-  private var artefacts: Map[String, PlusArgInfo[_]] = Map.empty
+  private var artefacts: Map[String, PlusArgContainer[_]] = Map.empty
 
   /* Add a new PlusArg */
-  def append(name: String, default: Option[BigInt], docstring: String): Unit =
-    artefacts = artefacts ++ Map(name -> BigIntPlusArgInfo(default, docstring))
-
+  @deprecated(
+    "Use `Some(BigInt)` to specify a `default` value. This will be removed in Rocket Chip 2020.08",
+    "Rocket Chip 2020.05"
+  )
   def append(name: String, default: BigInt, docstring: String): Unit =
-    append(name, Some(default), docstring)
+    append(name, Some(default), docstring, "INT")
 
-  def appendString(name: String, default: Option[String], docstring: String): Unit =
-    artefacts = artefacts ++ Map(name -> StringPlusArgInfo(default, docstring))
-
-  def appendString(name: String, default: String, docstring: String): Unit =
-    appendString(name, Some(default), docstring)
+  /** Add a new PlusArg
+    *
+    * @tparam A scala type of the PlusArg value
+    * @param name name for the PlusArg
+    * @param default optional default value
+    * @param docstring text to include in the help
+    * @param doctype description of the Verilog type of the PlusArg value (e.g. STRING, INT)
+    */
+  def append[A](name: String, default: Option[A], docstring: String, doctype: String): Unit =
+    artefacts = artefacts ++ Map(name -> PlusArgContainer[A](default, docstring, doctype))
 
   /* From plus args, generate help text */
   private def serializeHelp_cHeader(tab: String = ""): String = artefacts
     .map{ case(arg, info) =>
       s"""|$tab+$arg=${info.doctype}\\n\\
           |$tab${" "*20}${info.docstring}\\n\\
-          |$tab${" "*22}(default=${info.default.getOrElse("NONE")})""".stripMargin }.toSeq
-    .mkString("\\n\\\n") ++ "\""
+          |""".stripMargin ++ info.default.map{ case default =>
+         s"$tab${" "*22}(default=${default})\\n\\\n"}.getOrElse("")
+        }.toSeq.mkString("\\n\\\n") ++ "\""
 
   /* From plus args, generate a char array of their names */
   private def serializeArray_cHeader(tab: String = ""): String = {
