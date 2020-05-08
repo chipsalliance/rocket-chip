@@ -18,6 +18,7 @@ import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImpLike}
 object RenameModules {
   def onStmt(moduleNameMap: Map[String, String])(stmt: Statement): Statement = stmt match {
     case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
+    case inst: DefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
     case other => other.mapStmt(onStmt(moduleNameMap))
   }
 
@@ -134,7 +135,11 @@ object NamingStrategy {
 case class NamingStrategyAnnotation(
   strategy: NamingStrategy,
   target: IsModule
-)
+) extends SingleTargetAnnotation[IsModule] {
+  def duplicate(newTarget: IsModule): NamingStrategyAnnotation = {
+    this.copy(target = newTarget)
+  }
+}
 
 case class ModuleNameAnnotation(
   desiredName: String,
@@ -171,7 +176,7 @@ class StabilizeModuleNames extends Transform
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.LowEmitters
 
-  def checkStrategy(
+  private def checkStrategy(
     strategy: NamingStrategy,
     desiredName: String,
     modules: Seq[Module]): Option[Map[String, String]] = {
@@ -216,8 +221,7 @@ class StabilizeModuleNames extends Transform
     }
 
     val nameMap = moduleNameAnnos.groupBy(_.desiredName).mapValues { annos =>
-      annos.distinct.map { a =>
-        val referringModule = Target.referringModule(a.target).module
+      annos.map(a => Target.referringModule(a.target).module).distinct.map { referringModule =>
         require(modMap.contains(referringModule), "ModuleNameAnnotations may not refer to blackboxes")
         modMap(referringModule)
       }

@@ -3,6 +3,7 @@
 package freechips.rocketchip.firrtl
 
 import _root_.firrtl._
+import _root_.firrtl.ir.Port
 import _root_.firrtl.annotations._
 import _root_.firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
@@ -55,33 +56,59 @@ class StabilizeModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
     }
   }
 
-
-  property("It should rename modules to original name if only one module") {
-    val input =
-    """|circuit Foo:
-       |  module Bar_1:
-       |    skip
-       |  module Foo:
-       |    inst bar_1 of Bar_1
-       |    inst bar_2 of Bar_1
-       |""".stripMargin
-
+  property("It should rename modules to desired names if only one module") {
     val top = CircuitTarget("Foo")
-    val annos = Seq(
-      ModuleNameAnnotation("Bar", top.module("Foo").instOf("bar_1", "Bar_1")),
-      ModuleNameAnnotation("Bar", top.module("Foo").instOf("bar_2", "Bar_1"))
+    test(
+      TestCase(
+        """|circuit Foo:
+           |  module Bar_1:
+           |    output in1: UInt<1>
+           |  module Bar_2:
+           |    output in1: UInt<1>
+           |    output in2: UInt<1>
+           |  module Bar_3:
+           |    output in1: UInt<1>
+           |    output in2: UInt<1>
+           |    output in3: UInt<1>
+           |  module Foo:
+           |    inst bar_1 of Bar_1
+           |    inst bar_2 of Bar_2
+           |    inst bar_3 of Bar_3
+           |""".stripMargin,
+        Seq(
+         UnstableNameAnnotation(top.module("Bar_1")),
+         StableNameAnnotation(top.module("Bar_2")),
+         StableNameAnnotation(top.module("Bar_3")),
+         ModuleNameAnnotation("Bar_1", top.module("Bar_2")),
+         ModuleNameAnnotation("Bar_2", top.module("Bar_3"))
+        )
+      ),
+      TestCase(
+        """|circuit Foo:
+           |  module Bar_1:
+           |    output in1: UInt<2>
+           |  module Bar_5:
+           |    output in1: UInt<1>
+           |    output in2: UInt<1>
+           |  module Bar_6:
+           |    output in1: UInt<1>
+           |    output in2: UInt<1>
+           |    output in3: UInt<1>
+           |  module Foo:
+           |    inst bar_1 of Bar_1
+           |    inst bar_5 of Bar_5
+           |    inst bar_6 of Bar_6
+           |""".stripMargin,
+        Seq(
+          UnstableNameAnnotation(top.module("Bar_1")),
+          StableNameAnnotation(top.module("Bar_5")),
+          StableNameAnnotation(top.module("Bar_6")),
+          ModuleNameAnnotation("Bar_1", top.module("Bar_5")),
+          ModuleNameAnnotation("Bar_2", top.module("Bar_6")),
+          ModuleNameAnnotation("Bar_3", top.module("Bar_1"))
+        )
+      )
     )
-    val inputState = CircuitState(passes.ToWorkingIR.run(Parser.parse(input)), UnknownForm, annos)
-    val outputState = stabilizeNames(inputState)
-    val output = 
-    """|circuit Foo:
-       |  module Bar:
-       |    skip
-       |  module Foo:
-       |    inst bar_1 of Bar
-       |    inst bar_2 of Bar
-       |""".stripMargin
-    outputState.circuit.serialize should be (Parser.parse(output).serialize)
   }
 
   property("It should rename modules to stable IO structure names") {
@@ -238,5 +265,34 @@ class StabilizeModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
         )
       )
     )
+  }
+
+  property("It should respect NamingStrategyAnnotations") {
+    val input =
+    """|circuit Foo:
+       |  module Bar_1:
+       |    skip
+       |  module Foo:
+       |    inst bar_1 of Bar_1
+       |    inst bar_2 of Bar_1
+       |""".stripMargin
+
+    val top = CircuitTarget("Foo")
+    val annos = Seq(
+      ModuleNameAnnotation("Bar", top.module("Foo").instOf("bar_1", "Bar_1")),
+      ModuleNameAnnotation("Bar", top.module("Foo").instOf("bar_2", "Bar_1")),
+      NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
+    )
+    val inputState = CircuitState(passes.ToWorkingIR.run(Parser.parse(input)), UnknownForm, annos)
+    val outputState = stabilizeNames(inputState)
+    val output = 
+    s"""|circuit Foo:
+        |  module Bar_p1C395774:
+        |    skip
+        |  module Foo:
+        |    inst bar_1 of Bar_p1C395774
+        |    inst bar_2 of Bar_p1C395774
+        |""".stripMargin
+    outputState.circuit.serialize should be (Parser.parse(output).serialize)
   }
 }
