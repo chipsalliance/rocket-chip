@@ -1,4 +1,4 @@
-Rocket Chip Versioning Strategy ** All Strawman to be discussed**
+Rocket Chip Versioning Strategy
 ===============================
 
 Version Naming
