@@ -18,6 +18,30 @@ case class PlusArgInfo(default: BigInt, docstring: String)
   */
 private case class PlusArgContainer[A](default: Option[A], docstring: String, doctype: String)
 
+/** Typeclass for converting a type to a doctype string
+  * @tparam A some type
+  */
+trait Doctypeable[A] {
+
+  /** Return the doctype string for some option */
+  def toDoctype(a: Option[A]): String
+
+}
+
+/** Object containing implementations of the Doctypeable typeclass */
+object Doctypes {
+
+  /** Converts an Int => "INT" */
+  implicit val intToDoctype    = new Doctypeable[Int]    { def toDoctype(a: Option[Int])    = "INT"    }
+
+  /** Converts a BigInt => "INT" */
+  implicit val bigIntToDoctype = new Doctypeable[BigInt] { def toDoctype(a: Option[BigInt]) = "INT"    }
+
+  /** Converts a String => "STRING" */
+  implicit val stringToDoctype = new Doctypeable[String] { def toDoctype(a: Option[String]) = "STRING" }
+
+}
+
 class plusarg_reader(val format: String, val default: BigInt, val docstring: String, val width: Int) extends BlackBox(Map(
     "FORMAT"  -> StringParam(format),
     "DEFAULT" -> IntParam(default),
@@ -41,6 +65,8 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
   }
 }
 
+import Doctypes._
+
 object PlusArg
 {
   /** PlusArg("foo") will return 42.U if the simulation is run with +foo=42
@@ -50,7 +76,7 @@ object PlusArg
     * pass.
     */
   def apply(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32): UInt = {
-    PlusArgArtefacts.append(name, Some(default), docstring, "INT")
+    PlusArgArtefacts.append(name, Some(default), docstring)
     Module(new plusarg_reader(name + "=%d", default, docstring, width)).io.out
   }
 
@@ -59,7 +85,7 @@ object PlusArg
     * Default 0 will never assert.
     */
   def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt) {
-    PlusArgArtefacts.append(name, Some(default), docstring, "INT")
+    PlusArgArtefacts.append(name, Some(default), docstring)
     Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count := count
   }
 }
@@ -72,8 +98,7 @@ object PlusArgArtefacts {
     "Use `Some(BigInt)` to specify a `default` value. This will be removed in Rocket Chip 2020.08",
     "Rocket Chip 2020.05"
   )
-  def append(name: String, default: BigInt, docstring: String): Unit =
-    append(name, Some(default), docstring, "INT")
+  def append(name: String, default: BigInt, docstring: String): Unit = append(name, Some(default), docstring)
 
   /** Add a new PlusArg
     *
@@ -81,10 +106,10 @@ object PlusArgArtefacts {
     * @param name name for the PlusArg
     * @param default optional default value
     * @param docstring text to include in the help
-    * @param doctype description of the Verilog type of the PlusArg value (e.g. STRING, INT)
     */
-  def append[A](name: String, default: Option[A], docstring: String, doctype: String): Unit =
-    artefacts = artefacts ++ Map(name -> PlusArgContainer[A](default, docstring, doctype))
+  def append[A : Doctypeable](name: String, default: Option[A], docstring: String): Unit =
+    artefacts = artefacts ++
+      Map(name -> PlusArgContainer(default, docstring, implicitly[Doctypeable[A]].toDoctype(default)))
 
   /* From plus args, generate help text */
   private def serializeHelp_cHeader(tab: String = ""): String = artefacts
