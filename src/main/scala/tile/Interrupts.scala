@@ -105,8 +105,8 @@ trait SourcesExternalNotifications { this: BaseTile =>
     cease(0) := could_cease.map{ c => 
       val cease = (waitForQuiescence(c))
       // Test-Only Code --
-      val prev_cease = RegNext(c, false.B)
-      assert(!(prev_cease & !c), "CEASE line can not glitch once raised") 
+      val prev_cease = RegNext(cease, false.B)
+      assert(!(prev_cease & !cease), "CEASE line can not glitch once raised") 
       cease
     }.getOrElse(false.B)
   }
