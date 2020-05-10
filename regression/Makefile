@@ -273,7 +273,7 @@ ifdef SEED
 SEED_ARG = --seed $(SEED)
 endif
 
-JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
+JTAG_DTM_SIM_ARGS = +jtag_rbb_enable=1 $(SEED_ARG)
 
 stamps/riscv-tests.stamp: stamps/rocket-tools_checkout.stamp
 	mkdir -p $(dir $@)
