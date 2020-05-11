@@ -1,3 +1,9 @@
+# This file describes the GitHub Actions workflow for continuous integration of rocket-chip.
+#
+# See
+# https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# for API reference documentation on this file format.
+
 name: Continuous Integration
 
 on:
