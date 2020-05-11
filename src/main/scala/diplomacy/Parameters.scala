@@ -167,13 +167,13 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   }
 
   def subtract(x: AddressSet): Seq[AddressSet] = {
-    if (!overlaps(x)) {
-      Seq(this)
-    } else {
-      val new_inflex = ~x.mask & mask
-      // !!! this fractures too much; find a better algorithm
-      val fracture = AddressSet.enumerateMask(new_inflex).flatMap(m => intersect(AddressSet(m, ~new_inflex)))
-      fracture.filter(!_.overlaps(x))
+    intersect(x) match {
+      case None => Seq(this)
+      case Some(remove) => AddressSet.enumerateBits(mask & ~remove.mask).map { bit =>
+        val nmask = (mask & (bit-1)) | remove.mask
+        val nbase = (remove.base ^ bit) & ~nmask
+        AddressSet(nbase, nmask)
+      }
     }
   }
 
