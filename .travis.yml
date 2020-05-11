@@ -62,6 +62,9 @@ jobs:
     - stage: check wit
       script:
         - ci-tests/check_submodules
+    - stage: compile scala
+      script:
+        - make -C regression SUITE=UnittestSuite JVM_MEMORY=3G stamps/rocket-chip-compile.stamp
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
@@ -74,9 +77,6 @@ jobs:
         - travis_wait 120 make verilator -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8
-    - stage: compile scala
-      script:
-        - make -C regression SUITE=UnittestSuite JVM_MEMORY=3G stamps/rocket-chip-compile.stamp
     - &test
       stage: Test
       script:
