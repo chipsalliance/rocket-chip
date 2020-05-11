@@ -275,6 +275,14 @@ endif
 
 JTAG_DTM_SIM_ARGS = +jtag_rbb_enable=1 $(SEED_ARG)
 
+SCALA_PROJECTS = . chisel3 chisel3/core chisel3/macros
+SCALA_SOURCES = $(foreach submodule,$(SCALA_PROJECTS),$(shell find $(base_dir)/$(submodule)/src/main/scala -name "*.scala"))
+
+stamps/rocket-chip-compile.stamp: $(SCALA_SOURCES) $(FIRRTL_JAR)
+	cd $(base_dir) && $(SBT) "compile"
+	mkdir -p $(dir $@)
+	date > $@
+
 stamps/riscv-tests.stamp: stamps/rocket-tools_checkout.stamp
 	mkdir -p $(dir $@)
 	date > $@

@@ -74,6 +74,9 @@ jobs:
         - travis_wait 120 make verilator -C regression SUITE=none
       before_install:
         - export CXX=g++-4.8 CC=gcc-4.8
+    - stage: compile scala
+      script:
+        - make -C regression SUITE=UnittestSuite JVM_MEMORY=3G stamps/rocket-chip-compile.stamp
     - &test
       stage: Test
       script:
