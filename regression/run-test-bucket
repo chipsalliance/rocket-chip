@@ -19,8 +19,20 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-# Stub out the travis_wait function in non-Travis-CI systems to be a no-op.
-if [[ ${TRAVIS:-false} != true ]]; then
+regression_dir=$(cd "$(dirname "$0")" ; pwd -P)
+rocketchip_dir=$(dirname "${regression_dir}")
+
+if [[ ${TRAVIS:-false} == true ]]; then
+  # If running on Travis CI, make sure that travis_wait is defined.
+  . "${regression_dir}/travis_whereami.bash"
+  . "${regression_dir}/travis_setup_env.bash"
+  . "${regression_dir}/travis_jigger.bash"
+  . "${regression_dir}/travis_wait.bash"
+  travis_setup_env
+else
+  # If not running on Travis CI, Stub out the travis_wait to be a no-op, since
+  # it's unnecessary and it has some undesirable side effects such as hiding
+  # console output until the command finishes.
   travis_wait() {
     # Throw out first argument, which is the wait time in minutes.
     shift
@@ -30,8 +42,6 @@ if [[ ${TRAVIS:-false} != true ]]; then
 fi
 
 # Always run from the root rocket-chip directory.
-regression_dir=$(cd "$(dirname "$0")" ; pwd -P)
-rocketchip_dir=$(dirname "${regression_dir}")
 cd "${rocketchip_dir}"
 
 # Test bucket definitions
