@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.amba.AMBAProt
 import scala.math.{min,max}
 import TLMessages._
 
@@ -91,6 +92,15 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
           lgSize     = in.c.bits.size,
           data       = in.c.bits.data,
           corrupt    = in.c.bits.corrupt)._2
+        c_a.bits.user.lift(AMBAProt).foreach { x =>
+          x.fetch       := false.B
+          x.secure      := true.B
+          x.privileged  := true.B
+          x.bufferable  := true.B
+          x.modifiable  := true.B
+          x.readalloc   := true.B
+          x.writealloc  := true.B
+        }
 
         // Releases without Data succeed instantly
         val c_d = Wire(in.d)
