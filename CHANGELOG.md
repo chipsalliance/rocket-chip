@@ -11,39 +11,38 @@ This project adheres to the versioning scheme described in [VERSIONING.md]
 
 ### Added
  - Framework for performing Chisel Linting: Truncated assignments and unnamed registers (#2435)
+ - TLBroadcast and TLSourceShrinker pass through user bits (#2446)
+ - subsystem: add an optional node to use for assigning hartids (#2447)
+ - Debug SBA drives AMBA Prot Bits (#2448)
+ - AXIMasterPortParameters can carry resources as well (#2443)
+ - PRCI Clock[Inward,Outward]Node types (#2441)
+ - Definitions for ratified version of RISC-V Processor Trace spec (#2439)
+ - Support PLIC elaboration when nDevices == 0 (#2351)
+ - Add a registered option to the BundleBroadcast (#2431)
+ - Object Model: add Sv48 to RocketISA addressTranslationModes (#2434)
+
 
 ### Changed
   - Update README_TRAVIS.md instrutions for simpler cache maintenance (#2455)
-  - Added an assertion that cease output from tiles is monotonic (#2456,  )
-  - Corrected Travis caching behavior for Scala (#2454)
+  - Added an assertion that cease output from tiles is monotonic (#2456, #2420)
+  - Corrected Travis caching behavior for Scala (CI) (#2454)
+  - Use non-sudo Travis container (CI) (#2451)
+  - chisel3 version bumped to 3.3.0 (#2399)
+  - firrtl version bumped to 1.3.0 (#2399)
+  - registers driving cease and wfi have reset values (#2449)
+  - Object Model changed for Port protocols (#2444)
+  - AddressAdjuster and RegionReplicator now work on prefixes instead of chip ID (multi-chip routing) (#2430)
+  - Use static priority arbitration in PTW (#2433)
+  - Pipeline tile hartid input for better phyiscal placement (#2432)
+  
+
+
 
 ### Removed
+  - package imports that were causing warnings (#2442)
 
 
 ## 2020.04.0
-
-
-* |   a023a83 - Merge pull request #2451 from chipsalliance/mwachs5-patch-4 (3 days ago) <Megan Wachs>
-  
-* |   f1037ef - Merge pull request #2446 from chipsalliance/broadcasthub-prot (4 days ago) <Henry Cook>
-* |   1872f5d - Merge pull request #2399 from chipsalliance/chisel-3-3 (4 days ago) <Jack Koenig>
-* |   97ef34b - Merge pull request #2447 from chipsalliance/optional-hartid-prefix (5 days ago) <Andrew Waterman>
-* | | d7bab00 - Provide reset values for registers driving cease and wfi (#2449) (5 days ago) <Sandeep Rajendran>
-* | |   fb389e1 - Merge pull request #2448 from chipsalliance/debug-prot-bits (5 days ago) <Ernie Edgar>
-* |   3a61029 - Merge pull request #2444 from chipsalliance/ahb_axi_om_update (9 days ago) <Mohit Wani>
-* |   7c94e1a - Merge pull request #2440 from chipsalliance/revert-2427-ahb_axi_om_update (10 days ago) <Mohit Wani>
-* | | 8bd04c4 - AXIS: allow masters to carry resources as well (#2443) (10 days ago) <Wesley W. Terpstra>
-* | | 8ca1143 - Chisel compile warning: Chisel3 package import (#2442) (11 days ago) <John Ingalls>
-* | | d327212 - prci: add Clock[Inward,Outward]Node types (#2441) (11 days ago) <Wesley W. Terpstra>
-* | |   1888c18 - Merge pull request #2439 from chipsalliance/trace-core-interface-update (11 days ago) <Ernie Edgar>
-* | |   fca09ed - Merge pull request #2427 from chipsalliance/ahb_axi_om_update (12 days ago) <Mohit Wani>
-* | | |   e1a5b25 - Merge pull request #2420 from chipsalliance/cease-assertion (12 days ago) <Megan Wachs>
-* | | | | |   8acb224 - Merge pull request #2430 from chipsalliance/revised-multichip-routing (13 days ago) <Wesley W. Terpstra>
-* | | | | | |   0fb17d4 - Merge pull request #2351 from jerryz123/patch-2 (13 days ago) <Megan Wachs>
-* | | | | | | 373b847 - BundleBroadcast: add optional register pipelining (#2431) (2 weeks ago) <Wesley W. Terpstra>
-* | | | | | |   9002625 - Merge pull request #2434 from chipsalliance/OM_Sv48 (2 weeks ago) <John Ingalls>
-* | | | | |   05ea095 - Merge pull request #2433 from chipsalliance/ptw-static-arb (2 weeks ago) <Andrew Waterman>
-* | | | | | | 3fc2850 - RocketTile: do not distort placement when hartid is not constant (#2432) (2 weeks ago) <Wesley W. Terpstra>
 * | | | | | 662921b - Diplomatic tilelink "v1" parameter fixes (#2428) (2 weeks ago) <Henry Cook>
 * | | | | |   2d3f5b6 - Merge pull request #2423 from chipsalliance/coreMonWrenFloat (3 weeks ago) <John Ingalls>
 * | | | | 0dbe71c - pin Wit version to branch v0.12.0 (#2426) (3 weeks ago) <John Ingalls>
