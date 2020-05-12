@@ -219,24 +219,20 @@ object AddressSet
     }
   }
 
+  def unify(seq: Seq[AddressSet], bit: BigInt): Seq[AddressSet] = {
+    // Pair terms up by ignoring 'bit'
+    seq.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
+      if (seq.size == 1) {
+        seq.head // singleton -> unaffected
+      } else {
+        key.copy(mask = key.mask | bit) // pair - widen mask by bit
+      }
+    }.toList
+  }
+
   def unify(seq: Seq[AddressSet]): Seq[AddressSet] = {
-    val n = seq.size
-    val array = Array(seq:_*)
-    var filter = Array.fill(n) { false }
-    for (i <- 0 until n-1) { if (!filter(i)) {
-      for (j <- i+1 until n) { if (!filter(j)) {
-        val a = array(i)
-        val b = array(j)
-        if (a.mask == b.mask && isPow2(a.base ^ b.base)) {
-          val c_base = a.base & ~(a.base ^ b.base)
-          val c_mask = a.mask | (a.base ^ b.base)
-          filter.update(j, true)
-          array.update(i, AddressSet(c_base, c_mask))
-        }
-      }}
-    }}
-    val out = (array zip filter) flatMap { case (a, f) => if (f) None else Some(a) }
-    if (out.size != n) unify(out) else out.toList
+    val bits = seq.map(_.base).foldLeft(BigInt(0))(_ | _)
+    AddressSet.enumerateBits(bits).foldLeft(seq) { case (acc, bit) => unify(acc, bit) }.sorted
   }
 
   def enumerateMask(mask: BigInt): Seq[BigInt] = {
