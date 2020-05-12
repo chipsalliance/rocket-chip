@@ -21,6 +21,8 @@ case object Bare extends OMAddressTranslationMode
 case object Sv32 extends OMAddressTranslationMode
 case object Sv39 extends OMAddressTranslationMode
 case object Sv48 extends OMAddressTranslationMode
+// unratified/subject-to-change in the RISC-V priviledged ISA specification:
+case object Sv57 extends OMAddressTranslationMode
 
 trait OMBaseInstructionSet extends OMEnum
 case object RV32E extends OMBaseInstructionSet
@@ -86,6 +88,7 @@ object OMISA {
       case 32 if (pgLevels == 2) => Sv32
       case 64 if (pgLevels == 3) => Sv39
       case 64 if (pgLevels == 4) => Sv48
+      case 64 if (pgLevels == 5) => Sv57
       case _ => throw new IllegalArgumentException(s"ERROR: Invalid Xlen/PgLevels combination: $xLen/$pgLevels")
     }
 
