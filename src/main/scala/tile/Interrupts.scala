@@ -95,7 +95,7 @@ trait SourcesExternalNotifications { this: BaseTile =>
   def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8) {
     def waitForQuiescence(cease: Bool): Bool = {
       // don't report cease until signal is stable for longer than any pipeline depth
-      val count = Reg(UInt(log2Ceil(quiescenceCycles + 1).W))
+      val count = RegInit(0.U(log2Ceil(quiescenceCycles + 1).W))
       val saturated = count >= quiescenceCycles.U
       when (!cease) { count := 0.U }
       when (cease && !saturated) { count := count + 1.U }
@@ -105,8 +105,8 @@ trait SourcesExternalNotifications { this: BaseTile =>
     cease(0) := could_cease.map{ c => 
       val cease = (waitForQuiescence(c))
       // Test-Only Code --
-      val prev_cease = RegNext(c, false.B)
-      assert(!(prev_cease & !c), "CEASE line can not glitch once raised") 
+      val prev_cease = RegNext(cease, false.B)
+      assert(!(prev_cease & !cease), "CEASE line can not glitch once raised") 
       cease
     }.getOrElse(false.B)
   }
@@ -116,6 +116,6 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportWFI(could_wfi: Option[Bool]) {
     val (wfi, _) = wfiNode.out(0)
-    wfi(0) := could_wfi.map(RegNext(_)).getOrElse(false.B)
+    wfi(0) := could_wfi.map(RegNext(_, init=false.B)).getOrElse(false.B)
   }
 }

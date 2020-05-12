@@ -1,11 +1,12 @@
 git:
   submodules: false
 language: scala
-sudo: required
+sudo: false
 cache:
   apt: true
   directories:
-    $HOME/.ivy2
+    $HOME/.cache/coursier
+    $HOME/.sbt
     regression/install
     emulator/verilator
 
@@ -104,7 +105,7 @@ jobs:
     - <<: *test
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
-        - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
+        - make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
     - <<: *test
       script:
         - travis_wait 80 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G

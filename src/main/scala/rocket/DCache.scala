@@ -13,7 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import chisel3.{DontCare, WireInit, dontTouch, withClock}
-import chisel3.experimental.chiselName
+import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import chisel3.internal.sourceinfo.SourceInfo
 import TLMessages._
 
@@ -110,7 +110,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val gated_clock =
     if (!cacheParams.clockGate) clock
     else ClockGate(clock, clock_en_reg, "dcache_clock_gate")
-  @chiselName class DCacheModuleImpl { // entering gated-clock domain
+  @chiselName class DCacheModuleImpl extends NoChiselNamePrefix { // entering gated-clock domain
 
   val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)))
   val pma_checker = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries)) with InlineInstance)
@@ -284,7 +284,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_no_xcpt = s2_valid && !io.cpu.s2_xcpt.asUInt.orR
   val s2_probe = Reg(next=s1_probe, init=Bool(false))
   val releaseInFlight = s1_probe || s2_probe || release_state =/= s_ready
-  val s2_valid_masked = s2_valid_no_xcpt && Reg(next = !s1_nack)
+  val s2_not_nacked_in_s1 = RegNext(!s1_nack)
+  val s2_valid_not_nacked_in_s1 = s2_valid && s2_not_nacked_in_s1
+  val s2_valid_masked = s2_valid_no_xcpt && s2_not_nacked_in_s1
   val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(io.cpu.req.bits)
   val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.size(0)
@@ -445,7 +447,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_mask = RegEnable(s1_mask, s1_valid_not_nacked && s1_write)
   val pstore1_storegen_data = Wire(init = pstore1_data)
   val pstore1_rmw = Bool(usingRMW) && RegEnable(needsRead(s1_req), s1_valid_not_nacked && s1_write)
-  val pstore1_merge_likely = s2_valid && s2_write && s2_store_merge
+  val pstore1_merge_likely = s2_valid_not_nacked_in_s1 && s2_write && s2_store_merge
   val pstore1_merge = s2_store_valid && s2_store_merge
   val pstore2_valid = Reg(Bool())
   val pstore_drain_opportunistic = !(io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)) && !(s1_valid && s1_waw_hazard)

@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
-import freechips.rocketchip.subsystem.{SubsystemResetSchemeKey, ResetSynchronous, RocketCrossingParams}
+import freechips.rocketchip.subsystem.{SubsystemResetSchemeKey, ResetSynchronous, RocketCrossingParams, HartPrefixKey}
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -156,10 +156,12 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.traceSourceNode.bundle <> core.io.trace
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
-  core.io.hartid := RegNext(constants.hartid)
-  outer.dcache.module.io.hartid := RegNext(constants.hartid)
-  outer.frontend.module.io.hartid := RegNext(constants.hartid)
   outer.frontend.module.io.reset_vector := constants.reset_vector
+
+  def regHart(x: UInt): UInt = if (p(HartPrefixKey)) RegNext(x) else x
+  core.io.hartid := regHart(constants.hartid)
+  outer.dcache.module.io.hartid := regHart(constants.hartid)
+  outer.frontend.module.io.hartid := regHart(constants.hartid)
 
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
