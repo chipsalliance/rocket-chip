@@ -76,6 +76,13 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
+    if (!edge.manager.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, s"''A' channel should not see ArithmeticData")
+    if (!edge.manager.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData, s"''A' channel should not see LogicalData")
+    if (!edge.manager.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, s"''A' channel should not see Get")
+    if (!edge.manager.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, s"''A' channel should not see Hint")
+    if (!edge.manager.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, s"''A' channel should not see PutFullData")
+    if (!edge.manager.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, s"''A' channel should not see PutPartialData")
+
     when (bundle.opcode === TLMessages.AcquireBlock) {
       monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
       monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
@@ -160,6 +167,13 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val is_aligned = edge.isAligned(bundle.address, bundle.size)
     val mask = edge.full_mask(bundle)
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
+
+    if (!edge.client.anySupportArithmetic) monAssert (bundle.opcode =/= TLMessages.ArithmeticData, s"''B' channel should not see ArithmeticData")
+    if (!edge.client.anySupportLogical) monAssert (bundle.opcode =/= TLMessages.LogicalData, s"''B' channel should not see LogicalData")
+    if (!edge.client.anySupportGet) monAssert (bundle.opcode =/= TLMessages.Get, s"''B' channel should not see Get")
+    if (!edge.client.anySupportHint) monAssert (bundle.opcode =/= TLMessages.Hint, s"''B' channel should not see Hint")
+    if (!edge.client.anySupportPutFull) monAssert (bundle.opcode =/= TLMessages.PutFullData, s"''B' channel should not see PutFullData")
+    if (!edge.client.anySupportPutPartial) monAssert (bundle.opcode =/= TLMessages.PutPartialData, s"''B' channel should not see PutPartialData")
 
     when (bundle.opcode === TLMessages.Probe) {
       monAssert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
