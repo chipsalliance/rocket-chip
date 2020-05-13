@@ -33,7 +33,7 @@ SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-l
 SHELL := /bin/bash
 
 ifdef STABILIZE
-CHISEL_OPTIONS := -n $(long_name) --with-aspect freechips.rocketchip.linting.rule.StabilizeNamesAspect --lint ambiguous-module-names
+CHISEL_OPTIONS := -n $(long_name) --with-aspect freechips.rocketchip.linting.rule.StabilizeNamesAspect --lint *
 endif
 
 FIRRTL_TRANSFORMS := \

@@ -1,7 +1,7 @@
 git:
   submodules: false
 language: scala
-sudo: required
+sudo: false
 cache:
   apt: true
   directories:
@@ -62,10 +62,6 @@ jobs:
     - stage: check wit
       script:
         - ci-tests/check_submodules
-    - stage: compile scala
-      script:
-        - make -C regression SUITE=UnittestSuite JVM_MEMORY=3G submodules
-        - make -C regression SUITE=UnittestSuite JVM_MEMORY=3G stamps/rocket-chip-compile.stamp
     - stage: prepare cache-riscv-tools
       script:
         - travis_wait 120 make tools -C regression SUITE=none
