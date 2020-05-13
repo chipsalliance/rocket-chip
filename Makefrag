@@ -33,17 +33,11 @@ SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-l
 SHELL := /bin/bash
 
 ifdef STABILIZE
-FIRRTL_TRANSFORMS := \
-	firrtl.passes.InlineInstances \
-	freechips.rocketchip.firrtl.StabilizeModuleNames \
-
-CHISEL_OPTIONS := -n $(long_name) --stabilize-names 0
-
-else
-FIRRTL_TRANSFORMS := \
-	firrtl.passes.InlineInstances \
-
+CHISEL_OPTIONS := -n $(long_name) --with-aspect freechips.rocketchip.linting.rule.StabilizeNamesAspect --lint ambiguous-module-names
 endif
+
+FIRRTL_TRANSFORMS := \
+	firrtl.passes.InlineInstances \
 
 ROCKET_CLASS_DIRS ?= \
 	$(base_dir)/target/scala-2.12/classes \

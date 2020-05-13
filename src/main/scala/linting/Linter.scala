@@ -24,7 +24,8 @@ object Linter {
   // Update list for any new lint rule
   private[linting] lazy val linters = Seq(
     new rule.LintAnonymousRegisters,
-    new rule.LintTruncatingWidths
+    new rule.LintTruncatingWidths,
+    new rule.LintAmbiguousModuleNames
   )
 
   private [linting] lazy val lintMap = linters.flatMap {

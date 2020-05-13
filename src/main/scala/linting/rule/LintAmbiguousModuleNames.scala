@@ -1,9 +1,11 @@
-// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.firrtl
+package freechips.rocketchip.linting
+package rule
 
 import firrtl._
 import firrtl.ir._
+
 import firrtl.annotations.{Target, SingleTargetAnnotation, IsModule, CircuitTarget}
 import firrtl.transforms.DedupModules
 import firrtl.options.{Dependency, HasShellOptions, PreservesAll, ShellOption}
@@ -151,16 +153,7 @@ case class ModuleNameAnnotation(
   }
 }
 
-case object StabilizeNamesAspect extends Aspect[RawModule] with HasShellOptions {
-  override val options = Seq(
-    new ShellOption[String](
-      longOption = "stabilize-names",
-      toAnnotationSeq = a => Seq(this),
-      helpText = "<stabilize names>",
-      shortOption = None
-    )
-  )
-
+case object StabilizeNamesAspect extends Aspect[RawModule] {
   def toAnnotation(top: RawModule): AnnotationSeq = {
     Select.collectDeep(top) {
       case m: LazyModuleImpLike => new ModuleNameAnnotation(m.desiredName, m.toTarget)
@@ -170,12 +163,11 @@ case object StabilizeNamesAspect extends Aspect[RawModule] with HasShellOptions 
   }
 }
 
-class StabilizeModuleNames extends Transform
-  with DependencyAPIMigration
-  with PreservesAll[Transform] {
-  override def prerequisites = Seq.empty
-  override def optionalPrerequisites = Seq(Dependency[DedupModules])
-  override def optionalPrerequisiteOf = Forms.LowEmitters
+final class LintAmbiguousModuleNames extends LintRule {
+
+  val recommendedFix: String = "override desiredName based on module parameters"
+
+  val lintName: String = "ambiguous-module-names"
 
   private def checkStrategy(
     strategy: NamingStrategy,
@@ -187,6 +179,7 @@ class StabilizeModuleNames extends Transform
   }
 
   private def pickStrategies(
+    violations: Violations,
     strategies: Seq[NamingStrategy],
     desiredName: String,
     modules: Seq[Module]): Map[String, String] = {
@@ -194,11 +187,20 @@ class StabilizeModuleNames extends Transform
       case (None, strategy) => checkStrategy(strategy, desiredName, modules)
       case (some, _) => some
     }
-    require(result.isDefined, s"No naming strategy disambiguates modules for desired name: $desiredName")
-    result.get
+    if (result.isDefined) {
+      result.get
+    } else {
+      val msg = s"No naming strategy disambiguates modules for desired name: $desiredName"
+      val info = MultiInfo(modules.map(_.info))
+      val mods = violations.getOrElse((info, msg), Set.empty)
+      violations((info, msg)) = mods ++ modules.map(_.name)
+      Map.empty
+    }
   }
 
-  def execute(state: CircuitState): CircuitState = {
+  override def execute(state: CircuitState): CircuitState = {
+    val violations = new Violations()
+
     val modMap = state.circuit.modules.collect {
       case m: Module => m.name -> m
     }.toMap
@@ -242,10 +244,17 @@ class StabilizeModuleNames extends Transform
       if (strategyOpt.isDefined) {
         val strategy = strategyOpt.get
         val result = checkStrategy(strategy, desiredName, modules)
-        require(result.isDefined, s"Requested naming strategy $strategy does not disambiguate module collisions for desired name: $desiredName")
-        result.get
+        if (result.isDefined) {
+          result.get
+        } else {
+          val msg = s"Requested naming strategy $strategy does not disambiguate module collisions for desired name: $desiredName"
+          val info = MultiInfo(modules.map(_.info))
+          val mods = violations.getOrElse((info, msg), Set.empty)
+          violations((info, msg)) = mods ++ modules.map(_.name)
+          Map.empty[String, String]
+        }
       } else {
-        pickStrategies(strategies, desiredName, modules)
+        pickStrategies(violations, strategies, desiredName, modules)
       }
     }.flatten.toMap
 
@@ -257,6 +266,13 @@ class StabilizeModuleNames extends Transform
     nameMappings.foreach { case (from, to) =>
       renames.record(oldMain.module(from), newMain.module(to))
     }
-    state.copy(circuit = circuit, renames = Some(renames))
+
+    val whitelist = collectWhitelist(state.annotations)
+    val errorList = violations.collect {
+      case ((info, message), mods) if !isWhitelisted(info, whitelist) => Violation(this, info, message, mods)
+    }.toSeq.sortBy { _.toString }
+    val newAnnos = errorList ++ state.annotations
+
+    state.copy(circuit = circuit, annotations = newAnnos, renames = Some(renames))
   }
 }

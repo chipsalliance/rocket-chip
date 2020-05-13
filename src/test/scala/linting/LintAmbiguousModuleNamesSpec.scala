@@ -1,11 +1,11 @@
 // See LICENSE for license details.
 
-package freechips.rocketchip.firrtl
+package freechips.rocketchip.linting.rule
 
-import _root_.firrtl._
-import _root_.firrtl.ir.Port
-import _root_.firrtl.annotations._
-import _root_.firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
+import firrtl._
+import firrtl.ir.Port
+import firrtl.annotations._
+import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
 case class StableNameAnnotation(target: IsModule) extends SingleTargetAnnotation[IsModule] {
   def duplicate(newTarget: IsModule): StableNameAnnotation = this.copy(target = newTarget)
@@ -15,8 +15,8 @@ case class UnstableNameAnnotation(target: IsModule) extends SingleTargetAnnotati
   def duplicate(newTarget: IsModule): UnstableNameAnnotation = this.copy(target = newTarget)
 }
 
-class StabilizeModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
-  val transform = new StabilizeModuleNames
+class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
+  val transform = new LintAmbiguousModuleNames
 
   case class TestCase(
     input: String,
