@@ -4,20 +4,21 @@ package freechips.rocketchip.linting
 package rule
 
 import firrtl._
-import firrtl.ir._
-
 import firrtl.annotations.{Target, SingleTargetAnnotation, IsModule, CircuitTarget}
-import firrtl.transforms.DedupModules
+import firrtl.ir._
 import firrtl.options.{Dependency, HasShellOptions, PreservesAll, ShellOption}
 import firrtl.stage.Forms
+import firrtl.transforms.DedupModules
 
-import chisel3.util.Queue
 import chisel3.aop.{Aspect, Select}
 import chisel3.RawModule
+import chisel3.util.Queue
 
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImpLike}
+import freechips.rocketchip.tilelink._
 
+/** A helper to rename modules in a [[Circuit]]
+  */
 object RenameModules {
   def onStmt(moduleNameMap: Map[String, String])(stmt: Statement): Statement = stmt match {
     case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
@@ -25,6 +26,11 @@ object RenameModules {
     case other => other.mapStmt(onStmt(moduleNameMap))
   }
 
+  /** Renames the modules in a circuit given a mapping of old names to new names
+    *
+    * @param nameMappings mapping of old to new names
+    * @param circuit the circuit to rename
+    */
   def apply(nameMappings: Map[String, String], circuit: Circuit): Circuit = {
     val modules = circuit.modules.map {
       case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(m => nameMappings.getOrElse(m, m))
@@ -35,16 +41,28 @@ object RenameModules {
   }
 }
 
+/** A strategy for generating a new names for modules
+  */
 sealed trait NamingStrategy {
+
+  /** Generates a new stable module name based on the desired name and the module IR node
+    *
+    * called by [[LintAmbiguousModuleNames]] to rename modules
+    *
+    * @param desiredName the requested name for the module, generated name should contain this name
+    * @param module the module targeted by the desiredName
+    */
   def getName(desiredName: String)(module: Module): String
 }
 
-// only accept the desired name
+/** A naming strategy that always returns the desired name
+  */
 case object ExactNamingStrategy extends NamingStrategy {
   def getName(desiredName: String)(module: Module): String = desiredName
 }
 
-// use port structure hash naming strategy
+/** A naming strategy that appends the port structure hash to the desired name i.e. "{desiredName}_p{hash}"
+  */
 case object PortStructureNamingStrategy extends NamingStrategy {
   def getName(desiredName: String)(module: Module): String = {
     val noNamePorts = module.ports.map(NamingStrategy.removePortNames(_))
@@ -52,7 +70,8 @@ case object PortStructureNamingStrategy extends NamingStrategy {
   }
 }
 
-// use name-agnostic module content hash naming strategy
+/** A naming strategy that appends the name-agnostic module content hash to the desired name i.e. "{desiredName}_c{hash}"
+  */
 case object ContentStructureNamingStrategy extends NamingStrategy {
   def getName(desiredName: String)(module: Module): String = {
     val noNameModule = NamingStrategy.removeModuleNames(module)
@@ -60,7 +79,8 @@ case object ContentStructureNamingStrategy extends NamingStrategy {
   }
 }
 
-// use module content hash naming strategy
+/** A naming strategy that appends the module content hash to the desired name i.e. "{desiredName}_C{hash}"
+  */
 case object ContentNamingStrategy extends NamingStrategy {
   def getName(desiredName: String)(module: Module): String = {
     val noInfoModule = NamingStrategy.removeModuleInfo(module).copy(name = NamingStrategy.emptyName)
@@ -163,11 +183,30 @@ case object StabilizeNamesAspect extends Aspect[RawModule] {
   }
 }
 
+/** This LintRule checks for module name collisions and optionally renames them to stable hash names
+  *
+  * Module name collisions occur when different [[Module]]s are annotated with
+  * [[ModuleNameAnnotation]]s that have the same desiredName. If one of the
+  * modules is targeted by [[NamingStrategyAnnotation]] then the transform will
+  * attempt to rename modules according to the naming strategy. If the
+  * conflicting modules cannot be disambiguated by the naming strategy then a
+  * [[LintViolation]] is emitted. [[ExactNamingStrategy]] can be used to
+  * enforce that there are not colliding module names.
+  *
+  * If no naming strategy is specified then a sequence of increasingly unstable
+  * [[NamingStrategy]]s is tried until all modules can be disamgiguated.
+  */
 final class LintAmbiguousModuleNames extends LintRule {
-
   val recommendedFix: String = "override desiredName based on module parameters"
 
   val lintName: String = "ambiguous-module-names"
+
+  private val strategyOrder = Seq(
+    ExactNamingStrategy,
+    PortStructureNamingStrategy,
+    ContentStructureNamingStrategy,
+    ContentNamingStrategy,
+  )
 
   private def checkStrategy(
     strategy: NamingStrategy,
@@ -230,13 +269,6 @@ final class LintAmbiguousModuleNames extends LintRule {
       }
     }
 
-    val strategies = Seq(
-      ExactNamingStrategy,
-      PortStructureNamingStrategy,
-      ContentStructureNamingStrategy,
-      ContentNamingStrategy,
-    )
-
     val nameMappings = nameMap.map { case (desiredName, modules) =>
       val strategyOpt = modules.collectFirst {
         case m if strategyMap.contains(m.name) => strategyMap(m.name)
@@ -254,7 +286,7 @@ final class LintAmbiguousModuleNames extends LintRule {
           Map.empty[String, String]
         }
       } else {
-        pickStrategies(violations, strategies, desiredName, modules)
+        pickStrategies(violations, strategyOrder, desiredName, modules)
       }
     }.flatten.toMap
 

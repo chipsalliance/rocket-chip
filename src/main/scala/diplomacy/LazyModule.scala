@@ -5,7 +5,6 @@ package freechips.rocketchip.diplomacy
 import Chisel.{defaultCompileOptions => _, _}
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{RawModule, MultiIOModule, withClockAndReset, Reset}
-import chisel3.experimental.{annotate, ChiselAnnotation}
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
 import freechips.rocketchip.config.Parameters
 import scala.collection.immutable.{SortedMap,ListMap}
