@@ -285,7 +285,7 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
     )
     val inputState = CircuitState(passes.ToWorkingIR.run(Parser.parse(input)), UnknownForm, annos)
     val outputState = stabilizeNames(inputState)
-    val output = 
+    val output =
     s"""|circuit Foo:
         |  module Bar_p1C395774:
         |    skip
