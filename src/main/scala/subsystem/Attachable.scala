@@ -56,5 +56,6 @@ trait CanConnectWithinContextThatHasTileLinkLocations {
   * what is being made available via the LocationMaps in trait HasTileLinkLocations.
   */
 trait Attachable extends HasTileLinkLocations { this: LazyModule =>
+  def attachableSubhierarchies: Option[Seq[Attachable]]
   def locateTLBusWrapper(location: TLBusWrapperLocation): TLBusWrapper = locateTLBusWrapper(location.name)
 }
