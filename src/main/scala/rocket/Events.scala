@@ -9,8 +9,11 @@ import freechips.rocketchip.util.property._
 
 class EventSet(gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bool)]) {
   def size = events.size
-  val hits = events.map(_._2()).asUInt
-  def check(mask: UInt) = gate(mask, hits)
+  val hits = Wire(Vec(size, Bool()))
+  def check(mask: UInt) = {
+    hits := events.map(_._2())
+    gate(mask, hits.asUInt)
+  }
   def dump() {
     for (((name, _), i) <- events.zipWithIndex)
       when (check(1.U << i)) { printf(s"Event $name\n") }
