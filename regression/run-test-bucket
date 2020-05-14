@@ -86,7 +86,7 @@ case "${bucket_number}" in
     ;;
 
   7)
-    travis_wait 80 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
+    travis_wait 100 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
     ;;
 
   -h|--help)
