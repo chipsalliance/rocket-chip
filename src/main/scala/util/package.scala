@@ -248,7 +248,7 @@ package object util {
   * 
   * Compared with [[chisel3]] operators:
   * c <> p   is an 'actual-direction'-inferred 'c :<> p' or 'p :<> c'
-  * c := p   is equivalent to 'c :<= p' + 'p :=> c'
+  * c := p is equivalent to 'c :<= p' + 'c :=> p' or 'c:<> p'
   * 
   * Contrast this with 'c :<> p' which will connect a ready-valid producer
   * 'p' to a consumer 'c'.
