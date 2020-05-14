@@ -25,7 +25,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         echoFields = cp.echoFields,
         requestFields = cp.requestFields,
         responseKeys = cp.responseKeys)
-    },
+    } },
     managerFn = { mp => mp.v1copy(managers = mp.managers.map(m => m.v1copy(fifoId = if (maxInFlight==1) Some(0) else m.fifoId)))  })
 
   lazy val module = new LazyModuleImp(this) {
