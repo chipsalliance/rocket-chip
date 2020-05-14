@@ -262,7 +262,7 @@ package object util {
   * What if you want to connect all of the signals (e.g. ready/valid/bits)
   * from producer 'p' to a monitor 'm'?
   * For example in order to tap the connection to monitor traffic on an existing connection.
-  * In that case you can do 'm :<= p' and 'm :=> p'.
+  * In that case you can do 'm :<= p' and 'p :=> m'.
   */
   implicit class EnhancedChisel3Assign[T <: Data](val x: T) extends AnyVal {
     /** Assign all output fields of x from y; note that the actual direction of x is irrelevant */
