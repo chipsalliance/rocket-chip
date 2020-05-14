@@ -1007,6 +1007,7 @@ class CSRFile(
     vio.vxrm := reg_vxrm.get
 
     when (reset.toBool) {
+      reg_vconfig.get.vl := 0.U
       reg_vconfig.get.vtype := 0.U.asTypeOf(new VType)
       reg_vconfig.get.vtype.vill := true
     }
