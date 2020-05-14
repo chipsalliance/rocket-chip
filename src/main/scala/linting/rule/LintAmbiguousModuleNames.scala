@@ -4,7 +4,7 @@ package freechips.rocketchip.linting
 package rule
 
 import firrtl._
-import firrtl.annotations.{Target, SingleTargetAnnotation, IsModule, CircuitTarget}
+import firrtl.annotations.{CircuitTarget, HasSerializationHints, IsModule, SingleTargetAnnotation, Target}
 import firrtl.ir._
 import firrtl.options.{Dependency, HasShellOptions, PreservesAll, ShellOption}
 import firrtl.stage.Forms
@@ -16,6 +16,7 @@ import chisel3.util.Queue
 
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImpLike}
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.system.TestHarness
 
 /** A helper to rename modules in a [[Circuit]]
   */
@@ -154,16 +155,26 @@ object NamingStrategy {
   }
 }
 
-
+/** Specifies a naming strategy to use for a module and the modules that it collides with
+  */
 case class NamingStrategyAnnotation(
   strategy: NamingStrategy,
   target: IsModule
-) extends SingleTargetAnnotation[IsModule] {
+) extends SingleTargetAnnotation[IsModule] with HasSerializationHints {
+  def typeHints: Seq[Class[_]] = Seq(
+    ExactNamingStrategy.getClass,
+    PortStructureNamingStrategy.getClass,
+    ContentStructureNamingStrategy.getClass,
+    ContentNamingStrategy.getClass
+  )
+
   def duplicate(newTarget: IsModule): NamingStrategyAnnotation = {
     this.copy(target = newTarget)
   }
 }
 
+/** Specifies a desired name for a module
+  */
 case class ModuleNameAnnotation(
   desiredName: String,
   target: IsModule
@@ -173,13 +184,23 @@ case class ModuleNameAnnotation(
   }
 }
 
+/** An example of how to customize the names of certain modules using an Aspect
+  */
 case object StabilizeNamesAspect extends Aspect[RawModule] {
   def toAnnotation(top: RawModule): AnnotationSeq = {
     Select.collectDeep(top) {
-      case m: LazyModuleImpLike => new ModuleNameAnnotation(m.desiredName, m.toTarget)
-      case m: Queue[_] => new ModuleNameAnnotation(m.desiredName, m.toTarget)
-      case m: TLMonitor => new ModuleNameAnnotation(m.desiredName, m.toTarget)
-    }.toSeq
+      // annotating all Queues with a more descriptive desired name
+      case m: Queue[_] => Seq(new ModuleNameAnnotation(s"Queue_${m.genType.getClass.getSimpleName}_entries_${m.entries}", m.toTarget))
+      case m: TLMonitor => Seq(new ModuleNameAnnotation(m.desiredName, m.toTarget))
+
+      // annotating specific instances
+      case th: TestHarness =>
+        val core = th.ldut.rocketTiles.head.module.core
+        Seq(
+          ModuleNameAnnotation("Rocket_Core_0", core.toTarget),
+          NamingStrategyAnnotation(ExactNamingStrategy, core.toTarget),
+        )
+    }.flatten.toSeq
   }
 }
 
