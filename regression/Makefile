@@ -150,11 +150,15 @@ stamps/other-submodules.stamp:
 	git -C $(abspath $(TOP)) submodule update --init --recursive $(submodule_names)
 	date > $@
 
-stamps/rocket-tools_checkout.stamp:
-	mkdir -p $(dir $@)
+stamps/riscv-tests.stamp:
 	git -C $(abspath $(TOP)) clone -n https://github.com/freechipsproject/rocket-tools.git
 	git -C $(RISCV_TOOLS) checkout $(TOOLS_HASH)
-	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim  riscv-tests riscv-pk riscv-openocd fsf-binutils-gdb
+	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-tests
+	mkdir -p $(dir $@)
+	date > $@
+
+stamps/rocket-tools_checkout.stamp: | stamps/riscv-tests.stamp
+	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim riscv-pk riscv-openocd fsf-binutils-gdb
 	git -C $(RISCV_TOOLS) submodule update --init riscv-gnu-toolchain
 	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils-gdb riscv-gcc riscv-newlib
 	rm -f $(RISCV_TOOLS)/.travis.yml
@@ -274,10 +278,6 @@ SEED_ARG = --seed $(SEED)
 endif
 
 JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
-
-stamps/riscv-tests.stamp: stamps/rocket-tools_checkout.stamp
-	mkdir -p $(dir $@)
-	date > $@
 
 stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) PATH="$(abspath $(RISCV)/bin:$(PATH))" $(GDBSERVER) \
