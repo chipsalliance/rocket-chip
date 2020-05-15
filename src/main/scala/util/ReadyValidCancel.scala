@@ -50,6 +50,15 @@ class ReadyValidCancel[+T <: Data](gen: T) extends ValidCancel(gen)
   def mightFire(): Bool = ready && earlyValid
   def fire():      Bool = ready && validQual()
   override def cloneType: this.type = ReadyValidCancel(gen).asInstanceOf[this.type]
+
+  /** Down-converts a ReadyValidCancel output to a DecoupledIO bundle, dropping early/late timing split. */
+  def asDecoupled(): DecoupledIO[T] = {
+    val out = Wire(Decoupled(gen))
+    out.valid := validQual()
+    out.bits  := bits
+    ready := out.ready
+    out
+  }
 }
 
 object ReadyValidCancel {
