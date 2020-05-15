@@ -280,7 +280,7 @@ package object util {
     // y :<=: x  ->  x.:<=:(y)  ->  y :<= x  ->  FixChisel3.assignL(y, x)
     /** version of the :<= operator that uses the type from the RHS */
     def :<=: (y: T): Unit = { FixChisel3.assignL(y, x) }
-    /** version of the :>= operator that uses the type from the RHS */
+    /** version of the :=> operator that uses the type from the RHS */
     def :>=: (y: T): Unit = { FixChisel3.assignR(y, x) }
     /** version of the :<> operator that uses the type from the RHS */
     def :<>: (y: T): Unit = {
