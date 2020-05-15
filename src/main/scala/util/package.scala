@@ -237,7 +237,7 @@ package object util {
 /** provides operators useful for working with bidirectional [[Bundle]]s
   * 
   * In terms of [[Flipped]] with a producer 'p' and 'consumer' c:
-  * c :<= p // means drive all unflipped fields of 'c' from 'p' (e.g.: valid/bits)  
+  * c :<= p // means drive all unflipped fields of 'c' from 'p' (e.g.: c.valid := p.valid)
   * c :=> p // means drive all flipped fields of 'p' from 'c' (e.g.: `p.ready := c.ready`)
   * c :<> p // do both of the above
   * p :<> c // do both of the above, but you'll probably get a Flow error later.
