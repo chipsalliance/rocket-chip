@@ -240,7 +240,7 @@ package object util {
   * c :<= p // means drive all unflipped fields of 'c' from 'p' (e.g.: valid/bits)  
   * c :=> p // means drive all flipped fields of 'c' from 'p' (e.g.: ready)  
   * c :<> p // do both of the above
-  * p :<> c // do both of the above, but you'll probably get a Gender error later.
+  * p :<> c // do both of the above, but you'll probably get a Flow error later.
   * 
   * This utility class is needed because in [[chisel3]]:
   * c := p // only works if there are no directions on fields.  
