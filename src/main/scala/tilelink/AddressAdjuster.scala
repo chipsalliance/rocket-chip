@@ -12,13 +12,13 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
   val mask = params.replicationMask
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
-  // Which ids must we route within that mask?
-  val ids  = AddressSet.enumerateMask(mask)
-  // Find the intersection of the mask with some region
-  private def masked(region: Seq[AddressSet], offset: BigInt = 0): Seq[AddressSet] = {
-    region.flatMap { _.intersect(AddressSet(offset, ~mask)) }
+  // Find the portion of the addresses which correspond to prefix0
+  private def prefix0(region: Seq[AddressSet]): Seq[AddressSet] = {
+    region.flatMap { _.intersect(params.local) }
   }
-
+  private def prefixNot0(region: Seq[AddressSet]): Seq[AddressSet] = {
+    region.flatMap { _.subtract(params.local) }
+  }
   // forceLocal better only go one place (the low index)
   forceLocal.foreach { as => require((as.max & mask) == 0) }
 
@@ -26,7 +26,7 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
 
   // Report whether a region of addresses fully contains a particular manager
   def isDeviceContainedBy(region: Seq[AddressSet], m: TLSlaveParameters): Boolean = {
-    val addr = masked(m.address)
+    val addr = prefix0(m.address)
     val any_in  = region.exists { f => addr.exists { a => f.overlaps(a) } }
     val any_out = region.exists { f => addr.exists { a => !f.contains(a) } }
     // Ensure device is either completely inside or outside this region
@@ -57,8 +57,8 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
   }
 
   def sameSupport(local: Seq[TLSlaveParameters], remote: Seq[TLSlaveParameters]): (Boolean, Seq[AddressSet]) = {
-    val ra = masked(remote.flatMap(_.address))
-    val la = masked(local .flatMap(_.address))
+    val ra = prefix0(remote.flatMap(_.address))
+    val la = prefix0(local .flatMap(_.address))
     val holes = la.foldLeft(ra) { case (holes, la) => holes.flatMap(_.subtract(la)) }
     val covered = remote.forall { r =>
       r.address.forall { ra =>
@@ -119,6 +119,10 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       val local  = mp(0)
       val remote = mp(1)
 
+      // Confirm that the two manager paths have homogeneous FIFO ids
+      requireFifoHomogeneity(local.managers)
+      requireFifoHomogeneity(remote.managers)
+
       // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
       val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
       val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
@@ -155,10 +159,6 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       // Confirm that the error device can supply all the same capabilities as the remote path
       errorDev.foreach { e => requireErrorSupport(e, adjustableRemoteManagers) }
 
-      // Confirm that each subset of adjustable managers have homogeneous FIFO ids
-      requireFifoHomogeneity(adjustableLocalManagers)
-      requireFifoHomogeneity(adjustableRemoteManagers)
-
       // Actually rewrite the PMAs for the adjustable local devices
       val newLocals = adjustableLocalManagers.map { l =>
         // Ensure that every local device has a matching remote device
@@ -172,7 +172,7 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
         // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
         // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
         l.v1copy(
-          address            = AddressSet.unify(masked(l.address) ++ (if (Some(l) == errorDev) holes else Nil)),
+          address            = AddressSet.unify(prefix0(l.address) ++ (if (Some(l) == errorDev) holes else Nil)),
           regionType         = r.regionType,
           executable         = r.executable,
           supportsAcquireT   = r.supportsAcquireT,
@@ -186,27 +186,21 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
           mayDenyGet         = r.mayDenyGet,
           mayDenyPut         = r.mayDenyPut,
           alwaysGrantsT      = r.alwaysGrantsT,
-          fifoId             = Some(if (isDeviceContainedBy(forceLocal, l)) ids.size else 0))
+          fifoId             = Some(0))
       }
 
       // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
-      val newRemotes = ids.tail.zipWithIndex.flatMap { case (id, i) => adjustableRemoteManagers.map { r =>
+      val newRemotes = adjustableRemoteManagers.map { r =>
         r.v1copy(
-          address = AddressSet.unify(masked(r.address, offset = id)),
-          fifoId = Some(i+1))
-      } }
-
-      // Relable the FIFO domains for certain manager subsets
-      val fifoIdFactory = TLXbar.relabeler()
-      def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
-        val fifoIdMapper = fifoIdFactory()
-        managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
+          address = prefixNot0(r.address),
+          fifoId = Some(0))
       }
 
       val newManagerList =
-        relabelFifo(newLocals ++ newRemotes) ++
-        relabelFifo(fixedLocalManagers) ++
-        relabelFifo(fixedRemoteManagers)
+        newLocals  ++
+        newRemotes ++
+        fixedLocalManagers ++
+        fixedRemoteManagers
 
       Seq(local.v1copy(
         managers   = newManagerList,
@@ -249,12 +243,33 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
 
       // Route A by address, but reroute unsupported operations
+      val a_stall = Wire(Bool())
       val a_local = routeLocal(parent.a.bits.address)
-      parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready)
-      local .a.valid := parent.a.valid &&  a_local
-      remote.a.valid := parent.a.valid && !a_local
+      parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready) && !a_stall
+      local .a.valid := parent.a.valid &&  a_local && !a_stall
+      remote.a.valid := parent.a.valid && !a_local && !a_stall
       local .a.bits  := parent.a.bits
       remote.a.bits  := parent.a.bits
+
+      // Count beats
+      val a_first = parentEdge.first(parent.a)
+      val d_first = parentEdge.first(parent.d) && parent.d.bits.opcode =/= TLMessages.ReleaseAck
+
+      // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
+      // Sources unused in the stall signal calculation should be pruned by DCE
+      val flight = RegInit(VecInit(Seq.fill(parentEdge.client.endSourceId) { false.B }))
+      when (a_first && parent.a.fire()) { flight(parent.a.bits.source) := true.B  }
+      when (d_first && parent.d.fire()) { flight(parent.d.bits.source) := false.B }
+
+      val stalls = parentEdge.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
+        val a_sel = c.sourceId.contains(parent.a.bits.source)
+        val local = RegEnable(a_local, parent.a.fire() && a_sel)
+        val track = flight.slice(c.sourceId.start, c.sourceId.end)
+
+        a_sel && a_first && track.reduce(_ || _) && (local =/= a_local)
+      }
+
+      a_stall := stalls.foldLeft(false.B)(_||_)
 
       val (allSame, holes) = sameSupport(adjustableLocalManagers, adjustableRemoteManagers)
 
