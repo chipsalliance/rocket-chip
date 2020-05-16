@@ -258,8 +258,8 @@ class AddressAdjuster(
       parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready) && !a_stall
       local .a.valid := parent.a.valid &&  a_local && !a_stall
       remote.a.valid := parent.a.valid && !a_local && !a_stall
-      local .a.bits  := parent.a.bits
-      remote.a.bits  := parent.a.bits
+      local .a.bits  :<= parent.a.bits
+      remote.a.bits  :<= parent.a.bits
 
       // Count beats
       val a_first = parentEdge.first(parent.a)
@@ -321,11 +321,11 @@ class AddressAdjuster(
       val local_d  = Wire(chiselTypeOf(parent.d)) // type-cast, because 'sink' width differs
       local.d.ready := local_d.ready
       local_d.valid := local.d.valid
-      local_d.bits  := local.d.bits
+      local_d.bits  :<= local.d.bits
       val remote_d = Wire(chiselTypeOf(parent.d))
       remote.d.ready := remote_d.ready
       remote_d.valid := remote.d.valid
-      remote_d.bits := remote.d.bits
+      remote_d.bits :<= remote.d.bits
       remote_d.bits.sink := remote.d.bits.sink +& sink_threshold
       TLArbiter.robin(parentEdge, parent.d, local_d, remote_d)
 
@@ -340,16 +340,16 @@ class AddressAdjuster(
         parent.c.ready := Mux(c_local, local.c.ready, remote.c.ready)
         local .c.valid := parent.c.valid &&  c_local
         remote.c.valid := parent.c.valid && !c_local
-        local .c.bits  := parent.c.bits
-        remote.c.bits  := parent.c.bits
+        local .c.bits  :<= parent.c.bits
+        remote.c.bits  :<= parent.c.bits
 
         // Route E by sink
         val e_local = parent.e.bits.sink < sink_threshold
         parent.e.ready := Mux(e_local, local.e.ready, remote.e.ready)
         local .e.valid := parent.e.valid &&  e_local
         remote.e.valid := parent.e.valid && !e_local
-        local .e.bits  := parent.e.bits
-        remote.e.bits  := parent.e.bits
+        local .e.bits  :<= parent.e.bits
+        remote.e.bits  :<= parent.e.bits
         remote.e.bits.sink := parent.e.bits.sink - sink_threshold
       }
     }
