@@ -228,7 +228,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
           // Take denied only from the first beat and hold that value
           val d_denied = out.d.bits.denied holdUnless dFirst
           when (dHasData) {
-            in.d.bits.denied := d_denied
+            in.d.bits.denied  := d_denied
+            in.d.bits.corrupt := d_denied || out.d.bits.corrupt
           }
         }
 
