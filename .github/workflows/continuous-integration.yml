@@ -35,7 +35,7 @@ jobs:
         # multiple paths to cache. This can be changed to a normal version
         # number (likely v2) once it is released. See
         # https://github.com/actions/cache/pull/212
-        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        uses: actions/cache@16a133d9a70d12a51f9a8e3a3b6261b91d589d79
         with:
           path: |
             ./regression/install
@@ -78,7 +78,7 @@ jobs:
 
         # TODO: Use v2 once it is released. See the first occurrance of
         # actions/cache in this file for more details.
-      - uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+      - uses: actions/cache@16a133d9a70d12a51f9a8e3a3b6261b91d589d79
         with:
           path: ./emulator/verilator
           key: verilator-${{ hashFiles('./verilator.hash') }}-v1
@@ -105,7 +105,7 @@ jobs:
       - name: Use SBT Cache
         # TODO: Use v2 once it is released. See the first occurrance of
         # actions/cache in this file for more details.
-        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        uses: actions/cache@16a133d9a70d12a51f9a8e3a3b6261b91d589d79
         with:
           path: |
             ~/.cache/coursier
@@ -130,7 +130,7 @@ jobs:
       - name: Use riscv-tools Cache
         # TODO: Use v2 once it is released. See the first occurrance of
         # actions/cache in this file for more details.
-        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        uses: actions/cache@16a133d9a70d12a51f9a8e3a3b6261b91d589d79
         with:
           path: |
             ./regression/install
@@ -140,7 +140,7 @@ jobs:
       - name: Use Verilator Cache
         # TODO: Use v2 once it is released. See the first occurrance of
         # actions/cache in this file for more details.
-        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        uses: actions/cache@16a133d9a70d12a51f9a8e3a3b6261b91d589d79
         with:
           path: ./emulator/verilator
           key: verilator-${{ hashFiles('./verilator.hash') }}-v1
@@ -148,7 +148,7 @@ jobs:
       - name: Use SBT Cache
         # TODO: Use v2 once it is released. See the first occurrance of
         # actions/cache in this file for more details.
-        uses: actions/cache@eb78578266b7cec649ab65b6f1534bd6040c838b
+        uses: actions/cache@16a133d9a70d12a51f9a8e3a3b6261b91d589d79
         with:
           path: |
             ~/.cache/coursier
