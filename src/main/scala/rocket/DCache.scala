@@ -355,7 +355,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (s2_valid && s2_req.no_alloc) { any_no_alloc_in_flight := true }
     val s1_need_check = any_no_alloc_in_flight || s2_valid && s2_req.no_alloc
 
-    val concerns = (uncachedInFlight zip uncachedReqs) :+ (s2_valid && s2_req.no_alloc, s2_req)
+    val concerns = (uncachedInFlight zip uncachedReqs) :+ ((s2_valid && s2_req.no_alloc, s2_req))
     val s1_uncached_hits = concerns.map { c =>
       val concern_wmask = new StoreGen(c._2.size, c._2.addr, UInt(0), wordBytes).mask
       val addr_match = (c._2.addr ^ s1_paddr)(pgIdxBits+pgLevelBits-1, wordBytes.log2) === 0

@@ -142,7 +142,7 @@ object OMPortMaker {
     TLProtocol -> "1.8"
   )
 
-  def specVersion(protocol: ProtocolType, subProtocol: SubProtocolType, version: String): Option[OMSpecification] = Some(OMSpecification(protocolSpecifications(protocol, subProtocol), version))
+  def specVersion(protocol: ProtocolType, subProtocol: SubProtocolType, version: String): Option[OMSpecification] = Some(OMSpecification(protocolSpecifications((protocol, subProtocol)), version))
 
   val portNames = Map[PortType, String](
     SystemPortType -> "System Port",
