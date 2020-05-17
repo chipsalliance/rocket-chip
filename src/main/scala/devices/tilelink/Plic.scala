@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import Chisel.{defaultCompileOptions => _, _}
+import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
@@ -159,11 +160,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val prioBits = log2Ceil(nPriorities+1)
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices, UInt(width=prioBits)))
-      else Wire(init=Vec.fill(nDevices)(UInt(1)))
+      else Wire(init=Vec.fill(nDevices max 1)(UInt(1)))
     val threshold =
       if (nPriorities > 0) Reg(Vec(nHarts, UInt(width=prioBits)))
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
-    val pending = Reg(init=Vec.fill(nDevices){Bool(false)})
+    val pending = Reg(init=Vec.fill(nDevices max 1){Bool(false)})
 
     /* Construct the enable registers, chunked into 8-bit segments to reduce verilog size */
     val firstEnable = nDevices min 7

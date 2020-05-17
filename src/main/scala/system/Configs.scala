@@ -22,14 +22,14 @@ class BaseConfig extends Config(
   new BaseSubsystemConfig()
 )
 
-class DefaultConfig extends Config(new WithNBigCores(1) ++ new BaseConfig)
+class DefaultConfig extends Config(new WithNBigCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)
 
 class DefaultBufferlessConfig extends Config(new WithBufferlessBroadcastHub ++ new DefaultConfig)
-class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new BaseConfig)
+class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 
 class DualBankConfig extends Config(new WithNBanks(2) ++ new DefaultConfig)
-class DualCoreConfig extends Config( new WithNBigCores(2) ++ new BaseConfig)
+class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusTopology ++ new BaseConfig)
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new DefaultConfig)
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
@@ -54,6 +54,7 @@ class TinyConfig extends Config(
   new WithNMemoryChannels(0) ++
   new WithNBanks(0) ++
   new With1TinyCore ++
+  new WithIncoherentBusTopology ++
   new BaseConfig)
 
 class MemPortOnlyConfig extends Config(
@@ -69,6 +70,7 @@ class MMIOPortOnlyConfig extends Config(
   new WithNBanks(0) ++
   new WithIncoherentTiles ++
   new WithScratchpadsOnly ++
+  new WithIncoherentBusTopology ++
   new DefaultConfig
 )
 

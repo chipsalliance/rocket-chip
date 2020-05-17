@@ -4,6 +4,7 @@ package freechips.rocketchip.devices.debug.systembusaccess
 
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.amba._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -265,7 +266,9 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
 
   val cfg = p(DebugModuleKey).get
 
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(
+    clients = Seq(TLMasterParameters.v1("debug")),
+    requestFields = Seq(AMBAProtField()))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -283,6 +286,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
       val rdLoad       = Output(Vec(cfg.maxSupportedSBAccess/8, Bool()))
       val sbStateOut   = Output(UInt(log2Ceil(SystemBusAccessState.maxId).W))
     })
+    val rf_reset       = IO(Input(Reset()))
 
     import SystemBusAccessState._
  
@@ -317,6 +321,16 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     io.sbStateOut := sbState
     when(sbState === SBReadRequest.id.U) { tl.a.bits :=  gbits  }
     .otherwise                           { tl.a.bits := pfbits  }
+
+    tl.a.bits.user.lift(AMBAProt).foreach { x =>
+      x.bufferable := false.B
+      x.modifiable := false.B
+      x.readalloc  := false.B
+      x.writealloc := false.B
+      x.privileged := true.B
+      x.secure     := true.B
+      x.fetch      := false.B
+    }
 
     val respError = d.bits.denied || d.bits.corrupt
     io.respError := respError

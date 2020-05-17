@@ -15,27 +15,30 @@ case class SystemBusParams(
     policy: TLArbiter.Policy = TLArbiter.roundRobin,
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
-    errorDevice: Option[DevNullParams] = None)
-  extends HasTLBusParams with HasBuiltInDeviceParams
-
-class SystemBus(params: SystemBusParams)(implicit p: Parameters)
-    extends TLBusWrapper(params, "system_bus")
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves
-    with CanAttachTLMasters
+    errorDevice: Option[DevNullParams] = None,
+    replication: Option[ReplicatedRegion] = None)
+  extends HasTLBusParams
+  with HasBuiltInDeviceParams
+  with TLBusWrapperInstantiationLike
 {
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
+    val sbus = LazyModule(new SystemBus(this, loc.name))
+    sbus.suggestName(loc.name)
+    context.tlBusWrapperLocationMap += (loc -> sbus)
+    sbus
+  }
+}
+
+class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p: Parameters)
+    extends TLBusWrapper(params, name)
+{
+  private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
+  val prefixNode = replicator.map(_.prefix)
+
   private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
-  def inwardNode: TLInwardNode = system_bus_xbar.node
-  def outwardNode: TLOutwardNode = system_bus_xbar.node
+  val inwardNode: TLInwardNode = system_bus_xbar.node :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* replicator.map(_.node).getOrElse(TLTempNode())
+  val outwardNode: TLOutwardNode = system_bus_xbar.node
   def busView: TLEdge = system_bus_xbar.node.edges.in.head
 
-  attachBuiltInDevices(params)
-
-  def fromTile
-      (name: Option[String], buffer: BufferParams = BufferParams.none, cork: Option[Boolean] = None)
-      (gen: => TLOutwardNode): NoHandle = {
-    from("tile" named name) {
-      inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* gen
-    }
-  }
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 }

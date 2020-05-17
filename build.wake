@@ -100,26 +100,31 @@ global def getRocketChipGeneratorOutputsAllOutputs      = getRocketChipGenerator
 global def getRocketChipGeneratorOutputsInputOptions    = getRocketChipGeneratorOutputsInputOptions_
 global def getRocketChipGeneratorOutputsObjectModelFile = getRocketChipGeneratorOutputsOMFile_
 
+# Get the package name from the fully-qualified class name. (Everything before the final dot.)
+def getPackageName fullClassName = fullClassName | tokenize `\.` | reverse | tail | reverse | catWith "."
+
+# Get the class name from the fully-qualified class name. (Everything after the final dot.)
+def getClassName fullClassName = fullClassName | tokenize `\.` | reverse | head | getOrElse ""
+
 global def runRocketChipGenerator options =
   def jars = options.getRocketChipGeneratorOptionsJars
   def runDir = "rocket-chip"
   def targetDir = options.getRocketChipGeneratorOptionsTargetDir
 
   def cmdline =
-    def rootPackage = "_root_"
     def main = "freechips.rocketchip.system.Generator"
-    def configs = catWith "_" options.getRocketChipGeneratorOptionsConfigNames
+    def configs = catWith "," options.getRocketChipGeneratorOptionsConfigNames
     def topModule = options.getRocketChipGeneratorOptionsTopModuleName
     def relJars = jars | map getPathName | map (relative runDir)
     def classpath = catWith ":" relJars
     def relTargetDir = relative runDir targetDir.getPathName
     def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
-      Some name = name, Nil
+      Some name = "--name", name, Nil
       None = Nil
     which "java", "-cp", classpath, main,
-    relTargetDir,
-    rootPackage, topModule,
-    rootPackage, configs,
+    "--target-dir", relTargetDir,
+    "--top-module", topModule,
+    "--configs", configs,
     baseFileName
 
   def inputs =
@@ -139,7 +144,13 @@ global def runRocketChipGenerator options =
     head, tail = Some head
 
   def allOutputs = generatorJob.getJobOutputs
-  def annoFile    = getFile `.*\.anno\.json`
+  def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
+    Some fileName = fileName
+    None =
+      def packageName = getPackageName options.getRocketChipGeneratorOptionsTopModuleName
+      def configNames = options.getRocketChipGeneratorOptionsConfigNames | map getClassName | catWith '_'
+      "{packageName}.{configNames}"
+  def annoFile    = getFile (regExpCat (`.*`, baseFileName.quote, `\.anno\.json`, Nil))
   def firrtlFile  = getFile `.*\.fir`
   def romConfFile = getFile `.*\.rom\.conf`
   def dtsFile     = getFile `.*\.dts`

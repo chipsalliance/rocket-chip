@@ -16,7 +16,6 @@ import scala.math.max
 case object TileId extends Field[Int]
 
 class GroundTestSubsystem(implicit p: Parameters) extends BaseSubsystem
-    with HasHierarchicalBusTopology
     with CanHaveMasterAXI4MemPort {
   val tileParams = p(GroundTestTilesKey)
   val tiles = tileParams.zipWithIndex.map { case(c, i) => LazyModule(c.build(i, p)) }

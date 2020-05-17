@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
-import freechips.rocketchip.subsystem.RocketCrossingParams
+import freechips.rocketchip.subsystem.{SubsystemResetSchemeKey, ResetSynchronous, RocketCrossingParams, HartPrefixKey}
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -51,7 +51,7 @@ class RocketTile private(
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
-  val rocketLogicalTree = new RocketLogicalTreeNode(this, p(XLen))
+  val rocketLogicalTree = new RocketLogicalTreeNode(this, p(XLen), pgLevels)
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map { s =>
     val coreParams = {
@@ -88,11 +88,15 @@ class RocketTile private(
 
   val itimProperty = frontend.icache.itimProperty.toSeq.flatMap(p => Map("sifive,itim" -> p))
 
+  val beuProperty = bus_error_unit.map(d => Map(
+          "sifive,buserror" -> d.device.asProperty)).getOrElse(Nil)
+
   val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
     override def parent = Some(ResourceAnchors.cpus)
     override def describe(resources: ResourceBindings): Description = {
       val Description(name, mapping) = super.describe(resources)
-      Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty ++ tileProperties ++ dtimProperty ++ itimProperty)
+      Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty
+                  ++ tileProperties ++ dtimProperty ++ itimProperty ++ beuProperty)
     }
   }
 
@@ -123,6 +127,9 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
+  require(p(SubsystemResetSchemeKey)  == ResetSynchronous,
+    "Rocket only supports synchronous reset at  this time")
+
   val core = Module(new Rocket(outer)(outer.p))
 
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
@@ -149,10 +156,12 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.traceSourceNode.bundle <> core.io.trace
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
-  core.io.hartid := constants.hartid
-  outer.dcache.module.io.hartid := constants.hartid
-  outer.frontend.module.io.hartid := constants.hartid
   outer.frontend.module.io.reset_vector := constants.reset_vector
+
+  def regHart(x: UInt): UInt = if (p(HartPrefixKey)) RegNext(x) else x
+  core.io.hartid := regHart(constants.hartid)
+  outer.dcache.module.io.hartid := regHart(constants.hartid)
+  outer.frontend.module.io.hartid := regHart(constants.hartid)
 
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem

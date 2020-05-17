@@ -12,15 +12,23 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile._
 
+case object HartPrefixKey extends Field[Boolean](false)
+
 // TODO: how specific are these to RocketTiles?
-case class TileMasterPortParams(buffers: Int = 0, cork: Option[Boolean] = None)
-case class TileSlavePortParams(buffers: Int = 0, blockerCtrlAddr: Option[BigInt] = None)
+case class TileMasterPortParams(
+  buffers: Int = 0,
+  cork: Option[Boolean] = None,
+  where: TLBusWrapperLocation = SBUS)
+
+case class TileSlavePortParams(
+  buffers: Int = 0,
+  blockerCtrlAddr: Option[BigInt] = None,
+  where: TLBusWrapperLocation = CBUS)
 
 case class RocketCrossingParams(
-    crossingType: ClockCrossingType = SynchronousCrossing(),
-    master: TileMasterPortParams = TileMasterPortParams(),
-    slave: TileSlavePortParams = TileSlavePortParams()) {
-}
+  crossingType: ClockCrossingType = SynchronousCrossing(),
+  master: TileMasterPortParams = TileMasterPortParams(),
+  slave: TileSlavePortParams = TileSlavePortParams())
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
@@ -74,14 +82,29 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
   // add Mask ROM devices
   val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
 
+  val hartPrefixNode = if (p(HartPrefixKey)) {
+    Some(BundleBroadcast[UInt](registered = true))
+  } else {
+    None
+  }
+
+  val hartPrefixes = hartPrefixNode.map { hpn => Seq.fill(tiles.size) {
+   val hps = BundleBridgeSink[UInt]
+   hps := hpn
+   hps
+  } }.getOrElse(Nil)
+
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
     with HasResetVectorWire
     with HasRocketTilesModuleImp {
-  tile_inputs.zip(outer.hartIdList).foreach { case(wire, i) =>
-    wire.hartid := UInt(i)
+
+  for (i <- 0 until outer.tiles.size) {
+    val wire = tile_inputs(i)
+    val prefix = outer.hartPrefixes.lift(i).map(_.bundle).getOrElse(UInt(0))
+    wire.hartid := prefix | UInt(outer.hartIdList(i))
     wire.reset_vector := global_reset_vector
   }
 }

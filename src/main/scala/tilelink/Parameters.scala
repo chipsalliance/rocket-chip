@@ -99,7 +99,7 @@ case class TLSlaveToMasterTransferSizes(
   override def toString = {
     def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
     def flags = Vector(
-      str(probe,      "T"),
+      str(probe,      "P"),
       str(arithmetic, "A"),
       str(logical,    "L"),
       str(get,        "G"),
@@ -134,7 +134,7 @@ trait TLCommonTransferSizes {
 class TLSlaveParameters private(
   val nodePath:           Seq[BaseNode],
   val resources:          Seq[Resource],
-  setName:                String,
+  setName:                Option[String],
   val address:            Seq[AddressSet],
   val regionType:         RegionType.T,
   val executable:         Boolean,
@@ -195,7 +195,7 @@ class TLSlaveParameters private(
   require (regionType <= RegionType.UNCACHED || supportsAcquireB)  // tracked, cached -> acquire
   require (regionType != RegionType.UNCACHED || supportsGet) // uncached -> supportsGet
 
-  val name = if (setName != "") setName else nodePath.lastOption.map(_.lazyModule.name).getOrElse("disconnected")
+  val name = setName.orElse(nodePath.lastOption.map(_.lazyModule.name)).getOrElse("disconnected")
   val maxTransfer = List( // Largest supported transfer of all types
     supportsAcquireT.max,
     supportsAcquireB.max,
@@ -261,7 +261,7 @@ class TLSlaveParameters private(
     fifoId:             Option[Int]     = fifoId) =
   {
     new TLSlaveParameters(
-      setName       = name,
+      setName       = setName,
       address       = address,
       resources     = resources,
       regionType    = regionType,
@@ -283,7 +283,7 @@ class TLSlaveParameters private(
       fifoId        = fifoId)
   }
 
-  @deprecated("Use v1copy","")
+  @deprecated("Use v1copy instead of copy","")
   def copy(
     address:            Seq[AddressSet] = address,
     resources:          Seq[Resource]   = resources,
@@ -345,7 +345,7 @@ object TLSlaveParameters {
     fifoId:             Option[Int] = None) =
   {
     new TLSlaveParameters(
-      setName       = "",
+      setName       = None,
       address       = address,
       resources     = resources,
       regionType    = regionType,
@@ -369,7 +369,7 @@ object TLSlaveParameters {
 }
 
 object TLManagerParameters {
-  @deprecated("Use TLSlaveParameters.v1() instead of TLManagerParameters()","")
+  @deprecated("Use TLSlaveParameters.v1 instead of TLManagerParameters","")
   def apply(
     address:            Seq[AddressSet],
     resources:          Seq[Resource] = Seq(),
@@ -575,7 +575,7 @@ class TLSlavePortParameters private(
   def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
   def isTree = !managers.exists(!_.isTree)
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n\n" + managers.map(_.infoString).mkString
+  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + "Manager Port MinLatency = " + minLatency + "\n\n" + managers.map(_.infoString).mkString
 
   def v1copy(
     managers:   Seq[TLSlaveParameters] = slaves,
@@ -594,6 +594,7 @@ class TLSlavePortParameters private(
       requestKeys    = requestKeys)
   }
 
+  @deprecated("Use v1copy instead of copy","")
   def copy(
     managers:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
@@ -629,10 +630,11 @@ object TLSlavePortParameters {
       responseFields = responseFields,
       requestKeys    = requestKeys)
   }
+
 }
 
 object TLManagerPortParameters {
-  @deprecated("Use TLSlavePortParameters.v1","")
+  @deprecated("Use TLSlavePortParameters.v1 instead of TLManagerPortParameters","")
   def apply(
     managers:   Seq[TLSlaveParameters],
     beatBytes:  Int,
@@ -822,7 +824,7 @@ object TLMasterParameters {
 }
   
 object TLClientParameters {
-  @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters","")
+  @deprecated("Use TLMasterParameters.v1 instead of TLClientParameters","")
   def apply(
     name:                String,
     sourceId:            IdRange         = IdRange(0,1),
@@ -957,7 +959,7 @@ class TLMasterPortParameters private(
       responseKeys  = responseKeys)
   }
 
-  @deprecated("Use v1copy","")
+  @deprecated("Use v1copy instead of copy","")
   def copy(
     clients: Seq[TLClientParameters] = masters,
     minLatency: Int = minLatency,
@@ -975,7 +977,7 @@ class TLMasterPortParameters private(
 }
 
 object TLClientPortParameters {
-  @deprecated("Use TLMasterParameters.v1() instead of TLClientParameters()","")
+  @deprecated("Use TLMasterPortParameters.v1 instead of TLClientPortParameters","")
   def apply(
     clients: Seq[TLClientParameters],
     minLatency: Int = 0,
@@ -1074,11 +1076,15 @@ object TLBundleParameters
 }
 
 case class TLEdgeParameters(
-  client:  TLClientPortParameters,
-  manager: TLManagerPortParameters,
+  master: TLMasterPortParameters,
+  slave:  TLSlavePortParameters,
   params:  Parameters,
   sourceInfo: SourceInfo) extends FormatEdge
 {
+  // legacy names:
+  def manager = slave
+  def client = master
+
   val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
 
@@ -1107,47 +1113,45 @@ case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, mana
   def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
+// To be unified, devices must agree on all of these terms
+case class ManagerUnificationKey(
+  resources:          Seq[Resource],
+  regionType:         RegionType.T,
+  executable:         Boolean,
+  supportsAcquireT:   TransferSizes,
+  supportsAcquireB:   TransferSizes,
+  supportsArithmetic: TransferSizes,
+  supportsLogical:    TransferSizes,
+  supportsGet:        TransferSizes,
+  supportsPutFull:    TransferSizes,
+  supportsPutPartial: TransferSizes,
+  supportsHint:       TransferSizes)
+
+object ManagerUnificationKey
+{
+  def apply(x: TLManagerParameters): ManagerUnificationKey = ManagerUnificationKey(
+    resources          = x.resources,
+    regionType         = x.regionType,
+    executable         = x.executable,
+    supportsAcquireT   = x.supportsAcquireT,
+    supportsAcquireB   = x.supportsAcquireB,
+    supportsArithmetic = x.supportsArithmetic,
+    supportsLogical    = x.supportsLogical,
+    supportsGet        = x.supportsGet,
+    supportsPutFull    = x.supportsPutFull,
+    supportsPutPartial = x.supportsPutPartial,
+    supportsHint       = x.supportsHint)
+}
+
 object ManagerUnification
 {
   def apply(managers: Seq[TLManagerParameters]): List[TLManagerParameters] = {
-    // To be unified, devices must agree on all of these terms
-    case class TLManagerKey(
-      resources:          Seq[Resource],
-      regionType:         RegionType.T,
-      executable:         Boolean,
-      supportsAcquireT:   TransferSizes,
-      supportsAcquireB:   TransferSizes,
-      supportsArithmetic: TransferSizes,
-      supportsLogical:    TransferSizes,
-      supportsGet:        TransferSizes,
-      supportsPutFull:    TransferSizes,
-      supportsPutPartial: TransferSizes,
-      supportsHint:       TransferSizes)
-    def key(x: TLManagerParameters) = TLManagerKey(
-      resources          = x.resources,
-      regionType         = x.regionType,
-      executable         = x.executable,
-      supportsAcquireT   = x.supportsAcquireT,
-      supportsAcquireB   = x.supportsAcquireB,
-      supportsArithmetic = x.supportsArithmetic,
-      supportsLogical    = x.supportsLogical,
-      supportsGet        = x.supportsGet,
-      supportsPutFull    = x.supportsPutFull,
-      supportsPutPartial = x.supportsPutPartial,
-      supportsHint       = x.supportsHint)
-    val map = scala.collection.mutable.HashMap[TLManagerKey, TLManagerParameters]()
-    managers.foreach { m =>
-      val k = key(m)
-      map.get(k) match {
-        case None => map.update(k, m)
-        case Some(n) => {
-          map.update(k, m.copy(
-            address = m.address ++ n.address,
-            fifoId  = None)) // Merging means it's not FIFO anymore!
-        }
-      }
-    }
-    map.values.map(m => m.copy(address = AddressSet.unify(m.address))).toList
+    managers.groupBy(ManagerUnificationKey.apply).values.map { seq =>
+      val agree = seq.forall(_.fifoId == seq.head.fifoId)
+      seq(0).v1copy(
+        address = AddressSet.unify(seq.flatMap(_.address)),
+        fifoId  = if (agree) seq(0).fifoId else None)
+    }.toList
   }
 }
 

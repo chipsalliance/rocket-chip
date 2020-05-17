@@ -56,6 +56,7 @@ case class OMDebug(
   hasAbstractPostIncrement: Boolean,
   hasAbstractPostExec: Boolean,
   hasClockGate: Boolean,
+  crossingHasSafeReset: Boolean,   // Do async crossings have "safe" reset logic
   _types: Seq[String] = Seq("OMDebug", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
 

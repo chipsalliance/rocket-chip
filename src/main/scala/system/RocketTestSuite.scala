@@ -61,16 +61,15 @@ object TestGeneration {
   
   def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
 
-  def generateMakefrag: String = {
-    def gen(kind: String, s: Seq[RocketTestSuite]) = {
-      if(s.length > 0) {
-        val envs = s.groupBy(_.envName)
-        val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ")
-        s.map(_.toString).mkString("\n") +
-        envs.filterKeys(_ != "").map( {
-          case (env,envsuites) => {
-          val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
-        s"""
+  private[rocketchip] def gen(kind: String, s: Seq[RocketTestSuite]) = {
+    if(s.length > 0) {
+      val envs = s.groupBy(_.envName)
+      val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ")
+      s.map(_.toString).mkString("\n") +
+      envs.filterKeys(_ != "").map( {
+                                     case (env,envsuites) => {
+                                       val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
+                                       s"""
 run-$kind-$env-tests: $$(addprefix $$(output_dir)/, $$(addsuffix .out, $suites))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED):(.*)/i )' $$^ /dev/null | perl -pe 'BEGIN { $$$$failed = 0 } $$$$failed = 1 if(/FAILED/i); END { exit($$$$failed) }'
 run-$kind-$env-tests-debug: $$(addprefix $$(output_dir)/, $$(addsuffix .vpd, $suites))
@@ -89,9 +88,10 @@ run-$kind-tests-fst: $$(addprefix $$(output_dir)/, $$(addsuffix .fst, $targets))
 run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets))
 \t@echo; perl -ne 'print "  [$$$$1] $$$$ARGV \\t$$$$2\\n" if( /\\*{3}(.{8})\\*{3}(.*)/ || /ASSERTION (FAILED):(.*)/i )' $$^ /dev/null | perl -pe 'BEGIN { $$$$failed = 0 } $$$$failed = 1 if(/FAILED/i); END { exit($$$$failed) }'
 """
-      } else { "\n" }
-    }
+    } else { "\n" }
+  }
 
+  def generateMakeFrag: String = {
     suites.values.toSeq.groupBy(_.kind).map { case (kind, s) => gen(kind, s) }.mkString("\n")
   }
 
@@ -99,7 +99,7 @@ run-$kind-tests-fast: $$(addprefix $$(output_dir)/, $$(addsuffix .run, $targets)
 
 object DefaultTestSuites {
   val rv32uiNames = LinkedHashSet(
-    "simple", "add", "addi", "and", "andi", "auipc", "beq", "bge", "bgeu", "blt", "bltu", "bne", "fence_i", 
+    "simple", "add", "addi", "and", "andi", "auipc", "beq", "bge", "bgeu", "blt", "bltu", "bne", "fence_i",
     "jal", "jalr", "lb", "lbu", "lh", "lhu", "lui", "lw", "or", "ori", "sb", "sh", "sw", "sll", "slli",
     "slt", "slti", "sra", "srai", "srl", "srli", "sub", "xor", "xori")
   val rv32ui = new AssemblyTestSuite("rv32ui", rv32uiNames)(_)

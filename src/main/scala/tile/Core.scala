@@ -15,6 +15,7 @@ trait CoreParams {
   val bootFreqHz: BigInt
   val useVM: Boolean
   val useUser: Boolean
+  val useSupervisor: Boolean
   val useDebug: Boolean
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
@@ -43,12 +44,14 @@ trait CoreParams {
   val mtvecWritable: Boolean
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
+  def hasSupervisorMode: Boolean = useSupervisor || useVM
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
 
   def dcacheReqTagBits: Int = 6
 
+  def minFLen: Int = 32
   def vLen: Int = 0
   def sLen: Int = 0
   def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
@@ -58,6 +61,7 @@ trait CoreParams {
 trait HasCoreParameters extends HasTileParameters {
   val coreParams: CoreParams = tileParams.core
 
+  val minFLen = coreParams.fpu.map(_ => coreParams.minFLen).getOrElse(0)
   val fLen = coreParams.fpu.map(_.fLen).getOrElse(0)
 
   val usingMulDiv = coreParams.mulDiv.nonEmpty
