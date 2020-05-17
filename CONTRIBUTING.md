@@ -5,7 +5,24 @@ Thank you for your interest in contributing to Rocket Chip!
 
 ## Table of Contents
 
++ [Submitting a PR](#submitting)
++ [Conditions for Merging a PR](#merging)
 + [Bumping Submodules](#bumping)
+
+### <a name="merging"></a> Submitting a PR
+
+You do not need write access to this repository to make a PR,
+you can fork and make a PR from your forked version.
+
+Please see the Github documentation for [Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/proposing-changes-to-your-work-with-pull-requests).
+
+Please ensure to fill out the PR template appropriately and update it if your PR changes.
+
+### <a name="merging"></a> Conditions for Merging a PR
+
+Currently, the requirements for merging a PR are:
+ + At least one approved review from an administrator
+ + Passing at least one of the GitHub actions checks or the Travis checks
 
 ### <a name="bumping"></a> Bumping Submodules
 
