@@ -192,8 +192,14 @@ case object StabilizeNamesAspect extends Aspect[RawModule] {
   def toAnnotation(top: RawModule): AnnotationSeq = {
     Select.collectDeep(top) {
       // annotating all Queues with a more descriptive desired name
-      case m: Queue[_] => Seq(new ModuleNameAnnotation(s"Queue_${m.genType.getClass.getSimpleName}_entries_${m.entries}", m.toTarget))
-      case m: TLMonitor => Seq(new ModuleNameAnnotation(m.desiredName, m.toTarget))
+      case m: Queue[_] => Seq(
+        new ModuleNameAnnotation(s"Queue_${m.genType.getClass.getSimpleName}_entries_${m.entries}", m.toTarget),
+        new NamingStrategyAnnotation(ContentStructureNamingStrategy, m.toTarget)
+      )
+      case m: TLMonitor => Seq(
+        new ModuleNameAnnotation(m.desiredName, m.toTarget),
+        new NamingStrategyAnnotation(ContentStructureNamingStrategy, m.toTarget)
+      )
 
       // annotating specific instances
       case th: TestHarness =>
