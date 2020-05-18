@@ -128,10 +128,6 @@ class AddressAdjuster(
       val local  = mp(0)
       val remote = mp(1)
 
-      // Confirm that the two manager paths have homogeneous FIFO ids
-      requireFifoHomogeneity(local.managers)
-      requireFifoHomogeneity(remote.managers)
-
       // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
       val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
       val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
@@ -145,6 +141,10 @@ class AddressAdjuster(
         val subtraction = m.address.flatMap(a => a.subtract(params.region))
         if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
       }
+
+      // Confirm that the two manager paths have homogeneous FIFO ids
+      requireFifoHomogeneity(adjustableLocalManagers)
+      requireFifoHomogeneity(adjustableRemoteManagers)
 
       if (false) {
         printManagers("Adjustable Local", adjustableLocalManagers)
@@ -206,11 +206,17 @@ class AddressAdjuster(
           fifoId = Some(0))
       }
 
+      // Relable the FIFO domains for certain manager subsets
+      val fifoIdFactory = TLXbar.relabeler()
+      def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
+        val fifoIdMapper = fifoIdFactory()
+        managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
+      }
+
       val newManagerList =
-        newLocals  ++
-        newRemotes ++
-        fixedLocalManagers ++
-        fixedRemoteManagers
+        relabelFifo(newLocals ++ newRemotes) ++
+        relabelFifo(fixedLocalManagers) ++
+        relabelFifo(fixedRemoteManagers)
 
       Seq(local.v1copy(
         managers   = newManagerList,
@@ -247,14 +253,16 @@ class AddressAdjuster(
       def containsAddress(region: Seq[AddressSet], addr: UInt): Bool = region.foldLeft(false.B)(_ || _.contains(addr))
       val totalContainment = parentEdge.slave.slaves.forall(_.address.forall(params.region contains _))
       def isAdjustable(addr: UInt) = params.region.contains(addr) || totalContainment.B
-      def isDynamicallyLocal(addr: UInt) = local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr)
+      def isDynamicallyLocal(addr: UInt) = (local_prefix & mask.U) === (addr & mask.U) || containsAddress(forceLocal, addr)
       val staticLocal = AddressSet.unify(fixedLocalManagers.flatMap(_.address))
       def isStaticallyLocal(addr: UInt) = containsAddress(staticLocal, addr)
       def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
 
       // Route A by address, but reroute unsupported operations
       val a_stall = Wire(Bool())
-      val a_local = routeLocal(parent.a.bits.address)
+      val a_adjustable = isAdjustable(parent.a.bits.address)
+      val a_dynamic_local = isDynamicallyLocal(parent.a.bits.address)
+      val a_local = Mux(a_adjustable, a_dynamic_local, isStaticallyLocal(parent.a.bits.address))
       parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready) && !a_stall
       local .a.valid := parent.a.valid &&  a_local && !a_stall
       remote.a.valid := parent.a.valid && !a_local && !a_stall
@@ -267,19 +275,20 @@ class AddressAdjuster(
 
       // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
       // Sources unused in the stall signal calculation should be pruned by DCE
+      // Only fix-up order when crossing local/remote boundaries
       val flight = RegInit(VecInit(Seq.fill(parentEdge.client.endSourceId) { false.B }))
-      when (a_first && parent.a.fire()) { flight(parent.a.bits.source) := true.B  }
-      when (d_first && parent.d.fire()) { flight(parent.d.bits.source) := false.B }
+      when (a_first && parent.a.fire() && a_adjustable) { flight(parent.a.bits.source) := true.B  }
+      when (d_first && parent.d.fire())                 { flight(parent.d.bits.source) := false.B }
 
       val stalls = parentEdge.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
         val a_sel = c.sourceId.contains(parent.a.bits.source)
-        val local = RegEnable(a_local, parent.a.fire() && a_sel)
+        val local = RegEnable(a_dynamic_local, parent.a.fire() && a_sel)
         val track = flight.slice(c.sourceId.start, c.sourceId.end)
 
-        a_sel && a_first && track.reduce(_ || _) && (local =/= a_local)
+        a_sel && a_first && track.reduce(_ || _) && (local =/= a_dynamic_local)
       }
 
-      a_stall := stalls.foldLeft(false.B)(_||_)
+      a_stall := a_adjustable && stalls.foldLeft(false.B)(_||_)
 
       val (allSame, holes) = sameSupport(adjustableLocalManagers, adjustableRemoteManagers)
 
