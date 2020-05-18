@@ -284,18 +284,18 @@ class TLSlaveParameters private(
   }
 
   def v2copy(
-    nodePath:      Seq[BaseNode],
-    resources:     Seq[Resource],
-    setName:       String,
-    address:       Seq[AddressSet],
-    regionType:    RegionType.T,
-    executable:    Boolean,
-    fifoId:        Option[Int],
-    supports:      TLMasterToSlaveTransferSizes,
-    emits:         TLSlaveToMasterTransferSizes,
-    alwaysGrantsT: Boolean,
-    mayDenyGet:    Boolean,
-    mayDenyPut:    Boolean) =
+    nodePath:      Seq[BaseNode]                = nodePath,
+    resources:     Seq[Resource]                = resources,
+    setName:       Option[String]               = setName,
+    address:       Seq[AddressSet]              = address,
+    regionType:    RegionType.T                 = regionType,
+    executable:    Boolean                      = executable,
+    fifoId:        Option[Int]                  = fifoId,
+    supports:      TLMasterToSlaveTransferSizes = supports,
+    emits:         TLSlaveToMasterTransferSizes = emits,
+    alwaysGrantsT: Boolean                      = alwaysGrantsT,
+    mayDenyGet:    Boolean                      = mayDenyGet,
+    mayDenyPut:    Boolean                      = mayDenyPut) =
   {
     new TLSlaveParameters(
       nodePath      = nodePath,
@@ -399,7 +399,7 @@ object TLSlaveParameters {
   def v2(
     nodePath:      Seq[BaseNode]                = Seq(),
     resources:     Seq[Resource]                = Seq(),
-    setName:       String,
+    setName:       Option[String]               = None,
     address:       Seq[AddressSet],
     regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
     executable:    Boolean                      = false,
