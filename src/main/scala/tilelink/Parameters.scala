@@ -397,10 +397,10 @@ object TLSlaveParameters {
   }
 
   def v2(
+    address:       Seq[AddressSet],
     nodePath:      Seq[BaseNode]                = Seq(),
     resources:     Seq[Resource]                = Seq(),
     setName:       Option[String]               = None,
-    address:       Seq[AddressSet],
     regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
     executable:    Boolean                      = false,
     fifoId:        Option[Int]                  = None,
