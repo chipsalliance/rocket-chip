@@ -18,6 +18,8 @@ import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImpLike}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.system.TestHarness
 
+import scala.collection.mutable
+
 /** A helper to rename modules in a [[Circuit]]
   */
 object RenameModules {
@@ -281,12 +283,27 @@ final class LintConflictingModuleNames extends LintRule {
       case a: ModuleNameAnnotation if a.target.circuit == state.circuit.main => a
     }
 
+    val moduleToDesiredName: mutable.Map[String, mutable.Set[String]] = mutable.Map()
+
     val nameMap = moduleNameAnnos.groupBy(_.desiredName).mapValues { annos =>
       annos.map(a => Target.referringModule(a.target).module).distinct.map { referringModule =>
         require(modMap.contains(referringModule), "ModuleNameAnnotations may not refer to blackboxes")
+        val desiredNames = moduleToDesiredName.getOrElseUpdate(referringModule, mutable.Set())
+        desiredNames += annos.head.desiredName
         modMap(referringModule)
       }
     }
+
+    val conflictingDesiredNames = moduleToDesiredName.collect {
+      case kv@ (moduleName, desiredName) if desiredName.size > 1 => kv
+    }
+
+    require(conflictingDesiredNames.size == 0, {
+      val expanation = conflictingDesiredNames.map {
+        case (modName, desiredNames) => s"  ${modName}: ${desiredNames.mkString(", ")}"
+      }.mkString("\n")
+      s"Modules may not have more than one desiredName:\n${expanation}"
+    })
 
     val nameMappings = nameMap.map { case (desiredName, modules) =>
       val strategyOpt = modules.collectFirst {
