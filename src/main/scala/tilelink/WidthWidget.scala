@@ -14,7 +14,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
 {
   val node = TLAdapterNode(
     clientFn  = { case c => c },
-    managerFn = { case m => m.copy(beatBytes = innerBeatBytes) })
+    managerFn = { case m => m.v1copy(beatBytes = innerBeatBytes) })
 
   lazy val module = new LazyModuleImp(this) {
     def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {

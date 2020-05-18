@@ -25,16 +25,14 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
-    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)),
-    replicatorMask = site(MultiChipMaskKey))
+    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000)) // Default to 100 MHz pbus clock
   case MemoryBusKey => MemoryBusParams(
     beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes),
-    replicatorMask = site(MultiChipMaskKey))
+    blockBytes = site(CacheBlockBytes))
   case FrontBusKey => FrontBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
@@ -46,6 +44,36 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
 })
 
 /* Composable partial function Configs to set individual parameters */
+
+class WithJustOneBus extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated(InSubsystem) => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey))
+  )
+})
+
+class WithIncoherentBusTopology extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated(InSubsystem) => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey)),
+    HierarchicalBusTopologyParams(
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      cbus = site(ControlBusKey),
+      xTypes = SubsystemCrossingParams()))
+})
+
+class WithCoherentBusTopology extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated(InSubsystem) => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey)),
+    HierarchicalBusTopologyParams(
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      cbus = site(ControlBusKey),
+      xTypes = SubsystemCrossingParams()),
+    CoherentBusTopologyParams(
+      sbus = site(SystemBusKey),
+      mbus = site(MemoryBusKey),
+      l2 = site(BankedL2Key)))
+})
 
 class WithNBigCores(n: Int) extends Config((site, here, up) => {
   case RocketTilesKey => {
@@ -193,10 +221,9 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(master = r.master.copy(cork = Some(true)))
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
-    val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes)(subsystem.p))
-    (ww.node, ww.node, None)
-  })
+  case BankedL2Key => up(BankedL2Key, site).copy(
+    coherenceManager = CoherenceManagerWrapper.incoherentManager
+  )
 })
 
 class WithRV32 extends Config((site, here, up) => {

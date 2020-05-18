@@ -10,7 +10,7 @@ verilog = \
 
 $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator $(generated_dir) $(PROJECT) $(MODEL) $(CFG_PROJECT) $(CONFIG)"
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG) $(CHISEL_OPTIONS)"
 
 %.v %.conf: %.fir $(FIRRTL_JAR)
 	mkdir -p $(dir $@)
@@ -22,6 +22,7 @@ $(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(boot
     -faf $*.anno.json \
     -td $(generated_dir)/$(long_name)/ \
     -fct $(subst $(SPACE),$(COMMA),$(FIRRTL_TRANSFORMS)) \
+    $(FIRRTL_OPTIONS) \
 
 $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(VLSI_MEM_GEN)
 	cd $(generated_dir) && \
@@ -29,7 +30,7 @@ $(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf
 	mv -f $@.tmp $@
 
 # Build and install our own Verilator, to work around versionining issues.
-VERILATOR_VERSION=4.008
+VERILATOR_VERSION ?= $(shell cat $(base_dir)/verilator.hash)
 VERILATOR_SRCDIR ?= verilator/src/verilator-$(VERILATOR_VERSION)
 VERILATOR_TARGET := $(abspath verilator/install/bin/verilator)
 INSTALLED_VERILATOR ?= $(VERILATOR_TARGET)
@@ -60,6 +61,10 @@ verilator: $(INSTALLED_VERILATOR)
 # Run Verilator to produce a fast binary to emulate this circuit.
 VERILATOR := $(INSTALLED_VERILATOR) --cc --exe
 VERILATOR_THREADS ?= 2
+# --max-num-width is set to 1024^2 to avoid an error with compiling a Verilated
+# circuit with a width greater than the default of 65536, which can easily
+# happen with Chisel-generated Verilog code. See
+# https://github.com/chipsalliance/rocket-chip/pull/2377#issuecomment-605846516
 VERILATOR_FLAGS := --top-module $(MODEL) \
   +define+PRINTF_COND=\$$c\(\"verbose\",\"\&\&\"\,\"done_reset\"\) \
   +define+RANDOMIZE_GARBAGE_ASSIGN \
@@ -69,7 +74,8 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   --threads $(VERILATOR_THREADS) -Wno-UNOPTTHREADS \
 	-Wno-STMTDLY --x-assign unique \
   -I$(vsrc) \
-  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG).plusArgs"
+  -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG_STR).plusArgs" \
+  --max-num-width 1048576
 cppfiles = $(addprefix $(csrc)/, $(addsuffix .cc, $(CXXSRCS)))
 headers = $(wildcard $(csrc)/*.h)
 

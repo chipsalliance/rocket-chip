@@ -4,13 +4,12 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import chisel3.core.Reset
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
 import freechips.rocketchip.formal._
-import chisel3.experimental.chiselName
 
 case class TLMonitorArgs(edge: TLEdge)
 

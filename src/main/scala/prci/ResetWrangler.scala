@@ -3,7 +3,6 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.util._
-import chisel3.experimental.{withClockAndReset}
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -17,8 +16,8 @@ class ResetWrangler(debounceNs: Double = 100000)(implicit p: Parameters) extends
     val (out, _) = node.out.unzip
 
     val status = IO(Output(UInt(in.size.W)))
-    status := Cat(in.map(_.reset).reverse)
-    val causes = in.map(_.reset).foldLeft(false.B)(_ || _)
+    status := Cat(in.map(_.reset.asBool).reverse)
+    val causes = in.map(_.reset).foldLeft(false.B)(_.asBool || _.asBool)
 
     require(node.in.forall(_._2.clock.isDefined), "Cannot wrangle reset for an unspecified clock frequency")
     val (slowIn, slowEdge) = node.in.minBy(_._2.clock.get.freqMHz)

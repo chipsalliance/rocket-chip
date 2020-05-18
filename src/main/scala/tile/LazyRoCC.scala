@@ -88,7 +88,7 @@ trait HasLazyRoCCModule extends CanHavePTWModule
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
     val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
-      ptwPorts ++= rocc.module.io.ptw
+      rocc.module.io.ptw ++=: ptwPorts
       rocc.module.io.cmd <> cmdRouter.io.out(i)
       val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
       dcIF.io.requestor <> rocc.module.io.mem
@@ -185,6 +185,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   io.mem.req.bits.signed := Bool(false)
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.req.bits.phys := Bool(false)
+  io.mem.req.bits.dprv := cmd.bits.status.dprv
 }
 
 class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes, nPTWPorts = 1) {
@@ -236,7 +237,7 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
 
 class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new CharacterCountExampleModuleImp(this)
-  override val atlNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("CharacterCountRoCC")))))
+  override val atlNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("CharacterCountRoCC")))))
 }
 
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
@@ -360,7 +361,7 @@ class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(imp
                       val rocc = roccIo.cloneType
                     })
         override def desiredName: String = blackBoxFile
-        setResource(s"/vsrc/$blackBoxFile.v")
+        addResource(s"/vsrc/$blackBoxFile.v")
       }
     )
   }

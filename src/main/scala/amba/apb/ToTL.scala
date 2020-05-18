@@ -11,9 +11,9 @@ import freechips.rocketchip.util._
 
 case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APBImp, TLImp)(
   dFn = { mp =>
-    TLClientPortParameters(
+    TLMasterPortParameters.v1(
       clients = mp.masters.map { m =>
-        TLClientParameters(name = m.name, nodePath = m.nodePath)
+        TLMasterParameters.v1(name = m.name, nodePath = m.nodePath)
       },
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)
@@ -92,8 +92,9 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
         prot.secure     := !in.pprot(1)
         prot.fetch      :=  in.pprot(2)
         prot.bufferable :=  true.B
-        prot.cacheable  :=  true.B
         prot.modifiable :=  true.B
+        prot.readalloc  :=  true.B
+        prot.writealloc :=  true.B
       }
       when (out.a.fire()) {
         assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")

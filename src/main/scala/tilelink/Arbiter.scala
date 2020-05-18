@@ -3,6 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import chisel3.util.random.LFSR
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -17,7 +18,7 @@ object TLArbiter
   val roundRobin: Policy = (width, valids, select) => if (width == 1) UInt(1, width=1) else {
     val valid = valids(width-1, 0)
     assert (valid === valids)
-    val mask = RegInit(~UInt(0, width=width))
+    val mask = RegInit(UInt((BigInt(1) << width)-1, width = width))
     val filter = Cat(valid & ~mask, valid)
     val unready = (rightOR(filter, width*2, width) >> 1) | (mask << width)
     val readys = ~((unready >> width) & unready(width-1, 0))
@@ -97,7 +98,7 @@ class TestRobin(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) 
   val sink = Wire(DecoupledIO(UInt(width=3)))
   val count = RegInit(UInt(0, width=8))
 
-  val lfsr = LFSR16(Bool(true))
+  val lfsr = LFSR(16, Bool(true))
   val valid = lfsr(0)
   val ready = lfsr(15)
 

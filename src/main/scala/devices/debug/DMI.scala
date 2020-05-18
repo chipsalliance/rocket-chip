@@ -71,7 +71,7 @@ class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
 class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
   val dmi      = new DMIIO()(p)
   val dmiClock = Output(Clock())
-  val dmiReset = Output(Bool())
+  val dmiReset = Output(Reset())
 }
 
 /** Convert DMI to TL. Avoids using special DMI synchronizers and register accesses
@@ -84,7 +84,7 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
   // emitsGet = TransferSizes(4, 4),
   // emitsPutFull = TransferSizes(4, 4),
   // emitsPutPartial = TransferSizes(4, 4)
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("debug")))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {

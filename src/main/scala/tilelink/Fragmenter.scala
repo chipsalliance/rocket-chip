@@ -43,7 +43,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     if (!alwaysMin) x else
     if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
     TransferSizes.none
-  def mapManager(m: TLManagerParameters) = m.copy(
+  def mapManager(m: TLSlaveParameters) = m.v1copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = shrinkTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet, "Get"),
@@ -54,8 +54,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   val node = TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => c.copy(
-      clients = Seq(TLClientParameters(
+    clientFn  = { c => c.v1copy(
+      clients = Seq(TLMasterParameters.v1(
         name        = "TLFragmenter",
         sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
         requestFifo = true))),
@@ -69,7 +69,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
         // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
     },
-    managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
+    managerFn = { m => m.v1copy(managers = m.managers.map(mapManager)) })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -228,7 +228,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
           // Take denied only from the first beat and hold that value
           val d_denied = out.d.bits.denied holdUnless dFirst
           when (dHasData) {
-            in.d.bits.denied := d_denied
+            in.d.bits.denied  := d_denied
+            in.d.bits.corrupt := d_denied || out.d.bits.corrupt
           }
         }
 
