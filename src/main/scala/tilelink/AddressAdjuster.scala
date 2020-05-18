@@ -10,7 +10,8 @@ import freechips.rocketchip.diplomacy._
 class AddressAdjuster(
     val params: ReplicatedRegion, // only devices in this region get adjusted
     val forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reacheable at id=0 even if in params.region
-    val localBaseAddressDefault: Option[BigInt] = None // default local base address used for reporting manager address metadata
+    val localBaseAddressDefault: Option[BigInt] = None, // default local base address used for reporting manager address metadata
+    val ordered: Boolean = true // the replicated region should present with FIFO ordering
     )(implicit p: Parameters) extends LazyModule {
   val mask = params.replicationMask
   // Which bits are in the mask?
@@ -142,9 +143,11 @@ class AddressAdjuster(
         if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
       }
 
-      // Confirm that the two manager paths have homogeneous FIFO ids
-      requireFifoHomogeneity(adjustableLocalManagers)
-      requireFifoHomogeneity(adjustableRemoteManagers)
+      if (ordered) {
+        // Confirm that the two manager paths have homogeneous FIFO ids
+        requireFifoHomogeneity(adjustableLocalManagers)
+        requireFifoHomogeneity(adjustableRemoteManagers)
+      }
 
       if (false) {
         printManagers("Adjustable Local", adjustableLocalManagers)
@@ -196,14 +199,14 @@ class AddressAdjuster(
           mayDenyGet         = r.mayDenyGet,
           mayDenyPut         = r.mayDenyPut,
           alwaysGrantsT      = r.alwaysGrantsT,
-          fifoId             = Some(0))
+          fifoId             = if (ordered) Some(0) else None)
       }
 
       // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
       val newRemotes = adjustableRemoteManagers.map { r =>
         r.v1copy(
           address = prefixNotDefault(r.address),
-          fifoId = Some(0))
+          fifoId = if (ordered) Some(0) else None)
       }
 
       // Relable the FIFO domains for certain manager subsets
@@ -269,26 +272,30 @@ class AddressAdjuster(
       local .a.bits  :<= parent.a.bits
       remote.a.bits  :<= parent.a.bits
 
-      // Count beats
-      val a_first = parentEdge.first(parent.a)
-      val d_first = parentEdge.first(parent.d) && parent.d.bits.opcode =/= TLMessages.ReleaseAck
+      if (ordered) {
+        // Count beats
+        val a_first = parentEdge.first(parent.a)
+        val d_first = parentEdge.first(parent.d) && parent.d.bits.opcode =/= TLMessages.ReleaseAck
 
-      // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
-      // Sources unused in the stall signal calculation should be pruned by DCE
-      // Only fix-up order when crossing local/remote boundaries
-      val flight = RegInit(VecInit(Seq.fill(parentEdge.client.endSourceId) { false.B }))
-      when (a_first && parent.a.fire() && a_adjustable) { flight(parent.a.bits.source) := true.B  }
-      when (d_first && parent.d.fire())                 { flight(parent.d.bits.source) := false.B }
+        // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
+        // Sources unused in the stall signal calculation should be pruned by DCE
+        // Only fix-up order when crossing local/remote boundaries
+        val flight = RegInit(VecInit(Seq.fill(parentEdge.client.endSourceId) { false.B }))
+        when (a_first && parent.a.fire() && a_adjustable) { flight(parent.a.bits.source) := true.B  }
+        when (d_first && parent.d.fire())                 { flight(parent.d.bits.source) := false.B }
 
-      val stalls = parentEdge.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
-        val a_sel = c.sourceId.contains(parent.a.bits.source)
-        val local = RegEnable(a_dynamic_local, parent.a.fire() && a_sel)
-        val track = flight.slice(c.sourceId.start, c.sourceId.end)
+        val stalls = parentEdge.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
+          val a_sel = c.sourceId.contains(parent.a.bits.source)
+          val local = RegEnable(a_dynamic_local, parent.a.fire() && a_sel)
+          val track = flight.slice(c.sourceId.start, c.sourceId.end)
 
-        a_sel && a_first && track.reduce(_ || _) && (local =/= a_dynamic_local)
+          a_sel && a_first && track.reduce(_ || _) && (local =/= a_dynamic_local)
+        }
+
+        a_stall := a_adjustable && stalls.foldLeft(false.B)(_||_)
+      } else {
+        a_stall := false.B
       }
-
-      a_stall := a_adjustable && stalls.foldLeft(false.B)(_||_)
 
       val (allSame, holes) = sameSupport(adjustableLocalManagers, adjustableRemoteManagers)
 
