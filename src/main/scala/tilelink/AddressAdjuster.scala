@@ -28,8 +28,8 @@ class AddressAdjuster(
     region.flatMap { _.subtract(defaultRegion) }
   }
 
-  // forceLocal better only go one place (the low index)
-  forceLocal.foreach { as => require((as.max & mask) == 0) }
+  localBaseAddressDefault.foreach { x => require((x & ~mask) == 0, s"localBaseAddressDefault $localBaseAddressDefault was not aligned to region") }
+  forceLocal.foreach { as => require((as.max & mask) == 0, s"forceLocal $forceLocal must be contained within the lowest index region") }
 
   // Address Adjustment requires many things about the downstream devices, captured here as helper functions:
 
