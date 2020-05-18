@@ -48,7 +48,7 @@ sealed trait NamingStrategy {
 
   /** Generates a new stable module name based on the desired name and the module IR node
     *
-    * called by [[LintAmbiguousModuleNames]] to rename modules
+    * called by [[LintConflictingModuleNames]] to rename modules
     *
     * @param desiredName the requested name for the module, generated name should contain this name
     * @param module the module targeted by the desiredName
@@ -207,20 +207,18 @@ case object StabilizeNamesAspect extends Aspect[RawModule] {
 /** This LintRule checks for module name collisions and optionally renames them to stable hash names
   *
   * Module name collisions occur when different [[Module]]s are annotated with
-  * [[ModuleNameAnnotation]]s that have the same desiredName. If one of the
-  * modules is targeted by [[NamingStrategyAnnotation]] then the transform will
-  * attempt to rename modules according to the naming strategy. If the
-  * conflicting modules cannot be disambiguated by the naming strategy then a
-  * [[LintViolation]] is emitted. [[ExactNamingStrategy]] can be used to
-  * enforce that there are not colliding module names.
-  *
-  * If no naming strategy is specified then a sequence of increasingly unstable
-  * [[NamingStrategy]]s is tried until all modules can be disamgiguated.
+  * [[ModuleNameAnnotation]]s that have the same desiredName. By default all
+  * module name conflicts will cause a [[LintViolation]] (using
+  * [[ExactNamingStrategy]]). If one of the modules is targeted by
+  * [[NamingStrategyAnnotation]] then the transform will attempt to rename
+  * modules according to that naming strategy. If the conflicting modules
+  * cannot be disambiguated by the naming strategy then a [[LintViolation]] is
+  * emitted.
   */
-final class LintAmbiguousModuleNames extends LintRule {
+final class LintConflictingModuleNames extends LintRule {
   val recommendedFix: String = "override desiredName based on module parameters"
 
-  val lintName: String = "ambiguous-module-names"
+  val lintName: String = "conflicting-module-names"
 
   private val strategyOrder = Seq(
     ExactNamingStrategy,
@@ -250,7 +248,7 @@ final class LintAmbiguousModuleNames extends LintRule {
     if (result.isDefined) {
       result.get
     } else {
-      val msg = s"No naming strategy disambiguates modules for desired name: $desiredName"
+      val msg = s"No naming strategy resolves module collisions for desired name: $desiredName"
       val info = MultiInfo(modules.map(_.info))
       val mods = violations.getOrElse((info, msg), Set.empty)
       violations((info, msg)) = mods ++ modules.map(_.name)
@@ -294,20 +292,16 @@ final class LintAmbiguousModuleNames extends LintRule {
       val strategyOpt = modules.collectFirst {
         case m if strategyMap.contains(m.name) => strategyMap(m.name)
       }
-      if (strategyOpt.isDefined) {
-        val strategy = strategyOpt.get
-        val result = checkStrategy(strategy, desiredName, modules)
-        if (result.isDefined) {
-          result.get
-        } else {
-          val msg = s"Requested naming strategy $strategy does not disambiguate module collisions for desired name: $desiredName"
-          val info = MultiInfo(modules.map(_.info))
-          val mods = violations.getOrElse((info, msg), Set.empty)
-          violations((info, msg)) = mods ++ modules.map(_.name)
-          Map.empty[String, String]
-        }
+      val strategy = strategyOpt.getOrElse(ExactNamingStrategy)
+      val result = checkStrategy(strategy, desiredName, modules)
+      if (result.isDefined) {
+        result.get
       } else {
-        pickStrategies(violations, strategyOrder, desiredName, modules)
+        val msg = s"Requested naming strategy $strategy does not resolve module collisions for desired name: $desiredName"
+        val info = MultiInfo(modules.map(_.info))
+        val mods = violations.getOrElse((info, msg), Set.empty)
+        violations((info, msg)) = mods ++ modules.map(_.name)
+        Map.empty[String, String]
       }
     }.flatten.toMap
 

@@ -15,8 +15,8 @@ case class UnstableNameAnnotation(target: IsModule) extends SingleTargetAnnotati
   def duplicate(newTarget: IsModule): UnstableNameAnnotation = this.copy(target = newTarget)
 }
 
-class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
-  val transform = new LintAmbiguousModuleNames
+class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
+  val transform = new LintConflictingModuleNames
 
   case class TestCase(
     input: String,
@@ -131,12 +131,13 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
            |    inst bar_3 of Bar_3
            |""".stripMargin,
         Seq(
-         UnstableNameAnnotation(top.module("Bar_1")),
-         StableNameAnnotation(top.module("Bar_2")),
-         StableNameAnnotation(top.module("Bar_3")),
-         ModuleNameAnnotation("Bar", top.module("Bar_1")),
-         ModuleNameAnnotation("Bar", top.module("Bar_2")),
-         ModuleNameAnnotation("Bar", top.module("Bar_3"))
+          UnstableNameAnnotation(top.module("Bar_1")),
+          StableNameAnnotation(top.module("Bar_2")),
+          StableNameAnnotation(top.module("Bar_3")),
+          ModuleNameAnnotation("Bar", top.module("Bar_1")),
+          ModuleNameAnnotation("Bar", top.module("Bar_2")),
+          ModuleNameAnnotation("Bar", top.module("Bar_3")),
+          NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
         )
       ),
       TestCase(
@@ -161,7 +162,8 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
           StableNameAnnotation(top.module("Bar_6")),
           ModuleNameAnnotation("Bar", top.module("Bar_1")),
           ModuleNameAnnotation("Bar", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar", top.module("Bar_6"))
+          ModuleNameAnnotation("Bar", top.module("Bar_6")),
+          NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
         )
       )
     )
@@ -184,12 +186,13 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
            |    inst bar_3 of Bar_3
            |""".stripMargin,
         Seq(
-         UnstableNameAnnotation(top.module("Bar_1")),
-         StableNameAnnotation(top.module("Bar_2")),
-         StableNameAnnotation(top.module("Bar_3")),
-         ModuleNameAnnotation("Bar", top.module("Bar_1")),
-         ModuleNameAnnotation("Bar", top.module("Bar_2")),
-         ModuleNameAnnotation("Bar", top.module("Bar_3"))
+          UnstableNameAnnotation(top.module("Bar_1")),
+          StableNameAnnotation(top.module("Bar_2")),
+          StableNameAnnotation(top.module("Bar_3")),
+          ModuleNameAnnotation("Bar", top.module("Bar_1")),
+          ModuleNameAnnotation("Bar", top.module("Bar_2")),
+          ModuleNameAnnotation("Bar", top.module("Bar_3")),
+          NamingStrategyAnnotation(ContentStructureNamingStrategy, top.module("Bar_1"))
         )
       ),
       TestCase(
@@ -211,7 +214,8 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
           StableNameAnnotation(top.module("Bar_6")),
           ModuleNameAnnotation("Bar", top.module("Bar_1")),
           ModuleNameAnnotation("Bar", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar", top.module("Bar_6"))
+          ModuleNameAnnotation("Bar", top.module("Bar_6")),
+          NamingStrategyAnnotation(ContentStructureNamingStrategy, top.module("Bar_1"))
         )
       )
     )
@@ -234,12 +238,13 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
            |    inst bar_3 of Bar_3
            |""".stripMargin,
         Seq(
-         UnstableNameAnnotation(top.module("Bar_1")),
-         StableNameAnnotation(top.module("Bar_2")),
-         StableNameAnnotation(top.module("Bar_3")),
-         ModuleNameAnnotation("Bar", top.module("Bar_1")),
-         ModuleNameAnnotation("Bar", top.module("Bar_2")),
-         ModuleNameAnnotation("Bar", top.module("Bar_3"))
+          UnstableNameAnnotation(top.module("Bar_1")),
+          StableNameAnnotation(top.module("Bar_2")),
+          StableNameAnnotation(top.module("Bar_3")),
+          ModuleNameAnnotation("Bar", top.module("Bar_1")),
+          ModuleNameAnnotation("Bar", top.module("Bar_2")),
+          ModuleNameAnnotation("Bar", top.module("Bar_3")),
+          NamingStrategyAnnotation(ContentNamingStrategy, top.module("Bar_1"))
         )
       ),
       TestCase(
@@ -261,7 +266,8 @@ class LintAmbiguousModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
           StableNameAnnotation(top.module("Bar_6")),
           ModuleNameAnnotation("Bar", top.module("Bar_1")),
           ModuleNameAnnotation("Bar", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar", top.module("Bar_6"))
+          ModuleNameAnnotation("Bar", top.module("Bar_6")),
+          NamingStrategyAnnotation(ContentNamingStrategy, top.module("Bar_1"))
         )
       )
     )
