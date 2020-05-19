@@ -76,6 +76,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   with Attachable
   with HasConfigurablePRCILocations
   with HasConfigurableTLNetworkTopology
+  with HasConfigurableHierarchy
 {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
