@@ -9,7 +9,7 @@ Thank you for your interest in contributing to Rocket Chip!
 + [Conditions for Merging a PR](#merging)
 + [Bumping Submodules](#bumping)
 
-### <a name="merging"></a> Submitting a PR
+### <a name="submitting"></a> Submitting a PR
 
 You do not need write access to this repository to make a PR,
 you can fork and make a PR from your forked version.
