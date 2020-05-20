@@ -16,7 +16,7 @@ trait HasRocketChipStageUtils {
         Class.forName(currentName).newInstance.asInstanceOf[Config]
       } catch {
         case e: java.lang.ClassNotFoundException =>
-          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it?""", e)
+          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it or specify the wrong package path?""", e)
       }
       currentConfig ++ config
     })
