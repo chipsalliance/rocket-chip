@@ -7,8 +7,12 @@ import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
-// forceLocal -> used to ensure special devices (like debug) remain reacheable at chip_id=0 even if in params.region
-class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressSet] = Nil)(implicit p: Parameters) extends LazyModule {
+class AddressAdjuster(
+    val params: ReplicatedRegion, // only devices in this region get adjusted
+    val forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reacheable at id=0 even if in params.region
+    val localBaseAddressDefault: Option[BigInt] = None, // default local base address used for reporting manager address metadata
+    val ordered: Boolean = true // the replicated region should present with FIFO ordering
+    )(implicit p: Parameters) extends LazyModule {
   val mask = params.replicationMask
   // Which bits are in the mask?
   val bits = AddressSet.enumerateBits(mask)
@@ -16,11 +20,17 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
   private def prefix0(region: Seq[AddressSet]): Seq[AddressSet] = {
     region.flatMap { _.intersect(params.local) }
   }
-  private def prefixNot0(region: Seq[AddressSet]): Seq[AddressSet] = {
-    region.flatMap { _.subtract(params.local) }
+  // Default region is used to display address map metadata which corresponds to the expected default choice of prefix value
+  private val defaultRegion: AddressSet = params.local.copy(base = params.local.base + localBaseAddressDefault.getOrElse(0))
+  private def prefixDefault(region: Seq[AddressSet]): Seq[AddressSet] = {
+    region.flatMap { _.intersect(defaultRegion) }
   }
-  // forceLocal better only go one place (the low index)
-  forceLocal.foreach { as => require((as.max & mask) == 0) }
+  private def prefixNotDefault(region: Seq[AddressSet]): Seq[AddressSet] = {
+    region.flatMap { _.subtract(defaultRegion) }
+  }
+
+  localBaseAddressDefault.foreach { x => require((x & ~mask) == 0, s"localBaseAddressDefault $localBaseAddressDefault was not aligned to region") }
+  forceLocal.foreach { as => require((as.max & mask) == 0, s"forceLocal $forceLocal must be contained within the lowest index region") }
 
   // Address Adjustment requires many things about the downstream devices, captured here as helper functions:
 
@@ -119,10 +129,6 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       val local  = mp(0)
       val remote = mp(1)
 
-      // Confirm that the two manager paths have homogeneous FIFO ids
-      requireFifoHomogeneity(local.managers)
-      requireFifoHomogeneity(remote.managers)
-
       // Subdivide the managers into four cases: (adjustable vs fixed) x (local vs remote)
       val adjustableLocalManagers  = local.managers.filter(m =>  isDeviceContainedBy(Seq(params.region), m))
       val fixedLocalManagers       = local.managers.filter(m => !isDeviceContainedBy(Seq(params.region), m))
@@ -135,6 +141,12 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       val fixedRemoteManagers = remote.managers.flatMap { m =>
         val subtraction = m.address.flatMap(a => a.subtract(params.region))
         if (subtraction.isEmpty) None else Some(m.v1copy(address = subtraction))
+      }
+
+      if (ordered) {
+        // Confirm that the two manager paths have homogeneous FIFO ids
+        requireFifoHomogeneity(adjustableLocalManagers)
+        requireFifoHomogeneity(adjustableRemoteManagers)
       }
 
       if (false) {
@@ -167,12 +179,13 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
         val r = container.get
         requireContainerSupport(l, r)
 
-        // The address can be dynamically adjusted to anywhere in the adjustable region, but we take the 0 setting as default for DTS output
+        // The local address can be dynamically adjusted to any masked location in the adjustable region.
+        // We can report a particular local base address for DTS output, or default to reporting the 0th region.
         // Any address space holes in the local adjustable region will be plugged with the error device.
-        // All other PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
-        // Capabilities supported by the remote but not the local will result in dynamic re-reouting to the error device.
+        // All device PMAs are replaced with the capabilities of the remote path, since that's all we can know statically.
+        // Capabilities supported by the remote but not the local device will result in dynamic re-rerouting to the error device.
         l.v1copy(
-          address            = AddressSet.unify(prefix0(l.address) ++ (if (Some(l) == errorDev) holes else Nil)),
+          address            = AddressSet.unify(prefixDefault(l.address ++ (if (Some(l) == errorDev) holes else Nil))), 
           regionType         = r.regionType,
           executable         = r.executable,
           supportsAcquireT   = r.supportsAcquireT,
@@ -186,21 +199,27 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
           mayDenyGet         = r.mayDenyGet,
           mayDenyPut         = r.mayDenyPut,
           alwaysGrantsT      = r.alwaysGrantsT,
-          fifoId             = Some(0))
+          fifoId             = if (ordered) Some(0) else None)
       }
 
       // Actually rewrite the PMAs for the adjustable remote region too, to account for the differing FIFO domains under the mask
       val newRemotes = adjustableRemoteManagers.map { r =>
         r.v1copy(
-          address = prefixNot0(r.address),
-          fifoId = Some(0))
+          address = prefixNotDefault(r.address),
+          fifoId = if (ordered) Some(0) else None)
+      }
+
+      // Relable the FIFO domains for certain manager subsets
+      val fifoIdFactory = TLXbar.relabeler()
+      def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
+        val fifoIdMapper = fifoIdFactory()
+        managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
       }
 
       val newManagerList =
-        newLocals  ++
-        newRemotes ++
-        fixedLocalManagers ++
-        fixedRemoteManagers
+        relabelFifo(newLocals ++ newRemotes) ++
+        relabelFifo(fixedLocalManagers) ++
+        relabelFifo(fixedRemoteManagers)
 
       Seq(local.v1copy(
         managers   = newManagerList,
@@ -237,39 +256,46 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       def containsAddress(region: Seq[AddressSet], addr: UInt): Bool = region.foldLeft(false.B)(_ || _.contains(addr))
       val totalContainment = parentEdge.slave.slaves.forall(_.address.forall(params.region contains _))
       def isAdjustable(addr: UInt) = params.region.contains(addr) || totalContainment.B
-      def isDynamicallyLocal(addr: UInt) = local_prefix === (addr & mask.U) || containsAddress(forceLocal, addr)
+      def isDynamicallyLocal(addr: UInt) = (local_prefix & mask.U) === (addr & mask.U) || containsAddress(forceLocal, addr)
       val staticLocal = AddressSet.unify(fixedLocalManagers.flatMap(_.address))
       def isStaticallyLocal(addr: UInt) = containsAddress(staticLocal, addr)
       def routeLocal(addr: UInt): Bool = Mux(isAdjustable(addr), isDynamicallyLocal(addr), isStaticallyLocal(addr))
 
       // Route A by address, but reroute unsupported operations
       val a_stall = Wire(Bool())
-      val a_local = routeLocal(parent.a.bits.address)
+      val a_adjustable = isAdjustable(parent.a.bits.address)
+      val a_dynamic_local = isDynamicallyLocal(parent.a.bits.address)
+      val a_local = Mux(a_adjustable, a_dynamic_local, isStaticallyLocal(parent.a.bits.address))
       parent.a.ready := Mux(a_local, local.a.ready, remote.a.ready) && !a_stall
       local .a.valid := parent.a.valid &&  a_local && !a_stall
       remote.a.valid := parent.a.valid && !a_local && !a_stall
-      local .a.bits  := parent.a.bits
-      remote.a.bits  := parent.a.bits
+      local .a.bits  :<= parent.a.bits
+      remote.a.bits  :<= parent.a.bits
 
-      // Count beats
-      val a_first = parentEdge.first(parent.a)
-      val d_first = parentEdge.first(parent.d) && parent.d.bits.opcode =/= TLMessages.ReleaseAck
+      if (ordered) {
+        // Count beats
+        val a_first = parentEdge.first(parent.a)
+        val d_first = parentEdge.first(parent.d) && parent.d.bits.opcode =/= TLMessages.ReleaseAck
 
-      // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
-      // Sources unused in the stall signal calculation should be pruned by DCE
-      val flight = RegInit(VecInit(Seq.fill(parentEdge.client.endSourceId) { false.B }))
-      when (a_first && parent.a.fire()) { flight(parent.a.bits.source) := true.B  }
-      when (d_first && parent.d.fire()) { flight(parent.d.bits.source) := false.B }
+        // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
+        // Sources unused in the stall signal calculation should be pruned by DCE
+        // Only fix-up order when crossing local/remote boundaries
+        val flight = RegInit(VecInit(Seq.fill(parentEdge.client.endSourceId) { false.B }))
+        when (a_first && parent.a.fire() && a_adjustable) { flight(parent.a.bits.source) := true.B  }
+        when (d_first && parent.d.fire())                 { flight(parent.d.bits.source) := false.B }
 
-      val stalls = parentEdge.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
-        val a_sel = c.sourceId.contains(parent.a.bits.source)
-        val local = RegEnable(a_local, parent.a.fire() && a_sel)
-        val track = flight.slice(c.sourceId.start, c.sourceId.end)
+        val stalls = parentEdge.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
+          val a_sel = c.sourceId.contains(parent.a.bits.source)
+          val local = RegEnable(a_dynamic_local, parent.a.fire() && a_sel)
+          val track = flight.slice(c.sourceId.start, c.sourceId.end)
 
-        a_sel && a_first && track.reduce(_ || _) && (local =/= a_local)
+          a_sel && a_first && track.reduce(_ || _) && (local =/= a_dynamic_local)
+        }
+
+        a_stall := a_adjustable && stalls.foldLeft(false.B)(_||_)
+      } else {
+        a_stall := false.B
       }
-
-      a_stall := stalls.foldLeft(false.B)(_||_)
 
       val (allSame, holes) = sameSupport(adjustableLocalManagers, adjustableRemoteManagers)
 
@@ -311,11 +337,11 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
       val local_d  = Wire(chiselTypeOf(parent.d)) // type-cast, because 'sink' width differs
       local.d.ready := local_d.ready
       local_d.valid := local.d.valid
-      local_d.bits  := local.d.bits
+      local_d.bits  :<= local.d.bits
       val remote_d = Wire(chiselTypeOf(parent.d))
       remote.d.ready := remote_d.ready
       remote_d.valid := remote.d.valid
-      remote_d.bits := remote.d.bits
+      remote_d.bits :<= remote.d.bits
       remote_d.bits.sink := remote.d.bits.sink +& sink_threshold
       TLArbiter.robin(parentEdge, parent.d, local_d, remote_d)
 
@@ -330,16 +356,16 @@ class AddressAdjuster(val params: ReplicatedRegion, val forceLocal: Seq[AddressS
         parent.c.ready := Mux(c_local, local.c.ready, remote.c.ready)
         local .c.valid := parent.c.valid &&  c_local
         remote.c.valid := parent.c.valid && !c_local
-        local .c.bits  := parent.c.bits
-        remote.c.bits  := parent.c.bits
+        local .c.bits  :<= parent.c.bits
+        remote.c.bits  :<= parent.c.bits
 
         // Route E by sink
         val e_local = parent.e.bits.sink < sink_threshold
         parent.e.ready := Mux(e_local, local.e.ready, remote.e.ready)
         local .e.valid := parent.e.valid &&  e_local
         remote.e.valid := parent.e.valid && !e_local
-        local .e.bits  := parent.e.bits
-        remote.e.bits  := parent.e.bits
+        local .e.bits  :<= parent.e.bits
+        remote.e.bits  :<= parent.e.bits
         remote.e.bits.sink := parent.e.bits.sink - sink_threshold
       }
     }
