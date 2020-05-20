@@ -43,7 +43,6 @@ class RocketChipStage extends Stage with PreservesAll[Phase] {
 
   override def run(annotations: AnnotationSeq): AnnotationSeq = pm.transform(annotations)
 
-  // TODO: need a RunPhaseAnnotation to inject phases into ChiselStage
 }
 
 object Generator extends StageMain(new RocketChipStage)
