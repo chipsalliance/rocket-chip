@@ -44,7 +44,7 @@ object TLImp_ACancel extends NodeImp[TLMasterPortParameters, TLSlavePortParamete
 
   override def monitor(bundle: TLBundle_ACancel, edge: TLEdgeIn) {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
-    monitor.io.in := bundle.andNotCancel()
+    monitor.io.in := bundle.monitorAndNotCancel()
   }
 
   override def mixO(pd: TLMasterPortParameters, node: OutwardNode[TLMasterPortParameters, TLSlavePortParameters, TLBundle_ACancel]): TLMasterPortParameters  =

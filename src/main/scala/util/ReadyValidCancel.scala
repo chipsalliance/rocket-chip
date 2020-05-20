@@ -53,7 +53,7 @@ class ReadyValidCancel[+T <: Data](gen: T) extends ValidCancel(gen)
 
   /** Down-converts a ReadyValidCancel output to a DecoupledIO bundle, dropping early/late timing split. */
   def asDecoupled(): DecoupledIO[T] = {
-    val out = Wire(Decoupled(gen))
+    val out = Wire(new DecoupledIO(gen))
     out.valid := validQual()
     out.bits  := bits
     ready := out.ready
@@ -68,7 +68,7 @@ object ReadyValidCancel {
 
   /** Up-converts a ReadyValid to a ReadyValidCancel, assuming conservative timing. */
   def apply[T <: Data](in: ReadyValidIO[T]): ReadyValidCancel[T] = {
-    val out = Wire(new ReadyValidCancel(in.bits))
+    val out = Wire(new ReadyValidCancel(chiselTypeOf(in.bits)))
     out.earlyValid := in.valid
     out.lateCancel := false.B
     out.bits := in.bits

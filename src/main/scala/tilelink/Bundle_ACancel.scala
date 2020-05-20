@@ -21,7 +21,19 @@ class TLBundle_ACancel(val params: TLBundleParameters) extends Record
   val elements = ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
 
   /** Down-converts a TLBundle_ACancel to a plain TLBundle, dropping early/late timing split. */
-  def andNotCancel(): TLBundle = {
+  def asDecoupled(): TLBundle = {
+    val out = Wire(TLBundle(params))
+    out.a <> a.asDecoupled()
+    out.b <> b
+    out.c <> c
+    out.d <> d
+    out.e <> e
+    out
+  }
+
+  /** Down-converts a TLBundle_ACancel to a plain TLBundle, dropping early/late timing split.
+    * This differs from [[asDecoupled]]: this is uni-directional, suitable solely for monitoring. */
+  def monitorAndNotCancel(): TLBundle = {
     val out = Wire(new TLBundle(params))
     out.a.valid := a.validQual()
     out.a.bits  := a.bits
@@ -37,4 +49,18 @@ class TLBundle_ACancel(val params: TLBundleParameters) extends Record
 object TLBundle_ACancel
 {
   def apply(params: TLBundleParameters) = new TLBundle_ACancel(params)
+
+  /** Up-converts a ReadyValid to a ReadyValidCancel, assuming conservative timing. */
+  def apply(in: TLBundle) = {
+    val out = new TLBundle_ACancel(in.params)
+    out.a.earlyValid := in.a.valid
+    out.a.lateCancel := false.B
+    out.a.bits := in.a.bits
+    in.a.ready := out.a.ready
+    out.b <> in.b
+    out.c <> in.c
+    out.d <> in.d
+    out.e <> in.e
+    out
+  }
 }
