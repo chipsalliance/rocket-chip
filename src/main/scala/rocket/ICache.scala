@@ -222,7 +222,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
   }
   io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
-  io.errors.bus.bits  := refill_paddr
+  io.errors.bus.bits  := (refill_paddr >> blockOffBits) << blockOffBits
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
