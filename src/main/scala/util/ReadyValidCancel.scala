@@ -11,6 +11,7 @@ import freechips.rocketchip.util._
   * This indicates that the user expects a "ValidCancel" interface between a producer and a consumer.
   * Here, the producer asserts the `earlyValid` bit when data on the `bits` line might contain valid data.
   * The producer also asserts the `lateCancel` bit low to confirm the valid, or high to squash the valid.
+  * `lateCancel` is a DontCare when `earlyValid` is low.
   * This differs from [[ReadyValidCancel]] as there is no `ready` line that the consumer can use
   * to put back pressure on the producer.
   * @param gen the type of data to be wrapped in Valid/Cancel
@@ -108,7 +109,7 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
 
   inputEarlyValidVec := io.in.map(_.earlyValid)
 
-  private val prevSelectEnc_in = Wire(Bits(log2Ceil(n).W))
+  private val prevSelectEnc_in = Wire(UInt(log2Ceil(n).W))
   private val prevSelectEnc_en = Wire(Bool())
   val prevSelectEnc_q = RegEnable(prevSelectEnc_in, 0.U, prevSelectEnc_en)
   prevSelectEnc_en := inputEarlyValidVec.orR || prevSelectEnc_q.orR
@@ -132,8 +133,6 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
   }
 
   selectDcd := inputEarlyValidVec & grantVec
-  selectDcd(n-1) := grantVec(n-1)
-
   when (io.out.earlyValid) {
     assert(PopCount(selectDcd) === 1.U, "arbiter select should be one-hot when earlyValid")
   }

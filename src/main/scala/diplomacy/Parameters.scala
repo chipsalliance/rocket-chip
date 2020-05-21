@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import chisel3.util.{IrrevocableIO,ReadyValidIO}
-import freechips.rocketchip.util.{ShiftQueue, RationalDirection, ReadyValidCancel, FastToSlow, AsyncQueueParams}
+import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
 import scala.reflect.ClassTag
 
 /** Options for describing the attributes of memory regions */
@@ -274,14 +274,6 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
       sq.io.enq <> x
       sq.io.deq
     }
-
-  def andNotCancel[T <: Data](x: ReadyValidCancel[T]) = {
-    val y = Wire(new DecoupledIO(x.bits))
-    y.valid := x.validQual
-    y.bits  := x.bits
-    x.ready := y.ready
-    apply(y)
-  }
 
   override def toString() = "BufferParams:%d%s%s".format(depth, if (flow) "F" else "", if (pipe) "P" else "")
 
