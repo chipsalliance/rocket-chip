@@ -49,6 +49,7 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
     with CanHaveErrors {
   val correctable = (cacheParams.tagCode.canDetect || cacheParams.dataCode.canDetect).option(Valid(UInt(width = paddrBits)))
   val uncorrectable = (cacheParams.itimAddr.nonEmpty && cacheParams.dataCode.canDetect).option(Valid(UInt(width = paddrBits)))
+  val bus = Valid(UInt(width = paddrBits))
 }
 
 class ICache(val icacheParams: ICacheParams, val hartId: Int)(implicit p: Parameters) extends LazyModule {
@@ -220,6 +221,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
     ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
   }
+  io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
+  io.errors.bus.bits  := refill_paddr
 
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
