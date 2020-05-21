@@ -324,13 +324,13 @@ trait DirectedBuffers[T] {
 }
 
 trait IdMapEntry {
-  val name: String
-  val from: IdRange
-  val to: IdRange
-  val isCache: Boolean
-  val requestFifo: Boolean
+  def name: String
+  def from: IdRange
+  def to: IdRange
+  def isCache: Boolean
+  def requestFifo: Boolean
   def pretty(fmt: String) =
-    if (from ne to) {
+    if (from ne to) { // if the subclass uses the same reference for both from and to, assume its format string has an arity of 5
       fmt.format(to.start, to.end, from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
     } else {
       fmt.format(from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
