@@ -173,3 +173,21 @@ case class AXI4BufferParams(
   def copyOut(x: BufferParams) = this.copy(aw = x, ar = x, w = x)
   def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
 }
+
+/** Pretty printing of AXI4 source id maps */
+class AXI4IdMap(axi4: AXI4MasterPortParameters) extends IdMap[AXI4IdMapEntry] {
+  private val axi4Digits = String.valueOf(axi4.endId-1).length()
+  protected val fmt = s"\t[%${axi4Digits}d, %${axi4Digits}d) %s%s%s"
+  private val sorted = axi4.masters.sortBy(_.id)
+
+  val mapping: Seq[AXI4IdMapEntry] = sorted.map { case c =>
+    AXI4IdMapEntry(c.id, c.name)
+  }
+}
+
+case class AXI4IdMapEntry(axi4Id: IdRange, name: String) extends IdMapEntry {
+  val from = axi4Id
+  val to = axi4Id
+  val isCache = false
+  val requestFifo = false
+}

@@ -322,3 +322,23 @@ trait DirectedBuffers[T] {
   def copyOut(x: BufferParams): T
   def copyInOut(x: BufferParams): T
 }
+
+trait IdMapEntry {
+  val name: String
+  val from: IdRange
+  val to: IdRange
+  val isCache: Boolean
+  val requestFifo: Boolean
+  def pretty(fmt: String) =
+    if (from ne to) {
+      fmt.format(to.start, to.end, from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    } else {
+      fmt.format(from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    }
+}
+
+abstract class IdMap[T <: IdMapEntry] {
+  protected val fmt: String
+  val mapping: Seq[T]
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
+}
