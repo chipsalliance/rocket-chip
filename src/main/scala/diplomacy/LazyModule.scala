@@ -78,11 +78,11 @@ abstract class LazyModule()(implicit val p: Parameters)
   def line = sourceLine(info)
 
   // Accessing these names can only be done after circuit elaboration!
-  /** Module name, used in GraphML. */
+  /** Module name in verilog, used in GraphML. */
   lazy val moduleName = module.name
   /** Hierarchical path of this instance, used in GraphML. */
   lazy val pathName = module.pathName
-  /** Instance name.  Should only be accessed after circuit elaboration.*/
+  /** Instance name in verilog. Should only be accessed after circuit elaboration.*/
   lazy val instanceName = pathName.split('.').last
 
   /** [[chisel3]] hardware implementation of this [[LazyModule]].
@@ -220,8 +220,7 @@ object LazyModule
     */
   def apply[T <: LazyModule](bc: T)(implicit valName: ValName, sourceInfo: SourceInfo): T = {
     // Make sure the user puts [[LazyModule]] around modules in the correct order.
-    require (scope.isDefined,
-             s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}. Ensure that descendant LazyModules are instantiated with the LazyModule() wrapper and that you did not call LazyModule() twice.")
+    require (scope.isDefined, s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}. Ensure that descendant LazyModules are instantiated with the LazyModule() wrapper and that you did not call LazyModule() twice.")
     require (scope.get eq bc, s"LazyModule() applied to ${bc.name} before ${scope.get.name} ${sourceLine(sourceInfo)}")
     // Pop from the [[LazyModule.scope]] stack.
     scope = bc.parent
