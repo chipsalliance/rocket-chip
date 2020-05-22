@@ -6,7 +6,41 @@ import chisel3._
 import chisel3.experimental._
 import chisel3.util.HasBlackBoxResource
 
+@deprecated("This will be removed in Rocket Chip 2020.08", "Rocket Chip 2020.05")
 case class PlusArgInfo(default: BigInt, docstring: String)
+
+/** Case class for PlusArg information
+  *
+  * @tparam A scala type of the PlusArg value
+  * @param default optional default value
+  * @param docstring text to include in the help
+  * @param doctype description of the Verilog type of the PlusArg value (e.g. STRING, INT)
+  */
+private case class PlusArgContainer[A](default: Option[A], docstring: String, doctype: String)
+
+/** Typeclass for converting a type to a doctype string
+  * @tparam A some type
+  */
+trait Doctypeable[A] {
+
+  /** Return the doctype string for some option */
+  def toDoctype(a: Option[A]): String
+
+}
+
+/** Object containing implementations of the Doctypeable typeclass */
+object Doctypes {
+
+  /** Converts an Int => "INT" */
+  implicit val intToDoctype    = new Doctypeable[Int]    { def toDoctype(a: Option[Int])    = "INT"    }
+
+  /** Converts a BigInt => "INT" */
+  implicit val bigIntToDoctype = new Doctypeable[BigInt] { def toDoctype(a: Option[BigInt]) = "INT"    }
+
+  /** Converts a String => "STRING" */
+  implicit val stringToDoctype = new Doctypeable[String] { def toDoctype(a: Option[String]) = "STRING" }
+
+}
 
 class plusarg_reader(val format: String, val default: BigInt, val docstring: String, val width: Int) extends BlackBox(Map(
     "FORMAT"  -> StringParam(format),
@@ -31,6 +65,8 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
   }
 }
 
+import Doctypes._
+
 object PlusArg
 {
   /** PlusArg("foo") will return 42.U if the simulation is run with +foo=42
@@ -40,7 +76,7 @@ object PlusArg
     * pass.
     */
   def apply(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32): UInt = {
-    PlusArgArtefacts.append(name, default, docstring)
+    PlusArgArtefacts.append(name, Some(default), docstring)
     Module(new plusarg_reader(name + "=%d", default, docstring, width)).io.out
   }
 
@@ -49,25 +85,40 @@ object PlusArg
     * Default 0 will never assert.
     */
   def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt) {
-    PlusArgArtefacts.append(name, default, docstring)
+    PlusArgArtefacts.append(name, Some(default), docstring)
     Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count := count
   }
 }
 
 object PlusArgArtefacts {
-  private var artefacts: Map[String, PlusArgInfo] = Map.empty
+  private var artefacts: Map[String, PlusArgContainer[_]] = Map.empty
 
   /* Add a new PlusArg */
-  def append(name: String, default: BigInt, docstring: String): Unit =
-    artefacts = artefacts ++ Map(name -> PlusArgInfo(default, docstring))
+  @deprecated(
+    "Use `Some(BigInt)` to specify a `default` value. This will be removed in Rocket Chip 2020.08",
+    "Rocket Chip 2020.05"
+  )
+  def append(name: String, default: BigInt, docstring: String): Unit = append(name, Some(default), docstring)
+
+  /** Add a new PlusArg
+    *
+    * @tparam A scala type of the PlusArg value
+    * @param name name for the PlusArg
+    * @param default optional default value
+    * @param docstring text to include in the help
+    */
+  def append[A : Doctypeable](name: String, default: Option[A], docstring: String): Unit =
+    artefacts = artefacts ++
+      Map(name -> PlusArgContainer(default, docstring, implicitly[Doctypeable[A]].toDoctype(default)))
 
   /* From plus args, generate help text */
   private def serializeHelp_cHeader(tab: String = ""): String = artefacts
-    .map{ case(arg, PlusArgInfo(default, docstring)) =>
-      s"""|$tab+$arg=INT\\n\\
-          |$tab${" "*20}$docstring\\n\\
-          |$tab${" "*22}(default=$default)""".stripMargin }.toSeq
-    .mkString("\\n\\\n") ++ "\""
+    .map{ case(arg, info) =>
+      s"""|$tab+$arg=${info.doctype}\\n\\
+          |$tab${" "*20}${info.docstring}\\n\\
+          |""".stripMargin ++ info.default.map{ case default =>
+         s"$tab${" "*22}(default=${default})\\n\\\n"}.getOrElse("")
+        }.toSeq.mkString("\\n\\\n") ++ "\""
 
   /* From plus args, generate a char array of their names */
   private def serializeArray_cHeader(tab: String = ""): String = {

@@ -5,7 +5,8 @@ sudo: false
 cache:
   apt: true
   directories:
-    $HOME/.ivy2
+    $HOME/.cache/coursier
+    $HOME/.sbt
     regression/install
     emulator/verilator
 
@@ -76,38 +77,25 @@ jobs:
     - &test
       stage: Test
       script:
-        - travis_wait 100 make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
-        - travis_wait 100 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
+        - ./regression/run-test-bucket 1
     - <<: *test
       script:
-        - travis_wait 80 make emulator-ndebug -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=DebugTest JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=DebugTest JVM_MEMORY=3G
+        - ./regression/run-test-bucket 2
     - <<: *test
       script:
-        - travis_wait 80 make emulator-ndebug -C regression SUITE=JtagDtmSuite JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest64 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest64 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest32 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-64 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest32 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
-        - travis_wait 80 make emulator-jtag-dtm-tests-32 -C regression SUITE=JtagDtmSuite JTAG_DTM_TEST=MemTest8 JTAG_DTM_ENABLE_SBA=on JVM_MEMORY=3G
+        - ./regression/run-test-bucket 3
     - <<: *test
       script:
-        - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
-        - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteB JVM_MEMORY=3G
+        - ./regression/run-test-bucket 4
     - <<: *test
       script:
-        - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
-        - travis_wait 80 make emulator-regression-tests -C regression SUITE=RocketSuiteA JVM_MEMORY=3G
+        - ./regression/run-test-bucket 5
     - <<: *test
       script:
-        - travis_wait 80 make emulator-ndebug -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
-        - make emulator-regression-tests -C regression SUITE=RocketSuiteC JVM_MEMORY=3G
+        - ./regression/run-test-bucket 6
     - <<: *test
       script:
-        - travis_wait 80 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
+        - ./regression/run-test-bucket 7
     - <<: *test
       name: check wake compilation
       script:

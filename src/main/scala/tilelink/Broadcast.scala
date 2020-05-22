@@ -7,6 +7,7 @@ import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.amba.AMBAProt
 import scala.math.{min,max}
 
 class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false)(implicit p: Parameters) extends LazyModule
@@ -142,6 +143,15 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       val put_who  = Mux(c_releasedata, in.c.bits.source, c_trackerSrc)
       putfull.valid := in.c.valid && (c_probeackdata || c_releasedata)
       putfull.bits := edgeOut.Put(Cat(put_what, put_who), in.c.bits.address, in.c.bits.size, in.c.bits.data)._2
+      putfull.bits.user.lift(AMBAProt).foreach { x =>
+        x.fetch       := false.B
+        x.secure      := true.B
+        x.privileged  := true.B
+        x.bufferable  := true.B
+        x.modifiable  := true.B
+        x.readalloc   := true.B
+        x.writealloc  := true.B
+      }
 
       // Combine ReleaseAck or the modified D
       TLArbiter.lowest(edgeOut, in.d, releaseack, d_normal)

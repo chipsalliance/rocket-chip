@@ -1113,47 +1113,45 @@ case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, mana
   def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
+// To be unified, devices must agree on all of these terms
+case class ManagerUnificationKey(
+  resources:          Seq[Resource],
+  regionType:         RegionType.T,
+  executable:         Boolean,
+  supportsAcquireT:   TransferSizes,
+  supportsAcquireB:   TransferSizes,
+  supportsArithmetic: TransferSizes,
+  supportsLogical:    TransferSizes,
+  supportsGet:        TransferSizes,
+  supportsPutFull:    TransferSizes,
+  supportsPutPartial: TransferSizes,
+  supportsHint:       TransferSizes)
+
+object ManagerUnificationKey
+{
+  def apply(x: TLManagerParameters): ManagerUnificationKey = ManagerUnificationKey(
+    resources          = x.resources,
+    regionType         = x.regionType,
+    executable         = x.executable,
+    supportsAcquireT   = x.supportsAcquireT,
+    supportsAcquireB   = x.supportsAcquireB,
+    supportsArithmetic = x.supportsArithmetic,
+    supportsLogical    = x.supportsLogical,
+    supportsGet        = x.supportsGet,
+    supportsPutFull    = x.supportsPutFull,
+    supportsPutPartial = x.supportsPutPartial,
+    supportsHint       = x.supportsHint)
+}
+
 object ManagerUnification
 {
   def apply(managers: Seq[TLManagerParameters]): List[TLManagerParameters] = {
-    // To be unified, devices must agree on all of these terms
-    case class TLManagerKey(
-      resources:          Seq[Resource],
-      regionType:         RegionType.T,
-      executable:         Boolean,
-      supportsAcquireT:   TransferSizes,
-      supportsAcquireB:   TransferSizes,
-      supportsArithmetic: TransferSizes,
-      supportsLogical:    TransferSizes,
-      supportsGet:        TransferSizes,
-      supportsPutFull:    TransferSizes,
-      supportsPutPartial: TransferSizes,
-      supportsHint:       TransferSizes)
-    def key(x: TLManagerParameters) = TLManagerKey(
-      resources          = x.resources,
-      regionType         = x.regionType,
-      executable         = x.executable,
-      supportsAcquireT   = x.supportsAcquireT,
-      supportsAcquireB   = x.supportsAcquireB,
-      supportsArithmetic = x.supportsArithmetic,
-      supportsLogical    = x.supportsLogical,
-      supportsGet        = x.supportsGet,
-      supportsPutFull    = x.supportsPutFull,
-      supportsPutPartial = x.supportsPutPartial,
-      supportsHint       = x.supportsHint)
-    val map = scala.collection.mutable.HashMap[TLManagerKey, TLManagerParameters]()
-    managers.foreach { m =>
-      val k = key(m)
-      map.get(k) match {
-        case None => map.update(k, m)
-        case Some(n) => {
-          map.update(k, m.v1copy(
-            address = m.address ++ n.address,
-            fifoId  = None)) // Merging means it's not FIFO anymore!
-        }
-      }
-    }
-    map.values.map(m => m.v1copy(address = AddressSet.unify(m.address))).toList
+    managers.groupBy(ManagerUnificationKey.apply).values.map { seq =>
+      val agree = seq.forall(_.fifoId == seq.head.fifoId)
+      seq(0).v1copy(
+        address = AddressSet.unify(seq.flatMap(_.address)),
+        fifoId  = if (agree) seq(0).fifoId else None)
+    }.toList
   }
 }
 

@@ -32,16 +32,45 @@ object TLImp extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEd
     pu.v1copy(managers = pu.managers.map { m => m.v1copy (nodePath = node +: m.nodePath) })
 }
 
-trait TLFormatNode extends FormatNode[TLEdgeIn, TLEdgeOut] 
+object TLImp_ACancel extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLEdgeIn, TLBundle_ACancel]
+{
+  def edgeO(pd: TLMasterPortParameters, pu: TLSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = TLImp.edgeO(pd, pu, p, sourceInfo)
+  def edgeI(pd: TLMasterPortParameters, pu: TLSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = TLImp.edgeI(pd, pu, p, sourceInfo)
+
+  def bundleO(eo: TLEdgeOut) = TLBundle_ACancel(eo.bundle)
+  def bundleI(ei: TLEdgeIn)  = TLBundle_ACancel(ei.bundle)
+
+  def render(ei: TLEdgeIn) = TLImp.render(ei)
+
+  override def monitor(bundle: TLBundle_ACancel, edge: TLEdgeIn) {
+    val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
+    monitor.io.in := bundle.monitorAndNotCancel()
+  }
+
+  override def mixO(pd: TLMasterPortParameters, node: OutwardNode[TLMasterPortParameters, TLSlavePortParameters, TLBundle_ACancel]): TLMasterPortParameters  =
+    pd.v1copy(clients  = pd.clients.map  { c => c.v1copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: TLSlavePortParameters, node: InwardNode[TLMasterPortParameters, TLSlavePortParameters, TLBundle_ACancel]): TLSlavePortParameters =
+    pu.v1copy(managers = pu.managers.map { m => m.v1copy (nodePath = node +: m.nodePath) })
+}
+
+trait TLFormatNode extends FormatNode[TLEdgeIn, TLEdgeOut]
 
 case class TLClientNode(portParams: Seq[TLMasterPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
 case class TLManagerNode(portParams: Seq[TLSlavePortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with TLFormatNode
+
+case class TLClientNode_ACancel(portParams: Seq[TLMasterPortParameters])(implicit valName: ValName) extends SourceNode(TLImp_ACancel)(portParams) with TLFormatNode
 
 case class TLAdapterNode(
   clientFn:  TLMasterPortParameters => TLMasterPortParameters = { s => s },
   managerFn: TLSlavePortParameters  => TLSlavePortParameters  = { s => s })(
   implicit valName: ValName)
   extends AdapterNode(TLImp)(clientFn, managerFn) with TLFormatNode
+
+case class TLAdapterNodeAndNotCancel(
+  clientFn:  TLMasterPortParameters => TLMasterPortParameters = { s => s },
+  managerFn: TLSlavePortParameters  => TLSlavePortParameters  = { s => s })(
+  implicit valName: ValName)
+  extends MixedAdapterNode(TLImp_ACancel, TLImp)(clientFn, managerFn) with TLFormatNode
 
 case class TLJunctionNode(
   clientFn:     Seq[TLMasterPortParameters] => Seq[TLMasterPortParameters],
@@ -68,6 +97,12 @@ case class TLNexusNode(
   managerFn:       Seq[TLSlavePortParameters]  => TLSlavePortParameters)(
   implicit valName: ValName)
   extends NexusNode(TLImp)(clientFn, managerFn) with TLFormatNode
+
+case class TLNexusNode_ACancel(
+  clientFn:        Seq[TLMasterPortParameters] => TLMasterPortParameters,
+  managerFn:       Seq[TLSlavePortParameters]  => TLSlavePortParameters)(
+  implicit valName: ValName)
+  extends NexusNode(TLImp_ACancel)(clientFn, managerFn) with TLFormatNode
 
 abstract class TLCustomNode(implicit valName: ValName)
   extends CustomNode(TLImp) with TLFormatNode
