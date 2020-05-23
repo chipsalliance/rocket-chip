@@ -277,7 +277,7 @@ sealed trait LazyModuleImpLike extends RawModule {
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     // Accumulate all the [[Dangle]]s from this node and any accumulated from its [[wrapper.children]]
     val allDangles = nodeDangles ++ childDangles
-    // For [[allDangles]] which originate from the same [[Dangle.source]], group them together into [[pairing]].
+    // Group [[allDangles]] by their [[source]].
     val pairing = SortedMap(allDangles.groupBy(_.source).toSeq: _*)
     // For each [[source]] set of [[Dangle]]s of size 2, ensure that these
     // can be connected as a source-sink pair (have opposite flipped value).
