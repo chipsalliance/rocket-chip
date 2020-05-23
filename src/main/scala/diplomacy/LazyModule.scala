@@ -272,8 +272,8 @@ sealed trait LazyModuleImpLike extends RawModule {
       mod.dangles
     }
 
-    // Ask each node in the [[LazyModule]] to call [[BaseNode.instantiate]].
-    // It will return a sequence of [[Dangle]] of these [[BaseNode]].
+    // Ask each node in this [[LazyModule]] to call [[BaseNode.instantiate]].
+    // This will result in a sequence of [[Dangle]] from these [[BaseNode]]s.
     val nodeDangles = wrapper.nodes.reverse.flatMap(_.instantiate())
     // Accumulate all the [[Dangle]]s from this node and any accumulated from its [[wrapper.children]]
     val allDangles = nodeDangles ++ childDangles
