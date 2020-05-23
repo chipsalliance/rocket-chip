@@ -41,14 +41,22 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
         val qs = Seq.tabulate(endId) { i =>
           val depth = edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
           if (depth > 0) {
-            Module(new Queue(out.r.bits.cloneType, beats)).io
+            val q = Module(new Queue(out.r.bits.cloneType, beats))
+            q.suggestName(s"queue_${i}")
+            q.io
           } else {
-            Wire(new QueueIO(out.r.bits.cloneType, beats))
+            // These are unused IDs and should be never used.
+            // But, to satisfy type checks we must produce a Wire of the
+            // correct type.
+            val q = Wire(new QueueIO(out.r.bits.cloneType, beats))
+            q.suggestName(s"queue_wire_${i}")
+            assert(!q.enq.valid, s"ID ${i} should not be used")
+            // These could just be marked DontCare
+            q.deq :<> q.enq
+            q.count := 0.U
+            q
           }
         }
-
-        // This seems dubious. Are all these queues not actually used?
-        qs.foreach { _ := DontCare }
 
         // Which ID is being enqueued and dequeued?
         val locked = RegInit(false.B)
@@ -85,16 +93,19 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
         // Transmit the selected burst to inner
         in.r.valid := locked
-        val deq_bits = WireInit(VecInit(qs.map(_.deq.bits)))
+        val deq_bits = VecInit(qs.map(_.deq.bits))
         in.r.bits  := deq_bits(deq_id)
-        (deq_OH.asBools zip qs) foreach { case (s, q) =>
+        val deq_OH_bools = deq_OH.asBools
+        require(deq_OH_bools.size == qs.size, s"deq_OH.size != qs.size (${deq_OH_bools.size} vs ${qs.size})")
+        (deq_OH_bools zip qs) foreach { case (s, q) =>
           q.deq.ready := s && in.r.fire()
         }
 
+        require(enq_OH_bools.size == qs.size, s"enq_OH.size != qs.size (${enq_OH_bools.size} vs ${qs.size})")
         // Feed response into matching Q
-        val enq_readys = WireInit(VecInit(qs.map(_.enq.ready)))
+        val enq_readys = VecInit(qs.map(_.enq.ready))
         out.r.ready := enq_readys(enq_id)
-        (enq_OH.asBools zip qs) foreach { case (s, q) =>
+        (enq_OH_bools zip qs) foreach { case (s, q) =>
           q.enq.valid := s && out.r.valid
           q.enq.bits := out.r.bits
         }
