@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap}
+import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, IdMap}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -85,6 +85,7 @@ trait OMPort extends OMDevice {
   def signalNamePrefix: String
   def width: Int
   def protocol: OMProtocol
+  def idMap: Option[IdMap[_]]
 }
 
 trait InboundPort extends OMPort
@@ -96,6 +97,7 @@ case class FrontPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Option[IdMap[_]],
   _types: Seq[String] = Seq("FrontPort", "InboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends InboundPort
 
@@ -105,6 +107,7 @@ case class MemoryPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Option[IdMap[_]],
   _types: Seq[String] = Seq("MemoryPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class PeripheralPort(
@@ -113,6 +116,7 @@ case class PeripheralPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Option[IdMap[_]],
   _types: Seq[String] = Seq("PeripheralPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class SystemPort(
@@ -121,6 +125,7 @@ case class SystemPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Option[IdMap[_]],
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
@@ -158,7 +163,8 @@ object OMPortMaker {
     protocol: ProtocolType,
     subProtocol: SubProtocolType,
     version: String,
-    beatBytes: Int): OMPort = {
+    beatBytes: Int,
+    idMap: Option[IdMap[_]]): OMPort = {
     val documentationName = portNames(portType)
 
     val omProtocol = (protocol, subProtocol) match {
@@ -178,18 +184,18 @@ object OMPortMaker {
         val memRegions = DiplomaticObjectModelAddressing.getOMPortMemoryRegions(name = documentationName, rb)
         portType match {
           case SystemPortType => SystemPort(memoryRegions = memRegions, interrupts = Nil, signalNamePrefix = signalNamePrefix,
-            width = beatBytes * 8, protocol = omProtocol)
+            width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case PeripheralPortType => PeripheralPort(memoryRegions = memRegions, interrupts = Nil, signalNamePrefix = signalNamePrefix,
-            width = beatBytes * 8, protocol = omProtocol)
+            width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case MemoryPortType => MemoryPort(memoryRegions = memRegions, interrupts = Nil, signalNamePrefix = signalNamePrefix,
-            width = beatBytes * 8, protocol = omProtocol)
+            width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case FrontPortType => throw new IllegalArgumentException
           case _ => throw new IllegalArgumentException
         }
       case None => {
         portType match {
           case FrontPortType => FrontPort(memoryRegions = Nil, interrupts = Nil,
-            signalNamePrefix = signalNamePrefix, width = beatBytes * 8, protocol = omProtocol)
+            signalNamePrefix = signalNamePrefix, width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case _ => throw new IllegalArgumentException
         }
       }
