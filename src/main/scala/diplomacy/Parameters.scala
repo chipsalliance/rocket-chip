@@ -343,21 +343,21 @@ abstract class IdMap[T <: IdMapEntry] {
   def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }
 
-class IdRangeSerial private (val start: Int, val end: Int)
+class IdRangeSerial (val start: Int, val end: Int)
 object IdRangeSerial {
   def apply(i: IdRange): IdRangeSerial = {
     new IdRangeSerial(i.start, i.end)
   }
 }
 
-class IdMapEntrySerial private(val namel: String, val froml: IdRangeSerial, val tol: IdRangeSerial, val isCachel: Boolean, val requestFifol: Boolean)
+class IdMapEntrySerial (val namel: String, val froml: IdRangeSerial, val tol: IdRangeSerial, val isCachel: Boolean, val requestFifol: Boolean)
 object IdMapEntrySerial {
   def apply[T <: IdMapEntry](i: T): IdMapEntrySerial = {
     new IdMapEntrySerial(i.name, IdRangeSerial(i.from), IdRangeSerial(i.to), i.isCache, i.requestFifo)
   }
 }
 
-class IdMapSerial private(val mapping: Seq[IdMapEntrySerial])
+class IdMapSerial (val mapping: Seq[IdMapEntrySerial])
 object IdMapSerial {
   def apply[T <: IdMapEntry](i: IdMap[T]): IdMapSerial = {
     new IdMapSerial((i.mapping).map(IdMapEntrySerial(_)))
