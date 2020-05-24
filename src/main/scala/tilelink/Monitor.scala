@@ -607,6 +607,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     val inflight = RegInit(0.U(edge.client.endSourceId.W))
     inflight.suggestName("inflight")
+    val inflight_tail = RegInit(0.U(edge.client.endSourceId.W))
+    inflight_tail.suggestName("inflight_tail")
     val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     inflight_opcodes.suggestName("inflight_opcodes")
     val inflight_sizes = RegInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
@@ -616,6 +618,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     a_first.suggestName("a_first")
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
     d_first.suggestName("d_first")
+    val d_last = edge.last(bundle.d.bits, bundle.d.fire())
+    d_last.suggestName("d_last")
 
     val a_set = WireInit(0.U(edge.client.endSourceId.W))
     a_set.suggestName("a_set")
@@ -646,11 +650,13 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       a_sizes_set_interm := (bundle.a.bits.size << 1.U) | 1.U
       a_opcodes_set := (a_opcodes_set_interm) << (bundle.a.bits.source << log_a_opcode_bus_size.U)
       a_sizes_set := (a_sizes_set_interm) << (bundle.a.bits.source << log_a_size_bus_size.U)
-      monAssert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
+      monAssert(!inflight_tail(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
     val d_clr = WireInit(0.U(edge.client.endSourceId.W))
     d_clr.suggestName("d_clr")
+    val d_clr_tail = WireInit(0.U(edge.client.endSourceId.W))
+    d_clr_tail.suggestName("d_clr_tail")
     val d_opcodes_clr = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     d_opcodes_clr.suggestName("d_opcodes_clr")
     val d_sizes_clr = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
@@ -661,6 +667,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       d_clr := UIntToOH(bundle.d.bits.source)
       d_opcodes_clr := size_to_numfullbits(1.U << log_a_opcode_bus_size.U) << (bundle.d.bits.source << log_a_opcode_bus_size.U)
       d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
+    }
+    when (bundle.d.fire() && d_last && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      d_clr_tail := UIntToOH(bundle.d.bits.source)
     }
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && (bundle.a.bits.size === bundle.d.bits.size) && a_first), "'D' channel acknowledged for nothing inflight" + extra)
@@ -678,6 +687,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     inflight := (inflight | a_set) & ~d_clr
+    inflight_tail := (inflight_tail | a_set) & ~d_clr_tail
     inflight_opcodes := (inflight_opcodes | a_opcodes_set) & ~d_opcodes_clr
     inflight_sizes := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
 
@@ -727,7 +737,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
         }
       }
       if (args.edge.params(TestplanTestType).formal) {
-        legalizeADSourceFormal(bundle, edge)
+        legalizeADSource(bundle, edge)
       }
     }
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
