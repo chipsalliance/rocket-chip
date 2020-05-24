@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, IdMapSerial}
+import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, IdRange, IdMapEntry, IdMap}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -78,6 +78,36 @@ case class TL_C(
   specification: Option[OMSpecification],
   val _types: Seq[String] = Seq("TL_C", "TL",  "OMProtocol")
 ) extends TL
+
+
+class IdRangeSerial (val start: Int,
+                     val end: Int,
+                     val _types: Seq[String] = Seq("IdRangeSerial", "OMCompundType"))
+object IdRangeSerial {
+  def apply(i: IdRange): IdRangeSerial = {
+    new IdRangeSerial(i.start, i.end)
+  }
+}
+
+class IdMapEntrySerial (val name: String,
+                        val from: IdRangeSerial,
+                        val to: IdRangeSerial,
+                        val isCache: Boolean,
+                        val requestFifo: Boolean,
+                        val _types: Seq[String] = Seq("IdMapEntrySerial", "OMCompoundType"))
+object IdMapEntrySerial {
+  def apply[T <: IdMapEntry](i: T): IdMapEntrySerial = {
+    new IdMapEntrySerial(i.name, IdRangeSerial(i.from), IdRangeSerial(i.to), i.isCache, i.requestFifo)
+  }
+}
+
+class IdMapSerial (val mapping: Seq[IdMapEntrySerial],
+                   val _types: Seq[String] = Seq("IdMapSerial", "OMCompoundType"))
+object IdMapSerial {
+  def apply[T <: IdMapEntry](i: IdMap[T]): IdMapSerial = {
+    new IdMapSerial((i.mapping).map(IdMapEntrySerial(_)))
+  }
+}
 
 trait OMPort extends OMDevice {
   memoryRegions: Seq[OMMemoryRegion]
