@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, IdMap}
+import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, IdMapSerial}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -85,7 +85,7 @@ trait OMPort extends OMDevice {
   def signalNamePrefix: String
   def width: Int
   def protocol: OMProtocol
-  def idMap: Option[IdMap[_]]
+  def idMap: Option[IdMapSerial]
 }
 
 trait InboundPort extends OMPort
@@ -97,7 +97,7 @@ case class FrontPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMap[_]],
+  idMap: Option[IdMapSerial],
   _types: Seq[String] = Seq("FrontPort", "InboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends InboundPort
 
@@ -107,7 +107,7 @@ case class MemoryPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMap[_]],
+  idMap: Option[IdMapSerial],
   _types: Seq[String] = Seq("MemoryPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class PeripheralPort(
@@ -116,7 +116,7 @@ case class PeripheralPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMap[_]],
+  idMap: Option[IdMapSerial],
   _types: Seq[String] = Seq("PeripheralPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class SystemPort(
@@ -125,7 +125,7 @@ case class SystemPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMap[_]],
+  idMap: Option[IdMapSerial],
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
@@ -164,7 +164,7 @@ object OMPortMaker {
     subProtocol: SubProtocolType,
     version: String,
     beatBytes: Int,
-    idMap: Option[IdMap[_]]): OMPort = {
+    idMap: Option[IdMapSerial]): OMPort = {
     val documentationName = portNames(portType)
 
     val omProtocol = (protocol, subProtocol) match {
