@@ -43,14 +43,14 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
   } else {
-    Property(monitorDir, cond, message, PropertyClass.Default)
+    Property(dir = monitorDir, cond = cond, message = message, prop_type = PropertyClass.Default, idx = "", custom_name = message)
   }
 
   def assume(cond: Bool, message: String): Unit =
   if (monitorDir == MonitorDirection.Monitor) {
     assert(cond, message)
   } else {
-    Property(monitorDir.flip, cond, message, PropertyClass.Default)
+    Property(dir = monitorDir.flip, cond = cond, message = message, prop_type = PropertyClass.Default, idx = "", custom_name = message)
   }
 
   def extra = {
@@ -650,6 +650,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       a_sizes_set_interm := (bundle.a.bits.size << 1.U) | 1.U
       a_opcodes_set := (a_opcodes_set_interm) << (bundle.a.bits.source << log_a_opcode_bus_size.U)
       a_sizes_set := (a_sizes_set_interm) << (bundle.a.bits.source << log_a_size_bus_size.U)
+    }
+    when (bundle.a.valid && a_first && edge.isRequest(bundle.a.bits)) {
       monAssert(!inflight_tail(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
