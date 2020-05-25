@@ -735,7 +735,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
         if (args.edge.params(TLMonitorStrictMode)) {
           legalizeADSource(bundle, edge)
         } else {
-          legalizeADSourceOld(bundle, edge)
+          legalizeADSource(bundle, edge)
         }
       }
       if (args.edge.params(TestplanTestType).formal) {
