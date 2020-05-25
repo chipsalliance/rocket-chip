@@ -259,16 +259,17 @@ sealed trait LazyModuleImpLike extends RawModule {
   /** [[Parameters]] for chisel [[Module]]s. */
   implicit val p: Parameters = wrapper.p
 
-  /** [[instantiate]] will be called when a instance of [[LazyModuleImp]] is called. */
+  /** instantiate this [[LazyModule]],
+    * return [[AutoBundle]] and a unconnected [[Dangle]]s from this module and submodules. */
   protected[diplomacy] def instantiate(): (AutoBundle, List[Dangle]) = {
+    // 1. It will recursively append [[wrapper.children]] into [[chisel3.internal.Builder]],
+    // 2. After each appending elements from [[wrapper.children]],
+    //    [[BaseNode]] from [[LazyModule.nodes]] will be sealed by [[BaseNode.finishInstantiate]]
+    // 3. return [[Dangle]]s from each module.
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo: SourceInfo = c.info
-      // Calling [[c.module]] will push the real [[Module]] into [[chisel3.internal.Builder]].
-      //  Note: this place is not calling [[instantiate]], it is just pushing [[c.module]] to Builder.
       val mod = Module(c.module)
-      // Ask each child to finish instantiate.
       mod.finishInstantiate()
-      // Return [[Dangle]]s of each child.
       mod.dangles
     }
 
@@ -392,9 +393,11 @@ trait LazyScope {
   * It will instantiate a [[SimpleLazyModule]] to manage evaluation of `body` and evaluate `body` code snippets in this scope.
   */
 object LazyScope {
-  /** Create a [[LazyScope]] with name in its val name.
+  /** Create a [[LazyScope]].
     *
-    * @param body code need to be evaluated.
+    * @param body    code need to be evaluated.
+    * @param valName instance name of generated [[SimpleLazyModule]].
+    * @param p       [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
     val scope = LazyModule(new SimpleLazyModule with LazyScope)
