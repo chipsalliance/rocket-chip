@@ -409,7 +409,7 @@ object LazyScope {
   /** Create a [[LazyScope]] with a self defined name.
     *
     * @param name set valName of [[SimpleLazyModule]] created by this.
-    * @param body code need to be evaluated.
+    * @param body code to be evaluated within the created `SimpleLazyModule`
     */
   def apply[T](name: String)(body: => T)(implicit p: Parameters): T = {
     apply(body)(ValName(name), p)
