@@ -101,21 +101,13 @@ object OMIDMapEntry {
   }
 }
 
-class OMIDMap (val mapping: Seq[OMIDMapEntry],
-               val _types: Seq[String] = Seq("OMIDMap", "OMCompoundType"))
-object OMIDMap {
-  def apply[T <: IdMapEntry](i: IdMap[T]): OMIDMap = {
-    new OMIDMap((i.mapping).map(OMIDMapEntry(_)))
-  }
-}
-
 trait OMPort extends OMDevice {
   memoryRegions: Seq[OMMemoryRegion]
   interrupts: Seq[OMInterrupt]
   def signalNamePrefix: String
   def width: Int
   def protocol: OMProtocol
-  def idMap: OMIDMap
+  def idMap: Seq[OMIDMapEntry]
 }
 
 trait InboundPort extends OMPort
@@ -127,7 +119,7 @@ case class FrontPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: OMIDMap,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("FrontPort", "InboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends InboundPort
 
@@ -137,7 +129,7 @@ case class MemoryPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: OMIDMap,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("MemoryPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class PeripheralPort(
@@ -146,7 +138,7 @@ case class PeripheralPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: OMIDMap,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("PeripheralPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class SystemPort(
@@ -155,7 +147,7 @@ case class SystemPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: OMIDMap,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
@@ -194,7 +186,7 @@ object OMPortMaker {
     subProtocol: SubProtocolType,
     version: String,
     beatBytes: Int,
-    idMap: OMIDMap): OMPort = {
+    idMap: Seq[OMIDMapEntry]): OMPort = {
     val documentationName = portNames(portType)
 
     val omProtocol = (protocol, subProtocol) match {
