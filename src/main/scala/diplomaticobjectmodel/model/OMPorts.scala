@@ -83,6 +83,7 @@ case class TL_C(
 class OMIDRange (val start: Int,
                  val end: Int,
                  val _types: Seq[String] = Seq("OMIDRange", "OMCompundType"))
+
 object OMIDRange {
   def apply(i: IdRange): OMIDRange = {
     new OMIDRange(i.start, i.end)
@@ -95,6 +96,7 @@ class OMIDMapEntry(val name: String,
                    val isCache: Boolean,
                    val requestFifo: Boolean,
                    val _types: Seq[String] = Seq("OMIDMapEntry", "OMCompoundType"))
+
 object OMIDMapEntry {
   def apply[T <: IdMapEntry](i: T): OMIDMapEntry = {
     new OMIDMapEntry(i.name, OMIDRange(i.from), OMIDRange(i.to), i.isCache, i.requestFifo)
