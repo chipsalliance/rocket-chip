@@ -175,6 +175,40 @@ class PLRUTest(n_ways: Int, timeout: Int = 500) extends UnitTest(timeout) {
       assert(get_next_states(7)(2) === UInt(6, width=n_ways-1), s"get_next_state state=7 way=2: expected=6 actual=%d", get_next_states(7)(2))
       assert(get_next_states(7)(3) === UInt(2, width=n_ways-1), s"get_next_state state=7 way=3: expected=2 actual=%d", get_next_states(7)(3))
     }
+    case 6 => {
+      assert(get_replace_ways( 0) === UInt(0, width=log2Ceil(n_ways)), s"get_replace_way state=00: expected=0 actual=%d", get_replace_ways( 0))
+      assert(get_replace_ways( 1) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=01: expected=4 actual=%d", get_replace_ways( 1))
+      assert(get_replace_ways( 2) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=02: expected=2 actual=%d", get_replace_ways( 2))
+      assert(get_replace_ways( 3) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=03: expected=4 actual=%d", get_replace_ways( 3))
+      assert(get_replace_ways( 4) === UInt(0, width=log2Ceil(n_ways)), s"get_replace_way state=04: expected=0 actual=%d", get_replace_ways( 4))
+      assert(get_replace_ways( 5) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=05: expected=4 actual=%d", get_replace_ways( 5))
+      assert(get_replace_ways( 6) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=06: expected=2 actual=%d", get_replace_ways( 6))
+      assert(get_replace_ways( 7) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=07: expected=4 actual=%d", get_replace_ways( 7))
+      assert(get_replace_ways( 8) === UInt(1, width=log2Ceil(n_ways)), s"get_replace_way state=08: expected=1 actual=%d", get_replace_ways( 8))
+      assert(get_replace_ways( 9) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=09: expected=4 actual=%d", get_replace_ways( 9))
+      assert(get_replace_ways(10) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=10: expected=2 actual=%d", get_replace_ways(10))
+      assert(get_replace_ways(11) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=11: expected=4 actual=%d", get_replace_ways(11))
+      assert(get_replace_ways(12) === UInt(1, width=log2Ceil(n_ways)), s"get_replace_way state=12: expected=1 actual=%d", get_replace_ways(12))
+      assert(get_replace_ways(13) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=13: expected=4 actual=%d", get_replace_ways(13))
+      assert(get_replace_ways(14) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=14: expected=2 actual=%d", get_replace_ways(14))//3
+      assert(get_replace_ways(15) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=15: expected=4 actual=%d", get_replace_ways(15))
+      assert(get_replace_ways(16) === UInt(0, width=log2Ceil(n_ways)), s"get_replace_way state=16: expected=0 actual=%d", get_replace_ways(16))
+      assert(get_replace_ways(17) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=17: expected=4 actual=%d", get_replace_ways(17))//5
+      assert(get_replace_ways(18) === UInt(3, width=log2Ceil(n_ways)), s"get_replace_way state=18: expected=3 actual=%d", get_replace_ways(18))//2
+      assert(get_replace_ways(19) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=19: expected=4 actual=%d", get_replace_ways(19))//5
+      assert(get_replace_ways(20) === UInt(0, width=log2Ceil(n_ways)), s"get_replace_way state=20: expected=0 actual=%d", get_replace_ways(20))
+      assert(get_replace_ways(21) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=21: expected=4 actual=%d", get_replace_ways(21))
+      assert(get_replace_ways(22) === UInt(3, width=log2Ceil(n_ways)), s"get_replace_way state=22: expected=3 actual=%d", get_replace_ways(22))//2
+      assert(get_replace_ways(23) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=23: expected=4 actual=%d", get_replace_ways(23))//5
+      assert(get_replace_ways(24) === UInt(1, width=log2Ceil(n_ways)), s"get_replace_way state=24: expected=1 actual=%d", get_replace_ways(24))
+      assert(get_replace_ways(25) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=25: expected=4 actual=%d", get_replace_ways(25))//5
+      assert(get_replace_ways(26) === UInt(3, width=log2Ceil(n_ways)), s"get_replace_way state=26: expected=3 actual=%d", get_replace_ways(26))//2
+      assert(get_replace_ways(27) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=27: expected=4 actual=%d", get_replace_ways(27))//5
+      assert(get_replace_ways(28) === UInt(1, width=log2Ceil(n_ways)), s"get_replace_way state=28: expected=1 actual=%d", get_replace_ways(28))
+      assert(get_replace_ways(29) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=29: expected=4 actual=%d", get_replace_ways(29))//5
+      assert(get_replace_ways(30) === UInt(3, width=log2Ceil(n_ways)), s"get_replace_way state=30: expected=3 actual=%d", get_replace_ways(30))//2
+      assert(get_replace_ways(31) === UInt(4, width=log2Ceil(n_ways)), s"get_replace_way state=31: expected=4 actual=%d", get_replace_ways(31))//5
+    }
     case _ => throw new IllegalArgumentException(s"no test pattern found for n_ways=$n_ways")
   }
 }
