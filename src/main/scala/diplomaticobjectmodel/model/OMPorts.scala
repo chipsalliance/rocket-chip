@@ -80,32 +80,32 @@ case class TL_C(
 ) extends TL
 
 
-class IdRangeSerial (val start: Int,
-                     val end: Int,
-                     val _types: Seq[String] = Seq("IdRangeSerial", "OMCompundType"))
-object IdRangeSerial {
-  def apply(i: IdRange): IdRangeSerial = {
-    new IdRangeSerial(i.start, i.end)
+class OMIDRange (val start: Int,
+                 val end: Int,
+                 val _types: Seq[String] = Seq("OMIDRange", "OMCompundType"))
+object OMIDRange {
+  def apply(i: IdRange): OMIDRange = {
+    new OMIDRange(i.start, i.end)
   }
 }
 
-class IdMapEntrySerial (val name: String,
-                        val from: IdRangeSerial,
-                        val to: IdRangeSerial,
-                        val isCache: Boolean,
-                        val requestFifo: Boolean,
-                        val _types: Seq[String] = Seq("IdMapEntrySerial", "OMCompoundType"))
-object IdMapEntrySerial {
-  def apply[T <: IdMapEntry](i: T): IdMapEntrySerial = {
-    new IdMapEntrySerial(i.name, IdRangeSerial(i.from), IdRangeSerial(i.to), i.isCache, i.requestFifo)
+class OMIDMapEntry(val name: String,
+                   val from: OMIDRange,
+                   val to: OMIDRange,
+                   val isCache: Boolean,
+                   val requestFifo: Boolean,
+                   val _types: Seq[String] = Seq("OMIDMapEntry", "OMCompoundType"))
+object OMIDMapEntry {
+  def apply[T <: IdMapEntry](i: T): OMIDMapEntry = {
+    new OMIDMapEntry(i.name, OMIDRange(i.from), OMIDRange(i.to), i.isCache, i.requestFifo)
   }
 }
 
-class IdMapSerial (val mapping: Seq[IdMapEntrySerial],
-                   val _types: Seq[String] = Seq("IdMapSerial", "OMCompoundType"))
-object IdMapSerial {
-  def apply[T <: IdMapEntry](i: IdMap[T]): IdMapSerial = {
-    new IdMapSerial((i.mapping).map(IdMapEntrySerial(_)))
+class OMIDMap (val mapping: Seq[OMIDMapEntry],
+               val _types: Seq[String] = Seq("OMIDMap", "OMCompoundType"))
+object OMIDMap {
+  def apply[T <: IdMapEntry](i: IdMap[T]): OMIDMap = {
+    new OMIDMap((i.mapping).map(OMIDMapEntry(_)))
   }
 }
 
@@ -115,7 +115,7 @@ trait OMPort extends OMDevice {
   def signalNamePrefix: String
   def width: Int
   def protocol: OMProtocol
-  def idMap: Option[IdMapSerial]
+  def idMap: OMIDMap
 }
 
 trait InboundPort extends OMPort
@@ -127,7 +127,7 @@ case class FrontPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMapSerial],
+  idMap: OMIDMap,
   _types: Seq[String] = Seq("FrontPort", "InboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends InboundPort
 
@@ -137,7 +137,7 @@ case class MemoryPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMapSerial],
+  idMap: OMIDMap,
   _types: Seq[String] = Seq("MemoryPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class PeripheralPort(
@@ -146,7 +146,7 @@ case class PeripheralPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMapSerial],
+  idMap: OMIDMap,
   _types: Seq[String] = Seq("PeripheralPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class SystemPort(
@@ -155,7 +155,7 @@ case class SystemPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
-  idMap: Option[IdMapSerial],
+  idMap: OMIDMap,
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
@@ -194,7 +194,7 @@ object OMPortMaker {
     subProtocol: SubProtocolType,
     version: String,
     beatBytes: Int,
-    idMap: Option[IdMapSerial]): OMPort = {
+    idMap: OMIDMap): OMPort = {
     val documentationName = portNames(portType)
 
     val omProtocol = (protocol, subProtocol) match {
