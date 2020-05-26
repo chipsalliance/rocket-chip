@@ -342,4 +342,3 @@ abstract class IdMap[T <: IdMapEntry] {
   val mapping: Seq[T]
   def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }
-
