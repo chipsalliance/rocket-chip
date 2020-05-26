@@ -125,6 +125,7 @@ class WithPLRUTests extends Config((site, here, up) => {
   case UnitTests => (q: Parameters) => {
     Seq(
       Module(new PLRUTest(2)),
+      Module(new PLRUTest(3)),
       Module(new PLRUTest(4)))}})
 
 class WithPowerQueueTests extends Config((site, here, up) => {

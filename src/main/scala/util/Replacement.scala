@@ -115,6 +115,24 @@ class PLRUTest(n_ways: Int, timeout: Int = 500) extends UnitTest(timeout) {
       assert(get_next_states(1)(0) === UInt(1, width=n_ways-1), s"get_next_state state=1 way=0: expected=1 actual=%d", get_next_states(1)(0))
       assert(get_next_states(1)(1) === UInt(0, width=n_ways-1), s"get_next_state state=1 way=1: expected=0 actual=%d", get_next_states(1)(1))
     }
+    case 3 => {
+      assert(get_replace_ways(0) === UInt(0, width=log2Ceil(n_ways)), s"get_replace_way state=0: expected=0 actual=%d", get_replace_ways(0))
+      assert(get_replace_ways(1) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=1: expected=2 actual=%d", get_replace_ways(1))
+      assert(get_replace_ways(2) === UInt(1, width=log2Ceil(n_ways)), s"get_replace_way state=2: expected=1 actual=%d", get_replace_ways(2))
+      assert(get_replace_ways(3) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=3: expected=2 actual=%d", get_replace_ways(3))
+      assert(get_next_states(0)(0) === UInt(3, width=n_ways-1), s"get_next_state state=0 way=0: expected=3 actual=%d", get_next_states(0)(0))
+      assert(get_next_states(0)(1) === UInt(1, width=n_ways-1), s"get_next_state state=0 way=1: expected=1 actual=%d", get_next_states(0)(1))
+      assert(get_next_states(0)(2) === UInt(0, width=n_ways-1), s"get_next_state state=0 way=2: expected=0 actual=%d", get_next_states(0)(2))
+      assert(get_next_states(1)(0) === UInt(3, width=n_ways-1), s"get_next_state state=1 way=0: expected=3 actual=%d", get_next_states(1)(0))
+      assert(get_next_states(1)(1) === UInt(1, width=n_ways-1), s"get_next_state state=1 way=1: expected=1 actual=%d", get_next_states(1)(1))
+      assert(get_next_states(1)(2) === UInt(0, width=n_ways-1), s"get_next_state state=1 way=2: expected=0 actual=%d", get_next_states(1)(2))
+      assert(get_next_states(2)(0) === UInt(3, width=n_ways-1), s"get_next_state state=2 way=0: expected=3 actual=%d", get_next_states(2)(0))
+      assert(get_next_states(2)(1) === UInt(1, width=n_ways-1), s"get_next_state state=2 way=1: expected=1 actual=%d", get_next_states(2)(1))
+      assert(get_next_states(2)(2) === UInt(2, width=n_ways-1), s"get_next_state state=2 way=2: expected=2 actual=%d", get_next_states(2)(2))
+      assert(get_next_states(3)(0) === UInt(3, width=n_ways-1), s"get_next_state state=3 way=0: expected=3 actual=%d", get_next_states(3)(0))
+      assert(get_next_states(3)(1) === UInt(1, width=n_ways-1), s"get_next_state state=3 way=1: expected=1 actual=%d", get_next_states(3)(1))
+      assert(get_next_states(3)(2) === UInt(2, width=n_ways-1), s"get_next_state state=3 way=2: expected=2 actual=%d", get_next_states(3)(2))
+    }
     case 4 => {
       assert(get_replace_ways(0) === UInt(0, width=log2Ceil(n_ways)), s"get_replace_way state=0: expected=0 actual=%d", get_replace_ways(0))
       assert(get_replace_ways(1) === UInt(2, width=log2Ceil(n_ways)), s"get_replace_way state=1: expected=2 actual=%d", get_replace_ways(1))
