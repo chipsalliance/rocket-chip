@@ -18,7 +18,7 @@ final case class HeterogeneousBag[T <: Data](elts: Seq[T], eltNames: Option[Seq[
 
   private def nameFromIndex(i: Int): String = eltNames.map(_(i)).getOrElse(i.toString)
 
-  private def nameToElts: Map[String, T] = ListMap(elts.zipWithIndex.map { case (elt, i) =>
+  private val nameToElts: Map[String, T] = ListMap(elts.zipWithIndex.map { case (elt, i) =>
     val name = nameFromIndex(i)
     name -> elt
   }:_*)
