@@ -73,7 +73,7 @@ object ClockSourceNode
 object ClockGroupImp extends SimpleNodeImp[ClockGroupSourceParameters, ClockGroupSinkParameters, ClockGroupEdgeParameters, ClockGroupBundle]
 {
   def edge(pd: ClockGroupSourceParameters, pu: ClockGroupSinkParameters, p: Parameters, sourceInfo: SourceInfo) = ClockGroupEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: ClockGroupEdgeParameters) = new ClockGroupBundle(e.bundle)
+  def bundle(e: ClockGroupEdgeParameters) = new ClockGroupBundle(e.bundle, Some(e.bundle.members.zipWithIndex.map{ case (_, i) => s"${e.sink.name}_${i}"}))
   def render(e: ClockGroupEdgeParameters) = RenderedEdge(colour = "#00cc00" /* green */)
 }
 

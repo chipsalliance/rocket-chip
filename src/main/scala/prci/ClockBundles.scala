@@ -10,7 +10,7 @@ class ClockBundle(val params: ClockBundleParameters) extends Bundle
   val reset = Reset()
 }
 
-class ClockGroupBundle(val params: ClockGroupBundleParameters) extends Bundle
+class ClockGroupBundle(val params: ClockGroupBundleParameters, val names: Option[Seq[String]] = None) extends Bundle
 {
-  val member = HeterogeneousBag(params.members.map(p => new ClockBundle(p)))
+  val member = HeterogeneousBag(params.members.map(p => new ClockBundle(p)), names)
 }
