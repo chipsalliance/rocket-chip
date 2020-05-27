@@ -277,7 +277,7 @@ ifdef SEED
 SEED_ARG = --seed $(SEED)
 endif
 
-JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
+JTAG_DTM_SIM_ARGS = +jtag_rbb_enable=1 $(SEED_ARG)
 
 stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) PATH="$(abspath $(RISCV)/bin:$(PATH))" $(GDBSERVER) \
