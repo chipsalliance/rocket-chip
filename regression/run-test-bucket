@@ -28,7 +28,9 @@ if [[ ${TRAVIS:-false} == true ]]; then
   . "${regression_dir}/travis_setup_env.bash"
   . "${regression_dir}/travis_jigger.bash"
   . "${regression_dir}/travis_wait.bash"
+  set +u
   travis_setup_env
+  set -u
 else
   # If not running on Travis CI, Stub out the travis_wait to be a no-op, since
   # it's unnecessary and it has some undesirable side effects such as hiding
