@@ -9,6 +9,15 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
+case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
+  extends IdMapEntry
+{
+  val from = axi4Id
+  val to = tlId
+  val isCache = false
+  val requestFifo = false
+}
+
 case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
   dFn = { case mp =>
     mp.masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
