@@ -19,7 +19,7 @@ abstract class ReplacementPolicy {
 object ReplacementPolicy {
   def fromString(s: String, ways: Int): ReplacementPolicy = s.toLowerCase match {
     case "random" => new RandomReplacement(ways)
-    //TODO case "lru"    => new TrueLRU(ways)
+    case "lru"    => new TrueLRU(ways)
     case "plru"   => new PseudoLRU(ways)
     case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
   }
@@ -50,6 +50,68 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
     when (valid && !hit) { logic.miss }
   }
   def way = logic.way
+}
+
+class TrueLRU(n_ways: Int) extends ReplacementPolicy {
+  // True LRU replacement policy, using a triangular matrix to track which sets are more recently used than others.
+  // The matrix is packed into a single UInt (or Bits).  Example 4-way (6-bits):
+  // [5] - 3 more recent than 2
+  // [4] - 3 more recent than 1
+  // [3] - 2 more recent than 1
+  // [2] - 3 more recent than 0
+  // [1] - 2 more recent than 0
+  // [0] - 1 more recent than 0
+  private val state_reg = RegInit(0.U(((n_ways*(n_ways-1))/2).W))
+
+  private def extractMRUVec(state: Bits): Seq[UInt] = {
+    // Extract per-way information about which higher-indexed ways are more recently used
+    val moreRecentVec = Wire(Vec(n_ways-1, UInt(n_ways.W)))
+    var lsb = 0
+    for (i <- 0 until n_ways-1) {
+      moreRecentVec(i) := Cat(state(lsb+n_ways-i-2,lsb), 0.U((i+1).W))
+      lsb = lsb + (n_ways - i - 1)
+    }
+    moreRecentVec
+  }
+
+  def get_next_state(state: Bits, way: UInt): UInt = {
+    val nextState     = Wire(Vec(n_ways-1, UInt(n_ways.W)))
+    val moreRecentVec = extractMRUVec(state)  // reconstruct lower triangular matrix
+    val wayDec        = UIntToOH(way, n_ways)
+
+    // Compute next value of triangular matrix
+    // set the referenced way as more recent than every other way
+    nextState.zipWithIndex.map { case (e, i) =>
+      e := Mux(i.U === way, 0.U(n_ways.W), moreRecentVec(i) | wayDec)
+    }
+
+    nextState.zipWithIndex.tail.foldLeft((nextState.head.apply(n_ways-1,1),0)) { case ((pe,pi),(ce,ci)) => (Cat(ce.apply(n_ways-1,ci+1), pe), ci) }._1
+  }
+
+  def access(way: UInt) {
+    state_reg := get_next_state(state_reg, way)
+  }
+  def access(ways: Seq[Valid[UInt]]) {
+    state_reg := ways.foldLeft(state_reg)((prev, way) => Mux(way.valid, get_next_state(prev, way.bits), prev))
+    for (i <- 1 until ways.size) {
+      cover(PopCount(ways.map(_.valid)) === i.U, s"LRU_UpdateCount$i", s"LRU Update $i simultaneous")
+    }
+  }
+
+  def get_replace_way(state: Bits): UInt = {
+    val moreRecentVec = extractMRUVec(state)  // reconstruct lower triangular matrix
+    // For each way, determine if all other ways are more recent
+    val mruWayDec     = (0 until n_ways).map { i =>
+      val upperMoreRecent = (if (i == n_ways-1) true.B else moreRecentVec(i).apply(n_ways-1,i+1).andR)
+      val lowerMoreRecent = (if (i == 0)        true.B else moreRecentVec.map(e => !e(i)).reduce(_ && _))
+      upperMoreRecent && lowerMoreRecent
+    }
+    OHToUInt(mruWayDec)
+  }
+
+  def way = get_replace_way(state_reg)
+  def miss = access(way)
+  def hit = {}
 }
 
 class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
