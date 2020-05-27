@@ -305,10 +305,10 @@ final class LintConflictingModuleNames extends LintRule {
     }
 
     require(conflictingDesiredNames.size == 0, {
-      val expanation = conflictingDesiredNames.map {
+      val explanation = conflictingDesiredNames.map {
         case (modName, desiredNames) => s"  ${modName}: ${desiredNames.mkString(", ")}"
       }.mkString("\n")
-      s"Modules may not have more than one desiredName:\n${expanation}"
+      s"Modules may not have more than one desiredName:\n${explanation}"
     })
 
     val nameMappings = nameMap.map { case (desiredName, modules) =>
