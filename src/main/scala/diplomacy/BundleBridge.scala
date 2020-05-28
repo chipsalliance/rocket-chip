@@ -43,18 +43,20 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
 case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
 case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
 
-case class BundleBridgeNexus[T <: Data]()(implicit valName: ValName) extends NexusNode(new BundleBridgeImp[T])(
-  dFn = seq => seq.head,
+case class BundleBridgeNexus[T <: Data](default: Option[()=>T] = None)(implicit valName: ValName) extends NexusNode(new BundleBridgeImp[T])(
+  dFn = seq => seq.headOption.orElse(default.map(BundleBridgeParams(_))).get,
   uFn = _ => BundleBridgeNull(),
-  inputRequiresOutput = false)
+  inputRequiresOutput = false,
+  outputRequiresInput = !default.isDefined)
 
 class BundleBroadcast[T <: Data](registered: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
   val node = BundleBridgeNexus[T]()
 
   lazy val module = new LazyModuleImp(this) {
-    require (node.in.size == 1)
-    val (in, _) = node.in.head
+    require (node.in.size <= 1)
+    val default: Option[T] = node.default.map(_())
+    val in: T = node.in.map(_._1).headOption.orElse(default).get
     def getElements(x: Data): Seq[Element] = x match {
       case e: Element => Seq(e)
       case a: Aggregate => a.getElements.flatMap(getElements)
