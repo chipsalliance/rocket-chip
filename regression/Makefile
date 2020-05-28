@@ -61,7 +61,7 @@ endif
 
 ifeq ($(SUITE),UnittestSuite)
 PROJECT=freechips.rocketchip.unittest
-CONFIGS=$(PROJECT).AMBAUnitTestConfig $(PROJECT).TLSimpleUnitTestConfig $(PROJECT).TLWidthUnitTestConfig $(PROJECT).PLRUUnitTestConfig $(PROJECT).PowerQueueTestConfig
+CONFIGS=$(PROJECT).AMBAUnitTestConfig $(PROJECT).TLSimpleUnitTestConfig $(PROJECT).TLWidthUnitTestConfig $(PROJECT).PowerQueueTestConfig
 endif
 
 ifeq ($(SUITE), JtagDtmSuite)
