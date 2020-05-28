@@ -101,6 +101,7 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
           q.deq.ready := s && in.r.fire()
         }
 
+        val enq_OH_bools = enq_OH.asBools
         require(enq_OH_bools.size == qs.size, s"enq_OH.size != qs.size (${enq_OH_bools.size} vs ${qs.size})")
         // Feed response into matching Q
         val enq_readys = VecInit(qs.map(_.enq.ready))
