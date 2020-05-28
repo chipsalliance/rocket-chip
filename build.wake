@@ -121,7 +121,7 @@ global def runRocketChipGenerator options =
     def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
       Some name = "--name", name, Nil
       None = Nil
-    which "java", "-cp", classpath, main,
+    "java", "-cp", classpath, main,
     "--target-dir", relTargetDir,
     "--top-module", topModule,
     "--configs", configs,
@@ -134,6 +134,7 @@ global def runRocketChipGenerator options =
 
   def generatorJob =
     makePlan cmdline inputs
+    | setPlanResources ("openjdk/java/1.8.0", Nil)
     | setPlanDirectory runDir
     | runJob
 

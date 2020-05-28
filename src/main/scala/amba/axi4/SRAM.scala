@@ -38,7 +38,7 @@ class AXI4RAM(
 
   lazy val module = new LazyModuleImp(this) {
     val (in, edgeIn) = node.in(0)
-    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = 1L << mask.filter(b=>b).size)
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = BigInt(1) << mask.filter(b=>b).size)
 
     parentLogicalTreeNode.map {
       case parentLTN =>

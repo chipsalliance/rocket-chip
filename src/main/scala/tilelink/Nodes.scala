@@ -72,6 +72,12 @@ case class TLAdapterNodeAndNotCancel(
   implicit valName: ValName)
   extends MixedAdapterNode(TLImp_ACancel, TLImp)(clientFn, managerFn) with TLFormatNode
 
+case class TLAdapterNode_ACancel(
+  clientFn:  TLMasterPortParameters => TLMasterPortParameters = { s => s },
+  managerFn: TLSlavePortParameters  => TLSlavePortParameters  = { s => s })(
+  implicit valName: ValName)
+  extends AdapterNode(TLImp_ACancel)(clientFn, managerFn) with TLFormatNode
+
 case class TLJunctionNode(
   clientFn:     Seq[TLMasterPortParameters] => Seq[TLMasterPortParameters],
   managerFn:    Seq[TLSlavePortParameters]  => Seq[TLSlavePortParameters])(
