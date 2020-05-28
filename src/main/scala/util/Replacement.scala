@@ -152,7 +152,7 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
 
   def get_next_state(state: UInt, way: UInt, this_ways: Int): UInt = {
     require(state.getWidth == (this_ways-1), s"wrong state bits width ${state.getWidth} for $this_ways ways")
-    require(way.getWidth == log2Ceil(this_ways), s"wrong encoded way width ${way.getWidth} for $this_ways ways")
+    require(way.getWidth == (log2Ceil(this_ways) max 1), s"wrong encoded way width ${way.getWidth} for $this_ways ways")
     if (this_ways > 2) {
       val half_ways: Int = 1 << (log2Ceil(this_ways) - 1)
       if (this_ways > 3) {
@@ -169,8 +169,10 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
                 state(half_ways-2,0),
                 get_next_state(state(half_ways-2,0), way(log2Ceil(half_ways)-1,0), half_ways)))
       }
-    } else {  // this_ways <= 2
+    } else if (this_ways == 2) {
       !way(0)
+    } else {  // this_ways <= 1
+      0.U(1.W)
     }
   }
   def get_next_state(state: UInt, way: UInt): UInt = get_next_state(state, way, n_ways)
@@ -183,8 +185,10 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
           Mux(state(this_ways-2),
               if (this_ways > 3) get_replace_way(state(this_ways-3,half_ways-1), this_ways-half_ways) else 0.U((log2Ceil(this_ways)-1).W),
               get_replace_way(state(half_ways-2,0), half_ways)))
-    } else {  // this_ways <= 2
+    } else if (this_ways == 2) {
       state(0)
+    } else {  // this_ways <= 1
+      0.U(1.W)
     }
   }
   def get_replace_way(state: UInt): UInt = get_replace_way(state, n_ways)
