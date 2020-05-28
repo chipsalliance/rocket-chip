@@ -12,7 +12,7 @@ import freechips.rocketchip.util.{ElaborationArtefacts, HasRocketChipStageUtils}
 /** Writes [[ElaborationArtefacts]] into files */
 class GenerateArtefacts extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(Dependency[Checks], Dependency[Elaborate])
+  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir
