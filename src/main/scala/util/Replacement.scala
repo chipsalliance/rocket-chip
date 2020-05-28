@@ -13,38 +13,38 @@ abstract class ReplacementPolicy {
   def way: UInt
   def miss: Unit
   def hit: Unit
-  def access(way: UInt): Unit
-  def access(ways: Seq[Valid[UInt]]): Unit
+  def access(touch_way: UInt): Unit
+  def access(touch_ways: Seq[Valid[UInt]]): Unit
   def state_read: UInt
-  def get_next_state(state: UInt, way: UInt): UInt
-  def get_next_state(state: UInt, ways: Seq[Valid[UInt]]): UInt = {
-    ways.foldLeft(state)((prev, way) => Mux(way.valid, get_next_state(prev, way.bits), prev))
+  def get_next_state(state: UInt, touch_way: UInt): UInt
+  def get_next_state(state: UInt, touch_ways: Seq[Valid[UInt]]): UInt = {
+    touch_ways.foldLeft(state)((prev, touch_way) => Mux(touch_way.valid, get_next_state(prev, touch_way.bits), prev))
   }
   def get_replace_way(state: UInt): UInt
 }
 
 object ReplacementPolicy {
-  def fromString(s: String, ways: Int): ReplacementPolicy = s.toLowerCase match {
-    case "random" => new RandomReplacement(ways)
-    case "lru"    => new TrueLRU(ways)
-    case "plru"   => new PseudoLRU(ways)
+  def fromString(s: String, n_ways: Int): ReplacementPolicy = s.toLowerCase match {
+    case "random" => new RandomReplacement(n_ways)
+    case "lru"    => new TrueLRU(n_ways)
+    case "plru"   => new PseudoLRU(n_ways)
     case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
   }
 }
 
-class RandomReplacement(ways: Int) extends ReplacementPolicy {
+class RandomReplacement(n_ways: Int) extends ReplacementPolicy {
   private val replace = Wire(Bool())
   replace := false.B
   def nBits = 16
   private val lfsr = LFSR(nBits, replace)
   def state_read = WireDefault(lfsr)
 
-  def way = Random(ways, lfsr)
+  def way = Random(n_ways, lfsr)
   def miss = replace := true.B
   def hit = {}
-  def access(way: UInt) = {}
-  def access(ways: Seq[Valid[UInt]]) = {}
-  def get_next_state(state: UInt, way: UInt) = 0.U //DontCare
+  def access(touch_way: UInt) = {}
+  def access(touch_ways: Seq[Valid[UInt]]) = {}
+  def get_next_state(state: UInt, touch_way: UInt) = 0.U //DontCare
   def get_replace_way(state: UInt) = way
 }
 
@@ -87,29 +87,29 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
     moreRecentVec
   }
 
-  def get_next_state(state: UInt, way: UInt): UInt = {
+  def get_next_state(state: UInt, touch_way: UInt): UInt = {
     val nextState     = Wire(Vec(n_ways-1, UInt(n_ways.W)))
     val moreRecentVec = extractMRUVec(state)  // reconstruct lower triangular matrix
-    val wayDec        = UIntToOH(way, n_ways)
+    val wayDec        = UIntToOH(touch_way, n_ways)
 
     // Compute next value of triangular matrix
-    // set the referenced way as more recent than every other way
+    // set the touched way as more recent than every other way
     nextState.zipWithIndex.map { case (e, i) =>
-      e := Mux(i.U === way, 0.U(n_ways.W), moreRecentVec(i) | wayDec)
+      e := Mux(i.U === touch_way, 0.U(n_ways.W), moreRecentVec(i) | wayDec)
     }
 
     nextState.zipWithIndex.tail.foldLeft((nextState.head.apply(n_ways-1,1),0)) { case ((pe,pi),(ce,ci)) => (Cat(ce.apply(n_ways-1,ci+1), pe), ci) }._1
   }
 
-  def access(way: UInt) {
-    state_reg := get_next_state(state_reg, way)
+  def access(touch_way: UInt) {
+    state_reg := get_next_state(state_reg, touch_way)
   }
-  def access(ways: Seq[Valid[UInt]]) {
-    when (ways.map(_.valid).orR) {
-      state_reg := get_next_state(state_reg, ways)
+  def access(touch_ways: Seq[Valid[UInt]]) {
+    when (touch_ways.map(_.valid).orR) {
+      state_reg := get_next_state(state_reg, touch_ways)
     }
-    for (i <- 1 until ways.size) {
-      cover(PopCount(ways.map(_.valid)) === i.U, s"LRU_UpdateCount$i", s"LRU Update $i simultaneous")
+    for (i <- 1 until touch_ways.size) {
+      cover(PopCount(touch_ways.map(_.valid)) === i.U, s"LRU_UpdateCount$i", s"LRU Update $i simultaneous")
     }
   }
 
@@ -130,67 +130,134 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
 }
 
 class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
-  //example bits storage format for 4-way PLRU:
-  // [2] = ways 3-2 older than ways 1-0
-  // [1] = way 3 older than way 2
-  // [0] = way 1 older than way 0
+  // Pseudo-LRU tree algorithm: https://en.wikipedia.org/wiki/Pseudo-LRU#Tree-PLRU
+  //
+  //
+  // - bits storage example for 4-way PLRU binary tree:
+  //                  bit[2]: ways 3+2 older than ways 1+0
+  //                  /                                  \
+  //     bit[1]: way 3 older than way 2    bit[0]: way 1 older than way 0
+  //
+  //
+  // - bits storage example for 3-way PLRU binary tree:
+  //                  bit[1]: way 2 older than ways 1+0
+  //                                                  \
+  //                                       bit[0]: way 1 older than way 0
+  //
+  //
+  // - bits storage example for 8-way PLRU binary tree:
+  //                      bit[6]: ways 7-4 older than ways 3-0
+  //                      /                                  \
+  //            bit[5]: ways 7+6 > 5+4                bit[2]: ways 3+2 > 1+0
+  //            /                    \                /                    \
+  //     bit[4]: way 7>6    bit[3]: way 5>4    bit[1]: way 3>2    bit[0]: way 1>0
+
   def nBits = n_ways - 1
   private val state_reg = Reg(UInt(nBits.W))
   def state_read = WireDefault(state_reg)
 
-  def access(way: UInt) {
-    state_reg := get_next_state(state_reg, way)
+  def access(touch_way: UInt) {
+    state_reg := get_next_state(state_reg, touch_way)
   }
-  def access(ways: Seq[Valid[UInt]]) {
-    when (ways.map(_.valid).orR) {
-      state_reg := get_next_state(state_reg, ways)
+  def access(touch_ways: Seq[Valid[UInt]]) {
+    when (touch_ways.map(_.valid).orR) {
+      state_reg := get_next_state(state_reg, touch_ways)
     }
-    for (i <- 1 until ways.size) {
-      cover(PopCount(ways.map(_.valid)) === i.U, s"PLRU_UpdateCount$i", s"PLRU Update $i simultaneous")
+    for (i <- 1 until touch_ways.size) {
+      cover(PopCount(touch_ways.map(_.valid)) === i.U, s"PLRU_UpdateCount$i", s"PLRU Update $i simultaneous")
     }
   }
 
-  def get_next_state(state: UInt, way: UInt, this_ways: Int): UInt = {
-    require(state.getWidth == (this_ways-1), s"wrong state bits width ${state.getWidth} for $this_ways ways")
-    require(way.getWidth == (log2Ceil(this_ways) max 1), s"wrong encoded way width ${way.getWidth} for $this_ways ways")
-    if (this_ways > 2) {
-      val half_ways: Int = 1 << (log2Ceil(this_ways) - 1)
-      if (this_ways > 3) {
-        Cat(!way(log2Ceil(this_ways)-1),
-            Mux(way(log2Ceil(this_ways)-1),
-                get_next_state(state(this_ways-3,half_ways-1), way(log2Ceil(this_ways-half_ways)-1,0), this_ways-half_ways),
-                state(this_ways-3,half_ways-1)),
-            Mux(way(log2Ceil(this_ways)-1),
-                state(half_ways-2,0),
-                get_next_state(state(half_ways-2,0), way(log2Ceil(half_ways)-1,0), half_ways)))
-      } else {  // this_ways == 3
-        Cat(!way(log2Ceil(this_ways)-1),
-            Mux(way(log2Ceil(this_ways)-1),
-                state(half_ways-2,0),
-                get_next_state(state(half_ways-2,0), way(log2Ceil(half_ways)-1,0), half_ways)))
-      }
-    } else if (this_ways == 2) {
-      !way(0)
-    } else {  // this_ways <= 1
+
+  /** @param state state_reg bits for this sub-tree
+    * @param touch_way touched way encoded value bits for this sub-tree
+    * @param tree_nways number of ways in this sub-tree
+    */
+  def get_next_state(state: UInt, touch_way: UInt, tree_nways: Int): UInt = {
+    require(state.getWidth == (tree_nways-1),                   s"wrong state bits width ${state.getWidth} for $tree_nways ways")
+    require(touch_way.getWidth == (log2Ceil(tree_nways) max 1), s"wrong encoded way width ${touch_way.getWidth} for $tree_nways ways")
+
+    if (tree_nways > 3) {
+      // we are at a branching node in the tree with both left and right sub-trees, so recurse both sub-trees
+      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
+      val left_nways:  Int = tree_nways - right_nways         // number of ways in the left sub-tree
+      val set_left_older      = !touch_way(log2Ceil(tree_nways)-1)
+      val left_subtree_state  = state(tree_nways-3, right_nways-1)
+      val right_subtree_state = state(right_nways-2, 0)
+
+      Cat(set_left_older,
+          Mux(set_left_older,
+              left_subtree_state,  // if setting left sub-tree as older, do NOT recurse into left sub-tree
+              get_next_state(left_subtree_state, touch_way(log2Ceil(left_nways)-1,0), left_nways)),  // recurse left if newer
+          Mux(set_left_older,
+              get_next_state(right_subtree_state, touch_way(log2Ceil(right_nways)-1,0), right_nways),  // recurse right if newer
+              right_subtree_state))  // if setting right sub-tree as older, do NOT recurse into right sub-tree
+
+    } else if (tree_nways == 3) {
+      // we are at a branching node in the tree with only a right sub-tree, so recurse only right sub-tree
+      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
+      val set_left_older      = !touch_way(log2Ceil(tree_nways)-1)
+      val right_subtree_state = state(right_nways-2, 0)
+
+      Cat(set_left_older,
+          Mux(set_left_older,
+              get_next_state(right_subtree_state, touch_way(log2Ceil(right_nways)-1,0), right_nways),  // recurse right if newer
+              right_subtree_state))  // if setting right sub-tree as older, do NOT recurse into right sub-tree
+
+    } else if (tree_nways == 2) {
+      // we are at a leaf node at the end of the tree, so set the single state bit opposite of the lsb of the touched way encoded value
+      !touch_way(0)
+
+    } else {  // tree_nways <= 1
+      // we are at an empty node in an empty tree for 1 way, so return single zero bit for Chisel (no zero-width wires)
       0.U(1.W)
     }
   }
-  def get_next_state(state: UInt, way: UInt): UInt = get_next_state(state, way, n_ways)
 
-  def get_replace_way(state: UInt, this_ways: Int): UInt = {
-    require(state.getWidth == (this_ways-1), s"wrong state bits width ${state.getWidth} for $this_ways ways")
-    if (this_ways > 2) {
-      val half_ways: Int = 1 << (log2Ceil(this_ways) - 1)
-      Cat(state(this_ways-2),
-          Mux(state(this_ways-2),
-              if (this_ways > 3) get_replace_way(state(this_ways-3,half_ways-1), this_ways-half_ways) else 0.U((log2Ceil(this_ways)-1).W),
-              get_replace_way(state(half_ways-2,0), half_ways)))
-    } else if (this_ways == 2) {
+  def get_next_state(state: UInt, touch_way: UInt): UInt = get_next_state(state, touch_way, n_ways)
+
+
+  /** @param state state_reg bits for this sub-tree
+    * @param tree_nways number of ways in this sub-tree
+    */
+  def get_replace_way(state: UInt, tree_nways: Int): UInt = {
+    require(state.getWidth == (tree_nways-1), s"wrong state bits width ${state.getWidth} for $tree_nways ways")
+
+    // this algorithm recursively descends the binary tree, filling in the way-to-replace encoded value from msb to lsb
+    if (tree_nways > 3) {
+      // we are at a branching node in the tree with both left and right sub-trees, so recurse both sub-trees
+      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
+      val left_nways:  Int = tree_nways - right_nways         // number of ways in the left sub-tree
+      val left_subtree_older  = state(tree_nways-2)
+      val left_subtree_state  = state(tree_nways-3, right_nways-1)
+      val right_subtree_state = state(right_nways-2, 0)
+
+      Cat(left_subtree_older,      // return the top state bit (current tree node) as msb of the way-to-replace encoded value
+          Mux(left_subtree_older,  // if left sub-tree is older, recurse left, else recurse right
+              get_replace_way(left_subtree_state,  left_nways),    // recurse left
+              get_replace_way(right_subtree_state, right_nways)))  // recurse right
+
+    } else if (tree_nways == 3) {
+      // we are at a branching node in the tree with only a right sub-tree, so recurse only right sub-tree
+      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
+      val left_subtree_older  = state(tree_nways-2)
+      val right_subtree_state = state(right_nways-2, 0)
+
+      Cat(left_subtree_older,      // return the top state bit (current tree node) as msb of the way-to-replace encoded value
+          Mux(left_subtree_older,  // if left sub-tree is older, return and do not recurse right
+              0.U(1.W),
+              get_replace_way(right_subtree_state, right_nways)))  // recurse right
+
+    } else if (tree_nways == 2) {
+      // we are at a leaf node at the end of the tree, so just return the single state bit as lsb of the way-to-replace encoded value
       state(0)
-    } else {  // this_ways <= 1
+
+    } else {  // tree_nways <= 1
+      // we are at an empty node in an unbalanced tree for non-power-of-2 ways, so return single zero bit as lsb of the way-to-replace encoded value
       0.U(1.W)
     }
   }
+
   def get_replace_way(state: UInt): UInt = get_replace_way(state, n_ways)
 
   def way = get_replace_way(state_reg)
@@ -230,7 +297,7 @@ class PLRUTest(n_ways: Int, timeout: Int = 500) extends UnitTest(timeout) {
   val get_replace_ways = (0 until (1 << (n_ways-1))).map(state =>
     plru.get_replace_way(state = state.U((n_ways-1).W)))
   val get_next_states  = (0 until (1 << (n_ways-1))).map(state => (0 until n_ways).map(way =>
-    plru.get_next_state (state = state.U((n_ways-1).W), way = way.U(log2Ceil(n_ways).W))))
+    plru.get_next_state (state = state.U((n_ways-1).W), touch_way = way.U(log2Ceil(n_ways).W))))
 
   n_ways match {
     case 2 => {
