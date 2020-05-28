@@ -214,7 +214,11 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
     }
   }
 
-  def get_next_state(state: UInt, touch_way: UInt): UInt = get_next_state(state, touch_way, n_ways)
+  def get_next_state(state: UInt, touch_way: UInt): UInt = {
+    val touch_way_sized = if (touch_way.getWidth < log2Ceil(n_ways)) touch_way.padTo  (log2Ceil(n_ways))
+                                                                else touch_way.extract(log2Ceil(n_ways)-1,0)
+    get_next_state(state, touch_way_sized, n_ways)
+  }
 
 
   /** @param state state_reg bits for this sub-tree
