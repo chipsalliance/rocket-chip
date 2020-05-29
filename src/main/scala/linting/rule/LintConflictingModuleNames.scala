@@ -169,7 +169,7 @@ final class LintConflictingModuleNames extends LintRule {
 
     val nameMap = desiredNameAnnos.groupBy(_.desiredName).mapValues { annos =>
       annos.map(a => Target.referringModule(a.target).module).distinct.map { referringModule =>
-        require(modMap.contains(referringModule), "ModuleNameAnnotations may not refer to blackboxes")
+        require(modMap.contains(referringModule), s"ModuleNameAnnotations may not refer to blackboxes: $referringModule")
         val desiredNames = moduleToDesiredName.getOrElseUpdate(referringModule, mutable.Set())
         desiredNames += annos.head.desiredName
         modMap(referringModule)
@@ -291,6 +291,15 @@ class RenameDesiredNames extends Transform with DependencyAPIMigration {
       }
       result
     }.flatten.toMap
+
+    val finalNames = state.circuit.modules.map {
+      case m: Module if nameMappings.contains(m.name) => nameMappings(m.name)
+      case m: DefModule => m.name
+    }
+    val renameConflicts = finalNames.groupBy(identity).collect {
+      case (_, conflicts) if conflicts.size > 1 => conflicts.head
+    }
+    require(renameConflicts.size == 0, s"desired names conflict with pre-existing module names: ${renameConflicts.mkString(", ")}")
 
     val circuit = RenameModules(nameMappings, state.circuit)
 
