@@ -76,11 +76,11 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
            |    inst bar_3 of Bar_3
            |""".stripMargin,
         Seq(
-         UnstableNameAnnotation(top.module("Bar_1")),
-         StableNameAnnotation(top.module("Bar_2")),
-         StableNameAnnotation(top.module("Bar_3")),
-         OverrideDesiredNameAnnotation("Bar_1", top.module("Bar_2")),
-         OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_3"))
+          UnstableNameAnnotation(top.module("Bar_1")),
+          StableNameAnnotation(top.module("Bar_2")),
+          StableNameAnnotation(top.module("Bar_3")),
+          OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_2")),
+          OverrideDesiredNameAnnotation("Bar_3", top.module("Bar_3"))
         )
       ),
       TestCase(
@@ -103,202 +103,34 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_5")),
           StableNameAnnotation(top.module("Bar_6")),
-          OverrideDesiredNameAnnotation("Bar_1", top.module("Bar_5")),
-          OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_6")),
-          OverrideDesiredNameAnnotation("Bar_3", top.module("Bar_1"))
+          OverrideDesiredNameAnnotation("Bar_4", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_5")),
+          OverrideDesiredNameAnnotation("Bar_3", top.module("Bar_6"))
         )
       )
     )
   }
 
-  property("It should rename modules to stable IO structure names") {
+  property("It should error if renaming to an already existing module name") {
     val top = CircuitTarget("Foo")
-    test(
-      TestCase(
-        """|circuit Foo:
-           |  module Bar_1:
-           |    output in1: UInt<1>
-           |  module Bar_2:
-           |    output in1: UInt<1>
-           |    output in2: UInt<1>
-           |  module Bar_3:
-           |    output in1: UInt<1>
-           |    output in2: UInt<1>
-           |    output in3: UInt<1>
-           |  module Foo:
-           |    inst bar_1 of Bar_1
-           |    inst bar_2 of Bar_2
-           |    inst bar_3 of Bar_3
-           |""".stripMargin,
-        Seq(
-          UnstableNameAnnotation(top.module("Bar_1")),
-          StableNameAnnotation(top.module("Bar_2")),
-          StableNameAnnotation(top.module("Bar_3")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_2")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_3")),
-          NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
-        )
-      ),
-      TestCase(
-        """|circuit Foo:
-           |  module Bar_1:
-           |    output in1: UInt<2>
-           |  module Bar_5:
-           |    output in1: UInt<1>
-           |    output in2: UInt<1>
-           |  module Bar_6:
-           |    output in1: UInt<1>
-           |    output in2: UInt<1>
-           |    output in3: UInt<1>
-           |  module Foo:
-           |    inst bar_1 of Bar_1
-           |    inst bar_5 of Bar_5
-           |    inst bar_6 of Bar_6
-           |""".stripMargin,
-        Seq(
-          UnstableNameAnnotation(top.module("Bar_1")),
-          StableNameAnnotation(top.module("Bar_5")),
-          StableNameAnnotation(top.module("Bar_6")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_5")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_6")),
-          NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
-        )
-      )
+    val testCase = TestCase(
+      """|circuit Foo:
+         |  module Bar_1:
+         |    output in1: UInt<1>
+         |  module Bar_2:
+         |    output in1: UInt<1>
+         |    output in2: UInt<1>
+         |  module Bar_3:
+         |    output in1: UInt<1>
+         |    output in2: UInt<1>
+         |    output in3: UInt<1>
+         |  module Foo:
+         |    inst bar_1 of Bar_1
+         |    inst bar_2 of Bar_2
+         |    inst bar_3 of Bar_3
+         |""".stripMargin,
+      Seq(OverrideDesiredNameAnnotation("Bar_1", top.module("Bar_2")))
     )
-  }
-
-  property("It should rename modules to stable content structure names") {
-    val top = CircuitTarget("Foo")
-    test(
-      TestCase(
-        """|circuit Foo:
-           |  module Bar_1:
-           |    node dummy = UInt<1>(0)
-           |  module Bar_2:
-           |    node dummy = UInt<2>(0)
-           |  module Bar_3:
-           |    node dummy = UInt<3>(0)
-           |  module Foo:
-           |    inst bar_1 of Bar_1
-           |    inst bar_2 of Bar_2
-           |    inst bar_3 of Bar_3
-           |""".stripMargin,
-        Seq(
-          UnstableNameAnnotation(top.module("Bar_1")),
-          StableNameAnnotation(top.module("Bar_2")),
-          StableNameAnnotation(top.module("Bar_3")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_2")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_3")),
-          NamingStrategyAnnotation(ContentStructureNamingStrategy, top.module("Bar_1"))
-        )
-      ),
-      TestCase(
-        """|circuit Foo:
-           |  module Bar_1:
-           |    node dummy = UInt<7>(0)
-           |  module Bar_5:
-           |    node dummy = UInt<2>(0)
-           |  module Bar_6:
-           |    node dummy = UInt<3>(0)
-           |  module Foo:
-           |    inst bar_1 of Bar_1
-           |    inst bar_5 of Bar_5
-           |    inst bar_6 of Bar_6
-           |""".stripMargin,
-        Seq(
-          UnstableNameAnnotation(top.module("Bar_1")),
-          StableNameAnnotation(top.module("Bar_5")),
-          StableNameAnnotation(top.module("Bar_6")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_5")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_6")),
-          NamingStrategyAnnotation(ContentStructureNamingStrategy, top.module("Bar_1"))
-        )
-      )
-    )
-  }
-
-  property("It should rename modules to stable content names") {
-    val top = CircuitTarget("Foo")
-    test(
-      TestCase(
-        """|circuit Foo:
-           |  module Bar_1:
-           |    node dummy_1 = UInt<1>(0)
-           |  module Bar_2:
-           |    node dummy_2 = UInt<1>(0)
-           |  module Bar_3:
-           |    node dummy_3 = UInt<1>(0)
-           |  module Foo:
-           |    inst bar_1 of Bar_1
-           |    inst bar_2 of Bar_2
-           |    inst bar_3 of Bar_3
-           |""".stripMargin,
-        Seq(
-          UnstableNameAnnotation(top.module("Bar_1")),
-          StableNameAnnotation(top.module("Bar_2")),
-          StableNameAnnotation(top.module("Bar_3")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_2")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_3")),
-          NamingStrategyAnnotation(ContentNamingStrategy, top.module("Bar_1"))
-        )
-      ),
-      TestCase(
-        """|circuit Foo:
-           |  module Bar_1:
-           |    node dummy___1 = UInt<1>(0)
-           |  module Bar_5:
-           |    node dummy_2 = UInt<1>(0)
-           |  module Bar_6:
-           |    node dummy_3 = UInt<1>(0)
-           |  module Foo:
-           |    inst bar_1 of Bar_1
-           |    inst bar_5 of Bar_5
-           |    inst bar_6 of Bar_6
-           |""".stripMargin,
-        Seq(
-          UnstableNameAnnotation(top.module("Bar_1")),
-          StableNameAnnotation(top.module("Bar_5")),
-          StableNameAnnotation(top.module("Bar_6")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_5")),
-          OverrideDesiredNameAnnotation("Bar", top.module("Bar_6")),
-          NamingStrategyAnnotation(ContentNamingStrategy, top.module("Bar_1"))
-        )
-      )
-    )
-  }
-
-  property("It should respect NamingStrategyAnnotations") {
-    val input =
-    """|circuit Foo:
-       |  module Bar_1:
-       |    skip
-       |  module Foo:
-       |    inst bar_1 of Bar_1
-       |    inst bar_2 of Bar_1
-       |""".stripMargin
-
-    val top = CircuitTarget("Foo")
-    val annos = Seq(
-      OverrideDesiredNameAnnotation("Bar", top.module("Foo").instOf("bar_1", "Bar_1")),
-      OverrideDesiredNameAnnotation("Bar", top.module("Foo").instOf("bar_2", "Bar_1")),
-      NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
-    )
-    val inputState = CircuitState(passes.ToWorkingIR.run(Parser.parse(input)), UnknownForm, annos)
-    val outputState = stabilizeNames(inputState)
-    val output =
-    s"""|circuit Foo:
-        |  module Bar_p1C395774:
-        |    skip
-        |  module Foo:
-        |    inst bar_1 of Bar_p1C395774
-        |    inst bar_2 of Bar_p1C395774
-        |""".stripMargin
-    outputState.circuit.serialize should be (Parser.parse(output).serialize)
+    an [Exception] should be thrownBy stabilizeNames(testCase)
   }
 }
