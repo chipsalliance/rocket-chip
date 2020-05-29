@@ -106,7 +106,7 @@ case class OverrideDesiredNameAnnotation(
 case object LintConflictingModuleNamesAspect extends Aspect[RawModule] {
   def toAnnotation(top: RawModule): AnnotationSeq = {
     Select.collectDeep(top) {
-      case m: chisel3.Module => DesiredNameAnnotation(m.desiredName, m.toTarget)
+      case m: RawModule => DesiredNameAnnotation(m.desiredName, m.toTarget)
     }.toSeq
   }
 }
