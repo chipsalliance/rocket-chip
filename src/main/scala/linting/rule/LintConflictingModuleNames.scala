@@ -79,7 +79,7 @@ case class NamingStrategyAnnotation(
   }
 }
 
-/** Specifies the original desired name for a module
+/** Captures the original desired name for a module
   */
 case class DesiredNameAnnotation(
   desiredName: String,
@@ -90,7 +90,7 @@ case class DesiredNameAnnotation(
   }
 }
 
-/** Specifies the desired name to rename the module to
+/** Specifies the desired name to rename the module to, overriding the Module.desiredName
   */
 case class OverrideDesiredNameAnnotation(
   desiredName: String,
