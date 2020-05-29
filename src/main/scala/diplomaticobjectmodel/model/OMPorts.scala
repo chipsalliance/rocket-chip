@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap}
+import freechips.rocketchip.diplomacy.{ResourceBindings, ResourceBindingsMap, IdRange, IdMapEntry, IdMap}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -79,12 +79,35 @@ case class TL_C(
   val _types: Seq[String] = Seq("TL_C", "TL",  "OMProtocol")
 ) extends TL
 
+
+class OMIDRange (val start: Int,
+                 val end: Int,
+                 val _types: Seq[String] = Seq("OMIDRange", "OMCompundType"))
+object OMIDRange {
+  def apply(i: IdRange): OMIDRange = {
+    new OMIDRange(i.start, i.end)
+  }
+}
+
+class OMIDMapEntry(val name: String,
+                   val from: OMIDRange,
+                   val to: OMIDRange,
+                   val isCache: Boolean,
+                   val requestFifo: Boolean,
+                   val _types: Seq[String] = Seq("OMIDMapEntry", "OMCompoundType"))
+object OMIDMapEntry {
+  def apply[T <: IdMapEntry](i: T): OMIDMapEntry = {
+    new OMIDMapEntry(i.name, OMIDRange(i.from), OMIDRange(i.to), i.isCache, i.requestFifo)
+  }
+}
+
 trait OMPort extends OMDevice {
   memoryRegions: Seq[OMMemoryRegion]
   interrupts: Seq[OMInterrupt]
   def signalNamePrefix: String
   def width: Int
   def protocol: OMProtocol
+  def idMap: Seq[OMIDMapEntry]
 }
 
 trait InboundPort extends OMPort
@@ -96,6 +119,7 @@ case class FrontPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("FrontPort", "InboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends InboundPort
 
@@ -105,6 +129,7 @@ case class MemoryPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("MemoryPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class PeripheralPort(
@@ -113,6 +138,7 @@ case class PeripheralPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("PeripheralPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 case class SystemPort(
@@ -121,6 +147,7 @@ case class SystemPort(
   signalNamePrefix: String,
   width: Int,
   protocol: OMProtocol,
+  idMap: Seq[OMIDMapEntry],
   _types: Seq[String] = Seq("SystemPort", "OutboundPort", "OMPort", "OMDevice", "OMComponent", "OMCompoundType")) extends OutboundPort
 
 object OMPortMaker {
@@ -158,7 +185,8 @@ object OMPortMaker {
     protocol: ProtocolType,
     subProtocol: SubProtocolType,
     version: String,
-    beatBytes: Int): OMPort = {
+    beatBytes: Int,
+    idMap: Seq[OMIDMapEntry]): OMPort = {
     val documentationName = portNames(portType)
 
     val omProtocol = (protocol, subProtocol) match {
@@ -178,18 +206,18 @@ object OMPortMaker {
         val memRegions = DiplomaticObjectModelAddressing.getOMPortMemoryRegions(name = documentationName, rb)
         portType match {
           case SystemPortType => SystemPort(memoryRegions = memRegions, interrupts = Nil, signalNamePrefix = signalNamePrefix,
-            width = beatBytes * 8, protocol = omProtocol)
+            width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case PeripheralPortType => PeripheralPort(memoryRegions = memRegions, interrupts = Nil, signalNamePrefix = signalNamePrefix,
-            width = beatBytes * 8, protocol = omProtocol)
+            width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case MemoryPortType => MemoryPort(memoryRegions = memRegions, interrupts = Nil, signalNamePrefix = signalNamePrefix,
-            width = beatBytes * 8, protocol = omProtocol)
+            width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case FrontPortType => throw new IllegalArgumentException
           case _ => throw new IllegalArgumentException
         }
       case None => {
         portType match {
           case FrontPortType => FrontPort(memoryRegions = Nil, interrupts = Nil,
-            signalNamePrefix = signalNamePrefix, width = beatBytes * 8, protocol = omProtocol)
+            signalNamePrefix = signalNamePrefix, width = beatBytes * 8, protocol = omProtocol, idMap = idMap)
           case _ => throw new IllegalArgumentException
         }
       }
