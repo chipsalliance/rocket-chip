@@ -395,6 +395,9 @@ class RenameDesiredNames extends Transform with DependencyAPIMigration {
     val newMain = CircuitTarget(circuit.main)
     val oldMain = CircuitTarget(state.circuit.main)
     val renames = RenameMap()
+    nameMappings.foreach { case (from, to) =>
+      renames.record(oldMain.module(from), newMain.module(to))
+    }
 
     // delete override annotations and rename desired name annotaions for ones that were renamed
     val newAnnos = state.annotations.flatMap {

@@ -15,8 +15,8 @@ case class UnstableNameAnnotation(target: IsModule) extends SingleTargetAnnotati
   def duplicate(newTarget: IsModule): UnstableNameAnnotation = this.copy(target = newTarget)
 }
 
-class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
-  val transform = new LintConflictingModuleNames
+class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
+  val transform = new RenameDesiredNames
 
   case class TestCase(
     input: String,
@@ -79,8 +79,8 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
          UnstableNameAnnotation(top.module("Bar_1")),
          StableNameAnnotation(top.module("Bar_2")),
          StableNameAnnotation(top.module("Bar_3")),
-         ModuleNameAnnotation("Bar_1", top.module("Bar_2")),
-         ModuleNameAnnotation("Bar_2", top.module("Bar_3"))
+         OverrideDesiredNameAnnotation("Bar_1", top.module("Bar_2")),
+         OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_3"))
         )
       ),
       TestCase(
@@ -103,9 +103,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_5")),
           StableNameAnnotation(top.module("Bar_6")),
-          ModuleNameAnnotation("Bar_1", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar_2", top.module("Bar_6")),
-          ModuleNameAnnotation("Bar_3", top.module("Bar_1"))
+          OverrideDesiredNameAnnotation("Bar_1", top.module("Bar_5")),
+          OverrideDesiredNameAnnotation("Bar_2", top.module("Bar_6")),
+          OverrideDesiredNameAnnotation("Bar_3", top.module("Bar_1"))
         )
       )
     )
@@ -134,9 +134,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_2")),
           StableNameAnnotation(top.module("Bar_3")),
-          ModuleNameAnnotation("Bar", top.module("Bar_1")),
-          ModuleNameAnnotation("Bar", top.module("Bar_2")),
-          ModuleNameAnnotation("Bar", top.module("Bar_3")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_2")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_3")),
           NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
         )
       ),
@@ -160,9 +160,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_5")),
           StableNameAnnotation(top.module("Bar_6")),
-          ModuleNameAnnotation("Bar", top.module("Bar_1")),
-          ModuleNameAnnotation("Bar", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar", top.module("Bar_6")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_5")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_6")),
           NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
         )
       )
@@ -189,9 +189,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_2")),
           StableNameAnnotation(top.module("Bar_3")),
-          ModuleNameAnnotation("Bar", top.module("Bar_1")),
-          ModuleNameAnnotation("Bar", top.module("Bar_2")),
-          ModuleNameAnnotation("Bar", top.module("Bar_3")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_2")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_3")),
           NamingStrategyAnnotation(ContentStructureNamingStrategy, top.module("Bar_1"))
         )
       ),
@@ -212,9 +212,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_5")),
           StableNameAnnotation(top.module("Bar_6")),
-          ModuleNameAnnotation("Bar", top.module("Bar_1")),
-          ModuleNameAnnotation("Bar", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar", top.module("Bar_6")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_5")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_6")),
           NamingStrategyAnnotation(ContentStructureNamingStrategy, top.module("Bar_1"))
         )
       )
@@ -241,9 +241,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_2")),
           StableNameAnnotation(top.module("Bar_3")),
-          ModuleNameAnnotation("Bar", top.module("Bar_1")),
-          ModuleNameAnnotation("Bar", top.module("Bar_2")),
-          ModuleNameAnnotation("Bar", top.module("Bar_3")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_2")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_3")),
           NamingStrategyAnnotation(ContentNamingStrategy, top.module("Bar_1"))
         )
       ),
@@ -264,9 +264,9 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
           UnstableNameAnnotation(top.module("Bar_1")),
           StableNameAnnotation(top.module("Bar_5")),
           StableNameAnnotation(top.module("Bar_6")),
-          ModuleNameAnnotation("Bar", top.module("Bar_1")),
-          ModuleNameAnnotation("Bar", top.module("Bar_5")),
-          ModuleNameAnnotation("Bar", top.module("Bar_6")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_1")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_5")),
+          OverrideDesiredNameAnnotation("Bar", top.module("Bar_6")),
           NamingStrategyAnnotation(ContentNamingStrategy, top.module("Bar_1"))
         )
       )
@@ -285,8 +285,8 @@ class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers 
 
     val top = CircuitTarget("Foo")
     val annos = Seq(
-      ModuleNameAnnotation("Bar", top.module("Foo").instOf("bar_1", "Bar_1")),
-      ModuleNameAnnotation("Bar", top.module("Foo").instOf("bar_2", "Bar_1")),
+      OverrideDesiredNameAnnotation("Bar", top.module("Foo").instOf("bar_1", "Bar_1")),
+      OverrideDesiredNameAnnotation("Bar", top.module("Foo").instOf("bar_2", "Bar_1")),
       NamingStrategyAnnotation(PortStructureNamingStrategy, top.module("Bar_1"))
     )
     val inputState = CircuitState(passes.ToWorkingIR.run(Parser.parse(input)), UnknownForm, annos)
