@@ -172,7 +172,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
     when (mem_resp_valid && traverse && !hit && !invalidated) {
-      val r = Mux(valid.andR, plru.replace, PriorityEncoder(~valid))
+      val r = Mux(valid.andR, plru.way, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
       tags(r) := pte_addr
       data(r) := pte.ppn
