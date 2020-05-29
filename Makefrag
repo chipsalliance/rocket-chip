@@ -13,11 +13,7 @@ space := $() $()
 splitConfigs := $(subst $(comma), ,$(CONFIG))
 configBases := $(foreach config,$(splitConfigs),$(lastword $(subst ., ,$(config))))
 CONFIG_STR := $(subst $(space),_,$(configBases))
-ifdef STABILIZE
-long_name = $(PROJECT).$(CONFIG_STR).stabilized
-else
-long_name = $(PROJECT).$(CONFIG_STR)
-endif
+long_name ?= $(PROJECT).$(CONFIG_STR)
 
 VLSI_MEM_GEN ?= $(base_dir)/scripts/vlsi_mem_gen
 
@@ -31,10 +27,6 @@ COMMA := ,
 
 SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
-
-ifdef STABILIZE
-CHISEL_OPTIONS := -n $(long_name) --with-aspect freechips.rocketchip.linting.rule.StabilizeNamesAspect --lint *
-endif
 
 FIRRTL_TRANSFORMS := \
 	firrtl.passes.InlineInstances \
