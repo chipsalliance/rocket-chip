@@ -139,12 +139,8 @@ case object StabilizeNamesAspect extends Aspect[RawModule] {
 /** This LintRule checks for module name collisions
   *
   * Module name collisions occur when different [[Module]]s are annotated with
-  * [[DesiredNameAnnotation]]s that have the same desiredName. By default all
-  * module name conflicts will cause a [[LintViolation]]. If one of the modules
-  * is targeted by [[NamingStrategyAnnotation]] then the transform will attempt
-  * to rename modules according to that naming strategy. If the conflicting
-  * modules cannot be disambiguated by the naming strategy then a
-  * [[LintViolation]] is emitted.
+  * [[DesiredNameAnnotation]]s that have the same desiredName. Module name
+  * conflicts will cause a [[LintViolation]].
   */
 final class LintConflictingModuleNames extends LintRule {
   val recommendedFix: String = "override desiredName based on module parameters"
@@ -211,10 +207,9 @@ final class LintConflictingModuleNames extends LintRule {
   * Desired module name overrides are specified by
   * [[OverrideDesiredNameAnnotation]]. If one of the modules is targeted by a
   * [[NamingStrategyAnnotation]] then the transform will attempt to rename
-  * modules according to that naming strategy. If the conflicting modules
-  * cannot be disambiguated by the naming strategy then a [[LintViolation]] is
-  * emitted. The default naming strategy is [[ExactNamingStrategy]] which will
-  * throw an exception if there are any module name conflicts.
+  * modules according to that naming strategy. The default naming strategy is
+  * [[ExactNamingStrategy]] which will throw an exception if there are any
+  * module name conflicts.
   */
 class RenameDesiredNames extends Transform with DependencyAPIMigration {
 
