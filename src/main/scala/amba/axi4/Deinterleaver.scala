@@ -51,9 +51,7 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
             val q = Wire(new QueueIO(out.r.bits.cloneType, beats))
             q.suggestName(s"queue_wire_${i}")
             assert(!q.enq.valid, s"ID ${i} should not be used")
-            // These could just be marked DontCare
-            q.deq :<> q.enq
-            q.count := 0.U
+            q := DontCare
             q
           }
         }
