@@ -127,6 +127,8 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   def way = get_replace_way(state_reg)
   def miss = access(way)
   def hit = {}
+  @deprecated("replace 'replace' with 'way' from abstract class ReplacementPolicy","Rocket Chip 2020.05")
+  def replace: UInt = way
 }
 
 class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
