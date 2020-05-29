@@ -197,7 +197,7 @@ case class OverrideDesiredNameAnnotation(
   }
 }
 
-/** Collects [[DesireNameAnnotaion]]s for [[LintConflictingModuleNames]] to lint
+/** Collects [[DesiredNameAnnotation]]s for [[LintConflictingModuleNames]] to lint
   */
 case object LintConflictingModuleNamesAspect extends Aspect[RawModule] {
   def toAnnotation(top: RawModule): AnnotationSeq = {
