@@ -74,6 +74,7 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
          |    inst bar_3 of Bar_3
          |""".stripMargin,
       Seq(
+        DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
         OverrideDesiredNameAnnotation("BarWith1Input", top.module("Bar_1")),
 
         // these renames should fail because they conflict
@@ -99,6 +100,13 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
          |""".stripMargin
 
     outputState.circuit should be (Parser.parse(check))
+
+    // it should also update DesiredNameAnnotation and delete successfull OverrideDesiredNameAnnotation
+    outputState.annotations.filterNot(_.isInstanceOf[DeletedAnnotation]) should be (Seq(
+      DesiredNameAnnotation("BarWith1Input", top.module("BarWith1Input")),
+      OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
+      OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_3"))
+    ))
   }
 
   property("It should keep modules names stable between runs") {
