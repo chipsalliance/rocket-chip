@@ -304,7 +304,7 @@ final class LintConflictingModuleNames extends LintRule {
   }
 }
 
-/** Renames modules based on their overrided desired names
+/** Renames modules based on their overridden desired names
   *
   * Desired module name overrides are specified by
   * [[OverrideDesiredNameAnnotation]]. If one of the modules is targeted by a
