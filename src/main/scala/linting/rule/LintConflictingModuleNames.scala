@@ -64,99 +64,6 @@ case object ExactNamingStrategy extends NamingStrategy {
   def getName(desiredName: String)(module: Module): String = desiredName
 }
 
-/** A naming strategy that appends the port structure hash to the desired name i.e. "{desiredName}_p{hash}"
-  */
-case object PortStructureNamingStrategy extends NamingStrategy {
-  def getName(desiredName: String)(module: Module): String = {
-    val noNamePorts = module.ports.map(NamingStrategy.removePortNames(_))
-     NamingStrategy.appendHashCode(desiredName, "p", noNamePorts.hashCode)
-  }
-}
-
-/** A naming strategy that appends the name-agnostic module content hash to the desired name i.e. "{desiredName}_c{hash}"
-  */
-case object ContentStructureNamingStrategy extends NamingStrategy {
-  def getName(desiredName: String)(module: Module): String = {
-    val noNameModule = NamingStrategy.removeModuleNames(module)
-    NamingStrategy.appendHashCode(desiredName, "c", noNameModule.hashCode)
-  }
-}
-
-/** A naming strategy that appends the module content hash to the desired name i.e. "{desiredName}_C{hash}"
-  */
-case object ContentNamingStrategy extends NamingStrategy {
-  def getName(desiredName: String)(module: Module): String = {
-    val noInfoModule = NamingStrategy.removeModuleInfo(module).copy(name = NamingStrategy.emptyName)
-    NamingStrategy.appendHashCode(desiredName, "C", noInfoModule.hashCode)
-  }
-}
-
-object NamingStrategy {
-
-  final val emptyName: String = ""
-
-  def appendHashCode(desiredName: String, hashPrefix: String, hashCode: Int): String = {
-    s"${desiredName}_$hashPrefix" + f"${hashCode}%08X"
-  }
-
-
-  // remove name helpers
-
-  def removeTypeNames(tpe: Type): Type = tpe match {
-    case g: GroundType => g
-    case v: VectorType => v
-    case b: BundleType => b.copy(fields = b.fields.map { field =>
-      field.copy(name = emptyName)
-    })
-  }
-
-  def removeStatementNames(stmt: Statement): Statement = stmt match {
-    case i: DefInstance => i.copy(
-      name = emptyName,
-      module = emptyName,
-      info = NoInfo)
-    case i: WDefInstance => i.copy(
-      name = emptyName,
-      module = emptyName,
-      tpe = removeTypeNames(i.tpe),
-      info = NoInfo)
-    case _ => stmt
-      .mapStmt(removeStatementNames)
-      .mapString(_ => emptyName)
-      .mapInfo(_ => NoInfo)
-      .mapType(removeTypeNames)
-  }
-
-  def removePortNames(port: Port): Port = {
-    port.copy(name = emptyName, tpe = removeTypeNames(port.tpe), info = NoInfo)
-  }
-
-  def removeModuleNames(mod: Module): Module = {
-    mod.copy(
-      ports = mod.ports.map(removePortNames(_)),
-      body = removeStatementNames(mod.body),
-      name = emptyName,
-      info = NoInfo)
-  }
-
-  // remove Info helpers
-
-  def removeStatementInfo(stmt: Statement): Statement = {
-    stmt.mapStmt(removeStatementInfo).mapInfo(_ => NoInfo)
-  }
-
-  def removePortInfo(port: Port): Port = {
-    port.copy(info = NoInfo)
-  }
-
-  def removeModuleInfo(mod: Module): Module = {
-    mod.copy(
-      ports = mod.ports.map(removePortInfo(_)),
-      body = removeStatementInfo(mod.body),
-      info = NoInfo)
-  }
-}
-
 /** Specifies a naming strategy to use for a module and the modules that it collides with
   */
 case class NamingStrategyAnnotation(
@@ -164,10 +71,7 @@ case class NamingStrategyAnnotation(
   target: IsModule
 ) extends SingleTargetAnnotation[IsModule] with HasSerializationHints {
   def typeHints: Seq[Class[_]] = Seq(
-    ExactNamingStrategy.getClass,
-    PortStructureNamingStrategy.getClass,
-    ContentStructureNamingStrategy.getClass,
-    ContentNamingStrategy.getClass
+    ExactNamingStrategy.getClass
   )
 
   def duplicate(newTarget: IsModule): NamingStrategyAnnotation = {
@@ -215,12 +119,10 @@ case object StabilizeNamesAspect extends Aspect[RawModule] {
     Select.collectDeep(top) {
       // annotating all Queues with a more descriptive desired name
       case m: Queue[_] => Seq(
-        new OverrideDesiredNameAnnotation(s"Queue_${m.genType.getClass.getSimpleName}_entries_${m.entries}", m.toTarget),
-        new NamingStrategyAnnotation(ContentStructureNamingStrategy, m.toTarget)
+        new OverrideDesiredNameAnnotation(s"Queue_${m.genType.getClass.getSimpleName}_entries_${m.entries}", m.toTarget)
       )
       case m: TLMonitor => Seq(
-        new OverrideDesiredNameAnnotation(m.desiredName, m.toTarget),
-        new NamingStrategyAnnotation(ContentStructureNamingStrategy, m.toTarget)
+        new OverrideDesiredNameAnnotation(m.desiredName, m.toTarget)
       )
 
       // annotating specific instances
