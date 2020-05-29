@@ -56,7 +56,52 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
     }
   }
 
-  property("It should rename modules to desired names if only one module") {
+  property("It should rename modules if it can") {
+    val top = CircuitTarget("Foo")
+    val testCase = TestCase(
+      """|circuit Foo:
+         |  module Bar_1:
+         |    output in1: UInt<1>
+         |  module Bar_2:
+         |    output in1: UInt<1>
+         |    output in2: UInt<1>
+         |  module Bar_3:
+         |    output in1: UInt<1>
+         |    output in2: UInt<1>
+         |  module Foo:
+         |    inst bar_1 of Bar_1
+         |    inst bar_2 of Bar_2
+         |    inst bar_3 of Bar_3
+         |""".stripMargin,
+      Seq(
+        OverrideDesiredNameAnnotation("BarWith1Input", top.module("Bar_1")),
+
+        // these renames should fail because they conflict
+        OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
+        OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_3"))
+      )
+    )
+    val outputState = stabilizeNames(testCase)
+    val check =
+      """|circuit Foo:
+         |  module BarWith1Input:
+         |    output in1: UInt<1>
+         |  module Bar_2:
+         |    output in1: UInt<1>
+         |    output in2: UInt<1>
+         |  module Bar_3:
+         |    output in1: UInt<1>
+         |    output in2: UInt<1>
+         |  module Foo:
+         |    inst bar_1 of BarWith1Input
+         |    inst bar_2 of Bar_2
+         |    inst bar_3 of Bar_3
+         |""".stripMargin
+
+    outputState.circuit should be (Parser.parse(check))
+  }
+
+  property("It should keep modules names stable between runs") {
     val top = CircuitTarget("Foo")
     test(
       TestCase(
