@@ -43,42 +43,76 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
 case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
 case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
 
-case class BundleBridgeNexus[T <: Data](default: Option[()=>T] = None)(implicit valName: ValName) extends NexusNode(new BundleBridgeImp[T])(
-  dFn = seq => seq.headOption.orElse(default.map(BundleBridgeParams(_))).get,
-  uFn = _ => BundleBridgeNull(),
-  inputRequiresOutput = false,
-  outputRequiresInput = !default.isDefined)
+case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None)
+                                           (implicit valName: ValName)
+  extends NexusNode(new BundleBridgeImp[T])(
+    dFn = seq => seq.headOption.orElse(default.map(BundleBridgeParams(_))).get,
+    uFn = _ => BundleBridgeNull(),
+    inputRequiresOutput = false,
+    outputRequiresInput = !default.isDefined)
 
-class BundleBroadcast[T <: Data](registered: Boolean = false)(implicit p: Parameters) extends LazyModule
+class BundleBridgeNexus[T <: Data](
+  inputFn: Seq[T] => T,
+  outputFn: (T, Int) => Seq[T],
+  default: Option[() => T] = None
+) (implicit p: Parameters) extends LazyModule
 {
-  val node = BundleBridgeNexus[T]()
+  val node = BundleBridgeNexusNode[T](default)
 
   lazy val module = new LazyModuleImp(this) {
-    require (node.in.size <= 1)
-    val default: Option[T] = node.default.map(_())
-    val in: T = node.in.map(_._1).headOption.orElse(default).get
+    val defaultWireOpt = default.map(_())
+    val inputs: Seq[T] = defaultWireOpt.toList ++ node.in.map(_._1)
+    require(inputs.size >= 1, "BundleBridgeNexus requires at least one input or default.")
+    inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
+      "BundleBridgeNexus requires all inputs have equivalent Chisel Data types")
+    }
     def getElements(x: Data): Seq[Element] = x match {
       case e: Element => Seq(e)
       case a: Aggregate => a.getElements.flatMap(getElements)
     }
-    getElements(in).foreach { elt => DataMirror.directionOf(elt) match {
+    inputs.flatMap(getElements).foreach { elt => DataMirror.directionOf(elt) match {
       case ActualDirection.Output => ()
       case ActualDirection.Unspecified => ()
-      case _ => require(false, "BundleBroadcast can only be used with Output-directed Bundles")
+      case _ => require(false, "BundleBridgeNexus can only be used with Output-directed Bundles")
     } }
 
-    def reg[T <: Data](x: T) = { if (registered) RegNext(x) else x }
+    val broadcast: T = inputFn(inputs)
+    val outputs: Seq[T] = outputFn(broadcast, node.out.size)
+    require(outputs.size == node.out.size,
+      s"BundleBridgeNexus outputFn must generate one output wire per edgeOut, but got ${outputs.size} vs ${node.out.size}")
 
-    val ireg = reg(in)
-    node.out.foreach { case (out, _) => out := reg(ireg) }
+    node.out.zip(outputs).foreach { case ((out, _), bcast) => out := bcast }
   }
 }
 
-object BundleBroadcast
-{
-  def apply[T <: Data](name: Option[String] = None, registered: Boolean = false)(implicit p: Parameters): BundleBridgeNexus[T] = {
-    val broadcast = LazyModule(new BundleBroadcast[T](registered))
-    name.map(broadcast.suggestName)
+object BundleBridgeNexus {
+  def requireOne[T <: Data](registered: Boolean)(seq: Seq[T]): T = {
+    require(seq.size == 1, "BundleBroadcast default requires one input")
+    if (registered) RegNext(seq.head) else seq.head
+  }
+
+  def fillN[T <: Data](registered: Boolean)(x: T, n: Int): Seq[T] = Seq.fill(n) {
+    if (registered) RegNext(x) else x
+  }
+
+  def apply[T <: Data](
+    inputFn: Seq[T] => T = requireOne[T](false) _,
+    outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
+  )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
+    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn))
     broadcast.node
   }
 }
+
+object BundleBroadcast {
+  def apply[T <: Data](
+    name: Option[String] = None,
+    registered: Boolean = false
+  )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
+    implicit val valName = ValName(name.getOrElse("broadcast"))
+    BundleBridgeNexus.apply[T](
+      inputFn = BundleBridgeNexus.requireOne[T](registered) _,
+      outputFn = BundleBridgeNexus.fillN[T](registered) _)
+  }
+}
+
