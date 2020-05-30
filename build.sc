@@ -1,6 +1,7 @@
 import ammonite.ops._
 import mill._
 import mill.scalalib._
+import mill.scalalib.publish.{License, PomSettings, VersionControl}
 
 import $file.chisel3.build
 import $file.firrtl.build
@@ -15,20 +16,42 @@ class RocketChipChiselModule(val crossVersionValue: String) extends chisel3.buil
   override def firrtlModule = Some(firrtl.build.firrtl(crossVersionValue))
 }
 
-trait CommonRocketChipModule extends CrossSbtModule {
+trait CommonRocketChipModule extends CrossSbtModule with PublishModule {
   override def scalacOptions = Seq("-deprecation","-unchecked","-Xsource:2.11")
   val macroPlugins = Agg(ivy"org.scalamacros:::paradise:2.1.1")
   def scalacPluginIvyDeps = macroPlugins
   def compileIvyDeps = macroPlugins
+
+  // Allow (local) publishing
+  def publishVersion = "1.2-SNAPSHOT"
+  def pomSettings = PomSettings(
+    description = artifactName(),
+    organization = "edu.berkeley.cs",
+    url = "https://github.com/chipsalliance/rocket-chip",
+    licenses = Seq(License.`BSD-3-Clause`),
+    versionControl = VersionControl.github("chipsalliance", "rocket-chip"),
+    developers = Seq()
+  )
 }
 
 // Inherits from CrossScalaModule as opposed to CrossSbtModule to avoid
 // the dependency on "src/main/scala" in file paths.
-trait CommonRocketChipScalaModule extends CrossScalaModule {
+trait CommonRocketChipScalaModule extends CrossScalaModule with PublishModule {
   override def scalacOptions = Seq("-deprecation","-unchecked","-Xsource:2.11")
   val macroPlugins = Agg(ivy"org.scalamacros:::paradise:2.1.1")
   def scalacPluginIvyDeps = macroPlugins
   def compileIvyDeps = macroPlugins
+
+  // Allow (local) publishing
+  def publishVersion = "1.2-SNAPSHOT"
+  def pomSettings = PomSettings(
+    description = artifactName(),
+    organization = "edu.berkeley.cs",
+    url = "https://github.com/chipsalliance/rocket-chip",
+    licenses = Seq(License.`BSD-3-Clause`),
+    versionControl = VersionControl.github("chipsalliance", "rocket-chip"),
+    developers = Seq()
+  )
 }
 
 object macros extends Cross[MacrosModule](crossVersions: _*)
@@ -72,8 +95,7 @@ object rocketchip extends Cross[RocketChipModule](crossVersions: _*) {
   //}
 }
 
-class RocketChipModule(val crossScalaVersion: String) extends CommonRocketChipModule {
-
+class RocketChipModule(val crossScalaVersion: String) extends CommonRocketChipModule with PublishModule {
   override def millSourcePath = super.millSourcePath / ammonite.ops.up
 
   override def moduleDeps = Seq(
@@ -85,4 +107,6 @@ class RocketChipModule(val crossScalaVersion: String) extends CommonRocketChipMo
   )
 
   override def ivyDeps = Agg(ivy"org.json4s::json4s-jackson:3.5.3")
+
+  override def artifactName = "rocketchip"
 }
