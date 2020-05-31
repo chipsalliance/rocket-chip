@@ -54,12 +54,8 @@ trait CommonRocketChipScalaModule extends CrossScalaModule with PublishModule {
   )
 }
 
-object macros extends Cross[MacrosModule](crossVersions: _*)
-
 class MacrosModule(val crossScalaVersion: String) extends CommonRocketChipModule {
 }
-
-object hardfloat extends Cross[HardfloatModule](crossVersions: _*)
 
 class HardfloatModule(val crossScalaVersion: String) extends CommonRocketChipModule {
   override def moduleDeps = Seq(rc_chisel3(crossScalaVersion))
@@ -69,34 +65,15 @@ class ConfigModule(val crossScalaVersion: String) extends CommonRocketChipScalaM
   override def millSourcePath = super.millSourcePath / ammonite.ops.up / "api-config-chipsalliance" / 'design / 'craft
 }
 
-object api_config_chipsalliance extends Cross[ConfigModule](crossVersions: _*)
-
-object rocketchip extends Cross[RocketChipModule](crossVersions: _*) {
-  def defaultVersion: String = crossVersions.head
-
-  def compile = T{
-    rocketchip(defaultVersion).compile()
-  }
-
-  def jar = T{
-    rocketchip(defaultVersion).jar()
-  }
-
-  //def test = T{
-  //  rocketchip(defaultVersion).test.test()
-  //}
-
-  //def publishLocal = T{
-  //  rocketchip(defaultVersion).publishLocal()
-  //}
-
-  //def docJar = T{
-  //  rocketchip(defaultVersion).docJar()
-  //}
-}
+object rocketchip extends Cross[RocketChipModule](crossVersions: _*)
 
 class RocketChipModule(val crossScalaVersion: String) extends CommonRocketChipModule with PublishModule {
   override def millSourcePath = super.millSourcePath / ammonite.ops.up
+
+  // Internal parts of rocket-chip that are not to be separately published
+  object api_config_chipsalliance extends Cross[ConfigModule](crossVersions: _*)
+  object macros extends Cross[MacrosModule](crossVersions: _*)
+  object hardfloat extends Cross[HardfloatModule](crossVersions: _*)
 
   override def moduleDeps = Seq(
     rc_chisel3(crossScalaVersion),
