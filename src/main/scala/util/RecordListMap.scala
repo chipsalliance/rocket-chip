@@ -18,7 +18,7 @@ final case class RecordListMap[T <: Data](eltMap: ListMap[String, T])
   // Required by Record
   val elements = eltMap
 
-  override def cloneType: this.type = (new RecordMap(eltMap.map{case (k, v) => k -> v.chiselCloneType})).asInstanceOf[this.type]
+  override def cloneType: this.type = (new RecordListMap(eltMap.map{case (k, v) => k -> v.chiselCloneType})).asInstanceOf[this.type]
 
   // Map has its own hashCode/equals that we must not use
   override def hashCode: Int = super[Record].hashCode
