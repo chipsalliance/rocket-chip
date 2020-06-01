@@ -2,11 +2,13 @@
 package freechips.rocketchip.prci
 
 import chisel3._
+import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.{HeterogeneousBag}
+import freechips.rocketchip.util.RecordListMap
 import scala.math.max
+import scala.collection.immutable.ListMap
 
 // All Clock parameters specify only the PLL values required at power-on
 // Dynamic control of the PLL from software can take the values out-of-range
@@ -36,9 +38,10 @@ case class ClockSinkParameters(
   require (freqErrorPPM >= 0)
 }
 
-case class ClockBundleParameters()
+case class ClockBundleParameters(name: String)
 
 case class ClockEdgeParameters(
+  name:       String,
   source:     ClockSourceParameters,
   sink:       ClockSinkParameters,
   params:     Parameters,
@@ -51,7 +54,7 @@ case class ClockEdgeParameters(
     clock
   }
 
-  val bundle = ClockBundleParameters()
+  val bundle = ClockBundleParameters(name)
 }
 
 // ClockGroups exist as the output of a PLL
@@ -71,8 +74,8 @@ case class ClockGroupEdgeParameters(
   sourceInfo: SourceInfo)
 {
   val sourceParameters = ClockSourceParameters()
-  val members = sink.members.map { s =>
-    ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+  val members = sink.members.zipWithIndex.map { case (s, i) =>
+    ClockEdgeParameters(s"${sink.name}_${i}", sourceParameters, s, params, sourceInfo)
   }
 
   val bundle = ClockGroupBundleParameters(members.map(_.bundle))
@@ -83,25 +86,32 @@ case class ClockGroupDriverParameters(
   num: Int = 1,
   driveFn: ClockGroupDriver.DriveFn = ClockGroupDriver.driveFromImplicitClock
 ) {
-  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[HeterogeneousBag[ClockGroupBundle]] = {
+  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[RecordListMap[ClockGroupBundle]] = {
     driveFn(node, num, p, vn)
   }
 }
 
 object ClockGroupDriver {
-  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[HeterogeneousBag[ClockGroupBundle]]
+  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[RecordListMap[ClockGroupBundle]]
 
   def driveFromImplicitClock: DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
-    InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) }
+    InModuleBody { RecordListMap[ClockGroupBundle](ListMap()) }
   }
 
-  def driveFromIOs: DriveFn = { (groups, num, p, vn) =>
+  def driveFromIOs()(implicit valName: ValName): DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
     groups :*= ioClockGroupSourceNode
-    InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
+    InModuleBody {
+      val bundlesAndEdges = ioClockGroupSourceNode.out
+      val nameToBundleMap = ListMap(bundlesAndEdges.map{case (b, e) => e.sink.name -> b.cloneType}:_*)
+      val ios = IO(Flipped(new RecordListMap(nameToBundleMap)))
+      ios.suggestName(valName.name)
+      bundlesAndEdges.zip(ios).foreach { case ((bundle, edge), io) => bundle <> io._2 }
+      ios
+    }
   }
 }
