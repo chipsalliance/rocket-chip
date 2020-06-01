@@ -22,9 +22,7 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
     require (node.in.size == 1)
     require (in.member.size == out.size)
 
-    (in.member zip out) foreach { case ((iName, i) , o) =>
-      o := i
-    }
+    (in.member zip out) foreach { case ((iName, i) , o) => o := i }
   }
 }
 
