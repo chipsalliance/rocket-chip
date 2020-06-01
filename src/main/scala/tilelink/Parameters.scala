@@ -534,20 +534,53 @@ class TLSlavePortParameters private(
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
 
+  // all we need to change about this is adding 2 members, one for the tlmaster parametrs and one for the tlslave parameters
+  // All wee need to do is change the membership function to instead of only manager pamaters it looks at the intersection of both master and slave
+  // do we need to pass in two different arguments
   private def supportHelper(
       safe:    Boolean,
       member:  TLManagerParameters => TransferSizes,
       address: UInt,
       lgSize:  UInt,
-      range:   Option[TransferSizes]): Bool = {
+      range:   Option[TransferSizes]): Bool = { // What does the range argument do?
+    // trim is just processing the range argument
     def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
     // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
-    val supportCases = groupByIntoSeq(managers)(m => trim(member(m))).map { case (k, vs) =>
+    // groupByIntoSeq is turning managers into trimmed membership sizes
+    // We are grouping all the managers by their transfer size where
+    // if they support the trimmed size then
+    //    
+    // member is the type of transfer that you are looking for (What you are trying to filter on)
+    // When you consider membership, you are trimming the sizes to only the ones that you care about
+    // you are filtering the managers based on both whether they support a particular opcode and the size
+    // Grouping the managers based on the actual transfer size range they support
+    // intersecting the range and checking their membership
+    // FOR SUPPORTCASES instead of returning the list of managers, you are returning a map from transfer size to the set of address sets that are supported for that transfer size
+
+    // find all the managers that support a certain type of operation and then group their addresses by the supported size
+    // for every size there could be multiple address ranges
+    // safety is a trade off between checking between all possible addresses vs only the addresses that are known to have supported sizes
+    // the trade off is 'checking all addresses is a more expensive circuit but will always give you the right answer even if you give it an illegal address'
+    // the not safe version is a cheaper circuit but if you give it an illegal address then it might produce the wrong answer
+    // fast presumes address legality
+    val supportCases = groupByIntoSeq(managers)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
       k -> vs.flatMap(_.address)
     }
+    // the rest of this function is just processing that more
+    // safe produces a circuit that compares against all possible addresses
+    // whereas fast presumes that the address is legal
+    // It creates an address decoder that only works if the address is supported
     val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    // simplified...?
+    // simplified is doing some unification with the addresses to combine them with the mask
     val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
-    simplified.map { case (s, a) =>
+    simplified.map { case (s, a) => // once you've done that, you are returning
+    // s is a size, you are checking for this size either the size of the operation is in s
+    // you are checking if the wire address named `address` is contained within the calculated address set
+    // you are also checking if the size is contained within the size in the address set pair
+    // you are looking at that for every pair and then reducing them
+    // as long as you have an address that supports that size
+    // thats the circuit you are returning
       (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)
     }.foldLeft(Bool(false))(_||_)
@@ -1093,6 +1126,25 @@ case class TLEdgeParameters(
 
   val bundle = TLBundleParameters(client, manager)
   def formatEdge = client.infoString + "\n" + manager.infoString
+
+  private def supportHelper(
+      safe:    Boolean,
+      member:  TLManagerParameters => TransferSizes,
+      address: UInt,
+      lgSize:  UInt,
+      range:   Option[TransferSizes]): Bool = {
+    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
+    val supportCases = groupByIntoSeq(slave.managers)(m => trim(member(m))).map { case (k, vs) =>
+      k -> vs.flatMap(_.address)
+    }
+    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
+    simplified.map { case (s, a) =>
+      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      a.map(_.contains(address)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
+  }
 }
 
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
