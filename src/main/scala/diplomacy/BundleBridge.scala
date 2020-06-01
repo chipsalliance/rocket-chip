@@ -91,15 +91,21 @@ object BundleBridgeNexus {
     if (registered) RegNext(seq.head) else seq.head
   }
 
+  def orReduction[T <: Data](registered: Boolean)(seq: Seq[T]): T = {
+    val x = seq.reduce((a,b) => (a.asUInt | b.asUInt).asTypeOf(seq.head))
+    if (registered) RegNext(x) else x
+  }
+
   def fillN[T <: Data](registered: Boolean)(x: T, n: Int): Seq[T] = Seq.fill(n) {
     if (registered) RegNext(x) else x
   }
 
   def apply[T <: Data](
-    inputFn: Seq[T] => T = requireOne[T](false) _,
+    inputFn: Seq[T] => T = orReduction[T](false) _,
     outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
+    default: Option[() => T] = None
   )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
-    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn))
+    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default))
     broadcast.node
   }
 }
@@ -115,4 +121,3 @@ object BundleBroadcast {
       outputFn = BundleBridgeNexus.fillN[T](registered) _)
   }
 }
-

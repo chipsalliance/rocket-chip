@@ -178,14 +178,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   traceNode := traceSourceNode
 
   // Trace sideband signals into core
-  val traceAuxNode = BundleBridgeNexus[TraceAux](
-    inputFn = (seq: Seq[TraceAux]) => {
-      val aux = Wire(new TraceAux)
-      aux.stall := seq.map(_.stall).foldLeft(false.B)(_||_)
-      aux.enable := seq.map(_.enable).foldLeft(false.B)(_||_)
-      aux
-    }
-  )
+  val traceAuxNode = BundleBridgeNexus[TraceAux]()
   val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
   val traceAuxDefaultNode = BundleBridgeSource(() => new TraceAux)
   traceAuxSinkNode := traceAuxNode := traceAuxDefaultNode
