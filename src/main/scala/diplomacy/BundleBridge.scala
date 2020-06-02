@@ -7,24 +7,45 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{DataMirror,IO}
 import freechips.rocketchip.config.{Parameters,Field}
 
-case class BundleBridgeParams[T <: Data](gen: () => T)
-case class BundleBridgeNull()
+case class BundleBridgeParams[T <: Data](genOpt: Option[() => T])
 
-class BundleBridgeImp[T <: Data]() extends SimpleNodeImp[BundleBridgeParams[T], BundleBridgeNull, BundleBridgeParams[T], T]
-{
-  def edge(pd: BundleBridgeParams[T], pu: BundleBridgeNull, p: Parameters, sourceInfo: SourceInfo) = pd
-  def bundle(e: BundleBridgeParams[T]) = e.gen()
-  def render(e: BundleBridgeParams[T]) = RenderedEdge(colour = "#cccc00" /* yellow */)
+case object BundleBridgeParams {
+  def apply[T <: Data](gen: () => T): BundleBridgeParams[T] = BundleBridgeParams(Some(gen))
 }
 
-case class BundleBridgeSink[T <: Data]()(implicit valName: ValName) extends SinkNode(new BundleBridgeImp[T])(Seq(BundleBridgeNull()))
+case class BundleBridgeEdgeParams[T <: Data](source: BundleBridgeParams[T], sink: BundleBridgeParams[T])
+
+class BundleBridgeImp[T <: Data]() extends SimpleNodeImp[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
+{
+  def edge(pd: BundleBridgeParams[T], pu: BundleBridgeParams[T], p: Parameters, sourceInfo: SourceInfo) = BundleBridgeEdgeParams(pd, pu)
+  def bundle(e: BundleBridgeEdgeParams[T]): T = {
+    val sourceOpt = e.source.genOpt.map(_())
+    val sinkOpt = e.sink.genOpt.map(_())
+    (sourceOpt, sinkOpt) match {
+      case (None,    None)    =>
+        throw new Exception("BundleBridge needs source or sink to provide bundle generator function")
+      case (Some(a), None)    => a
+      case (None,    Some(b)) => b
+      case (Some(a), Some(b)) => {
+        require(DataMirror.checkTypeEquivalence(a, b),
+          s"BundleBridge requires doubly-specified source and sink generators to have equivalent Chisel Data types, but got \n$a\n vs\n$b")
+        a
+      }
+    }
+  }
+  def render(e: BundleBridgeEdgeParams[T]) = RenderedEdge(colour = "#cccc00" /* yellow */)
+}
+
+case class BundleBridgeSink[T <: Data](genOpt: Option[() => T] = None)
+                                      (implicit valName: ValName)
+  extends SinkNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt)))
 {
   def bundle: T = in(0)._1
 
   def makeIO()(implicit valName: ValName): T = makeIOs()(valName).head
 }
 
-case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(gen)))
+case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt)))
 {
   def bundle: T = out(0)._1
 
@@ -40,15 +61,21 @@ case class BundleBridgeSource[T <: Data](gen: () => T)(implicit valName: ValName
   }
 }
 
+case object BundleBridgeSource {
+  def apply[T <: Data](gen: () => T)(implicit valName: ValName): BundleBridgeSource[T] = {
+    BundleBridgeSource(Some(gen))
+  }
+}
+
 case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
 case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
 
 case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None)
                                            (implicit valName: ValName)
   extends NexusNode(new BundleBridgeImp[T])(
-    dFn = seq => seq.headOption.orElse(default.map(BundleBridgeParams(_))).get,
-    uFn = _ => BundleBridgeNull(),
-    inputRequiresOutput = false,
+    dFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
+    uFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
+    inputRequiresOutput = false, // enables publishers with no subscribers
     outputRequiresInput = !default.isDefined)
 
 class BundleBridgeNexus[T <: Data](
@@ -64,7 +91,7 @@ class BundleBridgeNexus[T <: Data](
     val inputs: Seq[T] = defaultWireOpt.toList ++ node.in.map(_._1)
     require(inputs.size >= 1, "BundleBridgeNexus requires at least one input or default.")
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
-      "BundleBridgeNexus requires all inputs have equivalent Chisel Data types")
+      s"BundleBridgeNexus requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
     }
     def getElements(x: Data): Seq[Element] = x match {
       case e: Element => Seq(e)
