@@ -6,13 +6,13 @@ import Chisel._
 import chisel3.Record
 import scala.collection.immutable.ListMap
 
-final case class RecordListMap[T <: Data](eltMap: ListMap[String, T])
+final case class RecordMap[T <: Data](eltMap: ListMap[String, T])
     extends Record with collection.Map[String, T] {
 
   // Required by collection.Map[String, T]
-  def get(key: String) = eltMap.get(key)
-  def -(key: String) = eltMap - key
-  def +[V1 >: T](kv: (String, V1)) = eltMap + kv
+  def get(key: String): T = eltMap.get(key)
+  def -(key: String): RecordMap[T] = RecordMap(eltMap - key)
+  def +[V1 >: T](kv: (String, V1)): RecordMap[T] = RecordMap(eltMap + kv)
   def iterator = eltMap.iterator
 
   // Required by Record
