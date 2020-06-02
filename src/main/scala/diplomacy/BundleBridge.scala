@@ -114,10 +114,11 @@ object BundleBroadcast {
   def apply[T <: Data](
     name: Option[String] = None,
     registered: Boolean = false
-  )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
-    implicit val valName = ValName(name.getOrElse("broadcast"))
+  )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
+    val finalName = name.map(ValName(_)).getOrElse(valName)
     BundleBridgeNexus.apply[T](
       inputFn = BundleBridgeNexus.requireOne[T](registered) _,
-      outputFn = BundleBridgeNexus.fillN[T](registered) _)
+      outputFn = BundleBridgeNexus.fillN[T](registered) _)(
+      p, finalName)
   }
 }
