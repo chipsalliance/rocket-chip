@@ -10,6 +10,7 @@ import freechips.rocketchip.util._
 import scala.math.max
 import scala.reflect.ClassTag
 
+//These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel
 case class TLMasterToSlaveTransferSizes(
   // Supports both Acquire+Release of the following two sizes:
   acquireT:   TransferSizes = TransferSizes.none,
@@ -68,6 +69,7 @@ object TLMasterToSlaveTransferSizes {
   def unknownSupports = TLMasterToSlaveTransferSizes()
 }
 
+//These transfer sizes describe requests issued from slaves on the B channel that will be responded by masters on the C channel
 case class TLSlaveToMasterTransferSizes(
   probe:      TransferSizes = TransferSizes.none,
   arithmetic: TransferSizes = TransferSizes.none,
@@ -479,7 +481,8 @@ class TLSlavePortParameters private(
   def mayDenyGet  = slaves.exists(_.mayDenyGet)
   def mayDenyPut  = slaves.exists(_.mayDenyPut)
 
-  // Operation sizes supported by all outward Managers
+  // Diplomatically determined operation sizes supported by all outward Managers
+  // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
   val allSupports = slaves.map(_.supports).reduce( _ intersect _)
   val allSupportAcquireT   = allSupports.acquireT
   val allSupportAcquireB   = allSupports.acquireB
@@ -965,6 +968,34 @@ class TLMasterPortParameters private(
     }
   }
 
+  private def emitHelper(
+    safe:    Boolean,
+    member: TLMasterParameters => TransferSizes,
+    sourceId: UInt,
+    lgSize:  UInt,
+    range:   Option[TransferSizes]): Bool = {
+    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
+    // Because sourceIds are uniquely owned by each master, we use them to group the
+    // cases that have to be checked.
+    val emitCases = groupByIntoSeq(masters)(m => trim(member(m))).map { case (k, vs) =>
+      k -> vs.map(_.sourceId)
+    }
+    emitCases.map { case (s, a) =>
+      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      a.map(_.contains(sourceId)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
+  }
+
+  // Check for emit of a given operation at a specific id
+  def emitsAcquireT  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.AcquireT,   address, lgSize, range)
+  def emitsAcquireB  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.AcquireB,   address, lgSize, range)
+  def emitsArithmetic(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.Arithmetic, address, lgSize, range)
+  def emitsLogical   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.Logical,    address, lgSize, range)
+  def emitsGet       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.Get,        address, lgSize, range)
+  def emitsPutFull   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.PutFull,    address, lgSize, range)
+  def emitsPutPartial(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.PutPartial, address, lgSize, range)
+  def emitsHint      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.Hint,       address, lgSize, range)
+
   // Check for support of a given operation at a specific id
   val supportsProbe      = safety_helper(_.supportsProbe)      _
   val supportsArithmetic = safety_helper(_.supportsArithmetic) _
@@ -1124,27 +1155,35 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
 
+  def expectsAcquireTMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.AcquireT,   address, lgSize, range)    && slave.supportHelper(true, _.supports.AcquireT,   address, lgSize, range)
+  def expectsAcquireBMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.AcquireB,   address, lgSize, range)    && slave.supportHelper(true, _.supports.AcquireB,   address, lgSize, range)
+  def expectsArithmeticMasterToSlaveSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.Arithmetic,   address, lgSize, range)  && slave.supportHelper(true, _.supports.Arithmetic,   address, lgSize, range)
+  def expectsLogicalMasterToSlaveSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.Logical,   address, lgSize, range)     && slave.supportHelper(true, _.supports.Logical,   address, lgSize, range)
+  def expectsGetMasterToSlaveSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.Get,   address, lgSize, range)         && slave.supportHelper(true, _.supports.Get,   address, lgSize, range)
+  def expectsPutFullMasterToSlaveSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.PutFull,   address, lgSize, range)     && slave.supportHelper(true, _.supports.PutFull,   address, lgSize, range)
+  def expectsPutPartialMasterToSlaveSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.PutPartial,   address, lgSize, range)  && slave.supportHelper(true, _.supports.PutPartial,   address, lgSize, range)
+  def expectsHintMasterToSlaveSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(true, _.emits.Hint,   address, lgSize, range)        && slave.supportHelper(true, _.supports.Hint,   address, lgSize, range)
+
+  def expectsAcquireTMasterToSlaveFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.AcquireT,   address, lgSize, range)   && slave.supportHelper(false, _.supports.AcquireT,   address, lgSize, range)
+  def expectsAcquireBMasterToSlaveFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.AcquireB,   address, lgSize, range)   && slave.supportHelper(false, _.supports.AcquireB,   address, lgSize, range)
+  def expectsArithmeticMasterToSlaveFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.Arithmetic,   address, lgSize, range) && slave.supportHelper(false, _.supports.Arithmetic,   address, lgSize, range)
+  def expectsLogicalMasterToSlaveFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.Logical,   address, lgSize, range)    && slave.supportHelper(false, _.supports.Logical,   address, lgSize, range)
+  def expectsGetMasterToSlaveFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.Get,   address, lgSize, range)        && slave.supportHelper(false, _.supports.Get,   address, lgSize, range)
+  def expectsPutFullMasterToSlaveFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.PutFull,   address, lgSize, range)    && slave.supportHelper(false, _.supports.PutFull,   address, lgSize, range)
+  def expectsPutPartialMasterToSlaveFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.PutPartial,   address, lgSize, range) && slave.supportHelper(false, _.supports.PutPartial,   address, lgSize, range)
+  def expectsHintMasterToSlaveFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitHelper(false, _.emits.Hint,   address, lgSize, range)       && slave.supportHelper(false, _.supports.Hint,   address, lgSize, range)
+
+  //We don't use Safe vs Fast because we don't have the equivalent of address decoder for sourceIds
+  def expectsProbeSlaveToMaster     (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsProbe
+  def expectsArithmeticSlaveToMaster(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsArithmetic
+  def expectsLogicalSlaveToMaster   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsLogical
+  def expectsGetSlaveToMaster       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsGet
+  def expectsPutFullSlaveToMaster   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsPutFull
+  def expectsPutPartialSlaveToMaster(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsPutPartial
+  def expectsHintSlaveToMaster      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.supportsHint
+
   val bundle = TLBundleParameters(client, manager)
   def formatEdge = client.infoString + "\n" + manager.infoString
-
-  private def supportHelper(
-      safe:    Boolean,
-      member:  TLManagerParameters => TransferSizes,
-      address: UInt,
-      lgSize:  UInt,
-      range:   Option[TransferSizes]): Bool = {
-    def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
-    // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
-    val supportCases = groupByIntoSeq(slave.managers)(m => trim(member(m))).map { case (k, vs) =>
-      k -> vs.flatMap(_.address)
-    }
-    val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
-    val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
-    simplified.map { case (s, a) =>
-      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
-      a.map(_.contains(address)).reduce(_||_)
-    }.foldLeft(Bool(false))(_||_)
-  }
 }
 
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
