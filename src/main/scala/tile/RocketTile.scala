@@ -158,12 +158,11 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   outer.traceSourceNode.bundle <> core.io.trace
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
-  outer.frontend.module.io.reset_vector := constants.reset_vector
+  outer.frontend.module.io.reset_vector := reset_vector
 
-  def regHart(x: UInt): UInt = if (p(HartPrefixKey)) RegNext(x) else x
-  core.io.hartid := regHart(constants.hartid)
-  outer.dcache.module.io.hartid := regHart(constants.hartid)
-  outer.frontend.module.io.hartid := regHart(constants.hartid)
+  core.io.hartid := hartid
+  outer.dcache.module.io.hartid := hartid
+  outer.frontend.module.io.hartid := hartid
 
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem

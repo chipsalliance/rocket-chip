@@ -611,7 +611,7 @@ class TraceGenTile private(
 class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp(outer) {
 
   val tracegen = Module(new TraceGenerator(outer.params))
-  tracegen.io.hartid := constants.hartid
+  tracegen.io.hartid := hartid
 
   outer.dcacheOpt foreach { dcache =>
     val dcacheIF = Module(new SimpleHellaCacheIF())

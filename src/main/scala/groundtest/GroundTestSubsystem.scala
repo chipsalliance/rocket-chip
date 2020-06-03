@@ -29,9 +29,6 @@ class GroundTestSubsystem(implicit p: Parameters)
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
   val success = IO(Bool(OUTPUT))
-
-  outer.tiles.zipWithIndex.map { case(t, i) => t.module.constants.hartid := UInt(i) }
-
   val status = dontTouch(DebugCombiner(outer.tiles.collect { case t: GroundTestTile => t.module.status }))
   success := outer.tileCeaseSinkNode.in.head._1.asUInt.andR
 }

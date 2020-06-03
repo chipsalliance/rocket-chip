@@ -10,12 +10,17 @@ import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerPa
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, HasExternallyDrivenTileConstants, InstantiableTileParams, PriorityMuxHartIdFromSeq}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstaniableTileParams, MaxHartIdBits}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 /** Entry point for Config-uring the presence of Tiles */
 case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTile]](Nil)
+
+/** Whether a global hart id prefix is going to be dynamically applied to the static tile hart ids */
+case object HartPrefixKey extends Field[Boolean](false)
+case object SubsystemExternalHartIdWidthKey extends Field[Option[Int]](None)
+case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
 
 /** An interface for describing the parameteization of how Tiles are connected to interconnects */
 trait TileCrossingParamsLike {
@@ -86,6 +91,49 @@ trait HasTileInterruptSources
   }
 }
 
+/** These are sources of "constants" that are driven into the tile.
+  * While they are not expected to change dyanmically while the tile is executing code,
+  * they may be either tied to a contant value or programmed during boot or reset.
+  * They need to be instantiated before tiles are attached to the subsystem containing them.
+  */
+trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
+  // Collect dynamic hart id prefixes and/or distribute static hart ids to the tiles
+  val tileHartIdNode = BundleBridgeEphemeralNode[UInt]()
+  val tileHartIdNexusNode = BundleBridgeNexus[UInt](
+    inputFn = BundleBridgeNexus.orReduction[UInt](p(HartPrefixKey)) _,
+    outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
+      val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
+      if (p(HartPrefixKey)) RegNext(y) else y
+    },
+    default = Some(() => 0.U(p(MaxHartIdBits).W))
+  )
+  // TODO: this also needs to be wired into the DebugModule's hart selection circuit?
+
+  // Collect a reset vector address and distribute to the tiles
+  val tileResetVectorNode = BundleBridgeEphemeralNode[UInt]()
+  val tileResetVectorNexusNode = BundleBroadcast[UInt]()
+
+  // Create subsystem IOs that are based on the number of tiles
+  //   or, if such IOs don't exist, rely on connections of drivers to internal nexus nodes
+  val tileHartIdIONodes: Seq[BundleBridgeSource[UInt]] = p(SubsystemExternalHartIdWidthKey) match {
+    case Some(w) => Seq.fill(tiles.size) {
+      val hartIdSource = BundleBridgeSource(() => UInt(w.W))
+      tileHartIdNode := hartIdSource
+      hartIdSource
+    }
+    case None => { tileHartIdNode :*= tileHartIdNexusNode; Nil }
+  }
+
+  val tileResetVectorIONodes: Seq[BundleBridgeSource[UInt]] = p(SubsystemExternalResetVectorKey) match {
+    case true => Seq.fill(tiles.size) {
+      val resetVectorSource = BundleBridgeSource[UInt]()
+      tileResetVectorNode := resetVectorSource
+      resetVectorSource
+    }
+    case false => { tileResetVectorNode :*= tileResetVectorNexusNode; Nil }
+  }
+}
+
 /** These are sinks of notifications that are driven out from the tile.
   * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
@@ -103,32 +151,6 @@ trait HasTileNotificationSinks { this: LazyModule =>
   tileCeaseSinkNode := tileCeaseXbarNode
 }
 
-/** HasTiles adds a Config-urable sequence of tiles of any type
-  *   to the subsystem class into which it is mixed.
-  */
-trait HasTiles extends HasCoreMonitorBundles with DefaultTileContextType
-{ this: BaseSubsystem => // TODO: ideally this bound would be softened to Attachable
-  implicit val p: Parameters
-
-  // Actually instantiate all tiles, in order based on statically-assigned hartids
-  val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
-  val tiles: Seq[BaseTile] = tileAttachParams.map(_.instantiate(p))
-
-  // Helper functions for accessing certain parameters the are popular to refer to in subsystem code
-  val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
-  val tileCrossingTypes = tileAttachParams.map(_.crossingParams.crossingType)
-  def nTiles: Int = tileAttachParams.size
-  def hartIdList: Seq[Int] = tileParams.map(_.hartId)
-  def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
-
-  require(hartIdList.distinct.size == tiles.size, s"Every tile must be statically assigned a unique id, but got:\n${hartIdList}")
-
-  // connect all the tiles to interconnect attachment points made available in this subsystem context
-  tileAttachParams.zip(tiles).foreach { case (params, t) =>
-    params.connect(t.asInstanceOf[params.TileType], this.asInstanceOf[params.TileContextType])
-  }
-}
-
 /** Most tile types require only these traits in order for their standardized connect functions to apply.
   *    BaseTiles subtypes with different needs can extend this trait to provide themselves with
   *    additional external connection points.
@@ -137,6 +159,7 @@ trait DefaultTileContextType
   extends Attachable
   with HasTileInterruptSources
   with HasTileNotificationSinks
+  with HasTileInputConstants
 { this: BaseSubsystem => } // TODO: ideally this bound would be softened to LazyModule
 
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
@@ -162,6 +185,7 @@ trait CanAttachTile {
     connectMasterPorts(tile, context)
     connectSlavePorts(tile, context)
     connectInterrupts(tile, context)
+    connectInputConstants(tile, context)
     LogicalModuleTree.add(context.logicalTreeNode, tile.logicalTreeNode)
   }
 
@@ -234,20 +258,49 @@ trait CanAttachTile {
     context.tileWFIXbarNode :=* tile.wfiNode
     context.tileCeaseXbarNode :=* tile.ceaseNode
   }
+
+  def connectInputConstants(tile: TileType, context: TileContextType): Unit = {
+    implicit val p = context.p
+    tile.hartIdNode := context.tileHartIdNode
+    tile.resetVectorNode := context.tileResetVectorNode
+  }
+}
+
+/** InstantiatesTiles adds a Config-urable sequence of tiles of any type
+  *   to the subsystem class into which it is mixed.
+  */
+trait InstantiatesTiles { this: BaseSubsystem =>
+  // Actually instantiate all tiles, in order based on statically-assigned hartids
+  val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
+  val tiles: Seq[BaseTile] = tileAttachParams.map(_.instantiate(p))
+
+  // Helper functions for accessing certain parameters the are popular to refer to in subsystem code
+  val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
+  val tileCrossingTypes = tileAttachParams.map(_.crossingParams.crossingType)
+  def nTiles: Int = tileAttachParams.size
+  def hartIdList: Seq[Int] = tileParams.map(_.hartId)
+  def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
+
+  require(hartIdList.distinct.size == tiles.size, s"Every tile must be statically assigned a unique id, but got:\n${hartIdList}")
+}
+
+/** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
+trait HasTiles extends InstantiatesTiles with HasCoreMonitorBundles with DefaultTileContextType
+{ this: BaseSubsystem => // TODO: ideally this bound would be softened to Attachable
+  implicit val p: Parameters
+
+  // connect all the tiles to interconnect attachment points made available in this subsystem context
+  tileAttachParams.zip(tiles).foreach { case (params, t) =>
+    params.connect(t.asInstanceOf[params.TileType], this.asInstanceOf[params.TileContextType])
+  }
 }
 
 /** Provides some Chisel connectivity to certain tile IOs */
 trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
-  val outer: HasTiles with HasTileInterruptSources
+  val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants
 
-  def resetVectorBits: Int = {
-    // Consider using the minimum over all widths, rather than enforcing homogeneity
-    val vectors = outer.tiles.map(_.module.constants.reset_vector)
-    require(vectors.tail.forall(_.getWidth == vectors.head.getWidth))
-    vectors.head.getWidth
-  }
-
-  val tile_inputs = outer.tiles.map(_.module.constants)
+  val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
+  val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
 
   val meip = if(outer.meipNode.isDefined) Some(IO(Vec(outer.meipNode.get.out.size, Bool()).asInput)) else None
   meip.foreach { m =>

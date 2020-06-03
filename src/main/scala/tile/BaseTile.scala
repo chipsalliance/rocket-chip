@@ -17,7 +17,6 @@ import freechips.rocketchip.util._
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
-case object ResetVectorBits extends Field[Int]
 case object MaxHartIdBits extends Field[Int]
 case object LookupByHartId extends Field[LookupByHartIdImpl]
 
@@ -148,7 +147,12 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
   def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
 
-  def resetVectorLen: Int = paddrBits
+  lazy val resetVectorLen: Int = {
+    val externalLen = paddrBits
+    require(externalLen <= xLen, s"External reset vector length ($externalLen) must be <= XLEN ($xLen)")
+    require(externalLen <= vaddrBitsExtended, s"External reset vector length ($externalLen must be <= virtual address bit width ($vaddrBitsExtended)")
+    externalLen
+  }
 }
 
 /** Base class for all Tiles that use TileLink */
@@ -180,6 +184,16 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   protected val tlMasterXbar = LazyModule(new TLXbar)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
+
+  private val hartid = BundleBridgeIdentityNode[UInt]()
+  val hartIdNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(HartPrefixKey)) := hartid
+  val hartIdSinkNode = BundleBridgeSink[UInt]()
+  hartIdSinkNode := hartIdNode
+
+  private val reset_vector = BundleBridgeIdentityNode[UInt]()
+  val resetVectorNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(HartPrefixKey)) := reset_vector
+  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => Output(UInt(visiblePhysAddrBits.W))))
+  resetVectorSinkNode := resetVectorNode
 
   // Node for legacy instruction trace from core
   val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
@@ -215,6 +229,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 
   val visibilityNode = p(TileVisibilityNodeKey)
   protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)
+  protected def visiblePhysAddrBits = visibilityNode.edges.out.head.bundle.addressBits
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
 
   // Find resource labels for all the outward caches
@@ -269,14 +284,13 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
 
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits, "asked for " + paddrBits + " paddr bits, but since xLen is " + xLen + ", only " + maxPAddrBits + " can fit")
-  require(resetVectorLen <= xLen)
-  require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
 
   outer.traceAuxDefaultNode.bundle.stall := false.B
   outer.traceAuxDefaultNode.bundle.enable := false.B
 
-  val constants = IO(new TileInputConstants)
+  val hartid = outer.hartIdSinkNode.bundle
+  val reset_vector = outer.resetVectorSinkNode.bundle
 }
 
 /** Some other non-tilelink but still standard inputs */
@@ -284,5 +298,3 @@ trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
   val hartid = UInt(INPUT, hartIdLen)
   val reset_vector = UInt(INPUT, resetVectorLen)
 }
-
-class TileInputConstants(implicit val p: Parameters) extends Bundle with HasExternallyDrivenTileConstants

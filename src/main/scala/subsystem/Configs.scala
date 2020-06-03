@@ -38,6 +38,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
+  case SubsystemExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
