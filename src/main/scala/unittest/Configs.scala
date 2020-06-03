@@ -127,6 +127,7 @@ class WithPLRUTests extends Config((site, here, up) => {
       Module(new PLRUTest(2)),
       Module(new PLRUTest(3)),
       Module(new PLRUTest(4)),
+      Module(new PLRUTest(5)),
       Module(new PLRUTest(6)))}})
 
 class WithPowerQueueTests extends Config((site, here, up) => {

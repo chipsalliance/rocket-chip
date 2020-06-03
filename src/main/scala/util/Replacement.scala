@@ -179,37 +179,33 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
     require(state.getWidth == (tree_nways-1),                   s"wrong state bits width ${state.getWidth} for $tree_nways ways")
     require(touch_way.getWidth == (log2Ceil(tree_nways) max 1), s"wrong encoded way width ${touch_way.getWidth} for $tree_nways ways")
 
-    if (tree_nways > 3) {
-      // we are at a branching node in the tree with both left and right sub-trees, so recurse both sub-trees
+    if (tree_nways > 2) {
+      // we are at a branching node in the tree, so recurse
       val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
       val left_nways:  Int = tree_nways - right_nways         // number of ways in the left sub-tree
       val set_left_older      = !touch_way(log2Ceil(tree_nways)-1)
-      val left_subtree_state  = state(tree_nways-3, right_nways-1)
+      val left_subtree_state  = state.extract(tree_nways-3, right_nways-1)
       val right_subtree_state = state(right_nways-2, 0)
 
-      Cat(set_left_older,
-          Mux(set_left_older,
-              left_subtree_state,  // if setting left sub-tree as older, do NOT recurse into left sub-tree
-              get_next_state(left_subtree_state, touch_way(log2Ceil(left_nways)-1,0), left_nways)),  // recurse left if newer
-          Mux(set_left_older,
-              get_next_state(right_subtree_state, touch_way(log2Ceil(right_nways)-1,0), right_nways),  // recurse right if newer
-              right_subtree_state))  // if setting right sub-tree as older, do NOT recurse into right sub-tree
-
-    } else if (tree_nways == 3) {
-      // we are at a branching node in the tree with only a right sub-tree, so recurse only right sub-tree
-      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
-      val set_left_older      = !touch_way(log2Ceil(tree_nways)-1)
-      val right_subtree_state = state(right_nways-2, 0)
-
-      Cat(set_left_older,
-          Mux(set_left_older,
-              get_next_state(right_subtree_state, touch_way(log2Ceil(right_nways)-1,0), right_nways),  // recurse right if newer
-              right_subtree_state))  // if setting right sub-tree as older, do NOT recurse into right sub-tree
-
+      if (left_nways > 1) {
+        // we are at a branching node in the tree with both left and right sub-trees, so recurse both sub-trees
+        Cat(set_left_older,
+            Mux(set_left_older,
+                left_subtree_state,  // if setting left sub-tree as older, do NOT recurse into left sub-tree
+                get_next_state(left_subtree_state, touch_way.extract(log2Ceil(left_nways)-1,0), left_nways)),  // recurse left if newer
+            Mux(set_left_older,
+                get_next_state(right_subtree_state, touch_way(log2Ceil(right_nways)-1,0), right_nways),  // recurse right if newer
+                right_subtree_state))  // if setting right sub-tree as older, do NOT recurse into right sub-tree
+      } else {
+        // we are at a branching node in the tree with only a right sub-tree, so recurse only right sub-tree
+        Cat(set_left_older,
+            Mux(set_left_older,
+                get_next_state(right_subtree_state, touch_way(log2Ceil(right_nways)-1,0), right_nways),  // recurse right if newer
+                right_subtree_state))  // if setting right sub-tree as older, do NOT recurse into right sub-tree
+      }
     } else if (tree_nways == 2) {
       // we are at a leaf node at the end of the tree, so set the single state bit opposite of the lsb of the touched way encoded value
       !touch_way(0)
-
     } else {  // tree_nways <= 1
       // we are at an empty node in an empty tree for 1 way, so return single zero bit for Chisel (no zero-width wires)
       0.U(1.W)
@@ -230,34 +226,30 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
     require(state.getWidth == (tree_nways-1), s"wrong state bits width ${state.getWidth} for $tree_nways ways")
 
     // this algorithm recursively descends the binary tree, filling in the way-to-replace encoded value from msb to lsb
-    if (tree_nways > 3) {
-      // we are at a branching node in the tree with both left and right sub-trees, so recurse both sub-trees
+    if (tree_nways > 2) {
+      // we are at a branching node in the tree, so recurse
       val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
       val left_nways:  Int = tree_nways - right_nways         // number of ways in the left sub-tree
       val left_subtree_older  = state(tree_nways-2)
-      val left_subtree_state  = state(tree_nways-3, right_nways-1)
+      val left_subtree_state  = state.extract(tree_nways-3, right_nways-1)
       val right_subtree_state = state(right_nways-2, 0)
 
-      Cat(left_subtree_older,      // return the top state bit (current tree node) as msb of the way-to-replace encoded value
-          Mux(left_subtree_older,  // if left sub-tree is older, recurse left, else recurse right
-              get_replace_way(left_subtree_state,  left_nways),    // recurse left
-              get_replace_way(right_subtree_state, right_nways)))  // recurse right
-
-    } else if (tree_nways == 3) {
-      // we are at a branching node in the tree with only a right sub-tree, so recurse only right sub-tree
-      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1)  // number of ways in the right sub-tree
-      val left_subtree_older  = state(tree_nways-2)
-      val right_subtree_state = state(right_nways-2, 0)
-
-      Cat(left_subtree_older,      // return the top state bit (current tree node) as msb of the way-to-replace encoded value
-          Mux(left_subtree_older,  // if left sub-tree is older, return and do not recurse right
-              0.U(1.W),
-              get_replace_way(right_subtree_state, right_nways)))  // recurse right
-
+      if (left_nways > 1) {
+        // we are at a branching node in the tree with both left and right sub-trees, so recurse both sub-trees
+        Cat(left_subtree_older,      // return the top state bit (current tree node) as msb of the way-to-replace encoded value
+            Mux(left_subtree_older,  // if left sub-tree is older, recurse left, else recurse right
+                get_replace_way(left_subtree_state,  left_nways),    // recurse left
+                get_replace_way(right_subtree_state, right_nways)))  // recurse right
+      } else {
+        // we are at a branching node in the tree with only a right sub-tree, so recurse only right sub-tree
+        Cat(left_subtree_older,      // return the top state bit (current tree node) as msb of the way-to-replace encoded value
+            Mux(left_subtree_older,  // if left sub-tree is older, return and do not recurse right
+                0.U(1.W),
+                get_replace_way(right_subtree_state, right_nways)))  // recurse right
+      }
     } else if (tree_nways == 2) {
       // we are at a leaf node at the end of the tree, so just return the single state bit as lsb of the way-to-replace encoded value
       state(0)
-
     } else {  // tree_nways <= 1
       // we are at an empty node in an unbalanced tree for non-power-of-2 ways, so return single zero bit as lsb of the way-to-replace encoded value
       0.U(1.W)
@@ -373,6 +365,104 @@ class PLRUTest(n_ways: Int, timeout: Int = 500) extends UnitTest(timeout) {
       assert(get_next_states(7)(1) === 6.U(plru.nBits.W), s"get_next_state state=7 way=5: expected=6 actual=%d", get_next_states(7)(1))
       assert(get_next_states(7)(2) === 3.U(plru.nBits.W), s"get_next_state state=7 way=2: expected=3 actual=%d", get_next_states(7)(2))
       assert(get_next_states(7)(3) === 1.U(plru.nBits.W), s"get_next_state state=7 way=3: expected=1 actual=%d", get_next_states(7)(3))
+    }
+    case 5 => {
+      assert(get_replace_ways( 0) === 0.U(log2Ceil(n_ways).W), s"get_replace_way state=00: expected=0 actual=%d", get_replace_ways( 0))
+      assert(get_replace_ways( 1) === 1.U(log2Ceil(n_ways).W), s"get_replace_way state=01: expected=1 actual=%d", get_replace_ways( 1))
+      assert(get_replace_ways( 2) === 0.U(log2Ceil(n_ways).W), s"get_replace_way state=02: expected=0 actual=%d", get_replace_ways( 2))
+      assert(get_replace_ways( 3) === 1.U(log2Ceil(n_ways).W), s"get_replace_way state=03: expected=1 actual=%d", get_replace_ways( 3))
+      assert(get_replace_ways( 4) === 2.U(log2Ceil(n_ways).W), s"get_replace_way state=04: expected=2 actual=%d", get_replace_ways( 4))
+      assert(get_replace_ways( 5) === 2.U(log2Ceil(n_ways).W), s"get_replace_way state=05: expected=2 actual=%d", get_replace_ways( 5))
+      assert(get_replace_ways( 6) === 3.U(log2Ceil(n_ways).W), s"get_replace_way state=06: expected=3 actual=%d", get_replace_ways( 6))
+      assert(get_replace_ways( 7) === 3.U(log2Ceil(n_ways).W), s"get_replace_way state=07: expected=3 actual=%d", get_replace_ways( 7))
+      assert(get_replace_ways( 8) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=08: expected=4 actual=%d", get_replace_ways( 8))
+      assert(get_replace_ways( 9) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=09: expected=4 actual=%d", get_replace_ways( 9))
+      assert(get_replace_ways(10) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=10: expected=4 actual=%d", get_replace_ways(10))
+      assert(get_replace_ways(11) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=11: expected=4 actual=%d", get_replace_ways(11))
+      assert(get_replace_ways(12) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=12: expected=4 actual=%d", get_replace_ways(12))
+      assert(get_replace_ways(13) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=13: expected=4 actual=%d", get_replace_ways(13))
+      assert(get_replace_ways(14) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=14: expected=4 actual=%d", get_replace_ways(14))
+      assert(get_replace_ways(15) === 4.U(log2Ceil(n_ways).W), s"get_replace_way state=15: expected=4 actual=%d", get_replace_ways(15))
+      assert(get_next_states( 0)(0) === 13.U(plru.nBits.W), s"get_next_state state=00 way=0: expected=13 actual=%d", get_next_states( 0)(0))
+      assert(get_next_states( 0)(1) === 12.U(plru.nBits.W), s"get_next_state state=00 way=1: expected=12 actual=%d", get_next_states( 0)(1))
+      assert(get_next_states( 0)(2) === 10.U(plru.nBits.W), s"get_next_state state=00 way=2: expected=10 actual=%d", get_next_states( 0)(2))
+      assert(get_next_states( 0)(3) ===  8.U(plru.nBits.W), s"get_next_state state=00 way=3: expected=08 actual=%d", get_next_states( 0)(3))
+      assert(get_next_states( 0)(4) ===  0.U(plru.nBits.W), s"get_next_state state=00 way=4: expected=00 actual=%d", get_next_states( 0)(4))
+      assert(get_next_states( 1)(0) === 13.U(plru.nBits.W), s"get_next_state state=01 way=0: expected=13 actual=%d", get_next_states( 1)(0))
+      assert(get_next_states( 1)(1) === 12.U(plru.nBits.W), s"get_next_state state=01 way=1: expected=12 actual=%d", get_next_states( 1)(1))
+      assert(get_next_states( 1)(2) === 11.U(plru.nBits.W), s"get_next_state state=01 way=2: expected=11 actual=%d", get_next_states( 1)(2))
+      assert(get_next_states( 1)(3) ===  9.U(plru.nBits.W), s"get_next_state state=01 way=3: expected=09 actual=%d", get_next_states( 1)(3))
+      assert(get_next_states( 1)(4) ===  1.U(plru.nBits.W), s"get_next_state state=01 way=4: expected=01 actual=%d", get_next_states( 1)(4))
+      assert(get_next_states( 2)(0) === 15.U(plru.nBits.W), s"get_next_state state=02 way=0: expected=15 actual=%d", get_next_states( 2)(0))
+      assert(get_next_states( 2)(1) === 14.U(plru.nBits.W), s"get_next_state state=02 way=1: expected=14 actual=%d", get_next_states( 2)(1))
+      assert(get_next_states( 2)(2) === 10.U(plru.nBits.W), s"get_next_state state=02 way=2: expected=10 actual=%d", get_next_states( 2)(2))
+      assert(get_next_states( 2)(3) ===  8.U(plru.nBits.W), s"get_next_state state=02 way=3: expected=08 actual=%d", get_next_states( 2)(3))
+      assert(get_next_states( 2)(4) ===  2.U(plru.nBits.W), s"get_next_state state=02 way=4: expected=02 actual=%d", get_next_states( 2)(4))
+      assert(get_next_states( 3)(0) === 15.U(plru.nBits.W), s"get_next_state state=03 way=0: expected=15 actual=%d", get_next_states( 3)(0))
+      assert(get_next_states( 3)(1) === 14.U(plru.nBits.W), s"get_next_state state=03 way=1: expected=14 actual=%d", get_next_states( 3)(1))
+      assert(get_next_states( 3)(2) === 11.U(plru.nBits.W), s"get_next_state state=03 way=2: expected=11 actual=%d", get_next_states( 3)(2))
+      assert(get_next_states( 3)(3) ===  9.U(plru.nBits.W), s"get_next_state state=03 way=3: expected=09 actual=%d", get_next_states( 3)(3))
+      assert(get_next_states( 3)(4) ===  3.U(plru.nBits.W), s"get_next_state state=03 way=4: expected=03 actual=%d", get_next_states( 3)(4))
+      assert(get_next_states( 4)(0) === 13.U(plru.nBits.W), s"get_next_state state=04 way=0: expected=13 actual=%d", get_next_states( 4)(0))
+      assert(get_next_states( 4)(1) === 12.U(plru.nBits.W), s"get_next_state state=04 way=1: expected=12 actual=%d", get_next_states( 4)(1))
+      assert(get_next_states( 4)(2) === 10.U(plru.nBits.W), s"get_next_state state=04 way=2: expected=10 actual=%d", get_next_states( 4)(2))
+      assert(get_next_states( 4)(3) ===  8.U(plru.nBits.W), s"get_next_state state=04 way=3: expected=08 actual=%d", get_next_states( 4)(3))
+      assert(get_next_states( 4)(4) ===  4.U(plru.nBits.W), s"get_next_state state=04 way=4: expected=04 actual=%d", get_next_states( 4)(4))
+      assert(get_next_states( 5)(0) === 13.U(plru.nBits.W), s"get_next_state state=05 way=0: expected=13 actual=%d", get_next_states( 5)(0))
+      assert(get_next_states( 5)(1) === 12.U(plru.nBits.W), s"get_next_state state=05 way=1: expected=12 actual=%d", get_next_states( 5)(1))
+      assert(get_next_states( 5)(2) === 11.U(plru.nBits.W), s"get_next_state state=05 way=2: expected=11 actual=%d", get_next_states( 5)(2))
+      assert(get_next_states( 5)(3) ===  9.U(plru.nBits.W), s"get_next_state state=05 way=3: expected=09 actual=%d", get_next_states( 5)(3))
+      assert(get_next_states( 5)(4) ===  5.U(plru.nBits.W), s"get_next_state state=05 way=4: expected=05 actual=%d", get_next_states( 5)(4))
+      assert(get_next_states( 6)(0) === 15.U(plru.nBits.W), s"get_next_state state=06 way=0: expected=15 actual=%d", get_next_states( 6)(0))
+      assert(get_next_states( 6)(1) === 14.U(plru.nBits.W), s"get_next_state state=06 way=1: expected=14 actual=%d", get_next_states( 6)(1))
+      assert(get_next_states( 6)(2) === 10.U(plru.nBits.W), s"get_next_state state=06 way=2: expected=10 actual=%d", get_next_states( 6)(2))
+      assert(get_next_states( 6)(3) ===  8.U(plru.nBits.W), s"get_next_state state=06 way=3: expected=08 actual=%d", get_next_states( 6)(3))
+      assert(get_next_states( 6)(4) ===  6.U(plru.nBits.W), s"get_next_state state=06 way=4: expected=06 actual=%d", get_next_states( 6)(4))
+      assert(get_next_states( 7)(0) === 15.U(plru.nBits.W), s"get_next_state state=07 way=0: expected=15 actual=%d", get_next_states( 7)(0))
+      assert(get_next_states( 7)(1) === 14.U(plru.nBits.W), s"get_next_state state=07 way=5: expected=14 actual=%d", get_next_states( 7)(1))
+      assert(get_next_states( 7)(2) === 11.U(plru.nBits.W), s"get_next_state state=07 way=2: expected=11 actual=%d", get_next_states( 7)(2))
+      assert(get_next_states( 7)(3) ===  9.U(plru.nBits.W), s"get_next_state state=07 way=3: expected=09 actual=%d", get_next_states( 7)(3))
+      assert(get_next_states( 7)(4) ===  7.U(plru.nBits.W), s"get_next_state state=07 way=4: expected=07 actual=%d", get_next_states( 7)(4))
+      assert(get_next_states( 8)(0) === 13.U(plru.nBits.W), s"get_next_state state=08 way=0: expected=13 actual=%d", get_next_states( 8)(0))
+      assert(get_next_states( 8)(1) === 12.U(plru.nBits.W), s"get_next_state state=08 way=1: expected=12 actual=%d", get_next_states( 8)(1))
+      assert(get_next_states( 8)(2) === 10.U(plru.nBits.W), s"get_next_state state=08 way=2: expected=10 actual=%d", get_next_states( 8)(2))
+      assert(get_next_states( 8)(3) ===  8.U(plru.nBits.W), s"get_next_state state=08 way=3: expected=08 actual=%d", get_next_states( 8)(3))
+      assert(get_next_states( 8)(4) ===  0.U(plru.nBits.W), s"get_next_state state=08 way=4: expected=00 actual=%d", get_next_states( 8)(4))
+      assert(get_next_states( 9)(0) === 13.U(plru.nBits.W), s"get_next_state state=09 way=0: expected=13 actual=%d", get_next_states( 9)(0))
+      assert(get_next_states( 9)(1) === 12.U(plru.nBits.W), s"get_next_state state=09 way=1: expected=12 actual=%d", get_next_states( 9)(1))
+      assert(get_next_states( 9)(2) === 11.U(plru.nBits.W), s"get_next_state state=09 way=2: expected=11 actual=%d", get_next_states( 9)(2))
+      assert(get_next_states( 9)(3) ===  9.U(plru.nBits.W), s"get_next_state state=09 way=3: expected=09 actual=%d", get_next_states( 9)(3))
+      assert(get_next_states( 9)(4) ===  1.U(plru.nBits.W), s"get_next_state state=09 way=4: expected=01 actual=%d", get_next_states( 9)(4))
+      assert(get_next_states(10)(0) === 15.U(plru.nBits.W), s"get_next_state state=10 way=0: expected=15 actual=%d", get_next_states(10)(0))
+      assert(get_next_states(10)(1) === 14.U(plru.nBits.W), s"get_next_state state=10 way=1: expected=14 actual=%d", get_next_states(10)(1))
+      assert(get_next_states(10)(2) === 10.U(plru.nBits.W), s"get_next_state state=10 way=2: expected=10 actual=%d", get_next_states(10)(2))
+      assert(get_next_states(10)(3) ===  8.U(plru.nBits.W), s"get_next_state state=10 way=3: expected=08 actual=%d", get_next_states(10)(3))
+      assert(get_next_states(10)(4) ===  2.U(plru.nBits.W), s"get_next_state state=10 way=4: expected=02 actual=%d", get_next_states(10)(4))
+      assert(get_next_states(11)(0) === 15.U(plru.nBits.W), s"get_next_state state=11 way=0: expected=15 actual=%d", get_next_states(11)(0))
+      assert(get_next_states(11)(1) === 14.U(plru.nBits.W), s"get_next_state state=11 way=1: expected=14 actual=%d", get_next_states(11)(1))
+      assert(get_next_states(11)(2) === 11.U(plru.nBits.W), s"get_next_state state=11 way=2: expected=11 actual=%d", get_next_states(11)(2))
+      assert(get_next_states(11)(3) ===  9.U(plru.nBits.W), s"get_next_state state=11 way=3: expected=09 actual=%d", get_next_states(11)(3))
+      assert(get_next_states(11)(4) ===  3.U(plru.nBits.W), s"get_next_state state=11 way=4: expected=03 actual=%d", get_next_states(11)(4))
+      assert(get_next_states(12)(0) === 13.U(plru.nBits.W), s"get_next_state state=12 way=0: expected=13 actual=%d", get_next_states(12)(0))
+      assert(get_next_states(12)(1) === 12.U(plru.nBits.W), s"get_next_state state=12 way=1: expected=12 actual=%d", get_next_states(12)(1))
+      assert(get_next_states(12)(2) === 10.U(plru.nBits.W), s"get_next_state state=12 way=2: expected=10 actual=%d", get_next_states(12)(2))
+      assert(get_next_states(12)(3) ===  8.U(plru.nBits.W), s"get_next_state state=12 way=3: expected=08 actual=%d", get_next_states(12)(3))
+      assert(get_next_states(12)(4) ===  4.U(plru.nBits.W), s"get_next_state state=12 way=4: expected=04 actual=%d", get_next_states(12)(4))
+      assert(get_next_states(13)(0) === 13.U(plru.nBits.W), s"get_next_state state=13 way=0: expected=13 actual=%d", get_next_states(13)(0))
+      assert(get_next_states(13)(1) === 12.U(plru.nBits.W), s"get_next_state state=13 way=1: expected=12 actual=%d", get_next_states(13)(1))
+      assert(get_next_states(13)(2) === 11.U(plru.nBits.W), s"get_next_state state=13 way=2: expected=11 actual=%d", get_next_states(13)(2))
+      assert(get_next_states(13)(3) ===  9.U(plru.nBits.W), s"get_next_state state=13 way=3: expected=09 actual=%d", get_next_states(13)(3))
+      assert(get_next_states(13)(4) ===  5.U(plru.nBits.W), s"get_next_state state=13 way=4: expected=05 actual=%d", get_next_states(13)(4))
+      assert(get_next_states(14)(0) === 15.U(plru.nBits.W), s"get_next_state state=14 way=0: expected=15 actual=%d", get_next_states(14)(0))
+      assert(get_next_states(14)(1) === 14.U(plru.nBits.W), s"get_next_state state=14 way=1: expected=14 actual=%d", get_next_states(14)(1))
+      assert(get_next_states(14)(2) === 10.U(plru.nBits.W), s"get_next_state state=14 way=2: expected=10 actual=%d", get_next_states(14)(2))
+      assert(get_next_states(14)(3) ===  8.U(plru.nBits.W), s"get_next_state state=14 way=3: expected=08 actual=%d", get_next_states(14)(3))
+      assert(get_next_states(14)(4) ===  6.U(plru.nBits.W), s"get_next_state state=14 way=4: expected=06 actual=%d", get_next_states(14)(4))
+      assert(get_next_states(15)(0) === 15.U(plru.nBits.W), s"get_next_state state=15 way=0: expected=15 actual=%d", get_next_states(15)(0))
+      assert(get_next_states(15)(1) === 14.U(plru.nBits.W), s"get_next_state state=15 way=5: expected=14 actual=%d", get_next_states(15)(1))
+      assert(get_next_states(15)(2) === 11.U(plru.nBits.W), s"get_next_state state=15 way=2: expected=11 actual=%d", get_next_states(15)(2))
+      assert(get_next_states(15)(3) ===  9.U(plru.nBits.W), s"get_next_state state=15 way=3: expected=09 actual=%d", get_next_states(15)(3))
+      assert(get_next_states(15)(4) ===  7.U(plru.nBits.W), s"get_next_state state=15 way=4: expected=07 actual=%d", get_next_states(15)(4))
     }
     case 6 => {
       assert(get_replace_ways( 0) === 0.U(log2Ceil(n_ways).W), s"get_replace_way state=00: expected=0 actual=%d", get_replace_ways( 0))
