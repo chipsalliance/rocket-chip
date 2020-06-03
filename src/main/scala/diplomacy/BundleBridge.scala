@@ -78,6 +78,9 @@ class BundleBridgeNexus[T <: Data](
 
     val broadcast: T = inputFn(inputs)
     val outputs: Seq[T] = outputFn(broadcast, node.out.size)
+    node.out.map(_._1).foreach { o => require(DataMirror.checkTypeEquivalence(o, outputs.head),
+      s"BundleBridgeNexus requires all outputs have equivalent Chisel Data types, but got\n$o\nvs\n${outputs.head}")
+    }
     require(outputs.size == node.out.size,
       s"BundleBridgeNexus outputFn must generate one output wire per edgeOut, but got ${outputs.size} vs ${node.out.size}")
 
