@@ -41,7 +41,7 @@ sealed trait NamingStrategy {
 
   /** Generates a new stable module name based on the desired name and the module IR node
     *
-    * called by [[LintConflictingModuleNames]] to rename modules
+    * called by [[RenameDesiredNames]] to rename modules
     *
     * @param desiredName the requested name for the module, generated name should contain this name
     * @param module the module targeted by the desiredName
@@ -87,8 +87,7 @@ case class OverrideDesiredNameAnnotation(
   * [[OverrideDesiredNameAnnotation]]. If one of the modules is targeted by a
   * [[NamingStrategyAnnotation]] then the transform will attempt to rename
   * modules according to that naming strategy. The default naming strategy is
-  * [[ExactNamingStrategy]] which will throw an exception if there are any
-  * module name conflicts.
+  * [[ExactNamingStrategy]].
   */
 class RenameDesiredNames extends Transform with DependencyAPIMigration {
 
@@ -97,6 +96,12 @@ class RenameDesiredNames extends Transform with DependencyAPIMigration {
 
   override def invalidates(transform: Transform) = false
 
+  /* Creates a rename mapping using the selected [[NamingStrategy]]
+   *
+   * @return a map of original module name to new name if possible, None if the
+   * strategy fails to result in unique names for all the modules using this
+   * strategy
+   */
   private def checkStrategy(
     strategy: NamingStrategy,
     desiredName: String,
