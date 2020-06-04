@@ -93,7 +93,7 @@ class BundleBridgeNexus[T <: Data](
     val inputs: Seq[T] = defaultWireOpt.toList ++ node.in.map(_._1)
     require(inputs.size >= 1, "BundleBridgeNexus requires at least one input or default.")
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
-      s"BundleBridgeNexus requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
+      s"${node.context} requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
     }
     def getElements(x: Data): Seq[Element] = x match {
       case e: Element => Seq(e)
@@ -102,7 +102,7 @@ class BundleBridgeNexus[T <: Data](
     inputs.flatMap(getElements).foreach { elt => DataMirror.directionOf(elt) match {
       case ActualDirection.Output => ()
       case ActualDirection.Unspecified => ()
-      case _ => require(false, "BundleBridgeNexus can only be used with Output-directed Bundles")
+      case _ => require(false, s"${node.context} can only be used with Output-directed Bundles")
     } }
 
     val broadcast: T = inputFn(inputs)
@@ -111,7 +111,7 @@ class BundleBridgeNexus[T <: Data](
       s"BundleBridgeNexus requires all outputs have equivalent Chisel Data types, but got\n$o\nvs\n${outputs.head}")
     }
     require(outputs.size == node.out.size,
-      s"BundleBridgeNexus outputFn must generate one output wire per edgeOut, but got ${outputs.size} vs ${node.out.size}")
+      s"${node.context} outputFn must generate one output wire per edgeOut, but got ${outputs.size} vs ${node.out.size}")
 
     node.out.zip(outputs).foreach { case ((out, _), bcast) => out := bcast }
   }
