@@ -187,7 +187,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(new TraceCoreParams()))
   val traceCoreBroadcastNode = BundleBroadcast[TraceCoreInterface](Some("tracecore"))
   traceCoreBroadcastNode := traceCoreSourceNode
-  def traceCoreNode: BundleBridgeNexus[TraceCoreInterface] = traceCoreBroadcastNode
+  def traceCoreNode: BundleBridgeNexusNode[TraceCoreInterface] = traceCoreBroadcastNode
 
   // Node for watchpoints to control trace
   def getBpwatchParams: (Int, Int) = { (tileParams.core.nBreakpoints, tileParams.core.retireWidth) }
@@ -264,10 +264,6 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
 
   outer.traceAuxDefaultNode.bundle.stall := false.B
   outer.traceAuxDefaultNode.bundle.enable := false.B
-  val aux = Wire(new TraceAux)
-  aux.stall := outer.traceAuxNode.in.map(in => in._1.stall).orR
-  aux.enable := outer.traceAuxNode.in.map(in => in._1.enable).orR
-  outer.traceAuxNode.out.foreach { case (out, _) => out := aux }
 
   val constants = IO(new TileInputConstants)
 }
