@@ -91,7 +91,7 @@ class BundleBridgeNexus[T <: Data](
   lazy val module = new LazyModuleImp(this) {
     val defaultWireOpt = default.map(_())
     val inputs: Seq[T] = defaultWireOpt.toList ++ node.in.map(_._1)
-    require(inputs.size >= 1, "BundleBridgeNexus requires at least one input or default.")
+    require(inputs.size >= 1 || node.out.size == 0, s"${node.context} requires at least one input or default.")
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
       s"${node.context} requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
     }
@@ -105,11 +105,15 @@ class BundleBridgeNexus[T <: Data](
       case _ => require(false, s"${node.context} can only be used with Output-directed Bundles")
     } }
 
-    val broadcast: T = inputFn(inputs)
-    val outputs: Seq[T] = outputFn(broadcast, node.out.size)
+    val outputs: Seq[T] = if (node.out.size > 0) {
+      val broadcast: T = inputFn(inputs)
+      outputFn(broadcast, node.out.size)
+    } else { Nil }
+
     node.out.map(_._1).foreach { o => require(DataMirror.checkTypeEquivalence(o, outputs.head),
-      s"BundleBridgeNexus requires all outputs have equivalent Chisel Data types, but got\n$o\nvs\n${outputs.head}")
+      s"${node.context} requires all outputs have equivalent Chisel Data types, but got\n$o\nvs\n${outputs.head}")
     }
+
     require(outputs.size == node.out.size,
       s"${node.context} outputFn must generate one output wire per edgeOut, but got ${outputs.size} vs ${node.out.size}")
 
