@@ -22,7 +22,7 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
     require (node.in.size == 1)
     require (in.member.size == out.size)
 
-    (in.member zip out) foreach { case ((iName, i) , o) => o := i }
+    (in.member zip out) foreach { case (i, o) => o := i }
   }
 }
 
@@ -47,7 +47,7 @@ class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends La
 
     require (node.in.size == 1)
     require (in.head.member.size == outputs.size)
-    in.head.member.zip(outputs).foreach { case ((iName, i), (oName, o)) => o := i }
+    in.head.member.zip(outputs).foreach { case (i, o) => o := i }
   }
 }
 
@@ -63,7 +63,7 @@ class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extend
   lazy val module = new LazyModuleImp(this) {
     val (out, _) = node.out.unzip
     val outputs = out.flatMap(_.member)
-    outputs.foreach { o => o._2.clock := clock; o._2.reset := reset }
+    outputs.foreach { o => o.clock := clock; o.reset := reset }
   }
 }
 
