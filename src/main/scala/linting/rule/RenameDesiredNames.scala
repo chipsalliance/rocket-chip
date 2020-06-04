@@ -192,8 +192,8 @@ class RenameDesiredNames extends Transform with DependencyAPIMigration {
     // delete override annotations and rename desired name annotations for ones that were renamed
     val newAnnos = state.annotations.flatMap {
       case a: OverrideDesiredNameAnnotation if renamedDesiredNames(a.desiredName) => None
-      case a: DesiredNameAnnotation if nameMappings.contains(a.desiredName) =>
-        Some(a.copy(desiredName = nameMappings(a.desiredName)))
+      case a: DesiredNameAnnotation if nameMappings.contains(Target.referringModule(a.target).module) =>
+        Some(a.copy(desiredName = nameMappings(Target.referringModule(a.target).module)))
       case a => Some(a)
     }
 

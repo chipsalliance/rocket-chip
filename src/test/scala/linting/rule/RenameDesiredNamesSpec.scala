@@ -3,7 +3,6 @@
 package freechips.rocketchip.linting.rule
 
 import firrtl._
-import firrtl.ir.Port
 import firrtl.annotations._
 import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
