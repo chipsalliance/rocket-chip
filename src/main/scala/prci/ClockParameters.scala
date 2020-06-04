@@ -6,7 +6,7 @@ import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.RecordListMap
+import freechips.rocketchip.util.RecordMap
 import scala.math.max
 import scala.collection.immutable.ListMap
 
@@ -86,19 +86,19 @@ case class ClockGroupDriverParameters(
   num: Int = 1,
   driveFn: ClockGroupDriver.DriveFn = ClockGroupDriver.driveFromImplicitClock
 ) {
-  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[RecordListMap[ClockGroupBundle]] = {
+  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[RecordMap[ClockGroupBundle]] = {
     driveFn(node, num, p, vn)
   }
 }
 
 object ClockGroupDriver {
-  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[RecordListMap[ClockGroupBundle]]
+  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[RecordMap[ClockGroupBundle]]
 
   def driveFromImplicitClock: DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
-    InModuleBody { RecordListMap[ClockGroupBundle](ListMap()) }
+    InModuleBody { RecordMap[ClockGroupBundle](ListMap()) }
   }
 
   def driveFromIOs()(implicit valName: ValName): DriveFn = { (groups, num, p, vn) =>
@@ -108,9 +108,9 @@ object ClockGroupDriver {
     InModuleBody {
       val bundlesAndEdges = ioClockGroupSourceNode.out
       val nameToBundleMap = ListMap(bundlesAndEdges.map{case (b, e) => e.sink.name -> b.cloneType}:_*)
-      val ios = IO(Flipped(new RecordListMap(nameToBundleMap)))
+      val ios = IO(Flipped(new RecordMap(nameToBundleMap)))
       ios.suggestName(valName.name)
-      bundlesAndEdges.zip(ios).foreach { case ((bundle, edge), io) => bundle <> io._2 }
+      bundlesAndEdges.zip(ios).foreach { case ((bundle, edge), io) => bundle <> io }
       ios
     }
   }

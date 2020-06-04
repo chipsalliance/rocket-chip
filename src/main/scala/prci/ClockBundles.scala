@@ -2,7 +2,7 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import freechips.rocketchip.util.RecordListMap
+import freechips.rocketchip.util.RecordMap
 import scala.collection.immutable.ListMap
 
 
@@ -14,8 +14,8 @@ class ClockBundle(val params: ClockBundleParameters) extends Bundle
 
 class ClockGroupBundle(val params: ClockGroupBundleParameters) extends Bundle
 {
-  val member: RecordListMap[ClockBundle] = {
+  val member: RecordMap[ClockBundle] = {
     val nameToBundleMap = ListMap(params.members.map{p => p.name -> new ClockBundle(p)}: _*)
-    new RecordListMap(nameToBundleMap)
+    new RecordMap(nameToBundleMap)
   }
 }
