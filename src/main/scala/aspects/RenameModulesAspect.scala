@@ -33,7 +33,7 @@ import freechips.rocketchip.linting.rule.{OverrideDesiredNameAnnotation, RenameD
   * })
   * }}}
   *
-  * @param collectNameOverrides a function that takes the design top module and returns pairs of name overrides
+  * @param collectNameOverrides a function that takes the design top module and returns pairs of name overrides for the modules under the top module in the hierarchy
   */
 abstract class RenameModulesAspect(
   collectNameOverrides: RawModule => Seq[(RawModule, String)]

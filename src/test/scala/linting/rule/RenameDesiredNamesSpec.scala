@@ -77,7 +77,7 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
         DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
         OverrideDesiredNameAnnotation("BarWith1Input", top.module("Bar_1")),
 
-        // these renames should fail because they conflict
+        // these renames should fail (be ignored) because they conflict
         OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
         OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_3"))
       )
