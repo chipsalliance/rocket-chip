@@ -56,7 +56,7 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
     }
   }
 
-  property("It should rename modules if it can") {
+  property("It should rename modules if it can, and ignore strategies which fail to result in unique names") {
     val top = CircuitTarget("Foo")
     val testCase = TestCase(
       """|circuit Foo:
@@ -77,7 +77,7 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
         DesiredNameAnnotation("Bar_1", top.module("Bar_1")),
         OverrideDesiredNameAnnotation("BarWith1Input", top.module("Bar_1")),
 
-        // these renames should fail (be ignored) because they conflict
+        // these renames should fail (be ignored) because the ExactNamingStrategy fails to result in unique names.
         OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
         OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_3"))
       )
@@ -102,6 +102,7 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
     outputState.circuit should be (Parser.parse(check))
 
     // it should also update DesiredNameAnnotation and delete successfull OverrideDesiredNameAnnotation
+    // Unsuccessful OverrideDesiredNameAnnotations should remain
     outputState.annotations.filterNot(_.isInstanceOf[DeletedAnnotation]) should be (Seq(
       DesiredNameAnnotation("BarWith1Input", top.module("BarWith1Input")),
       OverrideDesiredNameAnnotation("BarWith2Inputs", top.module("Bar_2")),
