@@ -961,9 +961,11 @@ class TLMasterPortParameters private(
 
   def requestFifo(id: UInt) = Mux1H(find(id), clients.map(c => Bool(c.requestFifo)))
 
+  // Available during RTL runtime, checks to see if (id, size) is supported by the master's (client's)  diplomatic parameters
   private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
     val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
     if (allSame) member(clients(0)).containsLg(lgSize) else {
+      // Find the master associated with ID and returns whether that particular master is able to receive transaction of lgSize
       Mux1H(find(id), clients.map(member(_).containsLg(lgSize)))
     }
   }
@@ -1155,7 +1157,10 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
 
-  def expectsAcquireTMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(address, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
+  // For emits, check that the source is allowed to send this transactions
+// TODO emitAcquire, source => sourceID (or don't need sourceID at all)
+//      Probe, source => address
+  def expectsAcquireTMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceID, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
   def expectsAcquireBMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(address, lgSize, range)    && slave.supportsAcquireBSafe(address, lgSize, range)
   def expectsArithmeticMasterToSlaveSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(address, lgSize, range)  && slave.supportsArithmeticSafe(address, lgSize, range)
   def expectsLogicalMasterToSlaveSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(address, lgSize, range)     && slave.supportsLogicalSafe(address, lgSize, range)
@@ -1174,6 +1179,7 @@ case class TLEdgeParameters(
   def expectsHintMasterToSlaveFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(address, lgSize, range)        && slave.supportsHintFast(address, lgSize, range)
 
   //We don't use Safe vs Fast because we don't have the equivalent of address decoder for sourceIds
+// TODO (can use sourceID here to see if the specific master can support this transaction)
   def expectsProbeSlaveToMaster      = master.supportsProbe
   def expectsArithmeticSlaveToMaster = master.supportsArithmetic
   def expectsLogicalSlaveToMaster    = master.supportsLogical
