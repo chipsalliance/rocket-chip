@@ -195,12 +195,22 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
   def fastCheck(member: TLManagerParameters => Boolean) =
     legal_address && edge.manager.fastProperty(mpu_physaddr, member, (b:Boolean) => Bool(b))
+
+  println("DOESNT'T SUPPORT PP:")
+  edge.manager.managers.filterNot(_.supportsPutPartial).map(_.address).foreach(println)
+
   val cacheable = fastCheck(_.supportsAcquireT) && (instruction || !usingDataScratchpad)
   val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
   val deny_access_to_debug = mpu_priv <= PRV.M && p(DebugModuleKey).map(dmp => dmp.address.contains(mpu_physaddr)).getOrElse(false)
   val prot_r = fastCheck(_.supportsGet) && !deny_access_to_debug && pmp.io.r
   val prot_w = fastCheck(_.supportsPutFull) && !deny_access_to_debug && pmp.io.w
+  println("CHECKING SUPPORTSPUTPARTIAL:")
   val prot_pp = fastCheck(_.supportsPutPartial)
+  println("DONE")
+  println("CHECKING NOT_SUPPORTSPUTPARTIAL:")
+  val prot_not_pp = fastCheck(!_.supportsPutPartial)
+  println("DONE")
+  assert(!legal_address || prot_pp =/= prot_not_pp)
   val prot_al = fastCheck(_.supportsLogical)
   val prot_aa = fastCheck(_.supportsArithmetic)
   val prot_x = fastCheck(_.executable) && !deny_access_to_debug && pmp.io.x

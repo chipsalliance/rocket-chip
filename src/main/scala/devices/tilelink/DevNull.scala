@@ -41,7 +41,6 @@ abstract class DevNullDevice(params: DevNullParams, minLatency: Int, beatBytes: 
       supportsAcquireT   = acq,
       supportsAcquireB   = acq,
       supportsGet        = xfer,
-      supportsPutPartial = xfer,
       supportsPutFull    = xfer,
       supportsArithmetic = atom,
       supportsLogical    = atom,
