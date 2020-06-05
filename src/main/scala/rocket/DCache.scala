@@ -897,7 +897,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       // We could consider turning some of these into dynamic PMA checks.
       require(!m.supportsAcquireB || m.supportsGet, "With a vector unit, cacheable memory must support Get")
       require(!m.supportsAcquireT || m.supportsPutPartial, "With a vector unit, cacheable memory must support PutPartial")
-      require(!m.supportsPutFull || m.supportsPutPartial, "With a vector unit, writable memory must support PutPartial")
     }
   }
 
