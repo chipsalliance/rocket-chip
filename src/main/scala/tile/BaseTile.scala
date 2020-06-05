@@ -7,6 +7,9 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.{HasLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{GenericLogicalTreeNode, LogicalTreeNode}
+
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
@@ -148,6 +151,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     extends LazyModule()(q)
     with CrossesToOnlyOneClockDomain
     with HasNonDiplomaticTileParameters
+    with HasLogicalTreeNode
 {
   // Public constructor alters Parameters to supply some legacy compatibility keys
   def this(tileParams: TileParams, crossing: ClockCrossingType, lookup: LookupByHartIdImpl, p: Parameters) = {
@@ -250,6 +254,8 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 
   def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
   def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
+
+  val logicalTreeNode: LogicalTreeNode = new GenericLogicalTreeNode
 
   this.suggestName(tileParams.name)
 }

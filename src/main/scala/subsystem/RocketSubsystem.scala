@@ -30,6 +30,17 @@ case class RocketCrossingParams(
   master: TileMasterPortParams = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams())
 
+case class RocketAttachParams
+  tile: RocketTileParams,
+  crossing: RocketCrossingParams,
+  lookup: LookupByHartIdImpl
+) {
+  def instantiate(context: Attachable): RocketTile = {
+    val rocket = LazyModule(new RocketTile(tile, crossing, lookup, context.logicalTreeNode))
+    rocket
+  }
+}
+
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
 
@@ -46,20 +57,13 @@ trait HasRocketTiles extends HasTiles
   // according to the specified type of clock crossing.
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
-  val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
-    val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams), logicalTreeNode))
+  val rocketTiles = tiles.collect { case r: RocketTile => r }
 
+  rocketTiles.foreach { rocket =>
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
     connectInterrupts(rocket, debugOpt, clintOpt, plicOpt)
-
-    rocket
-  }
-
-  rocketTiles.map {
-    r =>
-      def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
-      LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
+    LogicalModuleTree.add(logicalTreeNode, rocket.rocketLogicalTree)
   }
 
   def coreMonitorBundles = (rocketTiles map { t =>
