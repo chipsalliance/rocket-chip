@@ -86,7 +86,8 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       val d_drop = d_what === DROP
       val d_hasData = edgeOut.hasData(out.d.bits)
       val d_normal = Wire(in.d)
-      val d_trackerOH = VecInit(trackers.map { t => t.need_d && t.source === d_normal.bits.source }).asUInt
+      val (d_first, d_last, _) = edgeIn.firstlast(d_normal)
+      val d_trackerOH = VecInit(trackers.map { t => t.need_d && t.source === d_normal.bits.source }).asUInt holdUnless d_first
 
       assert (!out.d.valid || !d_drop || out.d.bits.opcode === TLMessages.AccessAck)
 
@@ -102,7 +103,6 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
       // A tracker response is anything neither dropped nor a ReleaseAck
       val d_response = d_hasData || !d_what(1)
-      val d_last = edgeIn.last(d_normal)
       (trackers zip d_trackerOH.asBools) foreach { case (tracker, select) =>
         tracker.d_last := select && d_normal.fire() && d_response && d_last
         tracker.probedack := select && out.d.fire() && d_drop
