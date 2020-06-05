@@ -38,10 +38,9 @@ case class ClockSinkParameters(
   require (freqErrorPPM >= 0)
 }
 
-case class ClockBundleParameters(name: String)
+case class ClockBundleParameters()
 
 case class ClockEdgeParameters(
-  name:       String,
   source:     ClockSourceParameters,
   sink:       ClockSinkParameters,
   params:     Parameters,
@@ -54,7 +53,7 @@ case class ClockEdgeParameters(
     clock
   }
 
-  val bundle = ClockBundleParameters(name)
+  val bundle = ClockBundleParameters()
 }
 
 // ClockGroups exist as the output of a PLL
@@ -65,7 +64,7 @@ case class ClockGroupSinkParameters(
   members: Seq[ClockSinkParameters])
 
 case class ClockGroupBundleParameters(
-  members: Seq[ClockBundleParameters])
+  members: Map[String, ClockBundleParameters])
 
 case class ClockGroupEdgeParameters(
   source:     ClockGroupSourceParameters,
@@ -74,11 +73,11 @@ case class ClockGroupEdgeParameters(
   sourceInfo: SourceInfo)
 {
   val sourceParameters = ClockSourceParameters()
-  val members = sink.members.zipWithIndex.map { case (s, i) =>
-    ClockEdgeParameters(s"${sink.name}_${i}", sourceParameters, s, params, sourceInfo)
-  }
+  val members: Map[String, ClockEdgeParameters] = sink.members.zipWithIndex.map { case (s, i) =>
+    s"{sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+  }.toMap
 
-  val bundle = ClockGroupBundleParameters(members.map(_.bundle))
+  val bundle = ClockGroupBundleParameters(members.map(_._2.bundle))
 }
 
 // Used to create simple clock group drivers that just use the Chisel implicit clock

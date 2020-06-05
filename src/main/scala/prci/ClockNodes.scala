@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 object ClockImp extends SimpleNodeImp[ClockSourceParameters, ClockSinkParameters, ClockEdgeParameters, ClockBundle]
 {
   def edge(pd: ClockSourceParameters, pu: ClockSinkParameters, p: Parameters, sourceInfo: SourceInfo) = {
-    ClockEdgeParameters("foo", pd, pu, p, sourceInfo)
+    ClockEdgeParameters(pd, pu, p, sourceInfo)
   }
   def bundle(e: ClockEdgeParameters) = new ClockBundle(e.bundle)
   def render(e: ClockEdgeParameters) = RenderedEdge(colour = "#00cc00" /* green */)
