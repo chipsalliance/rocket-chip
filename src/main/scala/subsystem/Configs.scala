@@ -41,6 +41,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
+  case TilesLocated(InSubsystem) => 
+    LegacyTileFieldHelper(site(RocketTilesKey), site(RocketCrossingKey), RocketTileAttachParams.apply _)
 })
 
 /* Composable partial function Configs to set individual parameters */
@@ -410,3 +412,17 @@ class WithScratchpadsOnly extends Config((site, here, up) => {
         scratch = Some(0x80000000L))))
   }
 })
+
+/** Boilerplate code for translating between the old XTilesParamsKey/XTilesCrossingKey pattern and new TilesLocated pattern */
+object LegacyTileFieldHelper {
+  def apply[TPT <: InstantiatableTileParams[_], TCT <: TileCrossingParamsLike, TAP <: CanAttachTile](
+    tileParams: Seq[TPT],
+    tcp: Seq[TCT],
+    apply: (TPT, TCT, LookupByHartIdImpl) => TAP): Seq[TAP] =
+  {
+    val crossingParams = heterogeneousOrGlobalSetting(tcp, tileParams.size)
+    tileParams.zip(crossingParams).map { case (t, c) =>
+      apply(t, c, PriorityMuxHartIdFromSeq(tileParams))
+    }
+  }
+}

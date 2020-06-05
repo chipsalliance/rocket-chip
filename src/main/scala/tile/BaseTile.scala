@@ -32,6 +32,11 @@ trait TileParams {
   val name: Option[String]
 }
 
+abstract class InstantiatableTileParams[TileType <: BaseTile] extends TileParams {
+  def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)
+                 (implicit p: Parameters): TileType
+}
+
 /** These parameters values are not computed based on diplomacy negotiation
   * and so are safe to use while diplomacy itself is running.
   */
