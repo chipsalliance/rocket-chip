@@ -8,7 +8,7 @@ import chisel3.RawModule
 import firrtl.AnnotationSeq
 import firrtl.stage.RunFirrtlTransformAnnotation
 
-import freechips.rocketchip.linting.rule.{OverrideDesiredNameAnnotation, RenameDesiredNames}
+import freechips.rocketchip.transforms.naming.{OverrideDesiredNameAnnotation, RenameDesiredNames}
 
 /** An aspect that renames modules
   *

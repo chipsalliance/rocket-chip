@@ -7,6 +7,7 @@ import firrtl.annotations._
 import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
 import freechips.rocketchip.linting.Violation
+import freechips.rocketchip.transforms.naming.{OverrideDesiredNameAnnotation, RenameDesiredNames}
 
 class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
   val transform = new LintConflictingModuleNames

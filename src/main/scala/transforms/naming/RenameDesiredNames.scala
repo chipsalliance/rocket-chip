@@ -1,13 +1,14 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.linting
-package rule
+package freechips.rocketchip.transforms.naming
 
 import firrtl._
 import firrtl.annotations.{CircuitTarget, HasSerializationHints, IsModule, SingleTargetAnnotation, Target}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.transforms.DedupModules
+
+import freechips.rocketchip.linting.rule.DesiredNameAnnotation
 
 import scala.collection.mutable
 
@@ -112,8 +113,6 @@ class RenameDesiredNames extends Transform with DependencyAPIMigration {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val violations = new Violations()
-
     val modMap = state.circuit.modules.collect {
       case m: Module => m.name -> m
     }.toMap

@@ -8,6 +8,8 @@ import firrtl.annotations.{IsModule, SingleTargetAnnotation, Target}
 import firrtl.ir._
 import firrtl.options.Dependency
 
+import freechips.rocketchip.transforms.naming.RenameDesiredNames
+
 import chisel3.aop.{Aspect, Select}
 import chisel3.RawModule
 
