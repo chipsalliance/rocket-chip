@@ -221,7 +221,7 @@ object AddressSet
 
   def unify(seq: Seq[AddressSet], bit: BigInt): Seq[AddressSet] = {
     // Pair terms up by ignoring 'bit'
-    seq.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
+    seq.distinct.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
       if (seq.size == 1) {
         seq.head // singleton -> unaffected
       } else {
