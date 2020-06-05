@@ -877,15 +877,17 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // AMOs
   if (usingRMW) {
-    // when xLen < coreDataBits (e.g. RV32D), this AMOALU is wider than necessary
-    val amoalu = Module(new AMOALU(coreDataBits))
-    amoalu.io.mask := pstore1_mask
-    amoalu.io.cmd := (if (usingAtomicsInCache) pstore1_cmd else M_XWR)
-    amoalu.io.lhs := s2_data_word
-    amoalu.io.rhs := pstore1_data
-    pstore1_storegen_data := (if (!usingDataScratchpad) amoalu.io.out else {
+    val amoalus = (0 until coreDataBits / xLen).map { i =>
+      val amoalu = Module(new AMOALU(xLen))
+      amoalu.io.mask := pstore1_mask >> (i * xBytes)
+      amoalu.io.cmd := (if (usingAtomicsInCache) pstore1_cmd else M_XWR)
+      amoalu.io.lhs := s2_data_word >> (i * xLen)
+      amoalu.io.rhs := pstore1_data >> (i * xLen)
+      amoalu
+    }
+    pstore1_storegen_data := (if (!usingDataScratchpad) amoalus.map(_.io.out).asUInt else {
       val mask = FillInterleaved(8, Mux(s2_correct, 0.U, pstore1_mask))
-      amoalu.io.out_unmasked & mask | s2_data_word_corrected & ~mask
+      amoalus.map(_.io.out_unmasked).asUInt & mask | s2_data_word_corrected & ~mask
     })
   } else if (!usingAtomics) {
     assert(!(s1_valid_masked && s1_read && s1_write), "unsupported D$ operation")
