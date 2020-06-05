@@ -35,7 +35,7 @@ object RenameModules {
   }
 }
 
-/** A strategy for generating a new names for modules
+/** A strategy for generating new names for modules
   */
 sealed trait NamingStrategy {
 
@@ -43,7 +43,7 @@ sealed trait NamingStrategy {
     *
     * called by [[RenameDesiredNames]] to rename modules
     *
-    * @param desiredName the requested name for the module, generated name should contain this name
+    * @param desiredName the requested name for the module; generated name should contain this name
     * @param module the module targeted by the desiredName
     */
   def getName(desiredName: String)(module: Module): String

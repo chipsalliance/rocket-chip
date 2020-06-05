@@ -55,7 +55,7 @@ class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
     }
   }
 
-  property("It should rename modules if it can, and ignore strategies which fail to result in unique names") {
+  property("It should rename modules if it can and ignore strategies which fail to result in unique names") {
     val top = CircuitTarget("Foo")
     val testCase = TestCase(
       """|circuit Foo:
