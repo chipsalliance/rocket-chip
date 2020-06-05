@@ -15,7 +15,7 @@ class ClockBundle(val params: ClockBundleParameters) extends Bundle
 class ClockGroupBundle(val params: ClockGroupBundleParameters) extends Bundle
 {
   val member: RecordMap[ClockBundle] = {
-    val nameToBundleMap = ListMap(params.members.map{p => p.name -> new ClockBundle(p)}: _*)
+    val nameToBundleMap = ListMap(params.members.map{case (k: String, v: ClockBundleParameters) => k -> new ClockBundle(v)}.toMap)
     new RecordMap(nameToBundleMap)
   }
 }
