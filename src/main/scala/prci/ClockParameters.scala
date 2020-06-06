@@ -64,7 +64,7 @@ case class ClockGroupSinkParameters(
   members: Seq[ClockSinkParameters])
 
 case class ClockGroupBundleParameters(
-  members: Map[String, ClockBundleParameters])
+  members: ListMap[String, ClockBundleParameters])
 
 case class ClockGroupEdgeParameters(
   source:     ClockGroupSourceParameters,
@@ -73,11 +73,12 @@ case class ClockGroupEdgeParameters(
   sourceInfo: SourceInfo)
 {
   val sourceParameters = ClockSourceParameters()
-  val members: Map[String, ClockEdgeParameters] = sink.members.zipWithIndex.map { case (s, i) =>
-    s"{sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
-  }.toMap
+  val members: ListMap[String, ClockEdgeParameters] = ListMap(
+    sink.members.zipWithIndex.map { case (s, i) =>
+      s"{sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+  }:_*)
 
-  val bundle = ClockGroupBundleParameters(members.map(_._2.bundle))
+  val bundle = ClockGroupBundleParameters(members.map{ case (k, v) => k -> v.bundle})
 }
 
 // Used to create simple clock group drivers that just use the Chisel implicit clock
@@ -97,19 +98,23 @@ object ClockGroupDriver {
     implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
-    InModuleBody { RecordMap[ClockGroupBundle](ListMap()) }
+    InModuleBody { RecordMap[ClockGroupBundle](ListMap[String, ClockGroupBundle]())}
   }
 
   def driveFromIOs()(implicit valName: ValName): DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
     groups :*= ioClockGroupSourceNode
+    // InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
     InModuleBody {
-      val bundlesAndEdges = ioClockGroupSourceNode.out
-      val nameToBundleMap = ListMap(bundlesAndEdges.map{case (b, e) => e.sink.name -> b.cloneType}:_*)
-      val ios = IO(Flipped(new RecordMap(nameToBundleMap)))
+      val bundles: Seq[ClockGroupBundle] = ioClockGroupSourceNode.out.map(_._1)
+      //  TODO: I am not sure what names to use here other than the index
+      val namedBundleMap: ListMap[String, ClockGroupBundle] = ListMap(bundles.zipWithIndex.map{ case(b, i) =>
+        s"${i}" -> b
+      }:_*)
+      val ios = IO(Flipped(RecordMap(namedBundleMap)))
       ios.suggestName(valName.name)
-      bundlesAndEdges.zip(ios).foreach { case ((bundle, edge), io) => bundle <> io }
+      bundles.zip(ios.data).foreach{ case (bundle, io) => bundle <> io  }
       ios
     }
   }
