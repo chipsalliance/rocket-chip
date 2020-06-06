@@ -21,3 +21,12 @@ final class RecordMap[T <: Data](eltMap: ListMap[String, T])
   def apply(x: String) = eltMap.get(x)
 
 }
+
+object RecordMap {
+
+  def apply[T <: Data](eltMap: ListMap[String, T]) = new RecordMap(eltMap)
+
+  def apply[T <: Data](elements: (String, T)*) {
+    new RecordMap[T](ListMap(elements:_*))
+  }
+}
