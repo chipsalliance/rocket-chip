@@ -19,8 +19,13 @@ final class RecordMap[T <: Data](val eltMap: ListMap[String, T])
   def data = eltMap.values
 
   // This is needed for Record, and doesn't give the actual elements
-  val elements = ListMap[String, T]() ++ eltMap.mapValues(chiselTypeClone(_))  // mapValues return value is lazy
-
+  val elements: ListMap[String, T] = {
+    val prev: Map[String, T] = eltMap.mapValues{ v => // mapValues return value is lazy
+      val foo: T = chiselTypeClone(v)  
+      foo
+    }
+    ListMap[String, T]() ++ prev
+  }
   override def cloneType: this.type = (new RecordMap(eltMap)).asInstanceOf[this.type]
 
 }

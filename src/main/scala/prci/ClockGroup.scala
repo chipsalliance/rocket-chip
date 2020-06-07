@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import chisel3._
+import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.RecordMap
 
 case class ClockGroupNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(
@@ -62,8 +63,11 @@ class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extend
 
   lazy val module = new LazyModuleImp(this) {
     val (out, _) = node.out.unzip
-    val outputs = out.flatMap(_.member.data)
-    outputs.foreach { o => o.clock := clock; o.reset := reset }
+    out.foreach { out: ClockGroupBundle => out.member.eltMap.foreach{ case (k, v) =>
+      val foo = v
+      foo.clock := clock;
+      foo.reset := reset
+    }}
   }
 }
 
