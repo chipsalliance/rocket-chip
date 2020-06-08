@@ -6,7 +6,7 @@ import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.RecordMap
+import freechips.rocketchip.util.HeterogeneousBag
 import scala.math.max
 import scala.collection.immutable.ListMap
 
@@ -86,36 +86,36 @@ case class ClockGroupDriverParameters(
   num: Int = 1,
   driveFn: ClockGroupDriver.DriveFn = ClockGroupDriver.driveFromImplicitClock
 ) {
-  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[RecordMap[ClockGroupBundle]] = {
+  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[HeterogeneousBag[ClockGroupBundle]] = {
     driveFn(node, num, p, vn)
   }
 }
 
 object ClockGroupDriver {
-  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[RecordMap[ClockGroupBundle]]
+  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[HeterogeneousBag[ClockGroupBundle]]
 
   def driveFromImplicitClock: DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
-    InModuleBody { RecordMap[ClockGroupBundle](ListMap[String, ClockGroupBundle]())}
+    InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil)}
   }
 
-  def driveFromIOs()(implicit valName: ValName): DriveFn = { (groups, num, p, vn) =>
+  def driveFromIOs(): DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
     groups :*= ioClockGroupSourceNode
-    // InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
-    InModuleBody {
-      val bundles: Seq[ClockGroupBundle] = ioClockGroupSourceNode.out.map(_._1)
-      //  TODO: I am not sure what names to use here other than the index
-      val namedBundleMap: ListMap[String, ClockGroupBundle] = ListMap(bundles.zipWithIndex.map{ case(b, i) =>
-        s"${i}" -> b
-      }:_*)
-      val ios = IO(Flipped(RecordMap(namedBundleMap)))
-      ios.suggestName(valName.name)
-      bundles.zip(ios.data).foreach{ case (bundle, io) => bundle <> io  }
-      ios
-    }
+    InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
+    //InModuleBody {
+    //  val bundles: Seq[ClockGroupBundle] = ioClockGroupSourceNode.out.map(_._1)
+    //  //  TODO: I am not sure what names to use here other than the index
+    //  val namedBundleMap: ListMap[String, ClockGroupBundle] = ListMap(bundles.zipWithIndex.map{ case(b, i) =>
+    //    s"${i}" -> b
+    //  }:_*)
+    //  val ios = IO(Flipped(RecordMap(namedBundleMap)))
+    //  ios.suggestName(valName.name)
+    //  bundles.zip(ios.data).foreach{ case (bundle, io) => bundle <> io  }
+    //  ios
+    //}
   }
 }

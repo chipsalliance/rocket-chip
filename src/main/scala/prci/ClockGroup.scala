@@ -62,12 +62,10 @@ class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extend
   val node = ClockGroupSourceNode(List.fill(numSources) { ClockGroupSourceParameters() })
 
   lazy val module = new LazyModuleImp(this) {
+
     val (out, _) = node.out.unzip
-    out.foreach { out: ClockGroupBundle => out.member.eltMap.foreach{ case (k, v) =>
-      val foo = v
-      foo.clock := clock;
-      foo.reset := reset
-    }}
+    val outputs = out.flatMap(_.member.data)
+    outputs.foreach { o => o.clock := clock; o.reset := reset }
   }
 }
 
