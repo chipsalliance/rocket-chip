@@ -246,18 +246,18 @@ class VConfig(implicit p: Parameters) extends CoreBundle {
 }
 
 object VType {
-  def fromUInt(that: UInt, ignore_vill: Boolean = false)(implicit p: Parameters): VType = {
+  private def fromUInt(that: UInt, ignore_vill: Boolean)(implicit p: Parameters): VType = {
     val res = 0.U.asTypeOf(new VType)
     val in = that.asTypeOf(res)
-    val vill = (in.max_vsew < in.vsew) || !in.lmul_ok || in.reserved =/= 0 || in.vill
-    when (!vill || ignore_vill) {
-      res := in
+    res.vill := (in.max_vsew < in.vsew) || in.reserved =/= 0 || in.vill
+    when (!res.vill || ignore_vill) {
       res.vsew := in.vsew(log2Ceil(1 + in.max_vsew) - 1, 0)
+      res.vlmul := in.vlmul
     }
-    res.reserved := 0.U
-    res.vill := vill
     res
   }
+
+  def fromUInt(that: UInt)(implicit p: Parameters): VType = fromUInt(that, false)
 
   def computeVL(avl: UInt, vtype: UInt, currentVL: UInt, useCurrentVL: Bool, useMax: Bool, useZero: Bool)(implicit p: Parameters): UInt =
     VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useMax, useZero)
@@ -265,33 +265,21 @@ object VType {
 
 class VType(implicit p: Parameters) extends CoreBundle {
   val vill = Bool()
-  val reserved = UInt((xLen - 9).W)
-  val vma = Bool()
-  val vta = Bool()
-  val vlmul_sign = Bool()
+  val reserved = UInt((xLen - 6).W)
   val vsew = UInt(3.W)
-  val vlmul_mag = UInt(2.W)
+  val vlmul = UInt(2.W)
 
-  def vlmul_signed: SInt = Cat(vlmul_sign, vlmul_mag).asSInt
+  val max_vsew = log2Ceil(eLen/8)
 
-  @deprecated("use vlmul_sign, vlmul_mag, or vlmul_signed", "RVV 0.9")
-  def vlmul: UInt = vlmul_mag
-
-  def max_vsew = log2Ceil(eLen/8)
-  def max_vlmul = (1 << vlmul_mag.getWidth) - 1
-
-  def lmul_ok: Bool = (!this.vlmul_sign || this.vlmul_mag =/= 0) &&
-    (this.vsew +& Cat(this.vlmul_sign, ~this.vlmul_mag) <= maxVLMax.log2)
-
-  def minVLMax: Int = ((maxVLMax / eLen) >> ((1 << vlmul_mag.getWidth) - 1)) max 1
-
-  def vlMax: UInt = (maxVLMax >> (this.vsew +& Cat(this.vlmul_sign, ~this.vlmul_mag))).andNot(minVLMax-1)
+  def minVLMax = maxVLMax / eLen
+  def vlMax: UInt = (maxVLMax >> (this.vsew +& ~this.vlmul)).andNot(minVLMax-1)
+  def vlMaxInBytes: UInt = maxVLMax >> ~this.vlmul
 
   def vl(avl: UInt, currentVL: UInt, useCurrentVL: Bool, useMax: Bool, useZero: Bool): UInt = {
     val atLeastMaxVLMax = useMax || Mux(useCurrentVL, currentVL >= maxVLMax, avl >= maxVLMax)
     val avl_lsbs = Mux(useCurrentVL, currentVL, avl)(maxVLMax.log2 - 1, 0)
 
-    val atLeastVLMax = atLeastMaxVLMax || (avl_lsbs & (-maxVLMax.S >> (this.vsew +& Cat(this.vlmul_sign, ~this.vlmul_mag))).asUInt.andNot(minVLMax-1)).orR
+    val atLeastVLMax = atLeastMaxVLMax || (avl_lsbs & (-maxVLMax.S >> (this.vsew +& ~this.vlmul)).asUInt.andNot(minVLMax-1)).orR
     val isZero = vill || useZero
     Mux(!isZero && atLeastVLMax, vlMax, 0.U) | Mux(!isZero && !atLeastVLMax, avl_lsbs, 0.U)
   }
@@ -1007,7 +995,6 @@ class CSRFile(
     vio.vxrm := reg_vxrm.get
 
     when (reset.toBool) {
-      reg_vconfig.get.vl := 0.U
       reg_vconfig.get.vtype := 0.U.asTypeOf(new VType)
       reg_vconfig.get.vtype.vill := true
     }

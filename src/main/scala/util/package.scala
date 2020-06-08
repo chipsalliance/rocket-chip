@@ -113,24 +113,6 @@ package object util {
       else Cat(UInt(0, n - x.getWidth), x)
     }
 
-    // shifts left by n if n >= 0, or right by -n if n < 0
-    def << (n: SInt): UInt = {
-      val w = n.getWidth - 1
-      require(w <= 30)
-
-      val shifted = x << n(w-1, 0)
-      Mux(n(w), shifted >> (1 << w), shifted)
-    }
-
-    // shifts right by n if n >= 0, or left by -n if n < 0
-    def >> (n: SInt): UInt = {
-      val w = n.getWidth - 1
-      require(w <= 30)
-
-      val shifted = x << (1 << w) >> n(w-1, 0)
-      Mux(n(w), shifted, shifted >> (1 << w))
-    }
-
     // Like UInt.apply(hi, lo), but returns 0.U for zero-width extracts
     def extract(hi: Int, lo: Int): UInt = {
       require(hi >= lo-1)
