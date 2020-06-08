@@ -280,7 +280,8 @@ class VType(implicit p: Parameters) extends CoreBundle {
   def max_vsew = log2Ceil(eLen/8)
   def max_vlmul = (1 << vlmul_mag.getWidth) - 1
 
-  def lmul_ok: Bool = Mux(this.vlmul_sign, this.vlmul_mag =/= 0 && ~this.vlmul_mag < max_vsew - this.vsew, true.B)
+  def lmul_ok: Bool = (!this.vlmul_sign || this.vlmul_mag =/= 0) &&
+    (this.vsew +& Cat(this.vlmul_sign, ~this.vlmul_mag) <= maxVLMax.log2)
 
   def minVLMax: Int = ((maxVLMax / eLen) >> ((1 << vlmul_mag.getWidth) - 1)) max 1
 
