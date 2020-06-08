@@ -43,10 +43,11 @@ case object LintConflictingModuleNamesAspect extends Aspect[RawModule] {
   * conflicts will cause a [[LintViolation]].
   */
 final class LintConflictingModuleNames extends LintRule {
-  val recommendedFix: String = "override desiredName based on module parameters ('override def desiredName = \"...\"')"
+  val recommendedFix: String = "override desiredName based on module parameters ('override def desiredName = \"...\"') or use RenameModulesAspect"
 
   val lintName: String = "conflicting-module-names"
 
+  // depends on DedupModules which comes from super[LintRule].optionalPrerequisites
   override def optionalPrerequisites: Seq[Dependency[Transform]] =
     Dependency[RenameDesiredNames] +: super.optionalPrerequisites
 
