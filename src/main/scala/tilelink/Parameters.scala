@@ -146,7 +146,7 @@ class TLSlaveParameters private(
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
   val alwaysGrantsT:      Boolean, // typically only true for CacheCork'd read-write devices; dual: neverReleaseData
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+  // Note: you can only rely on this FIFO behaviour if your TLMasterParameters include requestFifo
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
   val mayDenyPut:         Boolean) // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
@@ -229,8 +229,8 @@ class TLSlaveParameters private(
   def isTree = findTreeViolation() == None
 
   def infoString = {
-    s"""Manager Name = ${name}
-       |Manager Address = ${address}
+    s"""Slave Name = ${name}
+       |Slave Address = ${address}
        |supportsAcquireT = ${supportsAcquireT}
        |supportsAcquireB = ${supportsAcquireB}
        |supportsArithmetic = ${supportsArithmetic}
@@ -453,7 +453,7 @@ class TLSlavePortParameters private(
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
-  require (!managers.isEmpty, "Manager ports must have managers")
+  require (!slaves.isEmpty, "Slave ports must have slaves")
   require (endSinkId >= 0, "Sink ids cannot be negative")
   require (minLatency >= 0, "Minimum required latency cannot be negative")
 
@@ -469,9 +469,9 @@ class TLSlavePortParameters private(
   def managers = slaves
 
   def requireFifo(policy: TLFIFOFixer.Policy = TLFIFOFixer.allFIFO) = {
-    val relevant = managers.filter(m => policy(m))
+    val relevant = slaves.filter(m => policy(m))
     relevant.foreach { m =>
-      require(m.fifoId == relevant.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
+      require(m.fifoId == relevant.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${slaves.map(s => (s.name, s.fifoId))}) ")
     }
   }
 
@@ -481,7 +481,7 @@ class TLSlavePortParameters private(
   def mayDenyGet  = slaves.exists(_.mayDenyGet)
   def mayDenyPut  = slaves.exists(_.mayDenyPut)
 
-  // Diplomatically determined operation sizes supported by all outward Managers
+  // Diplomatically determined operation sizes supported by all outward Slaves
   // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
   val allSupports = slaves.map(_.supports).reduce( _ intersect _)
   val allSupportAcquireT   = allSupports.acquireT
@@ -493,7 +493,7 @@ class TLSlavePortParameters private(
   val allSupportPutPartial = allSupports.putPartial
   val allSupportHint       = allSupports.hint
 
-  // Operation supported by at least one outward Managers
+  // Operation supported by at least one outward Slaves
   val anySupports = slaves.map(_.supports).reduce(_ cover _)
   val anySupportAcquireT   = !anySupports.acquireT.none
   val anySupportAcquireB   = !anySupports.acquireB.none
@@ -507,27 +507,27 @@ class TLSlavePortParameters private(
   // Supporting Acquire means being routable for GrantAck
   require ((endSinkId == 0) == !anySupportAcquireB)
 
-  // These return Option[TLManagerParameters] for your convenience
-  def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
+  // These return Option[TLSlaveParameters] for your convenience
+  def find(address: BigInt) = slaves.find(_.address.exists(_.contains(address)))
 
   // The safe version will check the entire address
-  def findSafe(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
   // The fast version assumes the address is valid (you probably want fastProperty instead of this function)
   def findFast(address: UInt) = {
-    val routingMask = AddressDecoder(managers.map(_.address))
-    Vec(managers.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+    val routingMask = AddressDecoder(slaves.map(_.address))
+    Vec(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
   }
 
   // Compute the simplest AddressSets that decide a key
-  def fastPropertyGroup[K](p: TLManagerParameters => K): Seq[(K, Seq[AddressSet])] = {
-    val groups = groupByIntoSeq(managers.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
+  def fastPropertyGroup[K](p: TLSlaveParameters => K): Seq[(K, Seq[AddressSet])] = {
+    val groups = groupByIntoSeq(slaves.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
       k -> vs.flatMap(_._2)
     }
     val reductionMask = AddressDecoder(groups.map(_._2))
     groups.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~reductionMask)).distinct) }
   }
   // Select a property
-  def fastProperty[K, D <: Data](address: UInt, p: TLManagerParameters => K, d: K => D): D =
+  def fastProperty[K, D <: Data](address: UInt, p: TLSlaveParameters => K, d: K => D): D =
     Mux1H(fastPropertyGroup(p).map { case (v, a) => (a.map(_.contains(address)).reduce(_||_), d(v)) })
 
   // Note: returns the actual fifoId + 1 or 0 if None
@@ -538,35 +538,35 @@ class TLSlavePortParameters private(
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
 
   // all we need to change about this is adding 2 members, one for the tlmaster parametrs and one for the tlslave parameters
-  // All wee need to do is change the membership function to instead of only manager pamaters it looks at the intersection of both master and slave
+  // All wee need to do is change the membership function to instead of only slave pamaters it looks at the intersection of both master and slave
   // do we need to pass in two different arguments
   private def supportHelper(
       safe:    Boolean,
-      member:  TLManagerParameters => TransferSizes,
+      member:  TLSlaveParameters => TransferSizes,
       address: UInt,
       lgSize:  UInt,
       range:   Option[TransferSizes]): Bool = { // What does the range argument do?
     // trim is just processing the range argument
     def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
     // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
-    // groupByIntoSeq is turning managers into trimmed membership sizes
-    // We are grouping all the managers by their transfer size where
+    // groupByIntoSeq is turning slaves into trimmed membership sizes
+    // We are grouping all the slaves by their transfer size where
     // if they support the trimmed size then
     //    
     // member is the type of transfer that you are looking for (What you are trying to filter on)
     // When you consider membership, you are trimming the sizes to only the ones that you care about
-    // you are filtering the managers based on both whether they support a particular opcode and the size
-    // Grouping the managers based on the actual transfer size range they support
+    // you are filtering the slaves based on both whether they support a particular opcode and the size
+    // Grouping the slaves based on the actual transfer size range they support
     // intersecting the range and checking their membership
-    // FOR SUPPORTCASES instead of returning the list of managers, you are returning a map from transfer size to the set of address sets that are supported for that transfer size
+    // FOR SUPPORTCASES instead of returning the list of slaves, you are returning a map from transfer size to the set of address sets that are supported for that transfer size
 
-    // find all the managers that support a certain type of operation and then group their addresses by the supported size
+    // find all the slaves that support a certain type of operation and then group their addresses by the supported size
     // for every size there could be multiple address ranges
     // safety is a trade off between checking between all possible addresses vs only the addresses that are known to have supported sizes
     // the trade off is 'checking all addresses is a more expensive circuit but will always give you the right answer even if you give it an illegal address'
     // the not safe version is a cheaper circuit but if you give it an illegal address then it might produce the wrong answer
     // fast presumes address legality
-    val supportCases = groupByIntoSeq(managers)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
+    val supportCases = groupByIntoSeq(slaves)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
       k -> vs.flatMap(_.address)
     }
     // the rest of this function is just processing that more
@@ -608,13 +608,13 @@ class TLSlavePortParameters private(
   def supportsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutPartial, address, lgSize, range)
   def supportsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsHint,       address, lgSize, range)
 
-  def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
-  def isTree = !managers.exists(!_.isTree)
+  def findTreeViolation() = slaves.flatMap(_.findTreeViolation()).headOption
+  def isTree = !slaves.exists(!_.isTree)
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + "Manager Port MinLatency = " + minLatency + "\n\n" + managers.map(_.infoString).mkString
+  def infoString = "Slave Port Beatbytes = " + beatBytes + "\n" + "Slave Port MinLatency = " + minLatency + "\n\n" + slaves.map(_.infoString).mkString
 
   def v1copy(
-    managers:   Seq[TLSlaveParameters] = slaves,
+    slaves:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
@@ -622,7 +622,7 @@ class TLSlavePortParameters private(
     requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     new TLSlavePortParameters(
-      slaves       = managers,
+      slaves       = slaves,
       channelBytes = if (beatBytes != -1) TLChannelBeatBytes(beatBytes) else channelBytes,
       endSinkId    = endSinkId,
       minLatency   = minLatency,
@@ -632,7 +632,7 @@ class TLSlavePortParameters private(
 
   @deprecated("Use v1copy instead of copy","")
   def copy(
-    managers:   Seq[TLSlaveParameters] = slaves,
+    slaves:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
@@ -640,7 +640,7 @@ class TLSlavePortParameters private(
     requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     v1copy(
-      managers,
+      slaves,
       beatBytes,
       endSinkId,
       minLatency,
@@ -651,7 +651,7 @@ class TLSlavePortParameters private(
 
 object TLSlavePortParameters {
   def v1(
-    managers:   Seq[TLSlaveParameters],
+    slaves:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
     minLatency: Int = 0,
@@ -659,7 +659,7 @@ object TLSlavePortParameters {
     requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     new TLSlavePortParameters(
-      slaves       = managers,
+      slaves       = slaves,
       channelBytes = TLChannelBeatBytes(beatBytes),
       endSinkId    = endSinkId,
       minLatency   = minLatency,
@@ -672,7 +672,7 @@ object TLSlavePortParameters {
 object TLManagerPortParameters {
   @deprecated("Use TLSlavePortParameters.v1 instead of TLManagerPortParameters","")
   def apply(
-    managers:   Seq[TLSlaveParameters],
+    slaves:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
     minLatency: Int = 0,
@@ -680,7 +680,7 @@ object TLManagerPortParameters {
     requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     TLSlavePortParameters.v1(
-      managers,
+      slaves,
       beatBytes,
       endSinkId,
       minLatency,
@@ -750,7 +750,7 @@ class TLMasterParameters private(
     supportsPutPartial.max).max
 
   def infoString = {
-    s"""Client Name = ${name}
+    s"""Master Name = ${name}
        |visibility = ${visibility}
        |
        |""".stripMargin
@@ -912,61 +912,61 @@ class TLMasterPortParameters private(
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
-  require (!clients.isEmpty)
+  require (!masters.isEmpty)
   require (minLatency >= 0)
 
   def clients = masters
 
   // Require disjoint ranges for Ids
-  IdRange.overlaps(clients.map(_.sourceId)).foreach { case (x, y) =>
+  IdRange.overlaps(masters.map(_.sourceId)).foreach { case (x, y) =>
     require (!x.overlaps(y), s"TLClientParameters.sourceId ${x} overlaps ${y}")
   }
 
   // Bounds on required sizes
-  def endSourceId = clients.map(_.sourceId.end).max
-  def maxTransfer = clients.map(_.maxTransfer).max
+  def endSourceId = masters.map(_.sourceId.end).max
+  def maxTransfer = masters.map(_.maxTransfer).max
 
   // The unused sources < endSourceId
   def unusedSources: Seq[Int] = {
-    val usedSources = clients.map(_.sourceId).sortBy(_.start)
+    val usedSources = masters.map(_.sourceId).sortBy(_.start)
     ((Seq(0) ++ usedSources.map(_.end)) zip usedSources.map(_.start)) flatMap { case (end, start) =>
       end until start
     }
   }
 
-  // Operation sizes supported by all inward Clients
-  val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
-  val allSupportArithmetic = clients.map(_.supportsArithmetic).reduce(_ intersect _)
-  val allSupportLogical    = clients.map(_.supportsLogical)   .reduce(_ intersect _)
-  val allSupportGet        = clients.map(_.supportsGet)       .reduce(_ intersect _)
-  val allSupportPutFull    = clients.map(_.supportsPutFull)   .reduce(_ intersect _)
-  val allSupportPutPartial = clients.map(_.supportsPutPartial).reduce(_ intersect _)
-  val allSupportHint       = clients.map(_.supportsHint)      .reduce(_ intersect _)
+  // Operation sizes supported by all inward Masters
+  val allSupportProbe      = masters.map(_.supportsProbe)     .reduce(_ intersect _)
+  val allSupportArithmetic = masters.map(_.supportsArithmetic).reduce(_ intersect _)
+  val allSupportLogical    = masters.map(_.supportsLogical)   .reduce(_ intersect _)
+  val allSupportGet        = masters.map(_.supportsGet)       .reduce(_ intersect _)
+  val allSupportPutFull    = masters.map(_.supportsPutFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = masters.map(_.supportsPutPartial).reduce(_ intersect _)
+  val allSupportHint       = masters.map(_.supportsHint)      .reduce(_ intersect _)
 
-  // Operation is supported by at least one client
-  val anySupportProbe      = clients.map(!_.supportsProbe.none)     .reduce(_ || _)
-  val anySupportArithmetic = clients.map(!_.supportsArithmetic.none).reduce(_ || _)
-  val anySupportLogical    = clients.map(!_.supportsLogical.none)   .reduce(_ || _)
-  val anySupportGet        = clients.map(!_.supportsGet.none)       .reduce(_ || _)
-  val anySupportPutFull    = clients.map(!_.supportsPutFull.none)   .reduce(_ || _)
-  val anySupportPutPartial = clients.map(!_.supportsPutPartial.none).reduce(_ || _)
-  val anySupportHint       = clients.map(!_.supportsHint.none)      .reduce(_ || _)
+  // Operation is supported by at least one master
+  val anySupportProbe      = masters.map(!_.supportsProbe.none)     .reduce(_ || _)
+  val anySupportArithmetic = masters.map(!_.supportsArithmetic.none).reduce(_ || _)
+  val anySupportLogical    = masters.map(!_.supportsLogical.none)   .reduce(_ || _)
+  val anySupportGet        = masters.map(!_.supportsGet.none)       .reduce(_ || _)
+  val anySupportPutFull    = masters.map(!_.supportsPutFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = masters.map(!_.supportsPutPartial.none).reduce(_ || _)
+  val anySupportHint       = masters.map(!_.supportsHint.none)      .reduce(_ || _)
 
-  // These return Option[TLClientParameters] for your convenience
-  def find(id: Int) = clients.find(_.sourceId.contains(id))
+  // These return Option[TLMasterParameters] for your convenience
+  def find(id: Int) = masters.find(_.sourceId.contains(id))
 
   // Synthesizable lookup methods
-  def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
+  def find(id: UInt) = Vec(masters.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
 
-  def requestFifo(id: UInt) = Mux1H(find(id), clients.map(c => Bool(c.requestFifo)))
+  def requestFifo(id: UInt) = Mux1H(find(id), masters.map(c => Bool(c.requestFifo)))
 
-  // Available during RTL runtime, checks to see if (id, size) is supported by the master's (client's)  diplomatic parameters
-  private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
-    val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
-    if (allSame) member(clients(0)).containsLg(lgSize) else {
+  // Available during RTL runtime, checks to see if (id, size) is supported by the master's (master's)  diplomatic parameters
+  private def safety_helper(member: TLMasterParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
+    val allSame = masters.map(member(_) == member(masters(0))).reduce(_ && _)
+    if (allSame) member(masters(0)).containsLg(lgSize) else {
       // Find the master associated with ID and returns whether that particular master is able to receive transaction of lgSize
-      Mux1H(find(id), clients.map(member(_).containsLg(lgSize)))
+      Mux1H(find(id), masters.map(member(_).containsLg(lgSize)))
     }
   }
 
@@ -1010,14 +1010,14 @@ class TLMasterPortParameters private(
   def infoString = masters.map(_.infoString).mkString
 
   def v1copy(
-    clients: Seq[TLClientParameters] = masters,
+    masters: Seq[TLMasterParameters] = masters,
     minLatency: Int = minLatency,
     echoFields:    Seq[BundleFieldBase] = echoFields,
     requestFields: Seq[BundleFieldBase] = requestFields,
     responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     new TLMasterPortParameters(
-      masters       = clients,
+      masters       = masters,
       channelBytes  = channelBytes,
       minLatency    = minLatency,
       echoFields    = echoFields,
@@ -1027,14 +1027,14 @@ class TLMasterPortParameters private(
 
   @deprecated("Use v1copy instead of copy","")
   def copy(
-    clients: Seq[TLClientParameters] = masters,
+    masters: Seq[TLMasterParameters] = masters,
     minLatency: Int = minLatency,
     echoFields:    Seq[BundleFieldBase] = echoFields,
     requestFields: Seq[BundleFieldBase] = requestFields,
     responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     v1copy(
-      clients,
+      masters,
       minLatency,
       echoFields,
       requestFields,
@@ -1045,14 +1045,14 @@ class TLMasterPortParameters private(
 object TLClientPortParameters {
   @deprecated("Use TLMasterPortParameters.v1 instead of TLClientPortParameters","")
   def apply(
-    clients: Seq[TLClientParameters],
+    masters: Seq[TLMasterParameters],
     minLatency: Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     TLMasterPortParameters.v1(
-      clients,
+      masters,
       minLatency,
       echoFields,
       requestFields,
@@ -1062,14 +1062,14 @@ object TLClientPortParameters {
 
 object TLMasterPortParameters {
   def v1(
-    clients: Seq[TLClientParameters],
+    masters: Seq[TLMasterParameters],
     minLatency: Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     new TLMasterPortParameters(
-      masters       = clients,
+      masters       = masters,
       channelBytes  = TLChannelBeatBytes(),
       minLatency    = minLatency,
       echoFields    = echoFields,
@@ -1128,17 +1128,17 @@ object TLBundleParameters
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
-  def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
+  def apply(master: TLMasterPortParameters, slave: TLSlavePortParameters) =
     new TLBundleParameters(
-      addressBits = log2Up(manager.maxAddress + 1),
-      dataBits    = manager.beatBytes * 8,
-      sourceBits  = log2Up(client.endSourceId),
-      sinkBits    = log2Up(manager.endSinkId),
-      sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
-      echoFields     = client.echoFields,
-      requestFields  = BundleField.accept(client.requestFields, manager.requestKeys),
-      responseFields = BundleField.accept(manager.responseFields, client.responseKeys),
-      hasBCE = client.anySupportProbe && manager.anySupportAcquireB)
+      addressBits = log2Up(slave.maxAddress + 1),
+      dataBits    = slave.beatBytes * 8,
+      sourceBits  = log2Up(master.endSourceId),
+      sinkBits    = log2Up(slave.endSinkId),
+      sizeBits    = log2Up(log2Ceil(max(master.maxTransfer, slave.maxTransfer))+1),
+      echoFields     = master.echoFields,
+      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
+      responseFields = BundleField.accept(slave.responseFields, master.responseKeys),
+      hasBCE = master.anySupportProbe && slave.anySupportAcquireB)
 }
 
 case class TLEdgeParameters(
@@ -1151,32 +1151,32 @@ case class TLEdgeParameters(
   def manager = slave
   def client = master
 
-  val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
+  val maxTransfer = max(master.maxTransfer, slave.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
 
   // Sanity check the link...
-  require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
+  require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
   // For emits, check that the source is allowed to send this transactions
 // TODO emitAcquire, source => sourceID (or don't need sourceID at all)
 //      Probe, source => address
-  def expectsAcquireTMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceID, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
-  def expectsAcquireBMasterToSlaveSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(address, lgSize, range)    && slave.supportsAcquireBSafe(address, lgSize, range)
-  def expectsArithmeticMasterToSlaveSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(address, lgSize, range)  && slave.supportsArithmeticSafe(address, lgSize, range)
-  def expectsLogicalMasterToSlaveSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(address, lgSize, range)     && slave.supportsLogicalSafe(address, lgSize, range)
-  def expectsGetMasterToSlaveSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(address, lgSize, range)         && slave.supportsGetSafe(address, lgSize, range)
-  def expectsPutFullMasterToSlaveSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutFull(address, lgSize, range)     && slave.supportsPutFullSafe(address, lgSize, range)
-  def expectsPutPartialMasterToSlaveSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(address, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
-  def expectsHintMasterToSlaveSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(address, lgSize, range)        && slave.supportsHintSafe(address, lgSize, range)
+  def expectsAcquireTMasterToSlaveSafe  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceID, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
+  def expectsAcquireBMasterToSlaveSafe  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceID, lgSize, range)    && slave.supportsAcquireBSafe(address, lgSize, range)
+  def expectsArithmeticMasterToSlaveSafe(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceID, lgSize, range)  && slave.supportsArithmeticSafe(address, lgSize, range)
+  def expectsLogicalMasterToSlaveSafe   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(sourceID, lgSize, range)     && slave.supportsLogicalSafe(address, lgSize, range)
+  def expectsGetMasterToSlaveSafe       (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(sourceID, lgSize, range)         && slave.supportsGetSafe(address, lgSize, range)
+  def expectsPutFullMasterToSlaveSafe   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceID, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
+  def expectsPutPartialMasterToSlaveSafe(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceID, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
+  def expectsHintMasterToSlaveSafe      (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceID, lgSize, range)        && slave.supportsHintSafe(address, lgSize, range)
 
-  def expectsAcquireTMasterToSlaveFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(address, lgSize, range)    && slave.supportsAcquireTFast(address, lgSize, range)
-  def expectsAcquireBMasterToSlaveFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(address, lgSize, range)    && slave.supportsAcquireBFast(address, lgSize, range)
-  def expectsArithmeticMasterToSlaveFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(address, lgSize, range)  && slave.supportsArithmeticFast(address, lgSize, range)
-  def expectsLogicalMasterToSlaveFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(address, lgSize, range)     && slave.supportsLogicalFast(address, lgSize, range)
-  def expectsGetMasterToSlaveFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(address, lgSize, range)         && slave.supportsGetFast(address, lgSize, range)
-  def expectsPutFullMasterToSlaveFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutFull(address, lgSize, range)     && slave.supportsPutFullFast(address, lgSize, range)
-  def expectsPutPartialMasterToSlaveFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(address, lgSize, range)  && slave.supportsPutPartialFast(address, lgSize, range)
-  def expectsHintMasterToSlaveFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(address, lgSize, range)        && slave.supportsHintFast(address, lgSize, range)
+  def expectsAcquireTMasterToSlaveFast  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceID, lgSize, range)    && slave.supportsAcquireTFast(address, lgSize, range)
+  def expectsAcquireBMasterToSlaveFast  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceID, lgSize, range)    && slave.supportsAcquireBFast(address, lgSize, range)
+  def expectsArithmeticMasterToSlaveFast(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceID, lgSize, range)  && slave.supportsArithmeticFast(address, lgSize, range)
+  def expectsLogicalMasterToSlaveFast   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(sourceID, lgSize, range)     && slave.supportsLogicalFast(address, lgSize, range)
+  def expectsGetMasterToSlaveFast       (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(sourceID, lgSize, range)         && slave.supportsGetFast(address, lgSize, range)
+  def expectsPutFullMasterToSlaveFast   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutFull(sourceID, lgSize, range)     && slave.supportsPutFullFast(address, lgSize, range)
+  def expectsPutPartialMasterToSlaveFast(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceID, lgSize, range)  && slave.supportsPutPartialFast(address, lgSize, range)
+  def expectsHintMasterToSlaveFast      (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceID, lgSize, range)        && slave.supportsHintFast(address, lgSize, range)
 
   //We don't use Safe vs Fast because we don't have the equivalent of address decoder for sourceIds
 // TODO (can use sourceID here to see if the specific master can support this transaction)
@@ -1188,26 +1188,26 @@ case class TLEdgeParameters(
   def expectsPutPartialSlaveToMaster = master.supportsPutPartial
   def expectsHintSlaveToMaster       = master.supportsHint
 
-  val bundle = TLBundleParameters(client, manager)
-  def formatEdge = client.infoString + "\n" + manager.infoString
+  val bundle = TLBundleParameters(master, slave)
+  def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
-case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
-case class TLAsyncClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
+case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLSlavePortParameters) {def infoString = base.infoString}
+case class TLAsyncClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
-case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+case class TLAsyncEdgeParameters(master: TLAsyncClientPortParameters, slave: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
-  def formatEdge = client.infoString + "\n" + manager.infoString
+  val bundle = TLAsyncBundleParameters(slave.async, TLBundleParameters(master.base, slave.base))
+  def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
-case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters) {def infoString = base.infoString}
-case class TLRationalClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
+case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLSlavePortParameters) {def infoString = base.infoString}
+case class TLRationalClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 
-case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+case class TLRationalEdgeParameters(master: TLRationalClientPortParameters, slave: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLBundleParameters(client.base, manager.base)
-  def formatEdge = client.infoString + "\n" + manager.infoString
+  val bundle = TLBundleParameters(master.base, slave.base)
+  def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
 // To be unified, devices must agree on all of these terms
@@ -1226,7 +1226,7 @@ case class ManagerUnificationKey(
 
 object ManagerUnificationKey
 {
-  def apply(x: TLManagerParameters): ManagerUnificationKey = ManagerUnificationKey(
+  def apply(x: TLSlaveParameters): ManagerUnificationKey = ManagerUnificationKey(
     resources          = x.resources,
     regionType         = x.regionType,
     executable         = x.executable,
@@ -1242,8 +1242,8 @@ object ManagerUnificationKey
 
 object ManagerUnification
 {
-  def apply(managers: Seq[TLManagerParameters]): List[TLManagerParameters] = {
-    managers.groupBy(ManagerUnificationKey.apply).values.map { seq =>
+  def apply(slaves: Seq[TLSlaveParameters]): List[TLSlaveParameters] = {
+    slaves.groupBy(ManagerUnificationKey.apply).values.map { seq =>
       val agree = seq.forall(_.fifoId == seq.head.fifoId)
       seq(0).v1copy(
         address = AddressSet.unify(seq.flatMap(_.address)),
@@ -1265,10 +1265,10 @@ case class TLBufferParams(
 }
 
 /** Pretty printing of TL source id maps */
-class TLSourceIdMap(tl: TLClientPortParameters) {
+class TLSourceIdMap(tl: TLMasterPortParameters) {
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
   private val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.clients.sortWith(TLToAXI4.sortByType)
+  private val sorted = tl.masters.sortWith(TLToAXI4.sortByType)
 
   val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
     TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
