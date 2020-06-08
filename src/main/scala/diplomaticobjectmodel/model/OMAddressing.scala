@@ -225,6 +225,6 @@ object OMRegister {
     makeRegisterMap(mapping)
   }
 
-  def convertSeq(mapping: Seq[RegField.Map]) = OMRegister.convert(mapping: _*)
+  def convertSeq(mapping: Seq[RegField.Map]): OMRegisterMap = OMRegister.convert(mapping: _*)
 
 }
