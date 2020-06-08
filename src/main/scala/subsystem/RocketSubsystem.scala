@@ -89,7 +89,7 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
   }
 
   val hartPrefixes = hartPrefixNode.map { hpn => Seq.fill(tiles.size) {
-   val hps = BundleBridgeSink[UInt]
+   val hps = BundleBridgeSink[UInt]()
    hps := hpn
    hps
   } }.getOrElse(Nil)

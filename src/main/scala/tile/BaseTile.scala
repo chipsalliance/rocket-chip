@@ -187,7 +187,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(new TraceCoreParams()))
   val traceCoreBroadcastNode = BundleBroadcast[TraceCoreInterface](Some("tracecore"))
   traceCoreBroadcastNode := traceCoreSourceNode
-  def traceCoreNode: BundleBridgeNexus[TraceCoreInterface] = traceCoreBroadcastNode
+  def traceCoreNode: BundleBridgeNexusNode[TraceCoreInterface] = traceCoreBroadcastNode
 
   // Node for watchpoints to control trace
   def getBpwatchParams: (Int, Int) = { (tileParams.core.nBreakpoints, tileParams.core.retireWidth) }
@@ -257,17 +257,13 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
 
   require(xLen == 32 || xLen == 64)
-  require(paddrBits <= maxPAddrBits)
+  require(paddrBits <= maxPAddrBits, "asked for " + paddrBits + " paddr bits, but since xLen is " + xLen + ", only " + maxPAddrBits + " can fit")
   require(resetVectorLen <= xLen)
   require(resetVectorLen <= vaddrBitsExtended)
   require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
 
   outer.traceAuxDefaultNode.bundle.stall := false.B
   outer.traceAuxDefaultNode.bundle.enable := false.B
-  val aux = Wire(new TraceAux)
-  aux.stall := outer.traceAuxNode.in.map(in => in._1.stall).orR
-  aux.enable := outer.traceAuxNode.in.map(in => in._1.enable).orR
-  outer.traceAuxNode.out.foreach { case (out, _) => out := aux }
 
   val constants = IO(new TileInputConstants)
 }

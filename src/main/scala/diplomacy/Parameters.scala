@@ -167,13 +167,13 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   }
 
   def subtract(x: AddressSet): Seq[AddressSet] = {
-    if (!overlaps(x)) {
-      Seq(this)
-    } else {
-      val new_inflex = ~x.mask & mask
-      // !!! this fractures too much; find a better algorithm
-      val fracture = AddressSet.enumerateMask(new_inflex).flatMap(m => intersect(AddressSet(m, ~new_inflex)))
-      fracture.filter(!_.overlaps(x))
+    intersect(x) match {
+      case None => Seq(this)
+      case Some(remove) => AddressSet.enumerateBits(mask & ~remove.mask).map { bit =>
+        val nmask = (mask & (bit-1)) | remove.mask
+        val nbase = (remove.base ^ bit) & ~nmask
+        AddressSet(nbase, nmask)
+      }
     }
   }
 
@@ -219,24 +219,20 @@ object AddressSet
     }
   }
 
+  def unify(seq: Seq[AddressSet], bit: BigInt): Seq[AddressSet] = {
+    // Pair terms up by ignoring 'bit'
+    seq.distinct.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
+      if (seq.size == 1) {
+        seq.head // singleton -> unaffected
+      } else {
+        key.copy(mask = key.mask | bit) // pair - widen mask by bit
+      }
+    }.toList
+  }
+
   def unify(seq: Seq[AddressSet]): Seq[AddressSet] = {
-    val n = seq.size
-    val array = Array(seq:_*)
-    var filter = Array.fill(n) { false }
-    for (i <- 0 until n-1) { if (!filter(i)) {
-      for (j <- i+1 until n) { if (!filter(j)) {
-        val a = array(i)
-        val b = array(j)
-        if (a.mask == b.mask && isPow2(a.base ^ b.base)) {
-          val c_base = a.base & ~(a.base ^ b.base)
-          val c_mask = a.mask | (a.base ^ b.base)
-          filter.update(j, true)
-          array.update(i, AddressSet(c_base, c_mask))
-        }
-      }}
-    }}
-    val out = (array zip filter) flatMap { case (a, f) => if (f) None else Some(a) }
-    if (out.size != n) unify(out) else out.toList
+    val bits = seq.map(_.base).foldLeft(BigInt(0))(_ | _)
+    AddressSet.enumerateBits(bits).foldLeft(seq) { case (acc, bit) => unify(acc, bit) }.sorted
   }
 
   def enumerateMask(mask: BigInt): Seq[BigInt] = {
@@ -325,4 +321,24 @@ trait DirectedBuffers[T] {
   def copyIn(x: BufferParams): T
   def copyOut(x: BufferParams): T
   def copyInOut(x: BufferParams): T
+}
+
+trait IdMapEntry {
+  def name: String
+  def from: IdRange
+  def to: IdRange
+  def isCache: Boolean
+  def requestFifo: Boolean
+  def pretty(fmt: String) =
+    if (from ne to) { // if the subclass uses the same reference for both from and to, assume its format string has an arity of 5
+      fmt.format(to.start, to.end, from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    } else {
+      fmt.format(from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    }
+}
+
+abstract class IdMap[T <: IdMapEntry] {
+  protected val fmt: String
+  val mapping: Seq[T]
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }

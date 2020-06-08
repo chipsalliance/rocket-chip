@@ -148,13 +148,16 @@ object DiplomaticObjectModelAddressing {
 
   def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None,
     omAddressBlocks: Seq[OMAddressBlock] = Nil): Seq[OMMemoryRegion] = {
-    resourceBindings.map.collect {
+    val result =  resourceBindings.map.collect {
       case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x) || DiplomacyUtils.rangeFilter(x)) =>
         seq.map {
           case Binding(device: Option[Device], value: ResourceValue) =>
             omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap, omAddressBlocks)
         }
     }.flatten.toSeq
+    require(omRegMap.isEmpty || (result.size == 1),
+      s"If Register Map is specified, there must be exactly one Memory Region, not ${result.size}")
+    result
   }
 
   def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
