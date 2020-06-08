@@ -75,7 +75,7 @@ case class ClockGroupEdgeParameters(
   val sourceParameters = ClockSourceParameters()
   val members: ListMap[String, ClockEdgeParameters] = ListMap(
     sink.members.zipWithIndex.map { case (s, i) =>
-      s"{sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+      s"${sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
   }:_*)
 
   val bundle = ClockGroupBundleParameters(members.map{ case (k, v) => k -> v.bundle})
