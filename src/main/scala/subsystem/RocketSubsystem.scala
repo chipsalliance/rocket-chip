@@ -24,10 +24,7 @@ case class RocketTileAttachParams(
   tileParams: RocketTileParams,
   crossingParams: RocketCrossingParams,
   lookup: LookupByHartIdImpl
-) extends CanAttachTile {
-  type TileType = RocketTile
-  type TileContextType = DefaultTileContextType
-}
+) extends CanAttachTile { type TileType = RocketTile }
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
