@@ -989,14 +989,14 @@ class TLMasterPortParameters private(
   }
 
   // Check for emit of a given operation at a specific id
-  def emitsAcquireT  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.acquireT,   address, lgSize, range)
-  def emitsAcquireB  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.acquireB,   address, lgSize, range)
-  def emitsArithmetic(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.arithmetic, address, lgSize, range)
-  def emitsLogical   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.logical,    address, lgSize, range)
-  def emitsGet       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.get,        address, lgSize, range)
-  def emitsPutFull   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putFull,    address, lgSize, range)
-  def emitsPutPartial(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putPartial, address, lgSize, range)
-  def emitsHint      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.hint,       address, lgSize, range)
+  def emitsAcquireT  (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.acquireT,   sourceId, lgSize, range)
+  def emitsAcquireB  (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.acquireB,   sourceId, lgSize, range)
+  def emitsArithmetic(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.arithmetic, sourceId, lgSize, range)
+  def emitsLogical   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.logical,    sourceId, lgSize, range)
+  def emitsGet       (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.get,        sourceId, lgSize, range)
+  def emitsPutFull   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putFull,    sourceId, lgSize, range)
+  def emitsPutPartial(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putPartial, sourceId, lgSize, range)
+  def emitsHint      (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.hint,       sourceId, lgSize, range)
 
   // Check for support of a given operation at a specific id
   val supportsProbe      = safety_helper(_.supportsProbe)      _
@@ -1158,28 +1158,28 @@ case class TLEdgeParameters(
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
   // For emits, check that the source is allowed to send this transactions
-// TODO emitAcquire, source => sourceID (or don't need sourceID at all)
+// TODO emitAcquire, source => sourceId (or don't need sourceId at all)
 //      Probe, source => address
-  def expectsAcquireTMasterToSlaveSafe  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceID, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
-  def expectsAcquireBMasterToSlaveSafe  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceID, lgSize, range)    && slave.supportsAcquireBSafe(address, lgSize, range)
-  def expectsArithmeticMasterToSlaveSafe(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceID, lgSize, range)  && slave.supportsArithmeticSafe(address, lgSize, range)
-  def expectsLogicalMasterToSlaveSafe   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(sourceID, lgSize, range)     && slave.supportsLogicalSafe(address, lgSize, range)
-  def expectsGetMasterToSlaveSafe       (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(sourceID, lgSize, range)         && slave.supportsGetSafe(address, lgSize, range)
-  def expectsPutFullMasterToSlaveSafe   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceID, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
-  def expectsPutPartialMasterToSlaveSafe(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceID, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
-  def expectsHintMasterToSlaveSafe      (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceID, lgSize, range)        && slave.supportsHintSafe(address, lgSize, range)
+  def expectsAcquireTMasterToSlaveSafe  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceId, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
+  def expectsAcquireBMasterToSlaveSafe  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceId, lgSize, range)    && slave.supportsAcquireBSafe(address, lgSize, range)
+  def expectsArithmeticMasterToSlaveSafe(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceId, lgSize, range)  && slave.supportsArithmeticSafe(address, lgSize, range)
+  def expectsLogicalMasterToSlaveSafe   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(sourceId, lgSize, range)     && slave.supportsLogicalSafe(address, lgSize, range)
+  def expectsGetMasterToSlaveSafe       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(sourceId, lgSize, range)         && slave.supportsGetSafe(address, lgSize, range)
+  def expectsPutFullMasterToSlaveSafe   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceId, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
+  def expectsPutPartialMasterToSlaveSafe(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceId, lgSize, range)  && slave.supportsPutPartialSafe(address, lgSize, range)
+  def expectsHintMasterToSlaveSafe      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceId, lgSize, range)        && slave.supportsHintSafe(address, lgSize, range)
 
-  def expectsAcquireTMasterToSlaveFast  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceID, lgSize, range)    && slave.supportsAcquireTFast(address, lgSize, range)
-  def expectsAcquireBMasterToSlaveFast  (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceID, lgSize, range)    && slave.supportsAcquireBFast(address, lgSize, range)
-  def expectsArithmeticMasterToSlaveFast(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceID, lgSize, range)  && slave.supportsArithmeticFast(address, lgSize, range)
-  def expectsLogicalMasterToSlaveFast   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(sourceID, lgSize, range)     && slave.supportsLogicalFast(address, lgSize, range)
-  def expectsGetMasterToSlaveFast       (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(sourceID, lgSize, range)         && slave.supportsGetFast(address, lgSize, range)
-  def expectsPutFullMasterToSlaveFast   (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutFull(sourceID, lgSize, range)     && slave.supportsPutFullFast(address, lgSize, range)
-  def expectsPutPartialMasterToSlaveFast(sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceID, lgSize, range)  && slave.supportsPutPartialFast(address, lgSize, range)
-  def expectsHintMasterToSlaveFast      (sourceID: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceID, lgSize, range)        && slave.supportsHintFast(address, lgSize, range)
+  def expectsAcquireTMasterToSlaveFast  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceId, lgSize, range)    && slave.supportsAcquireTFast(address, lgSize, range)
+  def expectsAcquireBMasterToSlaveFast  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceId, lgSize, range)    && slave.supportsAcquireBFast(address, lgSize, range)
+  def expectsArithmeticMasterToSlaveFast(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceId, lgSize, range)  && slave.supportsArithmeticFast(address, lgSize, range)
+  def expectsLogicalMasterToSlaveFast   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogical(sourceId, lgSize, range)     && slave.supportsLogicalFast(address, lgSize, range)
+  def expectsGetMasterToSlaveFast       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGet(sourceId, lgSize, range)         && slave.supportsGetFast(address, lgSize, range)
+  def expectsPutFullMasterToSlaveFast   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutFull(sourceId, lgSize, range)     && slave.supportsPutFullFast(address, lgSize, range)
+  def expectsPutPartialMasterToSlaveFast(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartial(sourceId, lgSize, range)  && slave.supportsPutPartialFast(address, lgSize, range)
+  def expectsHintMasterToSlaveFast      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceId, lgSize, range)        && slave.supportsHintFast(address, lgSize, range)
 
   //We don't use Safe vs Fast because we don't have the equivalent of address decoder for sourceIds
-// TODO (can use sourceID here to see if the specific master can support this transaction)
+// TODO (can use sourceId here to see if the specific master can support this transaction)
   def expectsProbeSlaveToMaster      = master.supportsProbe
   def expectsArithmeticSlaveToMaster = master.supportsArithmetic
   def expectsLogicalSlaveToMaster    = master.supportsLogical
