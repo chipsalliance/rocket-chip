@@ -26,8 +26,10 @@ trait TileCrossingParamsLike {
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
 trait TilePortParamsLike {
+  // the subnetwork location of the interconnect to which this tile port should be connected
   def where: TLBusWrapperLocation
-  def injectNode(context: Attachable)(implicit p: Parameters): TLNode // allows port-specific adapters to be injected
+  // allows port-specific adapters to be injected into the interconnect side of the attachment point
+  def injectNode(context: Attachable)(implicit p: Parameters): TLNode
 }
 
 /** A default implementation of parameterizing the connectivity of the port where the tile is the master.
@@ -66,15 +68,14 @@ case class TileSlavePortParams(
 }
 
 /** These are sources of interrupts that are driven into the tile.
-  * They need to be instantiated before tiles are attached to the subsystem
-  * containing them.
+  * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
 trait HasTileInterruptSources
   extends CanHavePeripheryPLIC
   with CanHavePeripheryCLINT
   with HasPeripheryDebug
 { this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
-  // meipNode is used to create a subsystem IO in Configs where there is no PLIC
+  // meipNode is used to create a single bit subsystem input in Configs without a PLIC
   val meipNode = p(PLICKey) match {
     case Some(_) => None
     case None    => Some(IntNexusNode(
@@ -85,9 +86,8 @@ trait HasTileInterruptSources
   }
 }
 
-/** These are sink of notifications that are driven out from the tile.
-  * They need to be instantiated before tiles are attached to the subsystem
-  * containing them.
+/** These are sinks of notifications that are driven out from the tile.
+  * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
 trait HasTileNotificationSinks { this: LazyModule =>
   val tileHaltXbarNode = IntXbar(p)
@@ -123,8 +123,8 @@ trait HasTiles extends HasCoreMonitorBundles with DefaultTileContextType
   }
 }
 
-/** Most tile types require only these traits in order for their standardized connect functions to operate.
-  *    BaseTiles subtypes with different needs can extends this trait to provide themselves with
+/** Most tile types require only these traits in order for their standardized connect functions to apply.
+  *    BaseTiles subtypes with different needs can extend this trait to provide themselves with
   *    additional external connection points.
   */
 trait DefaultTileContextType
@@ -133,7 +133,11 @@ trait DefaultTileContextType
   with HasTileNotificationSinks
 { this: BaseSubsystem => } // TODO: ideally this bound would be softened to LazyModule
 
-/** Standardized interface by which parameterized tiles can be attached to contexts. */
+/** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
+  *   Sub-classes of this trait can optionally override the individual connect functions in order to specialize
+  *   their attachment behaviors, but most use cases should be be handled simply by changing the implementation
+  *   of the injectNode functions in crossingParams.
+  */
 trait CanAttachTile {
   type TileType <: BaseTile
   type TileContextType <: DefaultTileContextType
