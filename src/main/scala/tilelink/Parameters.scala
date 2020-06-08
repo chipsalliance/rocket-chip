@@ -661,7 +661,7 @@ class TLSlavePortParameters private(
   def infoString = "Slave Port Beatbytes = " + beatBytes + "\n" + "Slave Port MinLatency = " + minLatency + "\n\n" + slaves.map(_.infoString).mkString
 
   def v1copy(
-    managers:   Seq[TLSlaveParameters] = slaves,
+    slaves:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
@@ -669,7 +669,7 @@ class TLSlavePortParameters private(
     requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     new TLSlavePortParameters(
-      slaves       = managers,
+      slaves       = slaves,
       channelBytes = if (beatBytes != -1) TLChannelBeatBytes(beatBytes) else channelBytes,
       endSinkId    = endSinkId,
       minLatency   = minLatency,
@@ -679,7 +679,7 @@ class TLSlavePortParameters private(
 
   @deprecated("Use v1copy instead of copy","")
   def copy(
-    managers:   Seq[TLSlaveParameters] = slaves,
+    slaves:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
@@ -687,7 +687,7 @@ class TLSlavePortParameters private(
     requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     v1copy(
-      managers,
+      slaves,
       beatBytes,
       endSinkId,
       minLatency,
@@ -698,7 +698,7 @@ class TLSlavePortParameters private(
 
 object TLSlavePortParameters {
   def v1(
-    managers:   Seq[TLSlaveParameters],
+    slaves:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
     minLatency: Int = 0,
@@ -706,7 +706,7 @@ object TLSlavePortParameters {
     requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     new TLSlavePortParameters(
-      slaves       = managers,
+      slaves       = slaves,
       channelBytes = TLChannelBeatBytes(beatBytes),
       endSinkId    = endSinkId,
       minLatency   = minLatency,
@@ -719,7 +719,7 @@ object TLSlavePortParameters {
 object TLManagerPortParameters {
   @deprecated("Use TLSlavePortParameters.v1 instead of TLManagerPortParameters","")
   def apply(
-    managers:   Seq[TLSlaveParameters],
+    slaves:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
     minLatency: Int = 0,
@@ -727,7 +727,7 @@ object TLManagerPortParameters {
     requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     TLSlavePortParameters.v1(
-      managers,
+      slaves,
       beatBytes,
       endSinkId,
       minLatency,
@@ -1088,7 +1088,7 @@ class TLMasterPortParameters private(
     responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     new TLMasterPortParameters(
-      masters       = clients,
+      masters       = masters,
       channelBytes  = channelBytes,
       minLatency    = minLatency,
       echoFields    = echoFields,
@@ -1105,7 +1105,7 @@ class TLMasterPortParameters private(
     responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     v1copy(
-      clients,
+      masters,
       minLatency,
       echoFields,
       requestFields,
@@ -1123,7 +1123,7 @@ object TLClientPortParameters {
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     TLMasterPortParameters.v1(
-      clients,
+      masters,
       minLatency,
       echoFields,
       requestFields,
@@ -1140,7 +1140,7 @@ object TLMasterPortParameters {
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     new TLMasterPortParameters(
-      masters       = clients,
+      masters       = masters,
       channelBytes  = TLChannelBeatBytes(),
       minLatency    = minLatency,
       echoFields    = echoFields,
@@ -1267,19 +1267,19 @@ case class TLEdgeParameters(
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLSlavePortParameters) {def infoString = base.infoString}
 case class TLAsyncClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
-case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+case class TLAsyncEdgeParameters(master: TLAsyncClientPortParameters, slave: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
-  def formatEdge = client.infoString + "\n" + manager.infoString
+  val bundle = TLAsyncBundleParameters(slave.async, TLBundleParameters(master.base, slave.base))
+  def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
 case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLSlavePortParameters) {def infoString = base.infoString}
 case class TLRationalClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 
-case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+case class TLRationalEdgeParameters(master: TLRationalClientPortParameters, slave: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLBundleParameters(client.base, manager.base)
-  def formatEdge = client.infoString + "\n" + manager.infoString
+  val bundle = TLBundleParameters(master.base, slave.base)
+  def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
 // To be unified, devices must agree on all of these terms
