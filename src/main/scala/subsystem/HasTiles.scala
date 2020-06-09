@@ -174,7 +174,7 @@ trait CanAttachTile {
     DisableMonitors { implicit p =>
       val controlBus = context.locateTLBusWrapper(crossingParams.slave.where)
       controlBus.coupleTo(tileParams.name.getOrElse("tile")) { bus =>
-        tile.crossSlavePort() :*= crossingParams.slave.injectNode(context) :*= bus
+        tile.crossSlavePort() :*= crossingParams.slave.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
       }
     }
   }
