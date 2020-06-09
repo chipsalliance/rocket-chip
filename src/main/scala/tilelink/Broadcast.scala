@@ -71,9 +71,9 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
 
       // Create the probe filter
       val filter = Module(filterFactory(ProbeFilterParams(
-        mshrs       = numTrackers,
-        caches      = caches.size,
-        addressBits = log2Ceil(edgeIn.manager.maxAddress) - lineShift)))
+        mshrs  = numTrackers,
+        caches = caches.size,
+        blockAddressBits = log2Ceil(edgeIn.manager.maxAddress) - lineShift)))
 
       // Create the request tracker queues
       val trackers = Seq.tabulate(numTrackers) { id =>
@@ -255,19 +255,19 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
   }
 }
 
-// addressBits is after removing the block offset (typically lowest 6 bits for 64 bytes)
-case class ProbeFilterParams(mshrs: Int, caches: Int, addressBits: Int)
+// blockAddressBits is after removing the block offset (typically lowest 6 bits for 64 bytes)
+case class ProbeFilterParams(mshrs: Int, caches: Int, blockAddressBits: Int)
 {
   require (mshrs >= 0)
   require (caches >= 0)
-  require (addressBits > 0)
+  require (blockAddressBits > 0)
 
   val mshrBits = log2Ceil(mshrs)
 }
 
 class ProbeFilterRequest(val params: ProbeFilterParams) extends Bundle {
   val mshr    = UInt(params.mshrBits.W)
-  val address = UInt(params.addressBits.W)
+  val address = UInt(params.blockAddressBits.W)
   val allocOH = UInt(params.caches.W)
   val needT   = Bool()
 }
