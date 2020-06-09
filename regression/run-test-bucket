@@ -91,6 +91,9 @@ case "${bucket_number}" in
   7)
     travis_wait 100 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
     ;;
+  8)
+    make scalatest -C regression SUITE=foo JVM_MEMORY=8G
+    ;;
 
   -h|--help)
     print_usage
