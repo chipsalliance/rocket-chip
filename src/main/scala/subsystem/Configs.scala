@@ -17,7 +17,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
-  case MaxHartIdBits => log2Up(site(RocketTilesKey).size)
+  case MaxHartIdBits => log2Up(site(TilesLocated(InSubsystem)).map(_.tileParams.hartId).max)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
     beatBytes = site(XLen)/8,
