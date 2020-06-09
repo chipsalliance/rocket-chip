@@ -64,8 +64,10 @@ class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extend
   lazy val module = new LazyModuleImp(this) {
 
     val (out, _) = node.out.unzip
-    val outputs = out.flatMap(_.member.data)
-    outputs.foreach { o => o.clock := clock; o.reset := reset }
+    out.map { out =>
+      val output = Wire(out)
+      output.member.data.foreach { o => o.clock := clock; o.reset := reset }
+    }
   }
 }
 
