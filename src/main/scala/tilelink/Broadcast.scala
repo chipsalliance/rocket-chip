@@ -219,26 +219,10 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
         t.in_a_first := a_first
       }
 
-      val acq_needT = MuxLookup(in.a.bits.param, Wire(Bool()), Array(
-        TLPermissions.NtoB -> false.B,
-        TLPermissions.NtoT -> true.B,
-        TLPermissions.BtoT -> true.B))
-      val req_needT = MuxLookup(in.a.bits.opcode, Wire(Bool()), Array(
-        TLMessages.PutFullData    -> true.B,
-        TLMessages.PutPartialData -> true.B,
-        TLMessages.ArithmeticData -> true.B,
-        TLMessages.LogicalData    -> true.B,
-        TLMessages.Get            -> false.B,
-        TLMessages.Hint           -> MuxLookup(in.a.bits.param, Wire(Bool()), Array(
-          TLHints.PREFETCH_READ   -> false.B,
-          TLHints.PREFETCH_WRITE  -> true.B)),
-        TLMessages.AcquireBlock   -> acq_needT,
-        TLMessages.AcquirePerm    -> acq_needT))
-
       filter.io.request.valid := in.a.valid && a_first && trackerReady
       filter.io.request.bits.mshr    := OHToUInt(selectTracker)
       filter.io.request.bits.address := in.a.bits.address >> lineShift
-      filter.io.request.bits.needT   := req_needT
+      filter.io.request.bits.needT   := edgeIn.needT(in.a.bits)
       filter.io.request.bits.allocOH := a_cache // Note: this assumes a cache doing MMIO has allocated
 
       val leaveB = !filter.io.response.bits.needT && !filter.io.response.bits.gaveT
