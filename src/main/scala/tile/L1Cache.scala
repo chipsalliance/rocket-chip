@@ -32,6 +32,9 @@ trait HasL1CacheParameters extends HasTileParameters {
   def rowBytes = rowBits/8
   def rowOffBits = log2Up(rowBytes)
   def nTLBEntries = cacheParams.nTLBEntries
+  def nSlices = if (usingVM) (1 << (untagBits - pgIdxBits)) else 1
+  def sliceBits = log2Ceil(nSlices)
+  def tagLSB = if (usingVM) untagBits min pgIdxBits else untagBits
 
   def cacheDataBits = tlBundleParams.dataBits
   def cacheDataBytes = cacheDataBits / 8
