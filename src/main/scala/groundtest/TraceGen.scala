@@ -20,10 +20,12 @@
 package freechips.rocketchip.groundtest
  
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.{Parameters}
+import freechips.rocketchip.diplomacy.{ClockCrossingType}
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CanAttachTile}
 import freechips.rocketchip.util._
 
 // =======
@@ -57,15 +59,19 @@ import freechips.rocketchip.util._
 //     to repeatedly recompile with a different address bag.)
 
 case class TraceGenParams(
-    dcache: Option[DCacheParams] = Some(DCacheParams()),
     wordBits: Int, // p(XLen) 
     addrBits: Int, // p(PAddrBits)
     addrBag: List[BigInt], // p(AddressBag)
     maxRequests: Int,
     memStart: BigInt, //p(ExtMem).base
-    numGens: Int) extends GroundTestTileParams {
-  def build(i: Int, p: Parameters): GroundTestTile = new TraceGenTile(i, this)(p)
-  val hartId = 0
+    numGens: Int,
+    dcache: Option[DCacheParams] = Some(DCacheParams()),
+    hartId: Int = 0
+) extends InstantiatableTileParams[TraceGenTile] with GroundTestTileParams
+{
+  def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
+    new TraceGenTile(this, crossing, lookup)
+  }
   val beuAddr = None
   val blockerCtrlAddr = None
   val name = None
@@ -93,6 +99,15 @@ trait HasTraceGenParams {
   require(numBytesInWord * 8 == numBitsInWord)
   require((1 << logAddressBagLen) == addressBagLen)
 }
+
+case class TraceGenTileAttachParams(
+  tileParams: TraceGenParams,
+  crossingParams: TileCrossingParamsLike
+) extends CanAttachTile {
+  type TileType = TraceGenTile
+  val lookup: LookupByHartIdImpl = HartsWontDeduplicate(tileParams)
+}
+
 
 // ============
 // Trace format
@@ -578,9 +593,18 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 // Trace-generator wrapper
 // =======================
 
-class TraceGenTile(hack: Int, val id: Int, val params: TraceGenParams, q: Parameters) extends GroundTestTile(params)(q) {
-  def this(id: Int, params: TraceGenParams)(implicit p: Parameters) = this(0, id, params, p)
-  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := dcacheOpt.map(_.node).getOrElse(TLIdentityNode())
+class TraceGenTile private(
+  val params: TraceGenParams,
+  crossing: ClockCrossingType,
+  lookup: LookupByHartIdImpl,
+  q: Parameters
+) extends GroundTestTile(params, crossing, lookup, q)
+{
+  def this(params: TraceGenParams, crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+    this(params, crossing.crossingType, lookup, p)
+
+  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := dcacheOpt.map(_.node).getOrElse(TLTempNode())
+
   override lazy val module = new TraceGenTileModuleImp(this)
 }
 
@@ -595,10 +619,12 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
     dcache.module.io.cpu <> dcacheIF.io.cache
   }
 
-  status.finished := tracegen.io.finished
+  outer.reportCease(Some(tracegen.io.finished))
+  outer.reportHalt(Some(tracegen.io.timeout))
+  outer.reportWFI(None)
   status.timeout.valid := tracegen.io.timeout
   status.timeout.bits := UInt(0)
   status.error.valid := Bool(false)
 
-  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.id}: request timed out")
+  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.hartId}: request timed out")
 }
