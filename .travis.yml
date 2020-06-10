@@ -100,3 +100,7 @@ jobs:
       name: check wake compilation
       script:
         - ci-tests/wake_scala_compilation
+    - <<: *test*
+      name: Scala tests
+      script:
+        - ./regression/run-test-bucket 8

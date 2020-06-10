@@ -228,15 +228,16 @@ package object util {
   }
 
   def OptimizationBarrier[T <: Data](in: T): T = {
-    val foo = Module(new Module {
+    val barrier = Module(new Module {
       val io = IO(new Bundle {
         val x = Input(in)
         val y = Output(in)
       })
       io.y := io.x
+      override def desiredName = "OptimizationBarrier"
     })
-    foo.io.x := in
-    foo.io.y
+    barrier.io.x := in
+    barrier.io.y
   }
 
   /** Similar to Seq.groupBy except this returns a Seq instead of a Map

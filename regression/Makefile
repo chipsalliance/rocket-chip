@@ -334,3 +334,8 @@ emulator-jtag-dtm-tests-64 : $(EMULATOR_JTAG_DTM_64_TEST_STAMPS)
 # Targets for JTAG DTM full-chain simulation
 vsim-jtag-dtm-regression: vsim-jtag-dtm-tests-32 vsim-jtag-dtm-tests-64
 emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests-64
+
+# Target to run Scalatest regressionsk 'sbt test'
+.PHONY: scalatest
+scalatest: stamps/other-submodules.stamp
+	(cd $(abspath $(TOP)) && $(SBT) test)
