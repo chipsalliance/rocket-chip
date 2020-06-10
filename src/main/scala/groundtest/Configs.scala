@@ -15,7 +15,7 @@ import freechips.rocketchip.tile.{XLen}
 /** Actual testing target Configs */
 
 class TraceGenConfig extends Config(
-  new WithTraceGen(List.fill(2){ DCacheParams(nSets = 16, nWays = 1) }) ++
+  new WithTraceGen(2)() ++
   new GroundTestBaseConfig
 )
 
@@ -34,7 +34,10 @@ class GroundTestBaseConfig extends Config(
   })
 )
 
-class WithTraceGen(params: Seq[DCacheParams], nReqs: Int = 8192, idOffset: Int = 0) extends Config((site, here, up) => {
+class WithTraceGen(n: Int = 2, idOffset: Int = 0)(
+  params: Seq[DCacheParams] = List.fill(n){ DCacheParams(nSets = 16, nWays = 1) },
+  nReqs: Int = 8192
+) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => params.zipWithIndex.map { case (dcp, i) =>
     TraceGenTileAttachParams(
       tileParams = TraceGenParams(

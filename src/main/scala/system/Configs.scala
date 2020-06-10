@@ -6,7 +6,7 @@ package freechips.rocketchip.system
 import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.groundtest.WithTraceGen
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 class WithDebugSBASystem extends freechips.rocketchip.subsystem.WithDebugSBA
@@ -38,6 +38,15 @@ class DualChannelDualBankConfig extends Config(
   new WithNBanks(4) ++ new DefaultConfig)
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
+
+class HeterogeneousTileExampleConfig extends Config(
+  new WithTraceGen (n = 2, idOffset = 3)() ++
+  new WithNBigCores(n = 1, idOffset = 2) ++
+  new WithNMedCores(n = 1, idOffset = 1) ++
+  new WithNSmallCores(n = 1) ++
+  new WithCoherentBusTopology ++
+  new BaseConfig
+)
 
 class Edge128BitConfig extends Config(
   new WithEdgeDataBits(128) ++ new DefaultConfig)
