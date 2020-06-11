@@ -308,7 +308,8 @@ class BroadcastFilter(params: ProbeFilterParams) extends ProbeFilter(params) {
   io.response.bits.needT   := io.request.bits.needT
   io.response.bits.allocOH := io.request.bits.allocOH
   io.response.bits.gaveT   := true.B
-  io.response.bits.cacheOH := ~0.U(params.caches.W)
+  if (params.caches > 0)
+    io.response.bits.cacheOH := ~0.U(params.caches.W)
 
   io.update.ready := true.B
   io.release.ready := true.B
