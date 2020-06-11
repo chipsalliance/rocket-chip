@@ -230,9 +230,9 @@ trait CanAttachTile {
     }
 
     // 5. Notifications of tile status are collected without needing to be clock-crossed
-    context.tileHaltXbarNode := tile.haltNode
-    context.tileWFIXbarNode := tile.wfiNode
-    context.tileCeaseXbarNode := tile.ceaseNode
+    context.tileHaltXbarNode :=* tile.haltNode
+    context.tileWFIXbarNode :=* tile.wfiNode
+    context.tileCeaseXbarNode :=* tile.ceaseNode
   }
 }
 
