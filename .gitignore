@@ -4,3 +4,4 @@ project/target
 *~
 .addons-dont-touch
 /lib/
+/test_lib/
