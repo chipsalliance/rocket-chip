@@ -76,10 +76,10 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   }
 
   def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
-    to(name) { gen(outwardNode) }
+    to(name) { gen(TLNameNode("tl") :*=* outwardNode) }
 
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
-    from(name) { gen(inwardNode) }
+    from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
   def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
     bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
