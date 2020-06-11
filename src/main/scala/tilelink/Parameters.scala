@@ -970,6 +970,15 @@ class TLMasterPortParameters private(
     }
   }
 
+  // Check for support of a given operation at a specific id
+  val supportsProbe      = safety_helper(_.supportsProbe)      _
+  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
+  val supportsLogical    = safety_helper(_.supportsLogical)    _
+  val supportsGet        = safety_helper(_.supportsGet)        _
+  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
+  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
+  val supportsHint       = safety_helper(_.supportsHint)       _
+
   private def emitHelper(
     safe:    Boolean,
     member: TLMasterParameters => TransferSizes,
@@ -997,15 +1006,6 @@ class TLMasterPortParameters private(
   def emitsPutFull   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putFull,    sourceId, lgSize, range)
   def emitsPutPartial(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putPartial, sourceId, lgSize, range)
   def emitsHint      (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.hint,       sourceId, lgSize, range)
-
-  // Check for support of a given operation at a specific id
-  val supportsProbe      = safety_helper(_.supportsProbe)      _
-  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
-  val supportsLogical    = safety_helper(_.supportsLogical)    _
-  val supportsGet        = safety_helper(_.supportsGet)        _
-  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
-  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  val supportsHint       = safety_helper(_.supportsHint)       _
 
   def infoString = masters.map(_.infoString).mkString
 
@@ -1158,8 +1158,15 @@ case class TLEdgeParameters(
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
   // For emits, check that the source is allowed to send this transactions
-// TODO emitAcquire, source => sourceId (or don't need sourceId at all)
-//      Probe, source => address
+  // TODO emitAcquire, source => sourceId (or don't need sourceId at all)
+  //      Probe, source => address
+  //These A channel messages from MasterToSlave are:
+  //being routed to a slave based on address bits,
+  //    so they need to be passed to a helper that checks whether the slave that owns certain addresses
+  //    claimed to support transactions of this size/type
+  //being sent from a master using sourceId bits,
+  //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
+  //    claimed to emit transactions of this size/type
   def expectsAcquireTMasterToSlaveSafe  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireT(sourceId, lgSize, range)    && slave.supportsAcquireTSafe(address, lgSize, range)
   def expectsAcquireBMasterToSlaveSafe  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireB(sourceId, lgSize, range)    && slave.supportsAcquireBSafe(address, lgSize, range)
   def expectsArithmeticMasterToSlaveSafe(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmetic(sourceId, lgSize, range)  && slave.supportsArithmeticSafe(address, lgSize, range)
@@ -1179,7 +1186,14 @@ case class TLEdgeParameters(
   def expectsHintMasterToSlaveFast      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHint(sourceId, lgSize, range)        && slave.supportsHintFast(address, lgSize, range)
 
   //We don't use Safe vs Fast because we don't have the equivalent of address decoder for sourceIds
-// TODO (can use sourceId here to see if the specific master can support this transaction)
+  //TODO (can use sourceId here to see if the specific master can support this transaction)
+  //Duality: these B channel messages from SlaveToMaster are:
+  //being routed to a master based on sourceId bits,
+  //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
+  //    claimed to support transactions of this size/type
+  //being sent from a slave owning certain addresses,
+  //    so they need to be passed to a helper that checks with the slave that owns certain addresses claimed
+  //    to emit transactions of this size/type
   def expectsProbeSlaveToMaster      = master.supportsProbe
   def expectsArithmeticSlaveToMaster = master.supportsArithmetic
   def expectsLogicalSlaveToMaster    = master.supportsLogical
