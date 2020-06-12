@@ -1,4 +1,3 @@
 freechips.rocketchip.linting.LintReporter
 freechips.rocketchip.linting.rule.LintAnonymousRegisters
 freechips.rocketchip.linting.rule.LintTruncatingWidths
-freechips.rocketchip.linting.rule.LintConflictingModuleNames
