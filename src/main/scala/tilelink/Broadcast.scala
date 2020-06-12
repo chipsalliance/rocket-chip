@@ -136,7 +136,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       val c_trackerSrc   = Mux1H(c_trackerOH, trackers.map { _.source })
 
       // Record if this inner cache no longer has the block
-      val whoC = Cat(caches.map(_.contains(in.c.bits.source)).reverse)
+      val whoC = if (caches.size == 0) 0.U else Cat(caches.map(_.contains(in.c.bits.source)).reverse)
       val CisN = in.c.bits.param === TLPermissions.TtoN ||
                  in.c.bits.param === TLPermissions.BtoN ||
                  in.c.bits.param === TLPermissions.NtoN
@@ -308,7 +308,8 @@ class BroadcastFilter(params: ProbeFilterParams) extends ProbeFilter(params) {
   io.response.bits.needT   := io.request.bits.needT
   io.response.bits.allocOH := io.request.bits.allocOH
   io.response.bits.gaveT   := true.B
-  io.response.bits.cacheOH := ~0.U(params.caches.W)
+  if (params.caches > 0)
+    io.response.bits.cacheOH := ~0.U(params.caches.W)
 
   io.update.ready := true.B
   io.release.ready := true.B
