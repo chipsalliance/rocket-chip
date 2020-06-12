@@ -537,9 +537,6 @@ class TLSlavePortParameters private(
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
 
-  // all we need to change about this is adding 2 members, one for the tlmaster parametrs and one for the tlslave parameters
-  // All wee need to do is change the membership function to instead of only slave pamaters it looks at the intersection of both master and slave
-  // do we need to pass in two different arguments
   private def addressHelper(
       safe:    Boolean,
       member:  TLSlaveParameters => TransferSizes,
@@ -552,18 +549,21 @@ class TLSlavePortParameters private(
     // groupByIntoSeq is turning slaves into trimmed membership sizes
     // We are grouping all the slaves by their transfer size where
     // if they support the trimmed size then
-    //    
     // member is the type of transfer that you are looking for (What you are trying to filter on)
     // When you consider membership, you are trimming the sizes to only the ones that you care about
     // you are filtering the slaves based on both whether they support a particular opcode and the size
     // Grouping the slaves based on the actual transfer size range they support
     // intersecting the range and checking their membership
-    // FOR SUPPORTCASES instead of returning the list of slaves, you are returning a map from transfer size to the set of address sets that are supported for that transfer size
+    // FOR SUPPORTCASES instead of returning the list of slaves,
+    // you are returning a map from transfer size to the set of
+    // address sets that are supported for that transfer size
 
     // find all the slaves that support a certain type of operation and then group their addresses by the supported size
     // for every size there could be multiple address ranges
-    // safety is a trade off between checking between all possible addresses vs only the addresses that are known to have supported sizes
-    // the trade off is 'checking all addresses is a more expensive circuit but will always give you the right answer even if you give it an illegal address'
+    // safety is a trade off between checking between all possible addresses vs only the addresses
+    // that are known to have supported sizes
+    // the trade off is 'checking all addresses is a more expensive circuit but will always give you
+    // the right answer even if you give it an illegal address'
     // the not safe version is a cheaper circuit but if you give it an illegal address then it might produce the wrong answer
     // fast presumes address legality
     val supportCases = groupByIntoSeq(slaves)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
