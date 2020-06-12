@@ -5,6 +5,7 @@ package freechips.rocketchip.diplomacy
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{DataMirror,IO}
+import chisel3.experimental.DataMirror.internal.chiselTypeClone
 import freechips.rocketchip.config.{Parameters,Field}
 
 case class BundleBridgeParams[T <: Data](genOpt: Option[() => T])
@@ -42,16 +43,26 @@ case class BundleBridgeSink[T <: Data](genOpt: Option[() => T] = None)
 {
   def bundle: T = in(0)._1
 
-  def makeIO()(implicit valName: ValName): T = makeIOs()(valName).head
-  def makeIO(name: String): T = makeIOs()(ValName(name)).head
+  def makeIO()(implicit valName: ValName): T = {
+    val io: T = IO(chiselTypeClone(bundle))
+    io.suggestName(valName.name)
+    io <> bundle
+    io
+  }
+  def makeIO(name: String): T = makeIO()(ValName(name))
 }
 
 case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt)))
 {
   def bundle: T = out(0)._1
 
-  def makeIO()(implicit valName: ValName): T = makeIOs()(valName).head
-  def makeIO(name: String): T = makeIOs()(ValName(name)).head
+  def makeIO()(implicit valName: ValName): T = {
+    val io: T = IO(Flipped(chiselTypeClone(bundle)))
+    io.suggestName(valName.name)
+    bundle <> io
+    io
+  }
+  def makeIO(name: String): T = makeIO()(ValName(name))
 
   private var doneSink = false
   def makeSink()(implicit p: Parameters) = {
