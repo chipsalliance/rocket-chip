@@ -540,7 +540,7 @@ class TLSlavePortParameters private(
   // all we need to change about this is adding 2 members, one for the tlmaster parametrs and one for the tlslave parameters
   // All wee need to do is change the membership function to instead of only slave pamaters it looks at the intersection of both master and slave
   // do we need to pass in two different arguments
-  private def supportHelper(
+  private def addressHelper(
       safe:    Boolean,
       member:  TLSlaveParameters => TransferSizes,
       address: UInt,
@@ -962,8 +962,10 @@ class TLMasterPortParameters private(
   def requestFifo(id: UInt) = Mux1H(find(id), masters.map(c => Bool(c.requestFifo)))
 
   // Available during RTL runtime, checks to see if (id, size) is supported by the master's (master's)  diplomatic parameters
-  private def safety_helper(member: TLMasterParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
+  private def sourceIdHelper(member: TLMasterParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
     val allSame = masters.map(member(_) == member(masters(0))).reduce(_ && _)
+    // this if statement is a coarse generalization of the groupBy in the sourceIdHelper2 version;
+    // the case where there is only one group.
     if (allSame) member(masters(0)).containsLg(lgSize) else {
       // Find the master associated with ID and returns whether that particular master is able to receive transaction of lgSize
       Mux1H(find(id), masters.map(member(_).containsLg(lgSize)))
@@ -971,16 +973,16 @@ class TLMasterPortParameters private(
   }
 
   // Check for support of a given operation at a specific id
-  val supportsProbe      = safety_helper(_.supportsProbe)      _
-  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
-  val supportsLogical    = safety_helper(_.supportsLogical)    _
-  val supportsGet        = safety_helper(_.supportsGet)        _
-  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
-  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  val supportsHint       = safety_helper(_.supportsHint)       _
+  val supportsProbeChecker      = sourceIdHelper(_.supportsProbe)      _
+  val supportsArithmeticChecker = sourceIdHelper(_.supportsArithmetic) _
+  val supportsLogicalChecker    = sourceIdHelper(_.supportsLogical)    _
+  val supportsGetChecker        = sourceIdHelper(_.supportsGet)        _
+  val supportsPutFullChecker    = sourceIdHelper(_.supportsPutFull)    _
+  val supportsPutPartialChecker = sourceIdHelper(_.supportsPutPartial) _
+  val supportsHintChecker       = sourceIdHelper(_.supportsHint)       _
 
-  private def emitHelper(
-    safe:    Boolean,
+  // TODO: Merge sourceIdHelper2 with sourceIdHelper
+  private def sourceIdHelper2(
     member: TLMasterParameters => TransferSizes,
     sourceId: UInt,
     lgSize:  UInt,
@@ -998,14 +1000,14 @@ class TLMasterPortParameters private(
   }
 
   // Check for emit of a given operation at a specific id
-  def emitsAcquireT  (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.acquireT,   sourceId, lgSize, range)
-  def emitsAcquireB  (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.acquireB,   sourceId, lgSize, range)
-  def emitsArithmetic(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.arithmetic, sourceId, lgSize, range)
-  def emitsLogical   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.logical,    sourceId, lgSize, range)
-  def emitsGet       (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.get,        sourceId, lgSize, range)
-  def emitsPutFull   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putFull,    sourceId, lgSize, range)
-  def emitsPutPartial(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.putPartial, sourceId, lgSize, range)
-  def emitsHint      (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = emitHelper(true, _.emits.hint,       sourceId, lgSize, range)
+  def emitsAcquireTChecker  (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.acquireT,   sourceId, lgSize, range)
+  def emitsAcquireBChecker  (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.acquireB,   sourceId, lgSize, range)
+  def emitsArithmeticChecker(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.arithmetic, sourceId, lgSize, range)
+  def emitsLogicalChecker   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.logical,    sourceId, lgSize, range)
+  def emitsGetChecker       (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.get,        sourceId, lgSize, range)
+  def emitsPutFullChecker   (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.putFull,    sourceId, lgSize, range)
+  def emitsPutPartialChecker(sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.putPartial, sourceId, lgSize, range)
+  def emitsHintChecker      (sourceId: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = sourceIdHelper2(_.emits.hint,       sourceId, lgSize, range)
 
   def infoString = masters.map(_.infoString).mkString
 
