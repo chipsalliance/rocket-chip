@@ -337,5 +337,5 @@ emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests
 
 # Target to run Scalatest regressionsk 'sbt test'
 .PHONY: scalatest
-scalatest: stamps/other-submodules.stamp
+scalatest: stamps/other-submodules.stamp $(FIRRTL_JAR)
 	(cd $(abspath $(TOP)) && $(SBT) test)
