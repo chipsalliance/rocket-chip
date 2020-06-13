@@ -673,7 +673,7 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.write.ready := Bool(true)
 }
 
-class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class NonBlockingDCache(staticIdForMetadata: Int)(implicit p: Parameters) extends HellaCache(staticIdForMetadata)(p) {
   override lazy val module = new NonBlockingDCacheModule(this)
   override def getOMSRAMs(): Seq[OMSRAM] = Nil // this is just a dummy value and that we need to eventually fix it
 }

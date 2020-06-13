@@ -67,8 +67,14 @@ trait HasNonDiplomaticTileParameters {
   def asIdBits: Int = p(ASIdBits)
   def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
 
-  def hartId: Int = tileParams.hartId
+  // Use staticIdForMetdata only to emit build information or identify a component to diplomacy.
+  //   Including it in a constructed Chisel circuit will prevent us
+  //   from being able to deduplicate otherwise-homogeneous tiles.
+  def staticIdForMetadata: Int = tileParams.hartId
+  @deprecated("use hartIdSinkNode.bundle or staticIdForMetadata", "rocket-chip 1.3")
+  def hartId: Int = staticIdForMetadata
   def hartIdLen: Int = p(MaxHartIdBits)
+  require (log2Up(staticIdForMetadata + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $staticIdForMetadata")
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
@@ -284,13 +290,8 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
 
   require(xLen == 32 || xLen == 64)
   require(paddrBits <= maxPAddrBits, "asked for " + paddrBits + " paddr bits, but since xLen is " + xLen + ", only " + maxPAddrBits + " can fit")
-  require (log2Up(hartId + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $hartId")
-
   outer.traceAuxDefaultNode.bundle.stall := false.B
   outer.traceAuxDefaultNode.bundle.enable := false.B
-
-  val hartid = outer.hartIdSinkNode.bundle
-  val reset_vector = outer.resetVectorSinkNode.bundle
 }
 
 /** Some other non-tilelink but still standard inputs */
