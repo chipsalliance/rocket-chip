@@ -103,7 +103,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
     inputFn = BundleBridgeNexus.orReduction[UInt](p(HartPrefixKey)) _,
     outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
       val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
-      if (p(HartPrefixKey)) RegNext(y) else y
+      if (p(HartPrefixKey)) BundleBridgeNexus.safeRegNext(y) else y
     },
     default = Some(() => 0.U(p(MaxHartIdBits).W))
   )
