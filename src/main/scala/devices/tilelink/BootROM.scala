@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.{BaseSubsystem, HasTiles, TLBusWrapperLocation, CBUS}
+import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation, CBUS}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -18,7 +18,6 @@ case class BootROMParams(
   size: Int = 0x10000,
   hang: BigInt = 0x10040, // Subsystem will power-on running at 0x10040
   contentFileName: String)
-case object BootROMParams extends Field[BootROMParams]
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
   resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem"))(implicit p: Parameters) extends LazyModule
@@ -58,13 +57,11 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
   }
 }
 
-/** Adds a boot ROM that contains the DTB describing the system's subsystem. */
-trait HasPeripheryBootROM { this: BaseSubsystem with HasTiles =>
-  BootROM.attach(p(BootROMParams), this, CBUS)
-}
+case class BootROMLocated(loc: HierarchicalLocation) extends Field[Option[BootROMParams]](None)
 
 object BootROM {
-  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)(implicit p: Parameters): TLROM = {
+  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)
+            (implicit p: Parameters): TLROM = {
     val cbus = subsystem.locateTLBusWrapper(where)
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
     lazy val contents = {
