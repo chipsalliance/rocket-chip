@@ -65,7 +65,10 @@ trait HasNonDiplomaticTileParameters {
     res
   }
   def asIdBits: Int = p(ASIdBits)
-  def maxPAddrBits: Int = xLen match { case 32 => 34; case 64 => 56 }
+  lazy val maxPAddrBits: Int = {
+    require(xLen == 32 || xLen == 64, s"We only support XLENs of 32 or 64, but got $xLen")
+    xLen match { case 32 => 34; case 64 => 56 }
+  }
 
   // Use staticIdForMetdata only to emit build information or identify a component to diplomacy.
   //   Including it in a constructed Chisel circuit will prevent us
@@ -73,8 +76,11 @@ trait HasNonDiplomaticTileParameters {
   def staticIdForMetadata: Int = tileParams.hartId
   @deprecated("use hartIdSinkNode.bundle or staticIdForMetadata", "rocket-chip 1.3")
   def hartId: Int = staticIdForMetadata
-  def hartIdLen: Int = p(MaxHartIdBits)
-  require (log2Up(staticIdForMetadata + 1) <= hartIdLen, s"p(MaxHartIdBits) of $hartIdLen is not enough for hartid $staticIdForMetadata")
+  lazy val hartIdLen: Int = {
+    val len = p(MaxHartIdBits)
+    require (log2Up(staticIdForMetadata + 1) <= len, s"p(MaxHartIdBits) of $len is not enough for static hart id $staticIdForMetadata")
+    len
+  }
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
@@ -137,7 +143,11 @@ trait HasNonDiplomaticTileParameters {
   */
 trait HasTileParameters extends HasNonDiplomaticTileParameters {
   protected def tlBundleParams = p(TileVisibilityNodeKey).edges.out.head.bundle
-  def paddrBits: Int = tlBundleParams.addressBits
+  lazy val paddrBits: Int = {
+    val bits = tlBundleParams.addressBits
+    require(bits <= maxPAddrBits, s"asked $bits paddr bits, but since xLen is $xLen only $maxPAddrBits can fit")
+    bits
+  }
   def vaddrBits: Int =
     if (usingVM) {
       val v = maxSVAddrBits
@@ -287,9 +297,6 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 }
 
 abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
-
-  require(xLen == 32 || xLen == 64)
-  require(paddrBits <= maxPAddrBits, "asked for " + paddrBits + " paddr bits, but since xLen is " + xLen + ", only " + maxPAddrBits + " can fit")
   outer.traceAuxDefaultNode.bundle.stall := false.B
   outer.traceAuxDefaultNode.bundle.enable := false.B
 }
