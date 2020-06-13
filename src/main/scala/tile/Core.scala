@@ -121,7 +121,9 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
 
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
-  val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
+  val io = new CoreBundle()(p) {
+    val hartid = UInt(hartIdLen).asInput
+    val reset_vector = UInt(resetVectorLen).asInput
     val interrupts = new CoreInterrupts().asInput
     val imem  = new FrontendIO
     val dmem = new HellaCacheIO

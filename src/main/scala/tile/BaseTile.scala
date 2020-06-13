@@ -300,9 +300,3 @@ abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModul
   outer.traceAuxDefaultNode.bundle.stall := false.B
   outer.traceAuxDefaultNode.bundle.enable := false.B
 }
-
-/** Some other non-tilelink but still standard inputs */
-trait HasExternallyDrivenTileConstants extends Bundle with HasTileParameters {
-  val hartid = UInt(INPUT, hartIdLen)
-  val reset_vector = UInt(INPUT, resetVectorLen)
-}
