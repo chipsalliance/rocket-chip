@@ -7,14 +7,32 @@ import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.regmapper._
+import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba.AMBAProt
 import scala.math.{min,max}
 
-class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false, filterFactory: TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)(implicit p: Parameters) extends LazyModule
+case class TLBroadcastControlParams(
+  address:   AddressSet,
+  beatBytes: Int)
+
+case class TLBroadcastParams(
+  lineBytes:     Int,
+  numTrackers:   Int = 4,
+  bufferless:    Boolean = false,
+  control:       Option[TLBroadcastControlParams] = None,
+  filterFactory: TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)
 {
   require (lineBytes > 0 && isPow2(lineBytes))
   require (numTrackers > 0)
+}
+
+class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends LazyModule
+{
+  // Backwards compatibility
+  def this(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false, filterFactory: TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)(implicit p: Parameters) =
+    this(TLBroadcastParams(lineBytes, numTrackers, bufferless, filterFactory=filterFactory))
 
   val node = TLAdapterNode(
     clientFn  = { cp =>
@@ -24,7 +42,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     },
     managerFn = { mp =>
       mp.v1copy(
-        endSinkId  = numTrackers,
+        endSinkId  = params.numTrackers,
         managers   = mp.managers.map { m =>
           // We are the last level manager
           require (!m.supportsAcquireB)
@@ -32,20 +50,20 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
           if (m.regionType == RegionType.UNCACHED) {
             // The device had better support line transfers
             val lowerBound = max(m.supportsPutFull.min, m.supportsGet.min)
-            require (!m.supportsPutFull || m.supportsPutFull.contains(lineBytes), s"${m.name} only supports PutFull(${m.supportsPutFull}), which does not include $lineBytes")
-            require (!m.supportsGet     || m.supportsGet    .contains(lineBytes), s"${m.name} only supports Get(${m.supportsGet}), which does not include $lineBytes")
+            require (!m.supportsPutFull || m.supportsPutFull.contains(params.lineBytes), s"${m.name} only supports PutFull(${m.supportsPutFull}), which does not include ${params.lineBytes}")
+            require (!m.supportsGet     || m.supportsGet    .contains(params.lineBytes), s"${m.name} only supports Get(${m.supportsGet}), which does not include ${params.lineBytes}")
             m.v1copy(
               regionType         = RegionType.TRACKED,
-              supportsAcquireB   = TransferSizes(lowerBound, lineBytes),
-              supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, lineBytes) else TransferSizes.none,
+              supportsAcquireB   = TransferSizes(lowerBound, params.lineBytes),
+              supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, params.lineBytes) else TransferSizes.none,
               alwaysGrantsT      = false,
               // truncate supported accesses to lineBytes (we only ever probe for one line)
-              supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, lineBytes)),
-              supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, lineBytes)),
-              supportsGet        = TransferSizes(m.supportsGet       .min, min(m.supportsGet       .max, lineBytes)),
-              supportsHint       = TransferSizes(m.supportsHint      .min, min(m.supportsHint      .max, lineBytes)),
-              supportsArithmetic = TransferSizes(m.supportsArithmetic.min, min(m.supportsArithmetic.max, lineBytes)),
-              supportsLogical    = TransferSizes(m.supportsLogical   .min, min(m.supportsLogical   .max, lineBytes)),
+              supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, params.lineBytes)),
+              supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, params.lineBytes)),
+              supportsGet        = TransferSizes(m.supportsGet       .min, min(m.supportsGet       .max, params.lineBytes)),
+              supportsHint       = TransferSizes(m.supportsHint      .min, min(m.supportsHint      .max, params.lineBytes)),
+              supportsArithmetic = TransferSizes(m.supportsArithmetic.min, min(m.supportsArithmetic.max, params.lineBytes)),
+              supportsLogical    = TransferSizes(m.supportsLogical   .min, min(m.supportsLogical   .max, params.lineBytes)),
               fifoId             = None // trackers do not respond in FIFO order!
             )
           } else {
@@ -56,28 +74,41 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
     }
   )
 
+  val intNode = if (params.control.isEmpty) None else Some(IntSourceNode(IntSourcePortSimple(num = 1)))
+  val controlNode = params.control.map(x => TLRegisterNode(
+    address   = Seq(x.address),
+    beatBytes = x.beatBytes,
+    device    = new SimpleDevice("cache-controller", Seq("sifive,broadcast0"))))
+
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val clients = edgeIn.client.clients
       val managers = edgeOut.manager.managers
-      val lineShift = log2Ceil(lineBytes)
+      val lineShift = log2Ceil(params.lineBytes)
 
       import TLBroadcastConstants._
 
-      require (lineBytes >= edgeOut.manager.beatBytes)
+      require (params.lineBytes >= edgeOut.manager.beatBytes)
       // For the probe walker, we need to identify all the caches
       val caches = clients.filter(_.supportsProbe).map(_.sourceId)
       val cache_targets = caches.map(c => c.start.U)
 
       // Create the probe filter
-      val filter = Module(filterFactory(ProbeFilterParams(
-        mshrs  = numTrackers,
+      val filter = Module(params.filterFactory(ProbeFilterParams(
+        mshrs  = params.numTrackers,
         caches = caches.size,
         blockAddressBits = log2Ceil(edgeIn.manager.maxAddress) - lineShift)))
 
+      // Hook up the filter interfaces, if they are requested
+      intNode.foreach { _.out(0)._1(0) := filter.io.int }
+      controlNode match {
+        case Some(x) => x.regmap(filter.useRegFields():_*)
+        case None    => filter.tieRegFields()
+      }
+
       // Create the request tracker queues
-      val trackers = Seq.tabulate(numTrackers) { id =>
-        Module(new TLBroadcastTracker(id, lineBytes, caches.size, bufferless, edgeIn, edgeOut)).io
+      val trackers = Seq.tabulate(params.numTrackers) { id =>
+        Module(new TLBroadcastTracker(id, params.lineBytes, caches.size, params.bufferless, edgeIn, edgeOut)).io
       }
 
       // We always accept E
@@ -136,7 +167,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       val c_trackerSrc   = Mux1H(c_trackerOH, trackers.map { _.source })
 
       // Record if this inner cache no longer has the block
-      val whoC = Cat(caches.map(_.contains(in.c.bits.source)).reverse)
+      val whoC = if (caches.size == 0) 0.U else Cat(caches.map(_.contains(in.c.bits.source)).reverse)
       val CisN = in.c.bits.param === TLPermissions.TtoN ||
                  in.c.bits.param === TLPermissions.BtoN ||
                  in.c.bits.param === TLPermissions.NtoN
@@ -238,7 +269,7 @@ class TLBroadcast(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = fa
       // Inform the tracker of the number of probe targets
       val responseCache = filter.io.response.bits.cacheOH | filter.io.response.bits.allocOH
       val responseCount = PopCount(todo)
-      val responseMSHR = UIntToOH(filter.io.response.bits.mshr, numTrackers).asBools
+      val responseMSHR = UIntToOH(filter.io.response.bits.mshr, params.numTrackers).asBools
       val sack = filter.io.response.fire() && leaveB && others =/= 0.U
       (trackers zip responseMSHR) foreach { case (tracker, select) =>
         tracker.probe.valid := filter.io.response.fire() && select
@@ -289,17 +320,22 @@ class ProbeFilterRelease(val params: ProbeFilterParams) extends Bundle {
 }
 
 class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
+  val int = Output(Bool())
   val request = Flipped(Decoupled(new ProbeFilterRequest(params)))
   val response = Decoupled(new ProbeFilterResponse(params))
   val update  = Flipped(Decoupled(new ProbeFilterUpdate(params)))
   val release = Flipped(Decoupled(new ProbeFilterRelease(params)))
 }
 
-abstract class ProbeFilter(val params: ProbeFilterParams) extends Module {
+abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
+  def useRegFields(): Seq[RegField.Map] = Nil
+  def tieRegFields(): Unit = Unit
   val io = IO(new ProbeFilterIO(params))
 }
 
 class BroadcastFilter(params: ProbeFilterParams) extends ProbeFilter(params) {
+  io.int := false.B
+
   io.request.ready := io.response.ready
   io.response.valid := io.request.valid
 
@@ -308,7 +344,8 @@ class BroadcastFilter(params: ProbeFilterParams) extends ProbeFilter(params) {
   io.response.bits.needT   := io.request.bits.needT
   io.response.bits.allocOH := io.request.bits.allocOH
   io.response.bits.gaveT   := true.B
-  io.response.bits.cacheOH := ~0.U(params.caches.W)
+  if (params.caches > 0)
+    io.response.bits.cacheOH := ~0.U(params.caches.W)
 
   io.update.ready := true.B
   io.release.ready := true.B
@@ -322,8 +359,10 @@ object TLBroadcast
 {
   type ProbeFilterFactory = ProbeFilterParams => ProbeFilter
   def apply(lineBytes: Int, numTrackers: Int = 4, bufferless: Boolean = false, filterFactory: TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)(implicit p: Parameters): TLNode =
+    apply(TLBroadcastParams(lineBytes, numTrackers, bufferless, filterFactory=filterFactory))
+  def apply(params: TLBroadcastParams)(implicit p: Parameters): TLNode =
   {
-    val broadcast = LazyModule(new TLBroadcast(lineBytes, numTrackers, bufferless, filterFactory))
+    val broadcast = LazyModule(new TLBroadcast(params))
     broadcast.node
   }
 }

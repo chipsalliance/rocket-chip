@@ -122,18 +122,24 @@ class BundleBridgeNexus[T <: Data](
 }
 
 object BundleBridgeNexus {
+  def safeRegNext[T <: Data](x: T): T = {
+    val reg = Reg(chiselTypeOf(x))
+    reg := x
+    reg
+  }
+
   def requireOne[T <: Data](registered: Boolean)(seq: Seq[T]): T = {
     require(seq.size == 1, "BundleBroadcast default requires one input")
-    if (registered) RegNext(seq.head) else seq.head
+    if (registered) safeRegNext(seq.head) else seq.head
   }
 
   def orReduction[T <: Data](registered: Boolean)(seq: Seq[T]): T = {
     val x = seq.reduce((a,b) => (a.asUInt | b.asUInt).asTypeOf(seq.head))
-    if (registered) RegNext(x) else x
+    if (registered) safeRegNext(x) else x
   }
 
   def fillN[T <: Data](registered: Boolean)(x: T, n: Int): Seq[T] = Seq.fill(n) {
-    if (registered) RegNext(x) else x
+    if (registered) safeRegNext(x) else x
   }
 
   def apply[T <: Data](
