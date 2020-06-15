@@ -98,24 +98,15 @@ object ClockGroupDriver {
     implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
-    InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil)}
+    println ("I have been asked to drive from implicit clock")
+    InModuleBody { Wire(HeterogeneousBag[ClockGroupBundle](Nil))}
   }
 
   def driveFromIOs(): DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
     groups :*= ioClockGroupSourceNode
+    println ("I have been asked to drive from ios")
     InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
-    //InModuleBody {
-    //  val bundles: Seq[ClockGroupBundle] = ioClockGroupSourceNode.out.map(_._1)
-    //  //  TODO: I am not sure what names to use here other than the index
-    //  val namedBundleMap: ListMap[String, ClockGroupBundle] = ListMap(bundles.zipWithIndex.map{ case(b, i) =>
-    //    s"${i}" -> b
-    //  }:_*)
-    //  val ios = IO(Flipped(RecordMap(namedBundleMap)))
-    //  ios.suggestName(valName.name)
-    //  bundles.zip(ios.data).foreach{ case (bundle, io) => bundle <> io  }
-    //  ios
-    //}
   }
 }
