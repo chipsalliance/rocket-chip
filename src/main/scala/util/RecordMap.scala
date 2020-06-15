@@ -7,19 +7,18 @@ import scala.collection.immutable.ListMap
 import chisel3.internal.requireIsChiselType
 import chisel3.experimental.DataMirror.internal.chiselTypeClone
 
-final class RecordMap[T <: Data](val eltMap: ListMap[String, T])
+final class RecordMap[T <: Data](eltMap: ListMap[String, T])
     extends Record {
   
   eltMap.foreach { case (name, elt) => requireIsChiselType(elt, name) }
 
-
   def apply(x: Int) = eltMap.values.toSeq(x)
   def apply(x: String) = eltMap.get(x)
   def size = eltMap.size
-  def data = eltMap.values
 
   // This is needed for Record, and doesn't give the actual elements
-  val elements = ListMap[String, T]() ++ eltMap.mapValues(chiselTypeClone(_))  // mapValues return value is lazy
+  val elements = ListMap[String, T]() ++ eltMap.mapValues(chiselTypeClone(_).asInstanceOf[T])  // mapValues return value is lazy
+  def data = elements.values
 
   override def cloneType: this.type = (new RecordMap(eltMap)).asInstanceOf[this.type]
 
