@@ -217,10 +217,14 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   traceNode := traceSourceNode
 
   // Trace sideband signals into core
-  val traceAuxNode = BundleBridgeNexus[TraceAux]()
+  val traceAuxNode = BundleBridgeNexus[TraceAux](default = Some(() => {
+    val aux = Wire(new TraceAux)
+    aux.stall  := false.B
+    aux.enable := false.B
+    aux
+  }))
   val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
-  val traceAuxDefaultNode = BundleBridgeSource(() => new TraceAux)
-  traceAuxSinkNode := traceAuxNode := traceAuxDefaultNode
+  traceAuxSinkNode := traceAuxNode
 
   // Node for instruction trace conforming to RISC-V Processor Trace spec V1.0
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(new TraceCoreParams()))
@@ -296,7 +300,4 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   this.suggestName(tileParams.name)
 }
 
-abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
-  outer.traceAuxDefaultNode.bundle.stall := false.B
-  outer.traceAuxDefaultNode.bundle.enable := false.B
-}
+abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters
