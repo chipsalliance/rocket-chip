@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 
-class EventSet(gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bool)]) {
+class EventSet(val gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bool)]) {
   def size = events.size
   val hits = Wire(Vec(size, Bool()))
   def check(mask: UInt) = {
