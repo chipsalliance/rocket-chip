@@ -65,13 +65,21 @@ case class RegFieldDesc (
   addressBlock: Option[AddressBlockInfo] = None
   // TODO: registerFiles
 ) {
-    require(RegFieldDesc.nameAcceptable(name),
-    s"RegFieldDesc.name of '$name' is not of the form '[A-Za-z_][A-Za-z0-9_]*'")
+  require(RegFieldDesc.nameAcceptable(name),
+    s"RegFieldDesc.name of '$name' is not of the form '${RegFieldDesc.nameRegex.toString}'")
+
+  // We could also check for group name here, but that can have a
+  // significant runtime overhead because every RegField can be
+  // annotated with the group name,
+  // so we put the check in the RegFieldGroup helper function instead.
+
 }
 
 object RegFieldDesc {
   def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
 
+  // This Regex is considerably more limited than the IP-XACT standard,
+  // ours is designed for simplicity and consistency in register naming.
   private val nameRegex: Regex = """[A-Za-z_][A-Za-z0-9_]*""".r
 
   def nameAcceptable(name: String): Boolean = name match {
@@ -89,7 +97,7 @@ object RegFieldDesc {
 object RegFieldGroup {
   def apply (name: String, desc: Option[String], regs: Seq[RegField], descFirstOnly: Boolean = true): Seq[RegField] = {
     require(RegFieldDesc.nameAcceptable(name),
-      s"RegFieldDesc.group of '$name' is not of the form '[A-Za-z_][A-Za-z0-9_]*'")
+      s"RegFieldDesc.group of '$name' is not of the form '${RegFieldDesc.nameRegex.toString}'")
     regs.zipWithIndex.map {case (r, i) =>
       val gDesc = if ((i > 0) & descFirstOnly) None else desc
       r.desc.map { d =>
