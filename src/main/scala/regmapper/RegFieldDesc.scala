@@ -64,10 +64,20 @@ case class RegFieldDesc (
   // IP-XACT or similar outputs. 
   addressBlock: Option[AddressBlockInfo] = None
   // TODO: registerFiles
-)
+) {
+    require(RegFieldDesc.nameAcceptable(name),
+    s"RegFieldDesc.name of '$name' is not of the form '[A-Za-z_][A-Za-z0-9_]*'")
+}
 
 object RegFieldDesc {
   def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
+
+  private val nameRegex: Regex = """[A-Za-z_][A-Za-z0-9_]*""".r
+
+  def nameAcceptable(name: String): Boolean = name match {
+    case RegFieldDesc.nameRegex(_*) => true
+    case _ => false
+  }
 }
 
 // Our descriptions are in terms of RegFields only, which is somewhat
@@ -78,6 +88,8 @@ object RegFieldDesc {
 
 object RegFieldGroup {
   def apply (name: String, desc: Option[String], regs: Seq[RegField], descFirstOnly: Boolean = true): Seq[RegField] = {
+    require(RegFieldDesc.nameAcceptable(name),
+      s"RegFieldDesc.group of '$name' is not of the form '[A-Za-z_][A-Za-z0-9_]*'")
     regs.zipWithIndex.map {case (r, i) =>
       val gDesc = if ((i > 0) & descFirstOnly) None else desc
       r.desc.map { d =>
