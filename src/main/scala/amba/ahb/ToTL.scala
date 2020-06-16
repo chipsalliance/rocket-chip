@@ -145,7 +145,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       // Double-check that the above register has the intended effect since
       // this is an additional requirement not tested by third-party VIP.
       // hresp(0) && !hreadyout => next cycle has same hrdata value
-      assert (!RegNext(in.hresp(0) && !in.hreadyout) || RegNext(in.hrdata) === in.hrdata)
+      assert (!RegNext(in.hresp(0) && !in.hreadyout, false.B) || RegNext(in.hrdata) === in.hrdata)
 
       // In a perfect world, we'd use these signals
       val hresp = d_fail || (out.d.valid && (out.d.bits.denied || out.d.bits.corrupt))
