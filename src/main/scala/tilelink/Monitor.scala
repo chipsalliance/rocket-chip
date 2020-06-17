@@ -172,7 +172,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.expectsGetSlaveToMaster(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterPutFull(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Get carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Get carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Get address not aligned to size" + extra)
@@ -182,7 +182,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.expectsPutFullSlaveToMaster(bundle.source, bundle.size), "'B' channel carries PutFull type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterPutFull(bundle.source, bundle.size), "'B' channel carries PutFull type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
@@ -191,7 +191,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.expectsPutPartialSlaveToMaster(bundle.source, bundle.size), "'B' channel carries PutPartial type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterPutPartial(bundle.source, bundle.size), "'B' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
@@ -200,7 +200,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.expectsArithmeticSlaveToMaster(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterArithmetic(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by master" + extra)
       monAssert (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
@@ -209,7 +209,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.expectsLogicalSlaveToMaster(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterLogical(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Logical carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Logical carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Logical address not aligned to size" + extra)
@@ -218,7 +218,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.expectsHintSlaveToMaster(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Hint carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
@@ -254,8 +254,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
-      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveAcquireB(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel Release address not aligned to size" + extra)
@@ -264,8 +264,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
-      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveAcquireB(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
