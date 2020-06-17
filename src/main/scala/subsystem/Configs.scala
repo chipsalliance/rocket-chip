@@ -415,7 +415,7 @@ class WithScratchpadsOnly extends Config((site, here, up) => {
 
 /** Boilerplate code for translating between the old XTilesParamsKey/XTilesCrossingKey pattern and new TilesLocated pattern */
 object LegacyTileFieldHelper {
-  def apply[TPT <: InstantiatableTileParams[_], TCT <: TileCrossingParamsLike, TAP <: CanAttachTile](
+  def apply[TPT <: InstantiableTileParams[_], TCT <: TileCrossingParamsLike, TAP <: CanAttachTile](
     tileParams: Seq[TPT],
     tcp: Seq[TCT],
     apply: (TPT, TCT, LookupByHartIdImpl) => TAP): Seq[TAP] =

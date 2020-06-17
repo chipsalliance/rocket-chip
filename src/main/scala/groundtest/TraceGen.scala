@@ -67,7 +67,7 @@ case class TraceGenParams(
     numGens: Int,
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     hartId: Int = 0
-) extends InstantiatableTileParams[TraceGenTile] with GroundTestTileParams
+) extends InstantiableTileParams[TraceGenTile] with GroundTestTileParams
 {
   def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
     new TraceGenTile(this, crossing, lookup)

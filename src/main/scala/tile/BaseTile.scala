@@ -32,7 +32,7 @@ trait TileParams {
   val name: Option[String]
 }
 
-abstract class InstantiatableTileParams[TileType <: BaseTile] extends TileParams {
+abstract class InstantiableTileParams[TileType <: BaseTile] extends TileParams {
   def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)
                  (implicit p: Parameters): TileType
 }

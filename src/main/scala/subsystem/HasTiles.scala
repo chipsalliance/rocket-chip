@@ -10,7 +10,7 @@ import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerPa
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, HasExternallyDrivenTileConstants, InstantiatableTileParams, PriorityMuxHartIdFromSeq}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, HasExternallyDrivenTileConstants, InstantiableTileParams, PriorityMuxHartIdFromSeq}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -147,7 +147,7 @@ trait DefaultTileContextType
 trait CanAttachTile {
   type TileType <: BaseTile
   type TileContextType <: DefaultTileContextType
-  def tileParams: InstantiatableTileParams[TileType]
+  def tileParams: InstantiableTileParams[TileType]
   def crossingParams: TileCrossingParamsLike
   def lookup: LookupByHartIdImpl
 
