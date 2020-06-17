@@ -46,20 +46,16 @@ trait HasRocketTiles extends HasTiles
   // according to the specified type of clock crossing.
   // Note that we also inject new nodes into the tile itself,
   // also based on the crossing type.
-  val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
+  val rocketTiles = rocketTileParams.sortWith(_.hartId < _.hartId).zip(crossings).map { case (tp, crossing) =>
     val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams), logicalTreeNode))
 
     connectMasterPortsToSBus(rocket, crossing)
     connectSlavePortsToCBus(rocket, crossing)
     connectInterrupts(rocket, debugOpt, clintOpt, plicOpt)
 
-    rocket
-  }
+    LogicalModuleTree.add(logicalTreeNode, rocket.rocketLogicalTree)
 
-  rocketTiles.map {
-    r =>
-      def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
-      LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
+    rocket
   }
 
   def coreMonitorBundles = (rocketTiles map { t =>
