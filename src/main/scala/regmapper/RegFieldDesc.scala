@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.regmapper
 
+import scala.util.matching.Regex
+
 // This information is not used internally by the regmap(...) function.
 // However, the author of a RegField may be the best person to provide this
 // information which is likely to be needed by downstream SW and Documentation
@@ -80,7 +82,7 @@ object RegFieldDesc {
 
   // This Regex is considerably more limited than the IP-XACT standard,
   // ours is designed for simplicity and consistency in register naming.
-  private val nameRegex: Regex = """[A-Za-z_][A-Za-z0-9_]*""".r
+  val nameRegex: Regex = """[A-Za-z_][A-Za-z0-9_]*""".r
 
   def nameAcceptable(name: String): Boolean = name match {
     case RegFieldDesc.nameRegex(_*) => true
