@@ -538,12 +538,15 @@ class TLSlavePortParameters private(
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
 
   private def addressHelper(
+      // setting safe to false indicates that all addresses are expected to be legal, which might reduce circuit complexity
       safe:    Boolean,
+      // member filters out the sizes being checked based on the opcode being emitted or supported
       member:  TLSlaveParameters => TransferSizes,
       address: UInt,
       lgSize:  UInt,
-      range:   Option[TransferSizes]): Bool = { // What does the range argument do?
-    // trim is just processing the range argument
+      // range provides a limit on the sizes that are expected to be evaluated, which might reduce circuit complexity
+      range:   Option[TransferSizes]): Bool = {
+    // trim reduces circuit complexity by intersecting checked sizes with the range argument
     def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
     // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
     // groupByIntoSeq is turning slaves into trimmed membership sizes
@@ -569,21 +572,14 @@ class TLSlavePortParameters private(
     val supportCases = groupByIntoSeq(slaves)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
       k -> vs.flatMap(_.address)
     }
-    // the rest of this function is just processing that more
-    // safe produces a circuit that compares against all possible addresses
-    // whereas fast presumes that the address is legal
-    // It creates an address decoder that only works if the address is supported
+    // safe produces a circuit that compares against all possible addresses,
+    // whereas fast presumes that the address is legal but uses an efficient address decoder
     val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
-    // simplified...?
-    // simplified is doing some unification with the addresses to combine them with the mask
+    // Simplified creates the most concise possible representation of each cases' address sets based on the mask.
     val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
-    simplified.map { case (s, a) => // once you've done that, you are returning
+    simplified.map { case (s, a) =>
     // s is a size, you are checking for this size either the size of the operation is in s
-    // you are checking if the wire address named `address` is contained within the calculated address set
-    // you are also checking if the size is contained within the size in the address set pair
-    // you are looking at that for every pair and then reducing them
-    // as long as you have an address that supports that size
-    // thats the circuit you are returning
+    // We return an or-reduction of all the cases, checking whether any contains both the dynamic size and dynamic address on the wire.
       (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)
     }.foldLeft(Bool(false))(_||_)
@@ -961,7 +957,7 @@ class TLMasterPortParameters private(
 
   def requestFifo(id: UInt) = Mux1H(find(id), masters.map(c => Bool(c.requestFifo)))
 
-  // Available during RTL runtime, checks to see if (id, size) is supported by the master's (master's)  diplomatic parameters
+  // Available during RTL runtime, checks to see if (id, size) is supported by the master's (client's) diplomatic parameters
   private def sourceIdHelper(member: TLMasterParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
     val allSame = masters.map(member(_) == member(masters(0))).reduce(_ && _)
     // this if statement is a coarse generalization of the groupBy in the sourceIdHelper2 version;
@@ -1164,8 +1160,6 @@ case class TLEdgeParameters(
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
   // For emits, check that the source is allowed to send this transactions
-  // TODO emitAcquire, source => sourceId (or don't need sourceId at all)
-  //      Probe, source => address
   //These A channel messages from MasterToSlave are:
   //being routed to a slave based on address bits,
   //    so they need to be passed to a helper that checks whether the slave that owns certain addresses
@@ -1173,26 +1167,15 @@ case class TLEdgeParameters(
   //being sent from a master using sourceId bits,
   //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
   //    claimed to emit transactions of this size/type
+  def expectsVipCheckerMasterToSlaveAcquireT  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsAcquireT  (sourceId, lgSize, range) && slave.expectsVipCheckerSupportsAcquireT  (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveAcquireB  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsAcquireB  (sourceId, lgSize, range) && slave.expectsVipCheckerSupportsAcquireB  (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveArithmetic(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsArithmetic(sourceId, lgSize, range) && slave.expectsVipCheckerSupportsArithmetic(address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveLogical   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsLogical   (sourceId, lgSize, range) && slave.expectsVipCheckerSupportsLogical   (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveGet       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsGet       (sourceId, lgSize, range) && slave.expectsVipCheckerSupportsGet       (address, lgSize, range)
+  def expectsVipCheckerMasterToSlavePutFull   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutFull   (sourceId, lgSize, range) && slave.expectsVipCheckerSupportsPutPartial(address, lgSize, range)
+  def expectsVipCheckerMasterToSlavePutPartial(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutPartial(sourceId, lgSize, range) && slave.expectsVipCheckerSupportsPutPartial(address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveHint      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsHint      (sourceId, lgSize, range) && slave.expectsVipCheckerSupportsHint      (address, lgSize, range)
 
-  def expectsAcquireTMasterToSlaveCheckerSafe  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireTChecker(sourceId, lgSize, range)    && slave.supportsAcquireTCheckerSafe(address, lgSize, range)
-  def expectsAcquireBMasterToSlaveCheckerSafe  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireBChecker(sourceId, lgSize, range)    && slave.supportsAcquireBCheckerSafe(address, lgSize, range)
-  def expectsArithmeticMasterToSlaveCheckerSafe(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmeticChecker(sourceId, lgSize, range)  && slave.supportsArithmeticCheckerSafe(address, lgSize, range)
-  def expectsLogicalMasterToSlaveCheckerSafe   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogicalChecker(sourceId, lgSize, range)     && slave.supportsLogicalCheckerSafe(address, lgSize, range)
-  def expectsGetMasterToSlaveCheckerSafe       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGetChecker(sourceId, lgSize, range)         && slave.supportsGetCheckerSafe(address, lgSize, range)
-  def expectsPutFullMasterToSlaveCheckerSafe   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartialChecker(sourceId, lgSize, range)  && slave.supportsPutPartialCheckerSafe(address, lgSize, range)
-  def expectsPutPartialMasterToSlaveCheckerSafe(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartialChecker(sourceId, lgSize, range)  && slave.supportsPutPartialCheckerSafe(address, lgSize, range)
-  def expectsHintMasterToSlaveCheckerSafe      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHintChecker(sourceId, lgSize, range)        && slave.supportsHintCheckerSafe(address, lgSize, range)
-
-  def expectsAcquireTMasterToSlaveCheckerFast  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireTChecker(sourceId, lgSize, range)    && slave.supportsAcquireTCheckerFast(address, lgSize, range)
-  def expectsAcquireBMasterToSlaveCheckerFast  (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsAcquireBChecker(sourceId, lgSize, range)    && slave.supportsAcquireBCheckerFast(address, lgSize, range)
-  def expectsArithmeticMasterToSlaveCheckerFast(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsArithmeticChecker(sourceId, lgSize, range)  && slave.supportsArithmeticCheckerFast(address, lgSize, range)
-  def expectsLogicalMasterToSlaveCheckerFast   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsLogicalChecker(sourceId, lgSize, range)     && slave.supportsLogicalCheckerFast(address, lgSize, range)
-  def expectsGetMasterToSlaveCheckerFast       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsGetChecker(sourceId, lgSize, range)         && slave.supportsGetCheckerFast(address, lgSize, range)
-  def expectsPutFullMasterToSlaveCheckerFast   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutFullChecker(sourceId, lgSize, range)     && slave.supportsPutFullCheckerFast(address, lgSize, range)
-  def expectsPutPartialMasterToSlaveCheckerFast(sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsPutPartialChecker(sourceId, lgSize, range)  && slave.supportsPutPartialCheckerFast(address, lgSize, range)
-  def expectsHintMasterToSlaveCheckerFast      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.emitsHintChecker(sourceId, lgSize, range)        && slave.supportsHintCheckerFast(address, lgSize, range)
-
-  //We don't use Safe vs Fast because we don't have the equivalent of address decoder for sourceIds
   //TODO (can use sourceId here to see if the specific master can support this transaction)
   //Duality: these B channel messages from SlaveToMaster are:
   //being routed to a master based on sourceId bits,
@@ -1201,13 +1184,13 @@ case class TLEdgeParameters(
   //being sent from a slave owning certain addresses,
   //    so they need to be passed to a helper that checks with the slave that owns certain addresses claimed
   //    to emit transactions of this size/type
-  def expectsProbeSlaveToMasterChecker      = master.supportsProbeChecker
-  def expectsArithmeticSlaveToMasterChecker = master.supportsArithmeticChecker
-  def expectsLogicalSlaveToMasterChecker    = master.supportsLogicalChecker
-  def expectsGetSlaveToMasterChecker        = master.supportsGetChecker
-  def expectsPutFullSlaveToMasterChecker    = master.supportsPutFullChecker
-  def expectsPutPartialSlaveToMasterChecker = master.supportsPutPartialChecker
-  def expectsHintSlaveToMasterChecker       = master.supportsHintChecker
+  def expectsVipCheckerSlaveToMasterProbe      = master.expectsVipCheckerSupportsProbe      && slave.expectsVipCheckerEmitsProbe
+  def expectsVipCheckerSlaveToMasterArithmetic = master.expectsVipCheckerSupportsArithmetic && slave.expectsVipCheckerEmitsArithmetic
+  def expectsVipCheckerSlaveToMasterLogical    = master.expectsVipCheckerSupportsLogical    && slave.expectsVipCheckerEmitsLogical
+  def expectsVipCheckerSlaveToMasterGet        = master.expectsVipCheckerSupportsGet        && slave.expectsVipCheckerEmitsGet
+  def expectsVipCheckerSlaveToMasterPutFull    = master.expectsVipCheckerSupportsPutFull    && slave.expectsVipCheckerEmitsPutFull
+  def expectsVipCheckerSlaveToMasterPutPartial = master.expectsVipCheckerSupportsPutPartial && slave.expectsVipCheckerEmitsPutPartial
+  def expectsVipCheckerSlaveToMasterHint       = master.expectsVipCheckerSupportsHint       && slave.expectsVipCheckerEmitsHint
 
   val bundle = TLBundleParameters(master, slave)
   def formatEdge = master.infoString + "\n" + slave.infoString
