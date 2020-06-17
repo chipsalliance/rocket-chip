@@ -62,8 +62,8 @@ case class TileSlavePortParams(
       .map { bbbp =>
         val blocker = LazyModule(new BasicBusBlocker(bbbp))
         blockerBus.coupleTo("tile_slave_port_bus_blocker") { blocker.controlNode := TLFragmenter(blockerBus) := _ }
-        blocker.node
-      } .getOrElse { TLTempNode() }
+        blocker.node :*= TLBuffer(buffers)
+      } .getOrElse { TLBuffer(buffers) }
   }
 }
 
