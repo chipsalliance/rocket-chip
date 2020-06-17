@@ -77,8 +77,10 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
       l2 = site(BankedL2Key)))
 })
 
-class WithNBigCores(n: Int, idOffset: Int = 0) extends Config((site, here, up) => {
+class WithNBigCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
         mulUnroll = 8,
@@ -91,12 +93,14 @@ class WithNBigCores(n: Int, idOffset: Int = 0) extends Config((site, here, up) =
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => big.copy(hartId = i + idOffset)) ++ up(RocketTilesKey, site)
+    List.tabulate(n)(i => big.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
-class WithNMedCores(n: Int, idOffset: Int = 0) extends Config((site, here, up) => {
+class WithNMedCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val med = RocketTileParams(
       core = RocketCoreParams(fpu = None),
       btb = None,
@@ -113,12 +117,14 @@ class WithNMedCores(n: Int, idOffset: Int = 0) extends Config((site, here, up) =
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => med.copy(hartId = i + idOffset)) ++ up(RocketTilesKey, site)
+    List.tabulate(n)(i => med.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
-class WithNSmallCores(n: Int, idOffset: Int = 0) extends Config((site, here, up) => {
+class WithNSmallCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
@@ -135,7 +141,7 @@ class WithNSmallCores(n: Int, idOffset: Int = 0) extends Config((site, here, up)
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => small.copy(hartId = i + idOffset)) ++ up(RocketTilesKey, site)
+    List.tabulate(n)(i => small.copy(hartId = i + idOffset)) ++ prev
   }
 })
 

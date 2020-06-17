@@ -34,30 +34,38 @@ class GroundTestBaseConfig extends Config(
   })
 )
 
-class WithTraceGen(n: Int = 2, idOffset: Int = 0)(
+class WithTraceGen(
+  n: Int = 2,
+  overrideIdOffset: Option[Int] = None,
+  overrideMemOffset: Option[BigInt] = None)(
   params: Seq[DCacheParams] = List.fill(n){ DCacheParams(nSets = 16, nWays = 1) },
   nReqs: Int = 8192
 ) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => params.zipWithIndex.map { case (dcp, i) =>
-    TraceGenTileAttachParams(
-      tileParams = TraceGenParams(
-        hartId = i + idOffset,
-        dcache = Some(dcp),
-        wordBits = site(XLen),
-        addrBits = 32,
-        addrBag = {
-          val nSets = dcp.nSets
-          val nWays = dcp.nWays
-          val blockOffset = site(SystemBusKey).blockOffset
-          val nBeats = site(SystemBusKey).blockBeats
-          List.tabulate(nWays) { i =>
-            Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
-          }.flatten
-        },
-        maxRequests = nReqs,
-        memStart = site(ExtMem).get.master.base,
-        numGens = params.size),
-      crossingParams = RocketCrossingParams()
-    )
-  } ++ up(TilesLocated(InSubsystem), site)
+  case TilesLocated(InSubsystem) => {
+    val prev = up(TilesLocated(InSubsystem), site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val memOffset: BigInt = overrideMemOffset.orElse(site(ExtMem).map(_.master.base)).getOrElse(0x0L)
+    params.zipWithIndex.map { case (dcp, i) =>
+      TraceGenTileAttachParams(
+        tileParams = TraceGenParams(
+          hartId = i + idOffset,
+          dcache = Some(dcp),
+          wordBits = site(XLen),
+          addrBits = 32,
+          addrBag = {
+            val nSets = dcp.nSets
+            val nWays = dcp.nWays
+            val blockOffset = site(SystemBusKey).blockOffset
+            val nBeats = site(SystemBusKey).blockBeats
+            List.tabulate(nWays) { i =>
+              Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
+            }.flatten
+          },
+          maxRequests = nReqs,
+          memStart = memOffset,
+          numGens = params.size),
+        crossingParams = RocketCrossingParams()
+      )
+    } ++ prev
+  }
 })

@@ -40,9 +40,9 @@ class DualChannelDualBankConfig extends Config(
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
 class HeterogeneousTileExampleConfig extends Config(
-  new WithTraceGen (n = 2, idOffset = 3)() ++
-  new WithNBigCores(n = 1, idOffset = 2) ++
-  new WithNMedCores(n = 1, idOffset = 1) ++
+  new WithTraceGen (n = 2, overrideMemOffset = Some(0x90000000L))() ++
+  new WithNBigCores(n = 1) ++
+  new WithNMedCores(n = 1) ++
   new WithNSmallCores(n = 1) ++
   new WithCoherentBusTopology ++
   new BaseConfig
