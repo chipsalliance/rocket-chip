@@ -60,6 +60,10 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
 case class BootROMLocated(loc: HierarchicalLocation) extends Field[Option[BootROMParams]](None)
 
 object BootROM {
+  /** BootROM.attach not only instantiates a TLROM and attaches it to the tilelink interconnect
+    *    at a configurable location, but also drives the tiles' reset vectors to point
+    *    at its 'hang' address parameter value.
+    */
   def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val cbus = subsystem.locateTLBusWrapper(where)
