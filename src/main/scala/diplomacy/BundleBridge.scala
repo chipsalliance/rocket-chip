@@ -83,21 +83,23 @@ case object BundleBridgeSource {
 case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
 case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
 
-case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None)
+case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None,
+                                            inputRequiresOutput: Boolean = false) // when false, connecting a source does not mandate connecting a sink
                                            (implicit valName: ValName)
   extends NexusNode(new BundleBridgeImp[T])(
     dFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
     uFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
-    inputRequiresOutput = false, // enables publishers with no subscribers
+    inputRequiresOutput = inputRequiresOutput,
     outputRequiresInput = !default.isDefined)
 
 class BundleBridgeNexus[T <: Data](
   inputFn: Seq[T] => T,
   outputFn: (T, Int) => Seq[T],
-  default: Option[() => T] = None
+  default: Option[() => T] = None,
+  inputRequiresOutput: Boolean = false
 ) (implicit p: Parameters) extends LazyModule
 {
-  val node = BundleBridgeNexusNode[T](default)
+  val node = BundleBridgeNexusNode[T](default, inputRequiresOutput)
 
   lazy val module = new LazyModuleImp(this) {
     val defaultWireOpt = default.map(_())
@@ -156,9 +158,10 @@ object BundleBridgeNexus {
   def apply[T <: Data](
     inputFn: Seq[T] => T = orReduction[T](false) _,
     outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
-    default: Option[() => T] = None
+    default: Option[() => T] = None,
+    inputRequiresOutput: Boolean = false
   )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
-    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default))
+    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput))
     broadcast.node
   }
 }
@@ -166,12 +169,14 @@ object BundleBridgeNexus {
 object BundleBroadcast {
   def apply[T <: Data](
     name: Option[String] = None,
-    registered: Boolean = false
+    registered: Boolean = false,
+    inputRequiresOutput: Boolean = false // when false, connecting a source does not mandate connecting a sink
   )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
     val finalName = name.map(ValName(_)).getOrElse(valName)
     BundleBridgeNexus.apply[T](
       inputFn = BundleBridgeNexus.requireOne[T](registered) _,
-      outputFn = BundleBridgeNexus.fillN[T](registered) _)(
+      outputFn = BundleBridgeNexus.fillN[T](registered) _,
+      inputRequiresOutput = inputRequiresOutput)(
       p, finalName)
   }
 }
