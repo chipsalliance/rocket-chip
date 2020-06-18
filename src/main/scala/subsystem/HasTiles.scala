@@ -271,6 +271,7 @@ trait CanAttachTile {
   */
 trait InstantiatesTiles { this: BaseSubsystem =>
   // Actually instantiate all tiles, in order based on statically-assigned hartids
+  // Note that these hartIds may not be those actually reflected at runtime in e.g. the $mhartid CSR
   val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
   val tiles: Seq[BaseTile] = tileAttachParams.map(_.instantiate(p))
 
