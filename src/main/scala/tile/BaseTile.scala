@@ -166,7 +166,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   lazy val resetVectorLen: Int = {
     val externalLen = paddrBits
     require(externalLen <= xLen, s"External reset vector length ($externalLen) must be <= XLEN ($xLen)")
-    require(externalLen <= vaddrBitsExtended, s"External reset vector length ($externalLen must be <= virtual address bit width ($vaddrBitsExtended)")
+    require(externalLen <= vaddrBitsExtended, s"External reset vector length ($externalLen) must be <= virtual address bit width ($vaddrBitsExtended)")
     externalLen
   }
 }
