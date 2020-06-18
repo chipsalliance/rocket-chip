@@ -10,7 +10,7 @@ import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerPa
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstaniableTileParams, MaxHartIdBits}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
