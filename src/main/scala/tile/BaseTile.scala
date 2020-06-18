@@ -17,7 +17,6 @@ import freechips.rocketchip.util._
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
-case object MaxHartIdBits extends Field[Int]
 case object LookupByHartId extends Field[LookupByHartIdImpl]
 
 trait TileParams {
@@ -76,11 +75,6 @@ trait HasNonDiplomaticTileParameters {
   def staticIdForMetadataUseOnly: Int = tileParams.hartId
   @deprecated("use hartIdSinkNode.bundle or staticIdForMetadataUseOnly", "rocket-chip 1.3")
   def hartId: Int = staticIdForMetadataUseOnly
-  lazy val hartIdLen: Int = {
-    val len = p(MaxHartIdBits)
-    require (log2Up(staticIdForMetadataUseOnly + 1) <= len, s"p(MaxHartIdBits) of $len is not enough for static hart id $staticIdForMetadataUseOnly")
-    len
-  }
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
@@ -162,13 +156,6 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   def ppnBits: Int = paddrBits - pgIdxBits
   def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
   def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
-
-  lazy val resetVectorLen: Int = {
-    val externalLen = paddrBits
-    require(externalLen <= xLen, s"External reset vector length ($externalLen) must be <= XLEN ($xLen)")
-    require(externalLen <= vaddrBitsExtended, s"External reset vector length ($externalLen) must be <= virtual address bit width ($vaddrBitsExtended)")
-    externalLen
-  }
 }
 
 /** Base class for all Tiles that use TileLink */
