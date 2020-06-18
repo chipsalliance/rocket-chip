@@ -52,14 +52,14 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
   val bus = Valid(UInt(width = paddrBits))
 }
 
-class ICache(val icacheParams: ICacheParams, val staticIdForMetadata: Int)(implicit p: Parameters) extends LazyModule {
+class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
   val hartIdSinkNode = BundleBridgeSink[UInt]()
   val useVM = p(TileKey).core.useVM
   val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(
     clients = Seq(TLMasterParameters.v1(
       sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
-      name = s"Core ${staticIdForMetadata} ICache")),
+      name = s"Core ${staticIdForMetadataUseOnly} ICache")),
     requestFields = useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes

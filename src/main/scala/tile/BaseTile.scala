@@ -73,12 +73,12 @@ trait HasNonDiplomaticTileParameters {
   // Use staticIdForMetdata only to emit build information or identify a component to diplomacy.
   //   Including it in a constructed Chisel circuit will prevent us
   //   from being able to deduplicate otherwise-homogeneous tiles.
-  def staticIdForMetadata: Int = tileParams.hartId
-  @deprecated("use hartIdSinkNode.bundle or staticIdForMetadata", "rocket-chip 1.3")
-  def hartId: Int = staticIdForMetadata
+  def staticIdForMetadataUseOnly: Int = tileParams.hartId
+  @deprecated("use hartIdSinkNode.bundle or staticIdForMetadataUseOnly", "rocket-chip 1.3")
+  def hartId: Int = staticIdForMetadataUseOnly
   lazy val hartIdLen: Int = {
     val len = p(MaxHartIdBits)
-    require (log2Up(staticIdForMetadata + 1) <= len, s"p(MaxHartIdBits) of $len is not enough for static hart id $staticIdForMetadata")
+    require (log2Up(staticIdForMetadataUseOnly + 1) <= len, s"p(MaxHartIdBits) of $len is not enough for static hart id $staticIdForMetadataUseOnly")
     len
   }
 

@@ -175,17 +175,17 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
-abstract class HellaCache(staticIdForMetadata: Int)(implicit p: Parameters) extends LazyModule
+abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule
     with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
   protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
-    name          = s"Core ${staticIdForMetadata} DCache",
+    name          = s"Core ${staticIdForMetadataUseOnly} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
     supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
 
   protected def mmioClientParameters = Seq(TLMasterParameters.v1(
-    name          = s"Core ${staticIdForMetadata} DCache MMIO",
+    name          = s"Core ${staticIdForMetadataUseOnly} DCache MMIO",
     sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
     requestFifo   = true))
 
@@ -239,9 +239,9 @@ case object BuildHellaCache extends Field[BaseTile => Parameters => HellaCache](
 object HellaCacheFactory {
   def apply(tile: BaseTile)(p: Parameters): HellaCache = {
     if (tile.tileParams.dcache.get.nMSHRs == 0)
-      new DCache(tile.staticIdForMetadata, tile.crossing)(p)
+      new DCache(tile.staticIdForMetadataUseOnly, tile.crossing)(p)
     else
-      new NonBlockingDCache(tile.staticIdForMetadata)(p)
+      new NonBlockingDCache(tile.staticIdForMetadataUseOnly)(p)
   }
 }
 
