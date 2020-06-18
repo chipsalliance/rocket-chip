@@ -17,23 +17,40 @@ import freechips.rocketchip.util._
 /** Entry point for Config-uring the presence of Tiles */
 case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTile]](Nil)
 
-/** Whether a global hart id prefix is going to be dynamically applied to the static tile hart ids */
+/** Whether a global hart id prefix is going to be dynamically applied to the static tile hart ids.
+  *
+  * This information is used to conditionally add timing-closure registers along the path of
+  * the dynamically-configurable hart id as it makes its way into the tile.
+  */
 case object HartPrefixKey extends Field[Boolean](false)
+
+/** Whether per-tile hart ids are going to be driven as inputs into the subsystem,
+  * and if so, what their width should be.
+  */
 case object SubsystemExternalHartIdWidthKey extends Field[Option[Int]](None)
+
+/** Whether per-tile reset vectors are going to be driven as inputs into the subsystem.
+  *
+  * Unlike the hart ids, the reset vector width is determined by the sinks within the tiles,
+  * based on the size of the address map visible to the tile.
+  */
 case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
 
 /** An interface for describing the parameteization of how Tiles are connected to interconnects */
 trait TileCrossingParamsLike {
+  /** The type of clock crossing that should be inserted at the tile boundary. */
   val crossingType: ClockCrossingType
+  /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect master. */
   val master: TilePortParamsLike
+  /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect slave. */
   val slave: TilePortParamsLike
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
 trait TilePortParamsLike {
-  // the subnetwork location of the interconnect to which this tile port should be connected
+  /** The subnetwork location of the interconnect to which this tile port should be connected. */
   def where: TLBusWrapperLocation
-  // allows port-specific adapters to be injected into the interconnect side of the attachment point
+  /** Allows port-specific adapters to be injected into the interconnect side of the attachment point. */
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode
 }
 
@@ -80,7 +97,7 @@ trait HasTileInterruptSources
   with CanHavePeripheryCLINT
   with HasPeripheryDebug
 { this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
-  // meipNode is used to create a single bit subsystem input in Configs without a PLIC
+  /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
   val meipNode = p(PLICKey) match {
     case Some(_) => None
     case None    => Some(IntNexusNode(
@@ -97,24 +114,33 @@ trait HasTileInterruptSources
   * They need to be instantiated before tiles are attached within the subsystem containing them.
   */
 trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
-  // Collect dynamic hart id prefixes and/or distribute static hart ids to the tiles
+  /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
   val tileHartIdNode = BundleBridgeEphemeralNode[UInt]()
+
+  /** tileHartIdNexusNode is a BundleBridgeNexus that collects dynamic hart prefixes,
+    *   orReduces them, and combines the reduction with the static ids assigned to each tile,
+    *   producing a unique, dynamic hartid for each tile.
+    */
   val tileHartIdNexusNode = BundleBridgeNexus[UInt](
-    inputFn = BundleBridgeNexus.orReduction[UInt](p(HartPrefixKey)) _,
+    inputFn = BundleBridgeNexus.orReduction[UInt](registered = p(HartPrefixKey)) _,
     outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
       val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
       if (p(HartPrefixKey)) BundleBridgeNexus.safeRegNext(y) else y
     },
     default = Some(() => 0.U(p(MaxHartIdBits).W))
   )
-  // TODO: this also needs to be wired into the DebugModule's hart selection circuit?
+  // TODO: do the set of dynamic hart ids also need to be wired into the DebugModule's hart selection circuit?
 
-  // Collect a reset vector address and distribute to the tiles
+  /** tileResetVectorNode is used to collect publishers and subscribers of tile reset vector addresses. */
   val tileResetVectorNode = BundleBridgeEphemeralNode[UInt]()
+
+  /** tileResetVectorNexusNode is a BundleBridgeNexus that accepts a single reset vector source, and broadcasts it to all tiles. */
   val tileResetVectorNexusNode = BundleBroadcast[UInt]()
 
-  // Create subsystem IOs that are based on the number of tiles
-  //   or, if such IOs don't exist, rely on connections of drivers to internal nexus nodes
+  /** tileHartIdIONodes may generate subsystem IOs, one per tile, allowing the parent to assign unique hart ids.
+    *
+    *   Or, if such IOs are not configured to exist, tileHartIdNexusNode is used to supply an id to each tile.
+    */
   val tileHartIdIONodes: Seq[BundleBridgeSource[UInt]] = p(SubsystemExternalHartIdWidthKey) match {
     case Some(w) => Seq.fill(tiles.size) {
       val hartIdSource = BundleBridgeSource(() => UInt(w.W))
@@ -124,6 +150,10 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
     case None => { tileHartIdNode :*= tileHartIdNexusNode; Nil }
   }
 
+  /** tileResetVectorIONodes may generate subsystem IOs, one per tile, allowing the parent to assign unique reset vectors.
+    *
+    *   Or, if such IOs are not configured to exist, tileResetVectorNexusNode is used to supply a single reset vector to every tile.
+    */
   val tileResetVectorIONodes: Seq[BundleBridgeSource[UInt]] = p(SubsystemExternalResetVectorKey) match {
     case true => Seq.fill(tiles.size) {
       val resetVectorSource = BundleBridgeSource[UInt]()
@@ -135,6 +165,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
 }
 
 /** These are sinks of notifications that are driven out from the tile.
+  *
   * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
 trait HasTileNotificationSinks { this: LazyModule =>
@@ -152,6 +183,7 @@ trait HasTileNotificationSinks { this: LazyModule =>
 }
 
 /** Most tile types require only these traits in order for their standardized connect functions to apply.
+  *
   *    BaseTiles subtypes with different needs can extend this trait to provide themselves with
   *    additional external connection points.
   */
@@ -163,6 +195,7 @@ trait DefaultTileContextType
 { this: BaseSubsystem => } // TODO: ideally this bound would be softened to LazyModule
 
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
+  *
   *   Sub-classes of this trait can optionally override the individual connect functions in order to specialize
   *   their attachment behaviors, but most use cases should be be handled simply by changing the implementation
   *   of the injectNode functions in crossingParams.
@@ -174,13 +207,13 @@ trait CanAttachTile {
   def crossingParams: TileCrossingParamsLike
   def lookup: LookupByHartIdImpl
 
-  // narrow waist through which all tiles are intended to pass while being instantiated
+  /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(implicit p: Parameters): TileType = {
     val tile = LazyModule(tileParams.instantiate(crossingParams, lookup))
     tile
   }
 
-  // a default set of connections that need to occur for most tile types
+  /** A default set of connections that need to occur for most tile types */
   def connect(tile: TileType, context: TileContextType): Unit = {
     connectMasterPorts(tile, context)
     connectSlavePorts(tile, context)
@@ -189,7 +222,7 @@ trait CanAttachTile {
     LogicalModuleTree.add(context.logicalTreeNode, tile.logicalTreeNode)
   }
 
-  // connect the port where the tile is the master to a TileLink interconnect
+  /** Connect the port where the tile is the master to a TileLink interconnect. */
   def connectMasterPorts(tile: TileType, context: Attachable): Unit = {
     implicit val p = context.p
     val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
@@ -198,7 +231,7 @@ trait CanAttachTile {
     }
   }
 
-  // connect the port where the tile is the slave to a TileLink interconnect
+  /** Connect the port where the tile is the slave to a TileLink interconnect. */
   def connectSlavePorts(tile: TileType, context: Attachable): Unit = {
     implicit val p = context.p
     DisableMonitors { implicit p =>
@@ -209,7 +242,7 @@ trait CanAttachTile {
     }
   }
 
-  // connect the various interrupt and notification wires going to and from the tile
+  /** Connect the various interrupt and notification wires going to and from the tile. */
   def connectInterrupts(tile: TileType, context: TileContextType): Unit = {
     implicit val p = context.p
     // NOTE: The order of calls to := matters! They must match how interrupts
@@ -259,6 +292,7 @@ trait CanAttachTile {
     context.tileCeaseXbarNode :=* tile.ceaseNode
   }
 
+  /** Connect the input to the tile that are assumed to be constant during normal operation. */
   def connectInputConstants(tile: TileType, context: TileContextType): Unit = {
     implicit val p = context.p
     tile.hartIdNode := context.tileHartIdNode
@@ -270,12 +304,17 @@ trait CanAttachTile {
   *   to the subsystem class into which it is mixed.
   */
 trait InstantiatesTiles { this: BaseSubsystem =>
-  // Actually instantiate all tiles, in order based on statically-assigned hartids
-  // Note that these hartIds may not be those actually reflected at runtime in e.g. the $mhartid CSR
+  /** Record the order in which to instantiate all tiles, based on statically-assigned ids.
+    *
+    * Note that these ids, which are often used as the tiles' default hartid input,
+    * may or may not be those actually reflected at runtime in e.g. the $mhartid CSR
+    */
   val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
+
+  /** The actual list of instantiated tiles in this subsystem. */
   val tiles: Seq[BaseTile] = tileAttachParams.map(_.instantiate(p))
 
-  // Helper functions for accessing certain parameters the are popular to refer to in subsystem code
+  // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
   val tileCrossingTypes = tileAttachParams.map(_.crossingParams.crossingType)
   def nTiles: Int = tileAttachParams.size
