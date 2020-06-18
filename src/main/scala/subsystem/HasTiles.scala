@@ -127,7 +127,8 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
       val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
       if (p(HartPrefixKey)) BundleBridgeNexus.safeRegNext(y) else y
     },
-    default = Some(() => 0.U(p(MaxHartIdBits).W))
+    default = Some(() => 0.U(p(MaxHartIdBits).W)),
+    inputRequiresOutput = true // guard against this being driven but ignored in tileHartIdIONodes below
   )
   // TODO: do the set of dynamic hart ids also need to be wired into the DebugModule's hart selection circuit?
 
@@ -135,7 +136,9 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
   val tileResetVectorNode = BundleBridgeEphemeralNode[UInt]()
 
   /** tileResetVectorNexusNode is a BundleBridgeNexus that accepts a single reset vector source, and broadcasts it to all tiles. */
-  val tileResetVectorNexusNode = BundleBroadcast[UInt]()
+  val tileResetVectorNexusNode = BundleBroadcast[UInt](
+    inputRequiresOutput = true // guard against this being driven but ignored in tileResetVectorIONodes below
+  )
 
   /** tileHartIdIONodes may generate subsystem IOs, one per tile, allowing the parent to assign unique hart ids.
     *
