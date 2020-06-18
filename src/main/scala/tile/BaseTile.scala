@@ -145,7 +145,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   protected def tlBundleParams = p(TileVisibilityNodeKey).edges.out.head.bundle
   lazy val paddrBits: Int = {
     val bits = tlBundleParams.addressBits
-    require(bits <= maxPAddrBits, s"asked $bits paddr bits, but since xLen is $xLen only $maxPAddrBits can fit")
+    require(bits <= maxPAddrBits, s"Requested $bits paddr bits, but since xLen is $xLen only $maxPAddrBits will fit")
     bits
   }
   def vaddrBits: Int =
