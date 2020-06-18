@@ -66,7 +66,7 @@ trait HasNonDiplomaticTileParameters {
   }
   def asIdBits: Int = p(ASIdBits)
   lazy val maxPAddrBits: Int = {
-    require(xLen == 32 || xLen == 64, s"We only support XLENs of 32 or 64, but got $xLen")
+    require(xLen == 32 || xLen == 64, s"Only XLENs of 32 or 64 are supported, but got $xLen")
     xLen match { case 32 => 34; case 64 => 56 }
   }
 
