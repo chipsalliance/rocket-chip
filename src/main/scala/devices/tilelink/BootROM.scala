@@ -16,7 +16,7 @@ import java.nio.file.{Files, Paths}
 case class BootROMParams(
   address: BigInt = 0x10000,
   size: Int = 0x10000,
-  hang: BigInt = 0x10040, // Subsystem will power-on running at 0x10040
+  hang: BigInt = 0x10040, // The hang parameter is used as the power-on reset vector
   contentFileName: String)
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
