@@ -80,9 +80,9 @@ case class RegFieldDesc (
 object RegFieldDesc {
   def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
 
-  // This Regex is considerably more limited than the IP-XACT standard,
-  // ours is designed for simplicity and consistency in register naming.
-  val nameRegex: Regex = """[A-Za-z_][A-Za-z0-9_]*""".r
+  // This Regex is more limited than the IP-XACT standard,
+  // which allows some unicode characters as well.
+  val nameRegex: Regex = """^[_:A-Za-z][-._:A-Za-z0-9]*$""".r
 
   def nameAcceptable(name: String): Boolean = name match {
     case RegFieldDesc.nameRegex(_*) => true
