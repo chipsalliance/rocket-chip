@@ -253,6 +253,12 @@ package object util {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
+  def heterogeneousOrGlobalSetting[T](in: Seq[T], n: Int): Seq[T] = in.size match {
+    case 1 => List.fill(n)(in.head)
+    case x if x == n => in
+    case _ => throw new Exception(s"must provide exactly 1 or $n of some field, but got:\n$in")
+  }
+
 /** provides operators useful for working with bidirectional [[Bundle]]s
   * 
   * In terms of [[Flipped]] with a producer 'p' and 'consumer' c:
