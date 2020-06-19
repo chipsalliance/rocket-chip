@@ -130,7 +130,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
     default = Some(() => 0.U(p(MaxHartIdBits).W)),
     inputRequiresOutput = true // guard against this being driven but ignored in tileHartIdIONodes below
   )
-  // TODO: do the set of dynamic hart ids also need to be wired into the DebugModule's hart selection circuit?
+  // TODO: Replace the DebugModuleHartSelFuncs config key with logic to consume the dynamic hart IDs
 
   /** tileResetVectorNode is used to collect publishers and subscribers of tile reset vector addresses. */
   val tileResetVectorNode = BundleBridgeEphemeralNode[UInt]()
