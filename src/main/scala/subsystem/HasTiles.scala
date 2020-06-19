@@ -63,7 +63,7 @@ case class TileMasterPortParams(
   where: TLBusWrapperLocation = SBUS
 ) extends TilePortParamsLike {
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
-    (TLBuffer(buffers) :=* cork.map { u => TLCacheCork(unsafe = u) } .getOrElse { TLTempNode() })
+    (TLBuffer.chainNode(buffers) :=* cork.map { u => TLCacheCork(unsafe = u) } .getOrElse { TLTempNode() })
   }
 }
 
@@ -84,8 +84,8 @@ case class TileSlavePortParams(
       .map { bbbp =>
         val blocker = LazyModule(new BasicBusBlocker(bbbp))
         blockerBus.coupleTo("tile_slave_port_bus_blocker") { blocker.controlNode := TLFragmenter(blockerBus) := _ }
-        blocker.node :*= TLBuffer(buffers)
-      } .getOrElse { TLBuffer(buffers) }
+        blocker.node :*= TLBuffer.chainNode(buffers)
+      } .getOrElse { TLBuffer.chainNode(buffers) }
   }
 }
 
