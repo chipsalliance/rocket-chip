@@ -28,7 +28,7 @@ object RecordMap {
 
   def apply[T <: Data](eltMap: ListMap[String, T]) = new RecordMap(eltMap)
 
-  def apply[T <: Data](elements: (String, T)*) {
+  def apply[T <: Data](elements: (String, T)*): RecordMap[T] = {
     new RecordMap[T](ListMap[String, T](elements:_*))
   }
 }
