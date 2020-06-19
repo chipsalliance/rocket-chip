@@ -53,10 +53,7 @@ trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val async_clock_groups =
     p(SubsystemDriveAsyncClockGroupsKey)
       .map(_.drive(asyncClockGroupsNode))
-      .getOrElse({
-        println ("there are no async clock group nodes")
-        InModuleBody { Wire(HeterogeneousBag[ClockGroupBundle](Nil)) }
-      })
+      .getOrElse(InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) })
 }
 
 /** Look up the topology configuration for the TL buses located within this layer of the hierarchy */

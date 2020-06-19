@@ -2,11 +2,10 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.HeterogeneousBag
+import freechips.rocketchip.util.{HeterogeneousBag}
 import scala.math.max
 import scala.collection.immutable.ListMap
 
@@ -98,15 +97,13 @@ object ClockGroupDriver {
     implicit val pp = p
     val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
     groups :*= dummyClockGroupSourceNode
-    println ("I have been asked to drive from implicit clock")
-    InModuleBody { Wire(HeterogeneousBag[ClockGroupBundle](Nil))}
+    InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) }
   }
 
-  def driveFromIOs(): DriveFn = { (groups, num, p, vn) =>
+  def driveFromIOs: DriveFn = { (groups, num, p, vn) =>
     implicit val pp = p
     val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
     groups :*= ioClockGroupSourceNode
-    println ("I have been asked to drive from ios")
     InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
   }
 }
