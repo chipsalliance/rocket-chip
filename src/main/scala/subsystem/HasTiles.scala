@@ -109,6 +109,7 @@ trait HasTileInterruptSources
 }
 
 /** These are sources of "constants" that are driven into the tile.
+  * 
   * While they are not expected to change dyanmically while the tile is executing code,
   * they may be either tied to a contant value or programmed during boot or reset.
   * They need to be instantiated before tiles are attached within the subsystem containing them.
