@@ -7,7 +7,7 @@ import scala.collection.immutable.ListMap
 import chisel3.internal.requireIsChiselType
 import chisel3.experimental.DataMirror.internal.chiselTypeClone
 
-final class RecordMap[T <: Data](eltMap: ListMap[String, T])
+final class RecordMap[T <: Data] private (eltMap: ListMap[String, T])
     extends Record {
   
   eltMap.foreach { case (name, elt) => requireIsChiselType(elt, name) }
