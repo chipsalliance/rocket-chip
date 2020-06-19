@@ -64,7 +64,7 @@ class Frontend(val icacheParams: ICacheParams, staticIdForMetadataUseOnly: Int)(
   val icache = LazyModule(new ICache(icacheParams, staticIdForMetadataUseOnly))
   val masterNode = icache.masterNode
   val slaveNode = icache.slaveNode
-  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => Output(UInt(masterNode.edges.out.head.bundle.addressBits.W))))
+  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(masterNode.edges.out.head.bundle.addressBits.W)))
 }
 
 class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p) {

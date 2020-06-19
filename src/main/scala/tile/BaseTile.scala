@@ -195,7 +195,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 
   private val reset_vector = BundleBridgeIdentityNode[UInt]()
   val resetVectorNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(HartPrefixKey)) := reset_vector
-  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => Output(UInt(visiblePhysAddrBits.W))))
+  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
   resetVectorSinkNode := resetVectorNode
 
   // Node for legacy instruction trace from core
