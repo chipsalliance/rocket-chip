@@ -12,12 +12,12 @@ final class RecordMap[T <: Data] private (eltMap: ListMap[String, T])
   
   eltMap.foreach { case (name, elt) => requireIsChiselType(elt, name) }
 
+  // This is needed for Record
+  val elements = ListMap[String, T]() ++ eltMap.mapValues(chiselTypeClone(_).asInstanceOf[T])  // mapValues return value is lazy
+
   def apply(x: Int) = elements.values.toSeq(x)
   def apply(x: String) = elements.get(x)
   def size = elements.size
-
-  // This is needed for Record, and doesn't give the actual elements
-  val elements = ListMap[String, T]() ++ eltMap.mapValues(chiselTypeClone(_).asInstanceOf[T])  // mapValues return value is lazy
   def data = elements.values
 
   override def cloneType: this.type = (new RecordMap(eltMap)).asInstanceOf[this.type]
