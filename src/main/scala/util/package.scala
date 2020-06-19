@@ -69,6 +69,11 @@ package object util {
 
   implicit class DataToAugmentedData[T <: Data](val x: T) extends AnyVal {
     def holdUnless(enable: Bool): T = Mux(enable, x, RegEnable(x, enable))
+
+    def getElements: Seq[Element] = x match {
+      case e: Element => Seq(e)
+      case a: Aggregate => a.getElements.flatMap(_.getElements)
+    }
   }
 
   implicit class SeqMemToAugmentedSeqMem[T <: Data](val x: SeqMem[T]) extends AnyVal {
