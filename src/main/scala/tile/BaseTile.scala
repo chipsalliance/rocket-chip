@@ -69,9 +69,12 @@ trait HasNonDiplomaticTileParameters {
     xLen match { case 32 => 34; case 64 => 56 }
   }
 
-  // Use staticIdForMetdata only to emit build information or identify a component to diplomacy.
-  //   Including it in a constructed Chisel circuit will prevent us
-  //   from being able to deduplicate otherwise-homogeneous tiles.
+  /** Use staticIdForMetadataUseOnly to emit information during the build or identify a component to diplomacy.
+    *
+    *   Including it in a constructed Chisel circuit by converting it to a UInt will prevent
+    *   Chisel/FIRRTL from being able to deduplicate tiles that are otherwise homogeneous,
+    *   a property which is important for hierarchical place & route flows.
+    */
   def staticIdForMetadataUseOnly: Int = tileParams.hartId
   @deprecated("use hartIdSinkNode.bundle or staticIdForMetadataUseOnly", "rocket-chip 1.3")
   def hartId: Int = staticIdForMetadataUseOnly
