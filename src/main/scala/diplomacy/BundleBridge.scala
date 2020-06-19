@@ -7,6 +7,7 @@ import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{DataMirror,IO}
 import chisel3.experimental.DataMirror.internal.chiselTypeClone
 import freechips.rocketchip.config.{Parameters,Field}
+import freechips.rocketchip.util.DataToAugmentedData
 
 case class BundleBridgeParams[T <: Data](genOpt: Option[() => T])
 
@@ -43,8 +44,12 @@ case class BundleBridgeSink[T <: Data](genOpt: Option[() => T] = None)
 {
   def bundle: T = in(0)._1
 
+  private def inferOutput = bundle.getElements.forall { elt =>
+    DataMirror.directionOf(elt) == ActualDirection.Unspecified
+  }
+
   def makeIO()(implicit valName: ValName): T = {
-    val io: T = IO(chiselTypeClone(bundle))
+    val io: T = IO(if (inferOutput) Output(chiselTypeOf(bundle)) else chiselTypeClone(bundle))
     io.suggestName(valName.name)
     io <> bundle
     io
@@ -56,8 +61,12 @@ case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implici
 {
   def bundle: T = out(0)._1
 
+  private def inferInput = bundle.getElements.forall { elt =>
+    DataMirror.directionOf(elt) == ActualDirection.Unspecified
+  }
+
   def makeIO()(implicit valName: ValName): T = {
-    val io: T = IO(Flipped(chiselTypeClone(bundle)))
+    val io: T = IO(if (inferInput) Input(chiselTypeOf(bundle)) else Flipped(chiselTypeClone(bundle)))
     io.suggestName(valName.name)
     bundle <> io
     io
@@ -108,11 +117,7 @@ class BundleBridgeNexus[T <: Data](
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
       s"${node.context} requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
     }
-    def getElements(x: Data): Seq[Element] = x match {
-      case e: Element => Seq(e)
-      case a: Aggregate => a.getElements.flatMap(getElements)
-    }
-    inputs.flatMap(getElements).foreach { elt => DataMirror.directionOf(elt) match {
+    inputs.flatMap(_.getElements).foreach { elt => DataMirror.directionOf(elt) match {
       case ActualDirection.Output => ()
       case ActualDirection.Unspecified => ()
       case _ => require(false, s"${node.context} can only be used with Output-directed Bundles")
