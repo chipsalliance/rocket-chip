@@ -192,12 +192,12 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   protected val intXbar = LazyModule(new IntXbar)
 
   private val hartid = BundleBridgeIdentityNode[UInt]()
-  val hartIdNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(HartPrefixKey)) := hartid
+  val hartIdNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) := hartid
   val hartIdSinkNode = BundleBridgeSink[UInt]()
   hartIdSinkNode := hartIdNode
 
   private val reset_vector = BundleBridgeIdentityNode[UInt]()
-  val resetVectorNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(HartPrefixKey)) := reset_vector
+  val resetVectorNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt]() := reset_vector
   val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
   resetVectorSinkNode := resetVectorNode
 

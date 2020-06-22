@@ -17,12 +17,13 @@ import freechips.rocketchip.util._
 /** Entry point for Config-uring the presence of Tiles */
 case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTile]](Nil)
 
-/** Whether a global hart id prefix is going to be dynamically applied to the static tile hart ids.
+/** Whether to add timing-closure registers along the path of the hart id
+  * as it propagates through the subsystem and into the tile.
   *
-  * This information is used to conditionally add timing-closure registers along the path of
-  * the dynamically-configurable hart id as it makes its way into the tile.
+  * These are typically only desirable when a dynamically programmable prefix is being combined
+  * with the static hart id via [[freechips.rocketchip.subsystem.HasTiles.tileHartIdNexusNode]].
   */
-case object HartPrefixKey extends Field[Boolean](false)
+case object InsertTimingClosureRegistersOnHartIds extends Field[Boolean](false)
 
 /** Whether per-tile hart ids are going to be driven as inputs into the subsystem,
   * and if so, what their width should be.
@@ -32,7 +33,7 @@ case object SubsystemExternalHartIdWidthKey extends Field[Option[Int]](None)
 /** Whether per-tile reset vectors are going to be driven as inputs into the subsystem.
   *
   * Unlike the hart ids, the reset vector width is determined by the sinks within the tiles,
-  * based on the size of the address map visible to the tile.
+  * based on the size of the address map visible to the tiles.
   */
 case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
 
@@ -118,18 +119,26 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
   /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
   val tileHartIdNode = BundleBridgeEphemeralNode[UInt]()
 
-  /** tileHartIdNexusNode is a BundleBridgeNexus that collects dynamic hart prefixes,
-    *   orReduces them, and combines the reduction with the static ids assigned to each tile,
-    *   producing a unique, dynamic hartid for each tile.
+  /** tileHartIdNexusNode is a BundleBridgeNexus that collects dynamic hart prefixes.
+    *
+    *   Each "prefix" input is actually the same full width as the outer hart id; the expected usage
+    *   is that each prefix source would set only some non-overlapping portion of the bits to non-zero values.
+    *   This node orReduces them, and further combines the reduction with the static ids assigned to each tile,
+    *   producing a unique, dynamic hart id for each tile.
+    *
+    *   If p(InsertTimingClosureRegistersOnHartIds) is set, the input and output values are registered.
+    *
+    *   The output values are [[dontTouch]]'d to prevent constant propagation from pulling the values into
+    *   the tiles if they are constant, which would ruin deduplication of tiles that are otherwise homogeneous.
     */
   val tileHartIdNexusNode = BundleBridgeNexus[UInt](
-    inputFn = BundleBridgeNexus.orReduction[UInt](registered = p(HartPrefixKey)) _,
+    inputFn = BundleBridgeNexus.orReduction[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) _,
     outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
       val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
-      if (p(HartPrefixKey)) BundleBridgeNexus.safeRegNext(y) else y
+      if (p(InsertTimingClosureRegistersOnHartIds)) BundleBridgeNexus.safeRegNext(y) else y
     },
     default = Some(() => 0.U(p(MaxHartIdBits).W)),
-    inputRequiresOutput = true // guard against this being driven but ignored in tileHartIdIONodes below
+    inputRequiresOutput = true // guard against this being driven but then ignored in tileHartIdIONodes below
   )
   // TODO: Replace the DebugModuleHartSelFuncs config key with logic to consume the dynamic hart IDs
 
