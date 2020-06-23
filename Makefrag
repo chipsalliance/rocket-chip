@@ -42,20 +42,48 @@ FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
 FIRRTL_TEST_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl-test.jar
 FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp "$(FIRRTL_JAR)":"$(ROCKET_CLASSES)" firrtl.Driver
 
+CP ?= cp -p
+# sbt currently requires subproject dependencies are reflected in the parent project
+SBT_SUBPROJECTS ?= firrtl chisel3 hardfloat
+# Make a function to define subproject sbt Scala file dependencies and create the top level copies
+# Argument 1 is the sbt subproject directory
+# Argument 2 is the scala file name in that subproject's project directory
+define makeSubProjectSbtDependency
+
+$(base_dir)/project/$2:	$(base_dir)/$1/project/$2
+	$(CP) $$< $$@
+
+endef
+
+# A function to generate sbt project dependencies for any sbt subprojects.
+# The single argument is the sbt subproject directory.
+define makeSubProjectSbtDependencies
+$(1)_SBT_PROJECT_SCALA_FILES ?= $$(notdir $$(wildcard $$(base_dir)/$1/project/*.scala))
+PARENT_SBT_PROJECT_SCALA_FILES += $$(foreach file,$$($(1)_SBT_PROJECT_SCALA_FILES),$(base_dir)/project/$$(file))
+$$(foreach file,$$($(1)_SBT_PROJECT_SCALA_FILES),$$(eval $$(call makeSubProjectSbtDependency,$1,$$(file))))
+endef
+
+# Generate any sbt subproject project file dependencies.
+$(foreach dir,$(SBT_SUBPROJECTS),$(eval $(call makeSubProjectSbtDependencies,$(dir))))
+
 # Build firrtl.jar and put it where chisel3 can find it.
-$(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
+# Note: we add the $(PARENT_SBT_PROJECT_SCALA_FILES) to ensure sbt subproject
+#  project scala files are replicated in the top-level project before we invoke
+#  sbt. If this FIRRTL_JAR step is removed, we'll need to create a
+#  "before_running_sbt" target which will include this dependency.
+$(FIRRTL_JAR): $(PARENT_SBT_PROJECT_SCALA_FILES) $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
 	cd $(base_dir)/firrtl && $(SBT) "Test / assembly"
 	touch $(FIRRTL_JAR)
 	mkdir -p $(base_dir)/lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/lib
+	$(CP) $(FIRRTL_JAR) $(base_dir)/lib
 
 	mkdir -p $(base_dir)/test_lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/test_lib
-	cp -p $(FIRRTL_TEST_JAR) $(base_dir)/test_lib
+	$(CP) $(FIRRTL_JAR) $(base_dir)/test_lib
+	$(CP) $(FIRRTL_TEST_JAR) $(base_dir)/test_lib
 # When chisel3 pr 448 is merged, the following extraneous copy may be removed.
 	mkdir -p $(base_dir)/chisel3/lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
+	$(CP) $(FIRRTL_JAR) $(base_dir)/chisel3/lib
 
 src_path := src/main/scala
 resources := $(base_dir)/src/main/resources
