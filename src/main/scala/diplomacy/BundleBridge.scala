@@ -112,8 +112,7 @@ class BundleBridgeNexus[T <: Data](
 
   lazy val module = new LazyModuleImp(this) {
     val defaultWireOpt = default.map(_())
-    val inputs: Seq[T] = defaultWireOpt.toList ++ node.in.map(_._1)
-    require(inputs.size >= 1 || node.out.size == 0, s"${node.context} requires at least one input or default.")
+    val inputs: Seq[T] = node.in.map(_._1)
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
       s"${node.context} requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
     }
@@ -124,7 +123,7 @@ class BundleBridgeNexus[T <: Data](
     } }
 
     val outputs: Seq[T] = if (node.out.size > 0) {
-      val broadcast: T = inputFn(inputs)
+      val broadcast: T = if (inputs.size >= 1) inputFn(inputs) else defaultWireOpt.get
       outputFn(broadcast, node.out.size)
     } else { Nil }
 
@@ -175,12 +174,14 @@ object BundleBroadcast {
   def apply[T <: Data](
     name: Option[String] = None,
     registered: Boolean = false,
+    default: Option[() => T] = None,
     inputRequiresOutput: Boolean = false // when false, connecting a source does not mandate connecting a sink
   )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
     val finalName = name.map(ValName(_)).getOrElse(valName)
     BundleBridgeNexus.apply[T](
       inputFn = BundleBridgeNexus.requireOne[T](registered) _,
       outputFn = BundleBridgeNexus.fillN[T](registered) _,
+      default = default,
       inputRequiresOutput = inputRequiresOutput)(
       p, finalName)
   }
