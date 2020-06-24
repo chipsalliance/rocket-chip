@@ -48,6 +48,13 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   fixedClockNode := clockGroup.node // first member of group is always domain's own clock
   clockSinkNode := fixedClockNode
 
+  InModuleBody {
+    // make sure the above connections work properly because mismatched-by-name signals will just be ignored.
+    (clockGroup.node.edges.in zip clockGroupAggregator.node.edges.out).zipWithIndex map { case ((in: ClockGroupEdgeParameters , out: ClockGroupEdgeParameters), i) =>
+      require(in.members.keys == out.members.keys, s"clockGroup := clockGroupAggregator not working as you expect for index ${i}, becuase clockGroup has ${in.members.keys} and clockGroupAggregator has ${out.members.keys}")
+    }
+  }
+
   def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
