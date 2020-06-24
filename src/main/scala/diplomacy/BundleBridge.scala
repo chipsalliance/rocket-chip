@@ -97,7 +97,7 @@ case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None,
                                            (implicit valName: ValName)
   extends NexusNode(new BundleBridgeImp[T])(
     dFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
-    uFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
+    uFn = seq => seq.headOption.getOrElse(BundleBridgeParams(None)),
     inputRequiresOutput = inputRequiresOutput,
     outputRequiresInput = !default.isDefined)
 
