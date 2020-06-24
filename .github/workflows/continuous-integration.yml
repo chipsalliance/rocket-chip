@@ -31,11 +31,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - id: cache
-        # We use an unreleased version of the cache action that adds support for
-        # multiple paths to cache. This can be changed to a normal version
-        # number (likely v2) once it is released. See
-        # https://github.com/actions/cache/pull/212
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ./regression/install
@@ -76,9 +72,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-      - uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+      - uses: actions/cache@v2
         with:
           path: ./emulator/verilator
           key: verilator-${{ hashFiles('./verilator.hash') }}-v1
@@ -103,9 +97,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Use SBT Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ~/.cache/coursier
@@ -128,9 +120,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Use riscv-tools Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ./regression/install
@@ -138,17 +128,13 @@ jobs:
           key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
 
       - name: Use Verilator Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: ./emulator/verilator
           key: verilator-${{ hashFiles('./verilator.hash') }}-v1
 
       - name: Use SBT Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ~/.cache/coursier
