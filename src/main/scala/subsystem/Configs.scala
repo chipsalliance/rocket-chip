@@ -37,7 +37,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
-  case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
+  case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
+  case SubsystemExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
@@ -307,7 +308,7 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMParams => up(BootROMParams, site).copy(contentFileName = bootROMFile)
+  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {

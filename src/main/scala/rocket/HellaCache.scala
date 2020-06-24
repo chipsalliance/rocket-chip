@@ -175,17 +175,17 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
-abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule
+abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule
     with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
   protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
-    name          = s"Core ${hartid} DCache",
+    name          = s"Core ${staticIdForMetadataUseOnly} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
     supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
 
   protected def mmioClientParameters = Seq(TLMasterParameters.v1(
-    name          = s"Core ${hartid} DCache MMIO",
+    name          = s"Core ${staticIdForMetadataUseOnly} DCache MMIO",
     sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
     requestFifo   = true))
 
@@ -195,6 +195,8 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
     clients = cacheClientParameters ++ mmioClientParameters,
     minLatency = 1,
     requestFields = tileParams.core.useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
+
+  val hartIdSinkNode = BundleBridgeSink[UInt]()
 
   val module: HellaCacheModule
 
@@ -208,7 +210,6 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
-  val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
@@ -219,6 +220,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
+  val io_hartid = outer.hartIdSinkNode.bundle
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
   dontTouch(io.cpu.s1_data)
 
@@ -237,9 +239,9 @@ case object BuildHellaCache extends Field[BaseTile => Parameters => HellaCache](
 object HellaCacheFactory {
   def apply(tile: BaseTile)(p: Parameters): HellaCache = {
     if (tile.tileParams.dcache.get.nMSHRs == 0)
-      new DCache(tile.hartId, tile.crossing)(p)
+      new DCache(tile.staticIdForMetadataUseOnly, tile.crossing)(p)
     else
-      new NonBlockingDCache(tile.hartId)(p)
+      new NonBlockingDCache(tile.staticIdForMetadataUseOnly)(p)
   }
 }
 
@@ -252,6 +254,7 @@ trait HasHellaCache { this: BaseTile =>
   lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
   tlMasterXbar.node := dcache.node
+  dcache.hartIdSinkNode := hartIdNode
 }
 
 trait HasHellaCacheModule {

@@ -81,7 +81,7 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
   val data = UInt(width = cacheParams.tagCode.width(new L1Metadata().getWidth))
 }
 
-class DCache(hartid: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(hartid)(p) {
+class DCache(staticIdForMetadataUseOnly: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(staticIdForMetadataUseOnly)(p) {
   override lazy val module = new DCacheModule(this)
   override def getOMSRAMs(): Seq[OMSRAM] = Seq(module.dcacheImpl.omSRAM) ++ module.dcacheImpl.data.data_arrays.map(_._2)
 }
@@ -251,7 +251,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_victim_way = Wire(init = replacer.way)
   val (s1_hit_way, s1_hit_state, s1_meta, s1_victim_meta) =
     if (usingDataScratchpad) {
-      val baseAddr = p(LookupByHartId)(_.dcache.flatMap(_.scratch.map(_.U)), io.hartid)
+      val baseAddr = p(LookupByHartId)(_.dcache.flatMap(_.scratch.map(_.U)), io_hartid)
       val inScratchpad = s1_paddr >= baseAddr && s1_paddr < baseAddr + nSets * cacheBlockBytes
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       val dummyMeta = L1Metadata(UInt(0), ClientMetadata.onReset)

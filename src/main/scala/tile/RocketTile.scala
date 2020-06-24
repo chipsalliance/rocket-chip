@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
-import freechips.rocketchip.subsystem.{SubsystemResetSchemeKey, ResetSynchronous, HartPrefixKey, TileCrossingParamsLike}
+import freechips.rocketchip.subsystem.{SubsystemResetSchemeKey, ResetSynchronous, TileCrossingParamsLike}
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -103,7 +103,7 @@ class RocketTile private(
   }
 
   ResourceBinding {
-    Resource(cpuDevice, "reg").bind(ResourceAddress(hartId))
+    Resource(cpuDevice, "reg").bind(ResourceAddress(staticIdForMetadataUseOnly))
   }
 
   override lazy val module = new RocketTileModuleImp(this)
@@ -154,16 +154,13 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     beu.module.io.errors.icache := outer.frontend.module.io.errors
   }
 
-  // Pass through various external constants and reports
+  // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
-  outer.frontend.module.io.reset_vector := constants.reset_vector
-
-  def regHart(x: UInt): UInt = if (p(HartPrefixKey)) RegNext(x) else x
-  core.io.hartid := regHart(constants.hartid)
-  outer.dcache.module.io.hartid := regHart(constants.hartid)
-  outer.frontend.module.io.hartid := regHart(constants.hartid)
+  core.io.hartid := outer.hartIdSinkNode.bundle
+  require(core.io.hartid.getWidth >= outer.hartIdSinkNode.bundle.getWidth,
+    s"core hartid wire (${core.io.hartid.getWidth}b) truncates external hartid wire (${outer.hartIdSinkNode.bundle.getWidth}b)")
 
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
