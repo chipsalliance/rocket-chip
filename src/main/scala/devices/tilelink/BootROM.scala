@@ -80,7 +80,7 @@ object BootROM {
 
     bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus) := _ }
     // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
-    subsystem.tileResetVectorNode := bootROMResetVectorSourceNode
+    subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
     InModuleBody {
       val reset_vector_source = bootROMResetVectorSourceNode.bundle
       require(reset_vector_source.getWidth >= params.hang.bitLength,
