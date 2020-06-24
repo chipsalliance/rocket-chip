@@ -296,11 +296,40 @@ class TLSlaveParameters private(
         putFull       = supportsPutFull,
         putPartial    = supportsPutPartial,
         hint          = supportsHint),
-      emits           = emits,
+      emits         = emits,
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
       fifoId        = fifoId)
+  }
+
+  def v2copy(
+    nodePath:      Seq[BaseNode]                = nodePath,
+    resources:     Seq[Resource]                = resources,
+    setName:       Option[String]               = setName,
+    address:       Seq[AddressSet]              = address,
+    regionType:    RegionType.T                 = regionType,
+    executable:    Boolean                      = executable,
+    fifoId:        Option[Int]                  = fifoId,
+    supports:      TLMasterToSlaveTransferSizes = supports,
+    emits:         TLSlaveToMasterTransferSizes = emits,
+    alwaysGrantsT: Boolean                      = alwaysGrantsT,
+    mayDenyGet:    Boolean                      = mayDenyGet,
+    mayDenyPut:    Boolean                      = mayDenyPut) =
+  {
+    new TLSlaveParameters(
+      nodePath      = nodePath,
+      resources     = resources,
+      setName       = setName,
+      address       = address,
+      regionType    = regionType,
+      executable    = executable,
+      fifoId        = fifoId,
+      supports      = supports,
+      emits         = emits,
+      alwaysGrantsT = alwaysGrantsT,
+      mayDenyGet    = mayDenyGet,
+      mayDenyPut    = mayDenyPut)
   }
 
   @deprecated("Use v1copy instead of copy","")
@@ -385,6 +414,35 @@ object TLSlaveParameters {
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
       fifoId        = fifoId)
+  }
+
+  def v2(
+    address:       Seq[AddressSet],
+    nodePath:      Seq[BaseNode]                = Seq(),
+    resources:     Seq[Resource]                = Seq(),
+    setName:       Option[String]               = None,
+    regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
+    executable:    Boolean                      = false,
+    fifoId:        Option[Int]                  = None,
+    supports:      TLMasterToSlaveTransferSizes = TLMasterToSlaveTransferSizes.unknownSupports,
+    emits:         TLSlaveToMasterTransferSizes = TLSlaveToMasterTransferSizes.unknownEmits,
+    alwaysGrantsT: Boolean                      = false,
+    mayDenyGet:    Boolean                      = false,
+    mayDenyPut:    Boolean                      = false) =
+  {
+    new TLSlaveParameters(
+    nodePath      = nodePath,
+    resources     = resources,
+    setName       = setName,
+    address       = address,
+    regionType    = regionType,
+    executable    = executable,
+    fifoId        = fifoId,
+    supports      = supports,
+    emits         = emits,
+    alwaysGrantsT = alwaysGrantsT,
+    mayDenyGet    = mayDenyGet,
+    mayDenyPut    = mayDenyPut)
   }
 }
 
@@ -847,6 +905,33 @@ class TLMasterParameters private(
       sourceId          = sourceId)
   }
 
+  def v2copy(
+    nodePath:          Seq[BaseNode]                = nodePath,
+    resources:         Seq[Resource]                = resources,
+    name:              String                       = name,
+    visibility:        Seq[AddressSet]              = visibility,
+    unusedRegionTypes: Set[RegionType.T]            = unusedRegionTypes,
+    executesOnly:      Boolean                      = executesOnly,
+    requestFifo:       Boolean                      = requestFifo,
+    supports:          TLSlaveToMasterTransferSizes = supports,
+    emits:             TLMasterToSlaveTransferSizes = emits,
+    neverReleasesData: Boolean                      = neverReleasesData,
+    sourceId:          IdRange                      = sourceId) =
+  {
+    new TLMasterParameters(
+      nodePath          = nodePath,
+      resources         = resources,
+      name              = name,
+      visibility        = visibility,
+      unusedRegionTypes = unusedRegionTypes,
+      executesOnly      = executesOnly,
+      requestFifo       = requestFifo,
+      supports          = supports,
+      emits             = emits,
+      neverReleasesData = neverReleasesData,
+      sourceId          = sourceId)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     name:                String          = name,
@@ -911,6 +996,33 @@ object TLMasterParameters {
         hint              = supportsHint),
       emits             = TLMasterToSlaveTransferSizes.unknownEmits,
       neverReleasesData = false,
+      sourceId          = sourceId)
+  }
+
+  def v2(
+    nodePath:          Seq[BaseNode]                = Seq(),
+    resources:         Seq[Resource]                = Nil,
+    name:              String,
+    visibility:        Seq[AddressSet]              = Seq(AddressSet(0, ~0)),
+    unusedRegionTypes: Set[RegionType.T]            = Set(),
+    executesOnly:      Boolean                      = false,
+    requestFifo:       Boolean                      = false,
+    supports:          TLSlaveToMasterTransferSizes = TLSlaveToMasterTransferSizes.unknownSupports,
+    emits:             TLMasterToSlaveTransferSizes = TLMasterToSlaveTransferSizes.unknownEmits,
+    neverReleasesData: Boolean                      = false,
+    sourceId:          IdRange                      = IdRange(0,1)) =
+  {
+    new TLMasterParameters(
+      nodePath          = nodePath,
+      resources         = resources,
+      name              = name,
+      visibility        = visibility,
+      unusedRegionTypes = unusedRegionTypes,
+      executesOnly      = executesOnly,
+      requestFifo       = requestFifo,
+      supports          = supports,
+      emits             = emits,
+      neverReleasesData = neverReleasesData,
       sourceId          = sourceId)
   }
 }
