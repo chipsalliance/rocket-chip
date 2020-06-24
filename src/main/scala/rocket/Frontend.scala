@@ -352,7 +352,8 @@ trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   val frontend = LazyModule(new Frontend(tileParams.icache.get, staticIdForMetadataUseOnly))
   tlMasterXbar.node := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
-  frontend.icache.hartIdSinkNode := hartIdNode
+  frontend.icache.hartIdSinkNodeOpt.foreach { _ := hartIdNode }
+  frontend.icache.mmioAddressPrefixSinkNodeOpt.foreach { _ := mmioAddressPrefixNode }
   frontend.resetVectorSinkNode := resetVectorNode
   nPTWPorts += 1
 

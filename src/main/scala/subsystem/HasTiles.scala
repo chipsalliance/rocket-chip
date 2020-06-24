@@ -313,7 +313,7 @@ trait CanAttachTile {
     tile.hartIdNode := context.tileHartIdNode
     tile.resetVectorNode := context.tileResetVectorNode
     context.locateTLBusWrapper(crossingParams.controlBaseAddressPrefixWhere).prefixNode.foreach {
-      tile.controlAddressPrefixNode := _
+      tile.mmioAddressPrefixNode := _
     }
   }
 }

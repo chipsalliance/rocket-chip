@@ -76,7 +76,7 @@ trait HasNonDiplomaticTileParameters {
     *   a property which is important for hierarchical place & route flows.
     */
   def staticIdForMetadataUseOnly: Int = tileParams.hartId
-  @deprecated("use hartIdSinkNode.bundle or staticIdForMetadataUseOnly", "rocket-chip 1.3")
+  @deprecated("use hartIdSinkNodeOpt.map(_.bundle) or staticIdForMetadataUseOnly", "rocket-chip 1.3")
   def hartId: Int = staticIdForMetadataUseOnly
 
   def cacheBlockBytes = p(CacheBlockBytes)
@@ -202,7 +202,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   resetVectorSinkNode := resetVectorNode
 
   /** Node for prefixing base addresses of MMIO slaves. */
-  val controlAddressPrefixNode = BundleBridgeNexus[UInt](
+  val mmioAddressPrefixNode = BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = true) _,
     outputFn = BundleBridgeNexus.fillN[UInt](registered = true) _,
     default = Some(() => 0.U(1.W))

@@ -44,7 +44,7 @@ abstract class GroundTestTile(
     else new NonBlockingDCache(staticIdForMetadataUseOnly)
   )}
 
-  dcacheOpt.foreach { _.hartIdSinkNode := hartIdNode }
+  dcacheOpt.foreach { _.hartIdSinkNodeOpt.foreach { _ := hartIdNode } }
 
   override lazy val module = new GroundTestTileModuleImp(this)
 }
