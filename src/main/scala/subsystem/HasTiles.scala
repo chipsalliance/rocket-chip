@@ -137,7 +137,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
       val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
       if (p(InsertTimingClosureRegistersOnHartIds)) BundleBridgeNexus.safeRegNext(y) else y
     },
-    default = Some(() => 0.U(p(MaxHartIdBits).W)),
+    default = Some(() => 0.U(1.W)),
     inputRequiresOutput = true // guard against this being driven but then ignored in tileHartIdIONodes below
   )
   // TODO: Replace the DebugModuleHartSelFuncs config key with logic to consume the dynamic hart IDs
