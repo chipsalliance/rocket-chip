@@ -201,6 +201,13 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
   resetVectorSinkNode := resetVectorNode
 
+  /** Node for prefixing base addresses of MMIO slaves. */
+  val controlAddressPrefixNode = BundleBridgeNexus[UInt](
+    inputFn = BundleBridgeNexus.orReduction[UInt](registered = true) _,
+    outputFn = BundleBridgeNexus.fillN[UInt](registered = true) _,
+    default = Some(() => 0.U(1.W))
+  )
+
   // Node for legacy instruction trace from core
   val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
