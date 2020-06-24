@@ -24,28 +24,24 @@ case class AXI4TLStateField(sourceBits: Int) extends BundleField(AXI4TLState) {
   }
 }
 
-class TLtoAXI4IdMap(tl: TLMasterPortParameters, axi4: AXI4MasterPortParameters) {
+class TLtoAXI4IdMap(tl: TLMasterPortParameters, axi4: AXI4MasterPortParameters) 
+  extends IdMap[TLToAXI4IdMapEntry]
+{
   private val axiDigits = String.valueOf(axi4.endId-1).length()
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
-  private val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.clients.sortWith(TLToAXI4.sortByType)
+  protected val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
+  private val sorted = tl.clients.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
 
   val mapping: Seq[TLToAXI4IdMapEntry] = (sorted zip axi4.masters) map { case (c, m) =>
     TLToAXI4IdMapEntry(m.id, c.sourceId, c.name, c.supportsProbe, c.requestFifo)
   }
-
-  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }
 
-case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean) {
-  def pretty(fmt: String) = fmt.format(
-    axi4Id.start,
-    axi4Id.end,
-    tlId.start,
-    tlId.end,
-    s"$name",
-    if (isCache) " [CACHE]" else "",
-    if (requestFifo) " [FIFO]" else "")
+case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean)
+  extends IdMapEntry
+{
+  val from = tlId
+  val to = axi4Id
 }
 
 case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(

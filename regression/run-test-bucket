@@ -28,7 +28,9 @@ if [[ ${TRAVIS:-false} == true ]]; then
   . "${regression_dir}/travis_setup_env.bash"
   . "${regression_dir}/travis_jigger.bash"
   . "${regression_dir}/travis_wait.bash"
+  set +u
   travis_setup_env
+  set -u
 else
   # If not running on Travis CI, Stub out the travis_wait to be a no-op, since
   # it's unnecessary and it has some undesirable side effects such as hiding
@@ -49,8 +51,9 @@ bucket_number=$1
 set -x
 case "${bucket_number}" in
   1)
-    travis_wait 100 make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
-    travis_wait 100 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
+    # Temporarily disable this bucket, which is hitting OOM on Actions
+    #travis_wait 100 make emulator-ndebug -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
+    #travis_wait 100 make emulator-regression-tests -C regression SUITE=UnittestSuite JVM_MEMORY=3G VERILATOR_THREADS=1
     ;;
 
   2)
@@ -87,6 +90,9 @@ case "${bucket_number}" in
 
   7)
     travis_wait 100 make emulator-ndebug -C regression SUITE=Miscellaneous JVM_MEMORY=3G
+    ;;
+  8)
+    make scalatest -C regression SUITE=foo JVM_MEMORY=8G
     ;;
 
   -h|--help)

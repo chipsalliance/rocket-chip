@@ -23,6 +23,7 @@
 # https://github.com/travis-ci/travis-build/blob/73a5393263e0b135f49aceeb40ef6f0d827b9b11/lib/travis/build/bash/travis_wait.bash
 
 travis_wait() {
+  set +e
   local timeout="${1}"
 
   if [[ "${timeout}" =~ ^[0-9]+$ ]]; then
@@ -56,5 +57,6 @@ travis_wait() {
   echo -e "\\n${ANSI_GREEN}Log:${ANSI_RESET}\\n"
   cat "${log_file}"
 
+  set -e
   return "${result}"
 }

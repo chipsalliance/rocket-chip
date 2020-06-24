@@ -22,7 +22,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
         endSinkId = if (mp.managers.exists(_.regionType == RegionType.UNCACHED)) sinkIds else 0,
         managers = mp.managers.map { m => m.v1copy(
           supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
-          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.supportsAcquireT,
+          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull.intersect(m.supportsGet) else m.supportsAcquireT,
           alwaysGrantsT    = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.alwaysGrantsT)})})
 
   lazy val module = new LazyModuleImp(this) {

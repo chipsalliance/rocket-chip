@@ -7,7 +7,7 @@ import chisel3.RawModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegister, OMRegisterMap}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._

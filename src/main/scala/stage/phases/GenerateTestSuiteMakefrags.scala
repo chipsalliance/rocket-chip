@@ -13,7 +13,7 @@ import freechips.rocketchip.util.HasRocketChipStageUtils
 /** Generates a make script to run tests in [[RocketTestSuiteAnnotation]]. */
 class GenerateTestSuiteMakefrags extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(Dependency[Checks], Dependency[Elaborate])
+  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val targetDir = view[StageOptions](annotations).targetDir

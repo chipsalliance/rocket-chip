@@ -76,10 +76,10 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   }
 
   def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
-    to(name) { gen(outwardNode) }
+    to(name) { gen(TLNameNode("tl") :*=* outwardNode) }
 
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
-    from(name) { gen(inwardNode) }
+    from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
   def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
     bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
@@ -356,7 +356,10 @@ case class AddressAdjusterWrapperParams(
   blockBytes: Int,
   beatBytes: Int,
   replication: Option[ReplicatedRegion],
-  forceLocal: Seq[AddressSet] = Nil
+  forceLocal: Seq[AddressSet] = Nil,
+  localBaseAddressDefault: Option[BigInt] = None,
+  policy: TLFIFOFixer.Policy = TLFIFOFixer.allVolatile,
+  ordered: Boolean = true
 )
   extends HasTLBusParams
   with TLBusWrapperInstantiationLike
@@ -371,9 +374,9 @@ case class AddressAdjusterWrapperParams(
 }
 
 class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)(implicit p: Parameters) extends TLBusWrapper(params, name) {
-  private val address_adjuster = params.replication.map { r => LazyModule(new AddressAdjuster(r, params.forceLocal)) }
+  private val address_adjuster = params.replication.map { r => LazyModule(new AddressAdjuster(r, params.forceLocal, params.localBaseAddressDefault, params.ordered)) }
   private val viewNode = TLIdentityNode()
-  val inwardNode: TLInwardNode = address_adjuster.map(_.node :*=* viewNode).getOrElse(viewNode)
+  val inwardNode: TLInwardNode = address_adjuster.map(_.node :*=* TLFIFOFixer(params.policy) :*=* viewNode).getOrElse(viewNode)
   def outwardNode: TLOutwardNode = address_adjuster.map(_.node).getOrElse(viewNode)
   def busView: TLEdge = viewNode.edges.in.head
   val prefixNode = address_adjuster.map(_.prefix)

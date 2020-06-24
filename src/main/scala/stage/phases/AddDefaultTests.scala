@@ -26,7 +26,7 @@ case class RocketTestSuiteAnnotation(tests: Seq[RocketTestSuite]) extends NoTarg
  */
 class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
-  override val prerequisites = Seq(Dependency[Checks], Dependency[Elaborate])
+  override val prerequisites = Seq(Dependency[freechips.rocketchip.system.RocketChiselStage])
   override val dependents = Seq(Dependency[GenerateTestSuiteMakefrags])
 
   def GenerateDefaultTestSuites(): List[RocketTestSuite] = {

@@ -221,7 +221,7 @@ object AddressSet
 
   def unify(seq: Seq[AddressSet], bit: BigInt): Seq[AddressSet] = {
     // Pair terms up by ignoring 'bit'
-    seq.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
+    seq.distinct.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
       if (seq.size == 1) {
         seq.head // singleton -> unaffected
       } else {
@@ -321,4 +321,24 @@ trait DirectedBuffers[T] {
   def copyIn(x: BufferParams): T
   def copyOut(x: BufferParams): T
   def copyInOut(x: BufferParams): T
+}
+
+trait IdMapEntry {
+  def name: String
+  def from: IdRange
+  def to: IdRange
+  def isCache: Boolean
+  def requestFifo: Boolean
+  def pretty(fmt: String) =
+    if (from ne to) { // if the subclass uses the same reference for both from and to, assume its format string has an arity of 5
+      fmt.format(to.start, to.end, from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    } else {
+      fmt.format(from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    }
+}
+
+abstract class IdMap[T <: IdMapEntry] {
+  protected val fmt: String
+  val mapping: Seq[T]
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }

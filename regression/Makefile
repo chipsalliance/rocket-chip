@@ -277,7 +277,7 @@ ifdef SEED
 SEED_ARG = --seed $(SEED)
 endif
 
-JTAG_DTM_SIM_ARGS = +verbose +jtag_rbb_enable=1 $(SEED_ARG)
+JTAG_DTM_SIM_ARGS = +jtag_rbb_enable=1 $(SEED_ARG)
 
 stamps/%/vsim-jtag-dtm-32-$(JTAG_DTM_TEST).stamp: stamps/%/vsim$(JTAG_STAMP_SUFFIX).stamp stamps/riscv-tests.stamp
 	RISCV=$(RISCV) PATH="$(abspath $(RISCV)/bin:$(PATH))" $(GDBSERVER) \
@@ -334,3 +334,8 @@ emulator-jtag-dtm-tests-64 : $(EMULATOR_JTAG_DTM_64_TEST_STAMPS)
 # Targets for JTAG DTM full-chain simulation
 vsim-jtag-dtm-regression: vsim-jtag-dtm-tests-32 vsim-jtag-dtm-tests-64
 emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests-64
+
+# Target to run Scalatest regressionsk 'sbt test'
+.PHONY: scalatest
+scalatest: stamps/other-submodules.stamp $(FIRRTL_JAR)
+	(cd $(abspath $(TOP)) && $(SBT) test)

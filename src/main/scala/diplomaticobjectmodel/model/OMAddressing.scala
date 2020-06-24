@@ -48,6 +48,8 @@ case class OMRegFieldDesc(
   volatile: Boolean,
   resetValue: Option[BigInt],
   enumerations: Seq[OMRegFieldEnumeration] = Seq(),
+  addressBlock: Option[String] = None,
+  // TODO: register files
   _types: Seq[String] = Seq("OMRegFieldDesc", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -63,9 +65,20 @@ case class OMRegFieldGroup (
   _types: Seq[String] = Seq("OMRegFieldGroup", "OMCompoundType")
 ) extends OMCompoundType
 
+case class OMAddressBlock (
+  name: String,
+  baseAddress:  BigInt, // to match the IP-XACT terminology, though this is in practice an offset
+  range: BigInt,
+  width: Int,
+  _types: Seq[String] = Seq("OMAddressBlock", "OMCompoundType")
+) extends OMCompoundType
+
+// TODO: OMRegisterFile
+
 case class OMRegisterMap (
   registerFields: Seq[OMRegField],
   groups: Seq[OMRegFieldGroup],
+  addressBlocks: Seq[OMAddressBlock] = Nil, // Note: this is intended to be used in the OMMemoryMap and is rather redundant here.
   _types: Seq[String] = Seq("OMRegisterMap", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -79,7 +92,9 @@ case class OMMemoryRegion (
   description: String,
   addressSets: Seq[OMAddressSet],
   permissions: OMPermissions,
+  // would it make more sense to add a name: Option[String] to OMAddressSet? This seems redundant
   registerMap: Option[OMRegisterMap],
+  addressBlocks: Seq[OMAddressBlock] = Nil,
   _types: Seq[String] = Seq("OMMemoryRegion", "OMCompoundType")
 ) extends OMCompoundType
 
@@ -144,7 +159,9 @@ object OMRegister {
           rdAction = getRegFieldRdAction(rfd),
           volatile = rfd.volatile,
           resetValue = rfd.reset,
-          enumerations = getRegFieldEnumerations(rfd.enumerations)
+          enumerations = getRegFieldEnumerations(rfd.enumerations),
+          addressBlock = rfd.addressBlock.map{_.name}
+          // TODO: register files
         )
     }
   }
@@ -181,15 +198,33 @@ object OMRegister {
     groups.distinct.sortBy(_.name)
   }
 
+  private def makeAddressBlocks(mapping: Seq[(Int, Seq[RegField])]): Seq[OMAddressBlock] = {
+    val addressBlocks = for {
+      (_,seq) <- mapping
+      regField <- seq
+      desc <- regField.desc
+      ab <- desc.addressBlock
+    } yield  OMAddressBlock(
+      name = ab.name,
+      baseAddress = ab.addressOffset,
+      range = ab.range,
+      width = ab.width
+    )
+    addressBlocks.distinct.sortBy(_.baseAddress)
+  }
+
   private def makeRegisterMap(mapping: Seq[(Int, Seq[RegField])]): OMRegisterMap = {
     OMRegisterMap(
       registerFields = makeRegisters(mapping),
-      groups = makeGroups(mapping)
+      groups = makeGroups(mapping),
+      addressBlocks = makeAddressBlocks(mapping)
     )
   }
 
   def convert(mapping: RegField.Map*): OMRegisterMap = {
     makeRegisterMap(mapping)
   }
+
+  def convertSeq(mapping: Seq[RegField.Map]): OMRegisterMap = OMRegister.convert(mapping: _*)
 
 }
