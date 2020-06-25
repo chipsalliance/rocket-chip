@@ -191,29 +191,48 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
-  private val hartid = BundleBridgeIdentityNode[UInt]()
-  val hartIdNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) := hartid
+  /** Node for driving a hart id input and broadcasting it to units within the tile.
+    *
+    * Making this id value an IO and then using it to do lookups of information
+    * that would make otherwise-homogeneous tiles heterogeneous is a useful trick
+    * to enable deduplication of tiles for hierarchical P&R flows.
+    */
+  val hartIdNode: BundleBridgeNode[UInt] =
+    BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) := BundleBridgeNameNode[UInt]("hartid")
+
+  /** Node for consuming the hart id input in tile-layer logic. */
   val hartIdSinkNode = BundleBridgeSink[UInt]()
   hartIdSinkNode := hartIdNode
 
-  private val reset_vector = BundleBridgeIdentityNode[UInt]()
-  val resetVectorNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt]() := reset_vector
+  /** Node for supplying a reset vector that processors in this tile might begin fetching instructions from as they come out of reset. */
+  val resetVectorNode: BundleBridgeNode[UInt] =
+    BundleBroadcast[UInt]() := BundleBridgeNameNode[UInt]("reset_vector")
+
+  /** Node for consuming the reset vector input in tile-layer logic.
+    *
+    * Its width is sized by looking at the size of the address space visible
+    * on the tile's master ports, but this lookup is not evaluated until
+    * diplomacy has completed and Chisel elaboration has begun.
+    */
   val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
   resetVectorSinkNode := resetVectorNode
 
-  /** Node for prefixing base addresses of MMIO slaves. */
+  /** Node for prefixing base addresses of MMIO slaves to which the core has a direct access path.
+    *
+    * The prefix is applied by or-ing this signal with the static base address that is looked up based on hartid.
+    */
   val mmioAddressPrefixNode = BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = true) _,
     outputFn = BundleBridgeNexus.fillN[UInt](registered = true) _,
     default = Some(() => 0.U(1.W))
   )
 
-  // Node for legacy instruction trace from core
+  /** Node for sourcing a legacy instruction trace from core. */
   val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
   val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
   traceNode := traceSourceNode
 
-  // Trace sideband signals into core
+  /** Trace sideband signals driven into the core. */
   val traceAuxNode = BundleBridgeNexus[TraceAux](default = Some(() => {
     val aux = Wire(new TraceAux)
     aux.stall  := false.B
@@ -223,18 +242,19 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
   traceAuxSinkNode := traceAuxNode
 
-  // Node for instruction trace conforming to RISC-V Processor Trace spec V1.0
+  /** Node for instruction trace conforming to RISC-V Processor Trace spec V1.0 */
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(new TraceCoreParams()))
   val traceCoreBroadcastNode = BundleBroadcast[TraceCoreInterface](Some("tracecore"))
   traceCoreBroadcastNode := traceCoreSourceNode
   def traceCoreNode: BundleBridgeNexusNode[TraceCoreInterface] = traceCoreBroadcastNode
 
-  // Node for watchpoints to control trace
+  /** Node for watchpoints to control trace */
   def getBpwatchParams: (Int, Int) = { (tileParams.core.nBreakpoints, tileParams.core.retireWidth) }
   val bpwatchSourceNode = BundleBridgeSource(() => Vec(getBpwatchParams._1, new BPWatch(getBpwatchParams._2)))
   val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
   bpwatchNode := bpwatchSourceNode
 
+  /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
   def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
@@ -244,12 +264,13 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   }
   def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
+  /** TileLink node which represents the view that the intra-tile masters have of the rest of the system. */
   val visibilityNode = p(TileVisibilityNodeKey)
   protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)
   protected def visiblePhysAddrBits = visibilityNode.edges.out.head.bundle.addressBits
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(visibleManagers)
 
-  // Find resource labels for all the outward caches
+  /** Finds resource labels for all the outward caches. */
   def nextLevelCacheProperty: PropertyOption = {
     val outer = visibleManagers
       .filter(_.supportsAcquireB)
@@ -260,6 +281,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     else Some("next-level-cache" -> outer.map(l => ResourceReference(l)).toList)
   }
 
+  /** Create a DTS representation of this "cpu". */
   def cpuProperties: PropertyMap = Map(
       "device_type"          -> "cpu".asProperty,
       "status"               -> "okay".asProperty,
@@ -269,9 +291,17 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
       "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty
   )
 
-  // The boundary buffering needed to cut feed-through paths is
-  // microarchitecture specific, so these may need to be overridden
+  /** Helper function to insert additional buffers on master ports at the boundary of the tile.
+    *
+    * The boundary buffering needed to cut feed-through paths is
+    * microarchitecture specific, so this may need to be overridden
+    * in subclasses of this class.
+    */
   protected def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+
+  /** External code looking to connect the ports where this tile masters an interconnect
+    * (while also crossing clock domains) can call this.
+    */
   def crossMasterPort(): TLOutwardNode = {
     val tlMasterXing = this.crossOut(crossing match {
       case RationalCrossing(_) => this { makeMasterBoundaryBuffers } :=* masterNode
@@ -280,7 +310,17 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     tlMasterXing(crossing)
   }
 
+  /** Helper function to insert additional buffers on slave ports at the boundary of the tile.
+    *
+    * The boundary buffering needed to cut feed-through paths is
+    * microarchitecture specific, so this may need to be overridden
+    * in subclasses of this class.
+    */
   protected def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
+
+  /** External code looking to connect the ports where this tile is slaved to an interconnect
+    * (while also crossing clock domains) can call this.
+    */
   def crossSlavePort(): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
     val tlSlaveXing = this.crossIn(crossing match {
       case RationalCrossing(_) => slaveNode :*= this { makeSlaveBoundaryBuffers }
@@ -289,9 +329,13 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     tlSlaveXing(crossing)
   } } }
 
+  /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
+
+  /** External code looking to connect and clock-cross the interrupts raised by devices inside this tile can call this. */
   def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
 
+  /** Use for ObjectModel representation of this tile. Subclasses might override this. */
   val logicalTreeNode: LogicalTreeNode = new GenericLogicalTreeNode
 
   this.suggestName(tileParams.name)
