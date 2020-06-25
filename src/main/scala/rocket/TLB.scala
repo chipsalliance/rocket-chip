@@ -182,7 +182,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
-  val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate)
+  val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate) || io.sfence.valid
   val mpu_ppn = Mux(do_refill, refill_ppn,
                 Mux(vm_enabled && special_entry.nonEmpty, special_entry.map(_.ppn(vpn)).getOrElse(0.U), io.req.bits.vaddr >> pgIdxBits))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
@@ -214,7 +214,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val ppn = Mux1H(hitsVec :+ !vm_enabled, all_entries.map(_.ppn(vpn)) :+ vpn(ppnBits-1, 0))
 
   // permission bit arrays
-  when (do_refill && !invalidate_refill) {
+  when (do_refill) {
     val pte = io.ptw.resp.bits.pte
     val newEntry = Wire(new TLBEntryData)
     newEntry.ppn := pte.ppn
@@ -235,16 +235,21 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.fragmented_superpage := io.ptw.resp.bits.fragmented_superpage
 
     when (special_entry.nonEmpty && !io.ptw.resp.bits.homogeneous) {
-      special_entry.foreach(_.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry))
+      special_entry.foreach { e =>
+        e.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry)
+        when (invalidate_refill) { e.invalidate() }
+      }
     }.elsewhen (io.ptw.resp.bits.level < pgLevels-1) {
       for ((e, i) <- superpage_entries.zipWithIndex) when (r_superpage_repl_addr === i) {
         e.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry)
+        when (invalidate_refill) { e.invalidate() }
       }
     }.otherwise {
       val waddr = Mux(r_sectored_hit, r_sectored_hit_addr, r_sectored_repl_addr)
       for ((e, i) <- sectored_entries.zipWithIndex) when (waddr === i) {
         when (!r_sectored_hit) { e.invalidate() }
         e.insert(r_refill_tag, 0.U, newEntry)
+        when (invalidate_refill) { e.invalidate() }
       }
     }
   }
