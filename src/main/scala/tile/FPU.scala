@@ -6,7 +6,7 @@ package freechips.rocketchip.tile
 import Chisel.{defaultCompileOptions => _, _}
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
-import chisel3.withClock
+import chisel3.{DontCare, WireInit, withClock}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
@@ -731,6 +731,19 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
+  // CoreMonitorBundle to monitor fp register file writes
+  val frfWriteBundle = Seq.fill(2)(WireInit(new CoreMonitorBundle(xLen), DontCare))
+  frfWriteBundle.foreach { i =>
+    i.clock := clock
+    i.reset := reset
+    i.hartid := io.hartid
+    i.timer := io.time(31,0)
+    i.valid := false.B
+    i.wrenx := false.B
+    i.wrenf := false.B
+    i.excpt := false.B
+  }
+
   // regfile
   val regfile = Mem(32, Bits(width = fLen+1))
   when (load_wb) {
@@ -739,6 +752,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     assert(consistent(wdata))
     if (enableCommitLog)
       printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
+    frfWriteBundle(0).wrdst := load_wb_tag
+    frfWriteBundle(0).wrenf := true.B
+    frfWriteBundle(0).wrdata := load_wb_data
   }
 
   val ex_rs = ex_ra.map(a => regfile(a))
@@ -869,33 +885,15 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     if (enableCommitLog) {
       printf("f%d p%d 0x%x\n", waddr, waddr + 32, ieee(wdata))
     }
+    frfWriteBundle(1).wrdst := waddr
+    frfWriteBundle(1).wrenf := true.B
+    frfWriteBundle(1).wrdata := ieee(wdata)
   }
   when (wbInfo(0).cp && wen(0)) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := Bool(true)
   }
   io.cp_req.ready := !ex_reg_valid
-
-  // CoreMonitorBundle to monitor fp register file writes
-  val frfWriteBundle = Wire(new CoreMonitorBundle(xLen))
-
-  frfWriteBundle.clock := clock
-  frfWriteBundle.reset := reset
-  frfWriteBundle.hartid := io.hartid
-  frfWriteBundle.timer := io.time(31,0)
-  frfWriteBundle.valid := false.B
-  frfWriteBundle.pc := 0.U
-  frfWriteBundle.wrdst := Mux(load_wb, load_wb_tag, waddr)
-  frfWriteBundle.wrenx := false.B
-  frfWriteBundle.wrenf := (!wbInfo(0).cp && wen(0)) || divSqrt_wen || load_wb
-  frfWriteBundle.wrdata := Mux(load_wb, load_wb_data, ieee(wdata))
-  frfWriteBundle.rd0src := 0.U
-  frfWriteBundle.rd0val := 0.U
-  frfWriteBundle.rd1src := 0.U
-  frfWriteBundle.rd1val := 0.U
-  frfWriteBundle.inst := 0.U
-  frfWriteBundle.excpt := false.B
-  frfWriteBundle.priv_mode := 0.U
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
