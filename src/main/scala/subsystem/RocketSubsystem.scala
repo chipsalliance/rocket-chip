@@ -16,7 +16,7 @@ case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
   master: TileMasterPortParams = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams(),
-  controlBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS
+  mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS
 ) extends TileCrossingParamsLike
 
 case class RocketTileAttachParams(

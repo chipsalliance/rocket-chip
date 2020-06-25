@@ -45,8 +45,8 @@ trait TileCrossingParamsLike {
   def master: TilePortParamsLike
   /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect slave. */
   def slave: TilePortParamsLike
-  /** The subnetwork location of the device selecting the apparent base address of control registers inside the tile */
-  def controlBaseAddressPrefixWhere: TLBusWrapperLocation
+  /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the tile */
+  def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
@@ -312,7 +312,7 @@ trait CanAttachTile {
     implicit val p = context.p
     tile.hartIdNode := context.tileHartIdNode
     tile.resetVectorNode := context.tileResetVectorNode
-    context.locateTLBusWrapper(crossingParams.controlBaseAddressPrefixWhere).prefixNode.foreach {
+    context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere).prefixNode.foreach {
       tile.mmioAddressPrefixNode := _
     }
   }
