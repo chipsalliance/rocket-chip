@@ -92,6 +92,10 @@ case object BundleBridgeSource {
 case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
 case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
 
+object BundleBridgeNameNode {
+  def apply[T <: Data](name: String) = BundleBridgeIdentityNode[T]()(ValName(name))
+}
+
 case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None,
                                             inputRequiresOutput: Boolean = false) // when false, connecting a source does not mandate connecting a sink
                                            (implicit valName: ValName)
@@ -164,9 +168,9 @@ object BundleBridgeNexus {
     outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
     default: Option[() => T] = None,
     inputRequiresOutput: Boolean = false
-  )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
-    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput))
-    broadcast.node
+  )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
+    val nexus = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput))
+    nexus.node
   }
 }
 
@@ -176,13 +180,13 @@ object BundleBroadcast {
     registered: Boolean = false,
     default: Option[() => T] = None,
     inputRequiresOutput: Boolean = false // when false, connecting a source does not mandate connecting a sink
-  )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
-    val finalName = name.map(ValName(_)).getOrElse(valName)
-    BundleBridgeNexus.apply[T](
+  )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
+    val broadcast = LazyModule(new BundleBridgeNexus[T](
       inputFn = BundleBridgeNexus.requireOne[T](registered) _,
       outputFn = BundleBridgeNexus.fillN[T](registered) _,
       default = default,
-      inputRequiresOutput = inputRequiresOutput)(
-      p, finalName)
+      inputRequiresOutput = inputRequiresOutput))
+    name.foreach(broadcast.suggestName(_))
+    broadcast.node
   }
 }
