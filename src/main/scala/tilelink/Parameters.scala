@@ -54,6 +54,19 @@ case class TLMasterToSlaveTransferSizes(
       str(hint,       "H"))
     flags.mkString
   }
+  // Prints out the actual information in a user readable way
+  def infoString = {
+    s"""acquireT = ${acquireT}
+       |acquireB = ${acquireB}
+       |arithmetic = ${arithmetic}
+       |logical = ${logical}
+       |get = ${get}
+       |putFull = ${putFull}
+       |putPartial = ${putPartial}
+       |hint = ${hint}
+       |
+       |""".stripMargin
+  }
 }
 
 object TLMasterToSlaveTransferSizes {
@@ -109,6 +122,18 @@ case class TLSlaveToMasterTransferSizes(
       str(putPartial, "P"),
       str(hint,       "H"))
     flags.mkString
+  }
+  // Prints out the actual information in a user readable way
+  def infoString = {
+    s"""probe = ${probe}
+       |arithmetic = ${arithmetic}
+       |logical = ${logical}
+       |get = ${get}
+       |putFull = ${putFull}
+       |putPartial = ${putPartial}
+       |hint = ${hint}
+       |
+       |""".stripMargin
   }
 }
 
@@ -231,14 +256,7 @@ class TLSlaveParameters private(
   def infoString = {
     s"""Slave Name = ${name}
        |Slave Address = ${address}
-       |supportsAcquireT = ${supportsAcquireT}
-       |supportsAcquireB = ${supportsAcquireB}
-       |supportsArithmetic = ${supportsArithmetic}
-       |supportsLogical = ${supportsLogical}
-       |supportsGet = ${supportsGet}
-       |supportsPutFull = ${supportsPutFull}
-       |supportsPutPartial = ${supportsPutPartial}
-       |supportsHint = ${supportsHint}
+       |supports = ${supports.infoString}
        |
        |""".stripMargin
   }
@@ -585,38 +603,38 @@ class TLSlavePortParameters private(
     }.foldLeft(Bool(false))(_||_)
   }
 
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of managerPort.supportsAcquireTSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of manager.supportsAcquireTSafe","")
   def supportsAcquireTSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireT,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of managerPort.supportsAcquireBSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of manager.supportsAcquireBSafe","")
   def supportsAcquireBSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireB,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of managerPort.supportsArithmeticSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of manager.supportsArithmeticSafe","")
   def supportsArithmeticSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.arithmetic,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of managerPort.supportsLogicalSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of manager.supportsLogicalSafe","")
   def supportsLogicalSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.logical,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of managerPort.supportsGetSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of manager.supportsGetSafe","")
   def supportsGetSafe        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.get,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of managerPort.supportsPutFullSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of manager.supportsPutFullSafe","")
   def supportsPutFullSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putFull,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of managerPort.supportsPutPartialSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of manager.supportsPutPartialSafe","")
   def supportsPutPartialSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putPartial,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of managerPort.supportsHintSafe","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of manager.supportsHintSafe","")
   def supportsHintSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.hint,   address, lgSize, range)
 
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of managerPort.supportsAcquireTFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of manager.supportsAcquireTFast","")
   def supportsAcquireTFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireT,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of managerPort.supportsAcquireBFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of manager.supportsAcquireBFast","")
   def supportsAcquireBFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireB,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of managerPort.supportsArithmeticFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of manager.supportsArithmeticFast","")
   def supportsArithmeticFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.arithmetic,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of managerPort.supportsLogicalFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of manager.supportsLogicalFast","")
   def supportsLogicalFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.logical,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of managerPort.supportsGetFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of manager.supportsGetFast","")
   def supportsGetFast        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.get,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of managerPort.supportsPutFullFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of manager.supportsPutFullFast","")
   def supportsPutFullFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putFull,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of managerPort.supportsPutPartialFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of manager.supportsPutPartialFast","")
   def supportsPutPartialFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putPartial,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of managerPort.supportsHintFast","")
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of manager.supportsHintFast","")
   def supportsHintFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.hint,   address, lgSize, range)
 
   // Check for support of a given operation at a specific address
@@ -788,6 +806,8 @@ class TLMasterParameters private(
   def infoString = {
     s"""Master Name = ${name}
        |visibility = ${visibility}
+       |emits = ${emits.infoString}
+       |sourceId = ${sourceId}
        |
        |""".stripMargin
   }
@@ -1221,7 +1241,7 @@ case class TLEdgeParameters(
   def expectsVipCheckerMasterToSlaveArithmetic (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsArithmetic    (sourceId, lgSize) && slave.expectsVipCheckerSupportsArithmetic (address, lgSize, range)
   def expectsVipCheckerMasterToSlaveLogical    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsLogical       (sourceId, lgSize) && slave.expectsVipCheckerSupportsLogical    (address, lgSize, range)
   def expectsVipCheckerMasterToSlaveGet        (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsGet           (sourceId, lgSize) && slave.expectsVipCheckerSupportsGet        (address, lgSize, range)
-  def expectsVipCheckerMasterToSlavePutFull    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutFull       (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutPartial (address, lgSize, range)
+  def expectsVipCheckerMasterToSlavePutFull    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutFull       (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutFull    (address, lgSize, range)
   def expectsVipCheckerMasterToSlavePutPartial (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutPartial    (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutPartial (address, lgSize, range)
   def expectsVipCheckerMasterToSlaveHint       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsHint          (sourceId, lgSize) && slave.expectsVipCheckerSupportsHint       (address, lgSize, range)
 
