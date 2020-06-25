@@ -40,24 +40,7 @@ jobs:
 
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            autotools-dev \
-            bison \
-            build-essential \
-            device-tree-compiler \
-            flex \
-            g++-4.8 \
-            gawk \
-            gcc-4.8 \
-            gperf \
-            libgmp-dev \
-            libmpc-dev \
-            libmpfr-dev \
-            libusb-1.0-0-dev \
-            texinfo
+        run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
 
       - if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -82,7 +65,7 @@ jobs:
       # some C struct not being ABI-compatible across gcc 4 and 5, which we have
       # not debugged yet.
       - name: Install Dependencies
-        run: sudo apt-get install -y autoconf bison flex g++-4.8 gcc-4.8
+        run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
 
       - env:
           CXX: g++-4.8
@@ -143,10 +126,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get install -y \
-            device-tree-compiler \
-            g++-4.8 \
-            gcc-4.8
+          sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
           python3 -m pip install pexpect==4.3.1
 
       - env:
