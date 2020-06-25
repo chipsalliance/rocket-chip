@@ -136,6 +136,9 @@ class FPUDecoder(implicit p: Parameters) extends FPUModule()(p) {
 }
 
 class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
+  val hartid = Input(UInt(hartIdLen.W))
+  val time = Input(UInt(xLen.W))
+
   val inst = Bits(INPUT, 32)
   val fromint_data = Bits(INPUT, xLen)
 
@@ -576,7 +579,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
 
 class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
 {
-    require(latency<=2) 
+    require(latency<=2)
 
     val io = new Bundle {
         val validin = Bool(INPUT)
@@ -610,7 +613,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     val valid_stage0 = Wire(Bool())
     val roundingMode_stage0 = Wire(UInt(width=3))
     val detectTininess_stage0 = Wire(UInt(width=1))
-  
+
     val postmul_regs = if(latency>0) 1 else 0
     mulAddRecFNToRaw_postMul.io.fromPreMul   := Pipe(io.validin, mulAddRecFNToRaw_preMul.io.toPostMul, postmul_regs).bits
     mulAddRecFNToRaw_postMul.io.mulAddResult := Pipe(io.validin, mulAddResult, postmul_regs).bits
@@ -618,7 +621,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     roundingMode_stage0                      := Pipe(io.validin, io.roundingMode, postmul_regs).bits
     detectTininess_stage0                    := Pipe(io.validin, io.detectTininess, postmul_regs).bits
     valid_stage0                             := Pipe(io.validin, false.B, postmul_regs).valid
-    
+
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
 
@@ -737,6 +740,27 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     if (enableCommitLog)
       printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
   }
+
+  // CoreMonitorBundle to monitor fp register file writes
+  val frfWriteBundle = Wire(new CoreMonitorBundle(xLen))
+
+  frfWriteBundle.clock := clock
+  frfWriteBundle.reset := reset
+  frfWriteBundle.hartid := io.hartid
+  frfWriteBundle.timer := io.time(31,0)
+  frfWriteBundle.valid := false.B
+  frfWriteBundle.pc := 0.U
+  frfWriteBundle.wrdst := Mux(load_wb, load_wb_tag, waddr)
+  frfWriteBundle.wrenx := false.B
+  frfWriteBundle.wrenf := (!wbInfo(0).cp && wen(0)) || divSqrt_wen || load_wb
+  frfWriteBundle.wrdata := Mux(load_wb, load_wb_data, ieee(wdata))
+  frfWriteBundle.rd0src := 0.U
+  frfWriteBundle.rd0val := 0.U
+  frfWriteBundle.rd1src := 0.U
+  frfWriteBundle.rd1val := 0.U
+  frfWriteBundle.inst := 0.U
+  frfWriteBundle.excpt := false.B
+  frfWriteBundle.priv_mode := 0.U
 
   val ex_rs = ex_ra.map(a => regfile(a))
   when (io.valid) {
