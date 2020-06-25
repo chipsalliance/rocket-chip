@@ -13,7 +13,7 @@ space := $() $()
 splitConfigs := $(subst $(comma), ,$(CONFIG))
 configBases := $(foreach config,$(splitConfigs),$(lastword $(subst ., ,$(config))))
 CONFIG_STR := $(subst $(space),_,$(configBases))
-long_name = $(PROJECT).$(CONFIG_STR)
+long_name ?= $(PROJECT).$(CONFIG_STR)
 
 VLSI_MEM_GEN ?= $(base_dir)/scripts/vlsi_mem_gen
 
@@ -39,14 +39,20 @@ ROCKET_CLASS_DIRS ?= \
 
 ROCKET_CLASSES ?= $(subst $(SPACE),:,$(ROCKET_CLASS_DIRS))
 FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
+FIRRTL_TEST_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl-test.jar
 FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp "$(FIRRTL_JAR)":"$(ROCKET_CLASSES)" firrtl.Driver
 
 # Build firrtl.jar and put it where chisel3 can find it.
 $(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
 	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
+	cd $(base_dir)/firrtl && $(SBT) "Test / assembly"
 	touch $(FIRRTL_JAR)
 	mkdir -p $(base_dir)/lib
 	cp -p $(FIRRTL_JAR) $(base_dir)/lib
+
+	mkdir -p $(base_dir)/test_lib
+	cp -p $(FIRRTL_JAR) $(base_dir)/test_lib
+	cp -p $(FIRRTL_TEST_JAR) $(base_dir)/test_lib
 # When chisel3 pr 448 is merged, the following extraneous copy may be removed.
 	mkdir -p $(base_dir)/chisel3/lib
 	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib

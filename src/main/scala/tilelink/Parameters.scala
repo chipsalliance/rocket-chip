@@ -1337,23 +1337,19 @@ case class TLBufferParams(
 }
 
 /** Pretty printing of TL source id maps */
-class TLSourceIdMap(tl: TLMasterPortParameters) {
+class TLSourceIdMap(tl: TLMasterPortParameters) extends IdMap[TLSourceIdMapEntry] {
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
-  private val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.masters.sortWith(TLToAXI4.sortByType)
+  protected val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
+  private val sorted = tl.masters.sortBy(_.sourceId)
 
   val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
     TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
   }
-
-  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }
 
-case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean) {
-  def pretty(fmt: String): String = fmt.format(
-    tlId.start,
-    tlId.end,
-    s""""$name"""",
-    if (isCache) " [CACHE]" else "",
-    if (requestFifo) " [FIFO]" else "")
+case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, requestFifo: Boolean)
+  extends IdMapEntry
+{
+  val from = tlId
+  val to = tlId
 }

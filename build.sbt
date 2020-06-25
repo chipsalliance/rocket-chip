@@ -86,7 +86,8 @@ lazy val rocketchip = dependOnChisel(project in file("."))
       mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
       mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
-      exportJars := true
+      exportJars := true,
+      Test / unmanagedBase := baseDirectory.value / "test_lib"
   )
 
 

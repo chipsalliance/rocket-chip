@@ -131,14 +131,21 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
 
       out.d.ready  := d_recv // backpressure AccessAckData arriving faster than AHB beats
 
-      // NOTE: on failure, we present the read result on the hreadyout LOW cycle
-      // This means that if you latch hrdata from a failure, the result is garbage.
-      // To fix this would require a bus-wide register, and the AHB spec says this:
-      // "A slave only has to provide valid data when a transfer completes with an OKAY
-      //  response. ERROR responses do not require valid read data."
-      // Therefore, we choose to accept this slight TL-AHB infidelity.
-      in.hrdata := out.d.bits.data
+      // AHB failed reads take two cycles.
+      // We must accept the D-channel beat on the first cycle, as otherwise
+      // the failure might be legally retracted on the second cycle.
+      // Although the AHB spec says:
+      //   "A slave only has to provide valid data when a transfer completes with
+      //    an OKAY response. ERROR responses do not require valid read data."
+      // We choose, nevertheless, to provide the read data for the failed request.
+      // Unfortunately, this comes at the cost of a bus-wide register.
+      in.hrdata := out.d.bits.data holdUnless d_recv
       in.hduser :<= out.d.bits.user
+
+      // Double-check that the above register has the intended effect since
+      // this is an additional requirement not tested by third-party VIP.
+      // hresp(0) && !hreadyout => next cycle has same hrdata value
+      assert (!RegNext(in.hresp(0) && !in.hreadyout, false.B) || RegNext(in.hrdata) === in.hrdata)
 
       // In a perfect world, we'd use these signals
       val hresp = d_fail || (out.d.valid && (out.d.bits.denied || out.d.bits.corrupt))

@@ -58,7 +58,7 @@ class TLRAM(
     val lanes = beatBytes/eccBytes
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
     val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
-      size = 1 << addrBits.size,
+      size = BigInt(1) << addrBits.size,
       lanes = lanes,
       bits = width)
 

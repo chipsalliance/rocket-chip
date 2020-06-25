@@ -100,7 +100,8 @@ class RocketLogicalTreeNode(
       icache = Some(omICache),
       busErrorUnit = omBusError,
       hasClockGate = coreParams.clockGate,
-      hasSCIE = coreParams.useSCIE
+      hasSCIE = coreParams.useSCIE,
+      vmPresent = coreParams.useVM
     ))
   }
 }

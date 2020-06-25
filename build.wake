@@ -1,4 +1,6 @@
 
+global def rocketChipRoot = here
+
 global def hardfloatScalaModule =
   makeScalaModuleFromJSON here "hardfloat"
   | setScalaModuleRootDir "hardfloat"
@@ -7,7 +9,7 @@ global def hardfloatScalaModule =
 
 global def rocketchipMacros =
   makeScalaModuleFromJSON here "rocketchipMacros"
-  | setScalaModuleRootDir "rocket-chip/macros"
+  | setScalaModuleRootDir "{rocketChipRoot}/macros"
   | addMacrosParadiseCompilerPlugin
 
 global def rocketchipScalaModule =
@@ -18,13 +20,13 @@ global def rocketchipScalaModule =
     apiConfigChipsallianceScalaModule,
     Nil
   makeScalaModuleFromJSON here "rocketchip"
-  | setScalaModuleRootDir "rocket-chip"
+  | setScalaModuleRootDir rocketChipRoot
   | setScalaModuleDeps deps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
   | addMacrosParadiseCompilerPlugin
 
-def vlsi_mem_gen = source "rocket-chip/scripts/vlsi_mem_gen"
-def vlsi_rom_gen = source "rocket-chip/scripts/vlsi_rom_gen"
+def vlsi_mem_gen = source "{rocketChipRoot}/scripts/vlsi_mem_gen"
+def vlsi_rom_gen = source "{rocketChipRoot}/scripts/vlsi_rom_gen"
 
 tuple VLSIRomGenOptions =
   global ConfFile:   Path
@@ -108,7 +110,7 @@ def getClassName fullClassName = fullClassName | tokenize `\.` | reverse | head 
 
 global def runRocketChipGenerator options =
   def jars = options.getRocketChipGeneratorOptionsJars
-  def runDir = "rocket-chip"
+  def runDir = rocketChipRoot
   def targetDir = options.getRocketChipGeneratorOptionsTargetDir
 
   def cmdline =
@@ -121,19 +123,20 @@ global def runRocketChipGenerator options =
     def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
       Some name = "--name", name, Nil
       None = Nil
-    which "java", "-cp", classpath, main,
+    "java", "-cp", classpath, main,
     "--target-dir", relTargetDir,
     "--top-module", topModule,
     "--configs", configs,
     baseFileName
 
   def inputs =
-    def bootrom = source 'rocket-chip/bootrom/bootrom.img'
+    def bootrom = source '{rocketChipRoot}/bootrom/bootrom.img'
     def extras = options.getRocketChipGeneratorOptionsExtraSources
     (bootrom, targetDir, extras) ++ jars
 
   def generatorJob =
     makePlan cmdline inputs
+    | setPlanResources ("openjdk/java/1.8.0", Nil)
     | setPlanDirectory runDir
     | runJob
 
