@@ -579,7 +579,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
 
 class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
 {
-    require(latency<=2)
+    require(latency<=2) 
 
     val io = new Bundle {
         val validin = Bool(INPUT)
@@ -613,7 +613,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     val valid_stage0 = Wire(Bool())
     val roundingMode_stage0 = Wire(UInt(width=3))
     val detectTininess_stage0 = Wire(UInt(width=1))
-
+  
     val postmul_regs = if(latency>0) 1 else 0
     mulAddRecFNToRaw_postMul.io.fromPreMul   := Pipe(io.validin, mulAddRecFNToRaw_preMul.io.toPostMul, postmul_regs).bits
     mulAddRecFNToRaw_postMul.io.mulAddResult := Pipe(io.validin, mulAddResult, postmul_regs).bits
@@ -621,7 +621,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     roundingMode_stage0                      := Pipe(io.validin, io.roundingMode, postmul_regs).bits
     detectTininess_stage0                    := Pipe(io.validin, io.detectTininess, postmul_regs).bits
     valid_stage0                             := Pipe(io.validin, false.B, postmul_regs).valid
-
+    
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
 
