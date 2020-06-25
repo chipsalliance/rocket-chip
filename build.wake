@@ -130,7 +130,7 @@ global def runRocketChipGenerator options =
     baseFileName
 
   def inputs =
-    def bootrom = source '{rocketChipRoot}/bootrom/bootrom.img'
+    def bootrom = source "{rocketChipRoot}/bootrom/bootrom.img"
     def extras = options.getRocketChipGeneratorOptionsExtraSources
     (bootrom, targetDir, extras) ++ jars
 
