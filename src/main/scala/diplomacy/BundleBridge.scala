@@ -57,6 +57,12 @@ case class BundleBridgeSink[T <: Data](genOpt: Option[() => T] = None)
   def makeIO(name: String): T = makeIO()(ValName(name))
 }
 
+object BundleBridgeSink {
+  def apply[T <: Data]()(implicit valName: ValName): BundleBridgeSink[T] = {
+    BundleBridgeSink(None)
+  }
+}
+
 case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt)))
 {
   def bundle: T = out(0)._1
@@ -83,7 +89,10 @@ case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implici
   }
 }
 
-case object BundleBridgeSource {
+object BundleBridgeSource {
+  def apply[T <: Data]()(implicit valName: ValName): BundleBridgeSource[T] = {
+    BundleBridgeSource(None)
+  }
   def apply[T <: Data](gen: () => T)(implicit valName: ValName): BundleBridgeSource[T] = {
     BundleBridgeSource(Some(gen))
   }
