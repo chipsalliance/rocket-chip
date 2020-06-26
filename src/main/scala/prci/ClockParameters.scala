@@ -7,6 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
 import freechips.rocketchip.util.{HeterogeneousBag}
 import scala.math.max
+import scala.collection.immutable.ListMap
 
 // All Clock parameters specify only the PLL values required at power-on
 // Dynamic control of the PLL from software can take the values out-of-range
@@ -62,7 +63,7 @@ case class ClockGroupSinkParameters(
   members: Seq[ClockSinkParameters])
 
 case class ClockGroupBundleParameters(
-  members: Seq[ClockBundleParameters])
+  members: ListMap[String, ClockBundleParameters])
 
 case class ClockGroupEdgeParameters(
   source:     ClockGroupSourceParameters,
@@ -71,11 +72,12 @@ case class ClockGroupEdgeParameters(
   sourceInfo: SourceInfo)
 {
   val sourceParameters = ClockSourceParameters()
-  val members = sink.members.map { s =>
-    ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
-  }
+  val members: ListMap[String, ClockEdgeParameters] = ListMap(
+    sink.members.zipWithIndex.map { case (s, i) =>
+      s"${sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+  }:_*)
 
-  val bundle = ClockGroupBundleParameters(members.map(_.bundle))
+  val bundle = ClockGroupBundleParameters(members.map{ case (k, v) => k -> v.bundle})
 }
 
 // Used to create simple clock group drivers that just use the Chisel implicit clock
