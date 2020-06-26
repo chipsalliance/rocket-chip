@@ -34,5 +34,5 @@ echo "Compile Scala"
 
 export WAKE_PATH=$PATH
 wake --init .
-wake --no-tty -j1 -dv 'compileScalaModule rocketchipScalaModule | getPathResult'
+wake --no-tty -p1 -dv 'compileScalaModule rocketchipScalaModule | getPathResult'
 cd ..
