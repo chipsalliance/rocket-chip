@@ -3,8 +3,8 @@ set -ex
 
 echo "Installing Wake"
 
-wget https://github.com/sifive/wake/releases/download/v0.15.1/ubuntu-16.04-wake_0.15.1-1_amd64.deb
-sudo dpkg -i ubuntu-16.04-wake_0.15.1-1_amd64.deb
+wget https://github.com/sifive/wake/releases/download/v0.17.2/ubuntu-16-04-wake_0.17.2-1_amd64.deb
+sudo dpkg -i ubuntu-16-04-wake_0.17.2-1_amd64.deb
 
 
 echo "Installing Protobuf"
