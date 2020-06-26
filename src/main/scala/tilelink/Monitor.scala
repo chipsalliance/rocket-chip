@@ -602,48 +602,47 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
   }
 
   def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
-    val a_size_bus_size   = edge.bundle.sizeBits + 1 // add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
-    val a_opcode_bus_size = 3 + 1                    // opcode size is 3, but add so that 0 is not mapped to anything
-
+    val a_size_bus_size       = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
+    val a_opcode_bus_size     = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
     val log_a_size_bus_size   = log2Ceil(a_size_bus_size)
-
     def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
 
-    val inflight         = RegInit(0.U(edge.client.endSourceId.W))
-    val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
-    val inflight_sizes   = RegInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
+    val inflight = RegInit(0.U(edge.client.endSourceId.W))
     inflight.suggestName("inflight")
+    val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     inflight_opcodes.suggestName("inflight_opcodes")
+    val inflight_sizes = RegInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     inflight_sizes.suggestName("inflight_sizes")
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
-    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
     a_first.suggestName("a_first")
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
     d_first.suggestName("d_first")
 
     val a_set          = WireInit(0.U(edge.client.endSourceId.W))
     val a_set_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
-    val a_opcodes_set  = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
-    val a_sizes_set    = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     a_set.suggestName("a_set")
     a_set_wo_ready.suggestName("a_set_wo_ready")
+    val a_opcodes_set = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     a_opcodes_set.suggestName("a_opcodes_set")
+    val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     a_sizes_set.suggestName("a_sizes_set")
 
     val a_opcode_lookup = WireInit(0.U((1 << log_a_opcode_bus_size).W))
-    val a_size_lookup   = WireInit(0.U((1 << log_a_size_bus_size).W))
-    a_opcode_lookup := ((inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)) >> 1.U
-    a_size_lookup   := ((inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)) >> 1.U
     a_opcode_lookup.suggestName("a_opcode_lookup")
+    a_opcode_lookup := ((inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)) >> 1.U
+
+    val a_size_lookup = WireInit(0.U((1 << log_a_size_bus_size).W))
     a_size_lookup.suggestName("a_size_lookup")
+    a_size_lookup := ((inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)) >> 1.U
 
     val responseMap             = VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant))
     val responseMapSecondOption = VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant))
 
     val a_opcodes_set_interm = WireInit(0.U(a_opcode_bus_size.W))
-    val a_sizes_set_interm   = WireInit(0.U(a_size_bus_size.W))
     a_opcodes_set_interm.suggestName("a_opcodes_set_interm")
+    val a_sizes_set_interm = WireInit(0.U(a_size_bus_size.W))
     a_sizes_set_interm.suggestName("a_sizes_set_interm")
 
     when (bundle.a.valid && a_first && edge.isRequest(bundle.a.bits)) {
@@ -661,11 +660,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     val d_clr          = WireInit(0.U(edge.client.endSourceId.W))
     val d_clr_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
-    val d_opcodes_clr  = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
-    val d_sizes_clr    = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     d_clr.suggestName("d_clr")
     d_clr_wo_ready.suggestName("d_clr_wo_ready")
+    val d_opcodes_clr = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     d_opcodes_clr.suggestName("d_opcodes_clr")
+    val d_sizes_clr = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     d_sizes_clr.suggestName("d_sizes_clr")
 
     val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
@@ -678,7 +677,6 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       d_opcodes_clr := size_to_numfullbits(1.U << log_a_opcode_bus_size.U) << (bundle.d.bits.source << log_a_opcode_bus_size.U)
       d_sizes_clr   := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
     }
-
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
       val same_cycle_resp = bundle.a.valid && a_first && edge.isRequest(bundle.a.bits) && (bundle.a.bits.source === bundle.d.bits.source)
       assume(((inflight)(bundle.d.bits.source)) || same_cycle_resp, "'D' channel acknowledged for nothing inflight" + extra)
@@ -693,20 +691,17 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
         assume((bundle.d.bits.size === a_size_lookup), "'D' channel contains improper response size" + extra)
       }
     }
-
     when(bundle.d.valid && d_first && a_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
       assume((!bundle.d.ready) || bundle.a.ready, "ready check")
     }
 
     if (edge.manager.minLatency > 0) {
-      when (a_set_wo_ready.orR) {
-        assume(a_set_wo_ready =/= d_clr_wo_ready, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
-      }
+      assume(a_set_wo_ready =/= d_clr_wo_ready || !a_set_wo_ready.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
-    inflight         := (inflight | a_set) & ~d_clr
+    inflight := (inflight | a_set) & ~d_clr
     inflight_opcodes := (inflight_opcodes | a_opcodes_set) & ~d_opcodes_clr
-    inflight_sizes   := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
+    inflight_sizes := (inflight_sizes | a_sizes_set) & ~d_sizes_clr
 
     val watchdog = RegInit(0.U(32.W))
     val limit = PlusArg("tilelink_timeout",
@@ -714,7 +709,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     monAssert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
 
     watchdog := watchdog + 1.U
-    when (bundle.a.fire() || bundle.d.fire()) {watchdog := 0.U}
+    when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
   def legalizeCDSource(bundle: TLBundle, edge: TLEdge) {
