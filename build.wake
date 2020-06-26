@@ -1,5 +1,6 @@
 
 global def rocketChipRoot = here
+publish ivyDepLocations = rocketChipRoot, Nil
 
 global def hardfloatScalaModule =
   makeScalaModuleFromJSON here "hardfloat"

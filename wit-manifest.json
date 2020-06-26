@@ -28,5 +28,10 @@
         "commit": "d619ca850846d2ec36da64bf8a28e7d9a3d9ed1b",
         "name": "api-config-chipsalliance",
         "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
+    },
+    {
+        "commit": "771f11581b86079bf3411f85ce77495e7444c08e",
+        "name": "api-scala-sifive",
+        "source": "git@github.com:sifive/api-scala-sifive.git"
     }
 ]
