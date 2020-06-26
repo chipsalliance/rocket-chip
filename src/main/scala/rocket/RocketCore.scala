@@ -943,7 +943,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   xrfWriteBundle.valid := false.B
   xrfWriteBundle.pc := 0.U
   xrfWriteBundle.wrdst := rf_waddr
-  xrfWriteBundle.wrenx := rf_wen && !(coreMonitorBundle.wrenx && (rf_waddr === coreMonitorBundle.wrdst))
+  xrfWriteBundle.wrenx := rf_wen && !(csr.io.trace(0).valid && wb_wen && (wb_waddr === coreMonitorBundle.wrdst))
   xrfWriteBundle.wrenf := false.B
   xrfWriteBundle.wrdata := rf_wdata
   xrfWriteBundle.rd0src := 0.U
