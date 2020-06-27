@@ -239,7 +239,6 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   protected def traceRetireWidth = tileParams.core.retireWidth
   protected def traceCoreParams = new TraceCoreParams()
   protected def traceCoreSignalName = "tracecore"
-  protected def coreNBreakpoints = tileParams.core.nBreakpoints
   // TODO: Any node marked "consumed by the core" or "driven by the core"
   //       should be moved to either be: a member of a BaseTile subclass,
   //       or actually just a member of the core itself,
@@ -276,7 +275,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     BundleBridgeNameNode(traceCoreSignalName) :*= traceCoreNexusNode := traceCoreSourceNode
 
   /** Node for watchpoints to control trace driven by core. */
-  val bpwatchSourceNode = BundleBridgeSource(() => Vec(coreNBreakpoints, new BPWatch(traceRetireWidth)))
+  val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch(traceRetireWidth)))
   /** Node to broadcast watchpoints to control trace. */
   val bpwatchNexusNode = BundleBroadcast[Vec[BPWatch]]()
   /** Node for external consumers to source watchpoints to control trace. */
@@ -366,6 +365,16 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 
   /** Use for ObjectModel representation of this tile. Subclasses might override this. */
   val logicalTreeNode: LogicalTreeNode = new GenericLogicalTreeNode
+
+  /** Can be used to access derived params calculated by HasCoreParameters
+    *
+    * However, callers must ensure they do not access a diplomatically-determined parameter
+    * before the graph in question has been fully connected.
+    */
+  protected lazy val lazyCoreParamsView: HasCoreParameters = {
+    class C(implicit val p: Parameters) extends HasCoreParameters
+    new C
+  }
 
   this.suggestName(tileParams.name)
 }
