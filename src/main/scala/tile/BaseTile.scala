@@ -191,68 +191,97 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
-  /** Node for driving a hart id input and broadcasting it to units within the tile.
+  /** Node for broadcasting a hart id to diplomatic consumers within the tile. */
+  val hartIdNexusNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds))
+
+  /** Node for consuming the hart id input in tile-layer Chisel logic. */
+  val hartIdSinkNode = BundleBridgeSink[UInt]()
+
+  /** Node for driving a hart id input, which is to be broadcast to units within the tile.
     *
     * Making this id value an IO and then using it to do lookups of information
     * that would make otherwise-homogeneous tiles heterogeneous is a useful trick
     * to enable deduplication of tiles for hierarchical P&R flows.
     */
-  val hartIdNode: BundleBridgeNode[UInt] =
-    BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) := BundleBridgeNameNode[UInt]("hartid")
+  val hartIdNode: BundleBridgeInwardNode[UInt] =
+    hartIdSinkNode := hartIdNexusNode := BundleBridgeNameNode("hartid")
 
-  /** Node for consuming the hart id input in tile-layer logic. */
-  val hartIdSinkNode = BundleBridgeSink[UInt]()
-  hartIdSinkNode := hartIdNode
+  /** Node for broadcasting a reset vector to diplomatic consumers within the tile. */
+  val resetVectorNexusNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt]()
 
-  /** Node for supplying a reset vector that processors in this tile might begin fetching instructions from as they come out of reset. */
-  val resetVectorNode: BundleBridgeNode[UInt] =
-    BundleBroadcast[UInt]() := BundleBridgeNameNode[UInt]("reset_vector")
-
-  /** Node for consuming the reset vector input in tile-layer logic.
+  /** Node for consuming the reset vector input in tile-layer Chisel logic.
     *
     * Its width is sized by looking at the size of the address space visible
     * on the tile's master ports, but this lookup is not evaluated until
     * diplomacy has completed and Chisel elaboration has begun.
     */
   val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
-  resetVectorSinkNode := resetVectorNode
 
-  /** Node for prefixing base addresses of MMIO slaves to which the core has a direct access path.
+  /** Node for supplying a reset vector that processors in this tile might begin fetching instructions from as they come out of reset. */
+  val resetVectorNode: BundleBridgeInwardNode[UInt] =
+    resetVectorSinkNode := resetVectorNexusNode := BundleBridgeNameNode("reset_vector")
+
+  /** Node for broadcasting an address prefix to diplomatic consumers within the tile.
     *
-    * The prefix is applied by or-ing this signal with the static base address that is looked up based on hartid.
+    * The prefix should be applied by consumers by or-ing ouputs of this node
+    * with a static base address (which is looked up based on the driven hartid value).
     */
-  val mmioAddressPrefixNode = BundleBridgeNexus[UInt](
+  val mmioAddressPrefixNexusNode = BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = true) _,
     outputFn = BundleBridgeNexus.fillN[UInt](registered = true) _,
     default = Some(() => 0.U(1.W))
   )
 
-  /** Node for sourcing a legacy instruction trace from core. */
-  val traceSourceNode = BundleBridgeSource(() => Vec(tileParams.core.retireWidth, new TracedInstruction()))
-  val traceNode = BundleBroadcast[Vec[TracedInstruction]](Some("trace"))
-  traceNode := traceSourceNode
+  /** Node for external drivers to prefix base addresses of MMIO devices to which the core has a direct access path. */
+  val mmioAddressPrefixNode: BundleBridgeInwardNode[UInt] =
+    mmioAddressPrefixNexusNode :=* BundleBridgeNameNode("mmio_address_prefix")
 
-  /** Trace sideband signals driven into the core. */
-  val traceAuxNode = BundleBridgeNexus[TraceAux](default = Some(() => {
+  protected def traceRetireWidth = tileParams.core.retireWidth
+  protected def traceCoreParams = new TraceCoreParams()
+  protected def traceCoreSignalName = "tracecore"
+  protected def coreNBreakpoints = tileParams.core.nBreakpoints
+  // TODO: Any node marked "consumed by the core" or "driven by the core"
+  //       should be moved to either be: a member of a BaseTile subclass,
+  //       or actually just a member of the core itself,
+  //       assuming the core itself is diplomatic.
+  //       Then we probably don't need the above parameters exposed here either.
+
+  /** Node for the core to drive legacy "raw" instruction trace. */
+  val traceSourceNode = BundleBridgeSource(() => Vec(traceRetireWidth, new TracedInstruction()))
+  /** Node to broadcast legacy "raw" instruction trace. */
+  val traceNexusNode = BundleBroadcast[Vec[TracedInstruction]]()
+  /** Node for external consumers to source a legacy instruction trace from the core. */
+  val traceNode: BundleBridgeOutwardNode[Vec[TracedInstruction]] =
+    BundleBridgeNameNode("trace") :*= traceNexusNode := traceSourceNode
+
+  /** Node to broadcast collected trace sideband signals into the tile. */
+  val traceAuxNexusNode = BundleBridgeNexus[TraceAux](default = Some(() => {
     val aux = Wire(new TraceAux)
     aux.stall  := false.B
     aux.enable := false.B
     aux
   }))
+  /** Trace sideband signals to be consumed by the core. */
   val traceAuxSinkNode = BundleBridgeSink[TraceAux]()
-  traceAuxSinkNode := traceAuxNode
+  /** Trace sideband signals collected here to be driven into the tile. */
+  val traceAuxNode: BundleBridgeInwardNode[TraceAux] =
+    traceAuxSinkNode := traceAuxNexusNode :=* BundleBridgeNameNode("trace_aux")
 
-  /** Node for instruction trace conforming to RISC-V Processor Trace spec V1.0 */
-  val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(new TraceCoreParams()))
-  val traceCoreBroadcastNode = BundleBroadcast[TraceCoreInterface](Some("tracecore"))
-  traceCoreBroadcastNode := traceCoreSourceNode
-  def traceCoreNode: BundleBridgeNexusNode[TraceCoreInterface] = traceCoreBroadcastNode
+  /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */
+  val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
+  /** Node to broadcast V1.0 instruction trace to external consumers. */
+  val traceCoreNexusNode = BundleBroadcast[TraceCoreInterface]()
+  /** Node for external consumers to source  a V1.0 instruction trace from the core. */
+  def traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface] =
+    BundleBridgeNameNode(traceCoreSignalName) :*= traceCoreNexusNode := traceCoreSourceNode
 
-  /** Node for watchpoints to control trace */
-  def getBpwatchParams: (Int, Int) = { (tileParams.core.nBreakpoints, tileParams.core.retireWidth) }
-  val bpwatchSourceNode = BundleBridgeSource(() => Vec(getBpwatchParams._1, new BPWatch(getBpwatchParams._2)))
-  val bpwatchNode = BundleBroadcast[Vec[BPWatch]](Some("bpwatch"))
-  bpwatchNode := bpwatchSourceNode
+  /** Node for watchpoints to control trace driven by core. */
+  val bpwatchSourceNode = BundleBridgeSource(() => Vec(coreNBreakpoints, new BPWatch(traceRetireWidth)))
+  /** Node to broadcast watchpoints to control trace. */
+  val bpwatchNexusNode = BundleBroadcast[Vec[BPWatch]]()
+  /** Node for external consumers to source watchpoints to control trace. */
+  val bpwatchNode: BundleBridgeOutwardNode[Vec[BPWatch]] =
+    BundleBridgeNameNode("bpwatch") :*= bpwatchNexusNode := bpwatchSourceNode
 
   /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
   def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {

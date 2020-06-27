@@ -256,8 +256,8 @@ trait HasHellaCache { this: BaseTile =>
   lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
   tlMasterXbar.node := dcache.node
-  dcache.hartIdSinkNodeOpt.map { _ := hartIdNode }
-  dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNode }
+  dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
+  dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
 }
 
 trait HasHellaCacheModule {
