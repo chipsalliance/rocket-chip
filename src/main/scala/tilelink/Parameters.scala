@@ -719,7 +719,7 @@ class TLSlavePortParameters private(
   def infoString = "Slave Port Beatbytes = " + beatBytes + "\n" + "Slave Port MinLatency = " + minLatency + "\n\n" + slaves.map(_.infoString).mkString
 
   def v1copy(
-    slaves:   Seq[TLSlaveParameters] = slaves,
+    managers:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
@@ -727,7 +727,7 @@ class TLSlavePortParameters private(
     requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     new TLSlavePortParameters(
-      slaves       = slaves,
+      slaves       = managers,
       channelBytes = if (beatBytes != -1) TLChannelBeatBytes(beatBytes) else channelBytes,
       endSinkId    = endSinkId,
       minLatency   = minLatency,
@@ -737,7 +737,7 @@ class TLSlavePortParameters private(
 
   @deprecated("Use v1copy instead of copy","")
   def copy(
-    slaves:   Seq[TLSlaveParameters] = slaves,
+    managers:   Seq[TLSlaveParameters] = slaves,
     beatBytes:  Int = -1,
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
@@ -745,7 +745,7 @@ class TLSlavePortParameters private(
     requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
   {
     v1copy(
-      slaves,
+      managers,
       beatBytes,
       endSinkId,
       minLatency,
@@ -756,7 +756,7 @@ class TLSlavePortParameters private(
 
 object TLSlavePortParameters {
   def v1(
-    slaves:   Seq[TLSlaveParameters],
+    managers:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
     minLatency: Int = 0,
@@ -764,7 +764,7 @@ object TLSlavePortParameters {
     requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     new TLSlavePortParameters(
-      slaves       = slaves,
+      slaves       = managers,
       channelBytes = TLChannelBeatBytes(beatBytes),
       endSinkId    = endSinkId,
       minLatency   = minLatency,
@@ -777,7 +777,7 @@ object TLSlavePortParameters {
 object TLManagerPortParameters {
   @deprecated("Use TLSlavePortParameters.v1 instead of TLManagerPortParameters","")
   def apply(
-    slaves:   Seq[TLSlaveParameters],
+    managers:   Seq[TLSlaveParameters],
     beatBytes:  Int,
     endSinkId:  Int = 0,
     minLatency: Int = 0,
@@ -785,7 +785,7 @@ object TLManagerPortParameters {
     requestKeys:    Seq[BundleKeyBase]   = Nil) =
   {
     TLSlavePortParameters.v1(
-      slaves,
+      managers,
       beatBytes,
       endSinkId,
       minLatency,
@@ -1235,7 +1235,7 @@ object TLClientPortParameters {
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     TLMasterPortParameters.v1(
-      masters,
+      clients,
       minLatency,
       echoFields,
       requestFields,
@@ -1252,7 +1252,7 @@ object TLMasterPortParameters {
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     new TLMasterPortParameters(
-      masters       = masters,
+      masters       = clients,
       channelBytes  = TLChannelBeatBytes(),
       minLatency    = minLatency,
       echoFields    = echoFields,
