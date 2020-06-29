@@ -1381,8 +1381,8 @@ case class TLAsyncClientPortParameters(base: TLMasterPortParameters) {def infoSt
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLAsyncBundleParameters(client.async, TLBundleParameters(client.base, manager.base))
-  def formatEdge = master.infoString + "\n" + manager.infoString
+  val bundle = TLAsyncBundleParameters(manager.async, TLBundleParameters(client.base, manager.base))
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
 case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLSlavePortParameters) {def infoString = base.infoString}
