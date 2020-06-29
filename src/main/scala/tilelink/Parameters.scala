@@ -10,6 +10,7 @@ import freechips.rocketchip.util._
 import scala.math.max
 import scala.reflect.ClassTag
 
+//These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel
 case class TLMasterToSlaveTransferSizes(
   // Supports both Acquire+Release of the following two sizes:
   acquireT:   TransferSizes = TransferSizes.none,
@@ -53,6 +54,19 @@ case class TLMasterToSlaveTransferSizes(
       str(hint,       "H"))
     flags.mkString
   }
+  // Prints out the actual information in a user readable way
+  def infoString = {
+    s"""acquireT = ${acquireT}
+       |acquireB = ${acquireB}
+       |arithmetic = ${arithmetic}
+       |logical = ${logical}
+       |get = ${get}
+       |putFull = ${putFull}
+       |putPartial = ${putPartial}
+       |hint = ${hint}
+       |
+       |""".stripMargin
+  }
 }
 
 object TLMasterToSlaveTransferSizes {
@@ -68,6 +82,7 @@ object TLMasterToSlaveTransferSizes {
   def unknownSupports = TLMasterToSlaveTransferSizes()
 }
 
+//These transfer sizes describe requests issued from slaves on the B channel that will be responded by masters on the C channel
 case class TLSlaveToMasterTransferSizes(
   probe:      TransferSizes = TransferSizes.none,
   arithmetic: TransferSizes = TransferSizes.none,
@@ -108,6 +123,18 @@ case class TLSlaveToMasterTransferSizes(
       str(hint,       "H"))
     flags.mkString
   }
+  // Prints out the actual information in a user readable way
+  def infoString = {
+    s"""probe = ${probe}
+       |arithmetic = ${arithmetic}
+       |logical = ${logical}
+       |get = ${get}
+       |putFull = ${putFull}
+       |putPartial = ${putPartial}
+       |hint = ${hint}
+       |
+       |""".stripMargin
+  }
 }
 
 object TLSlaveToMasterTransferSizes {
@@ -144,7 +171,7 @@ class TLSlaveParameters private(
   // By default, slaves are forbidden from issuing 'denied' responses (it prevents Fragmentation)
   val alwaysGrantsT:      Boolean, // typically only true for CacheCork'd read-write devices; dual: neverReleaseData
   // If fifoId=Some, all accesses sent to the same fifoId are executed and ACK'd in FIFO order
-  // Note: you can only rely on this FIFO behaviour if your TLClientParameters include requestFifo
+  // Note: you can only rely on this FIFO behaviour if your TLMasterParameters include requestFifo
   val mayDenyGet:         Boolean, // applies to: AccessAckData, GrantData
   val mayDenyPut:         Boolean) // applies to: AccessAck,     Grant,    HintAck
                                    // ReleaseAck may NEVER be denied
@@ -227,16 +254,9 @@ class TLSlaveParameters private(
   def isTree = findTreeViolation() == None
 
   def infoString = {
-    s"""Manager Name = ${name}
-       |Manager Address = ${address}
-       |supportsAcquireT = ${supportsAcquireT}
-       |supportsAcquireB = ${supportsAcquireB}
-       |supportsArithmetic = ${supportsArithmetic}
-       |supportsLogical = ${supportsLogical}
-       |supportsGet = ${supportsGet}
-       |supportsPutFull = ${supportsPutFull}
-       |supportsPutPartial = ${supportsPutPartial}
-       |supportsHint = ${supportsHint}
+    s"""Slave Name = ${name}
+       |Slave Address = ${address}
+       |supports = ${supports.infoString}
        |
        |""".stripMargin
   }
@@ -451,7 +471,7 @@ class TLSlavePortParameters private(
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
-  require (!managers.isEmpty, "Manager ports must have managers")
+  require (!slaves.isEmpty, "Slave ports must have slaves")
   require (endSinkId >= 0, "Sink ids cannot be negative")
   require (minLatency >= 0, "Minimum required latency cannot be negative")
 
@@ -467,9 +487,9 @@ class TLSlavePortParameters private(
   def managers = slaves
 
   def requireFifo(policy: TLFIFOFixer.Policy = TLFIFOFixer.allFIFO) = {
-    val relevant = managers.filter(m => policy(m))
+    val relevant = slaves.filter(m => policy(m))
     relevant.foreach { m =>
-      require(m.fifoId == relevant.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
+      require(m.fifoId == relevant.head.fifoId, s"${m.name} had fifoId ${m.fifoId}, which was not homogeneous (${slaves.map(s => (s.name, s.fifoId))}) ")
     }
   }
 
@@ -479,7 +499,8 @@ class TLSlavePortParameters private(
   def mayDenyGet  = slaves.exists(_.mayDenyGet)
   def mayDenyPut  = slaves.exists(_.mayDenyPut)
 
-  // Operation sizes supported by all outward Managers
+  // Diplomatically determined operation sizes supported by all outward Slaves
+  // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
   val allSupports = slaves.map(_.supports).reduce( _ intersect _)
   val allSupportAcquireT   = allSupports.acquireT
   val allSupportAcquireB   = allSupports.acquireB
@@ -490,7 +511,7 @@ class TLSlavePortParameters private(
   val allSupportPutPartial = allSupports.putPartial
   val allSupportHint       = allSupports.hint
 
-  // Operation supported by at least one outward Managers
+  // Operation supported by at least one outward Slaves
   val anySupports = slaves.map(_.supports).reduce(_ cover _)
   val anySupportAcquireT   = !anySupports.acquireT.none
   val anySupportAcquireB   = !anySupports.acquireB.none
@@ -504,27 +525,27 @@ class TLSlavePortParameters private(
   // Supporting Acquire means being routable for GrantAck
   require ((endSinkId == 0) == !anySupportAcquireB)
 
-  // These return Option[TLManagerParameters] for your convenience
-  def find(address: BigInt) = managers.find(_.address.exists(_.contains(address)))
+  // These return Option[TLSlaveParameters] for your convenience
+  def find(address: BigInt) = slaves.find(_.address.exists(_.contains(address)))
 
   // The safe version will check the entire address
-  def findSafe(address: UInt) = Vec(managers.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
   // The fast version assumes the address is valid (you probably want fastProperty instead of this function)
   def findFast(address: UInt) = {
-    val routingMask = AddressDecoder(managers.map(_.address))
-    Vec(managers.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+    val routingMask = AddressDecoder(slaves.map(_.address))
+    Vec(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
   }
 
   // Compute the simplest AddressSets that decide a key
-  def fastPropertyGroup[K](p: TLManagerParameters => K): Seq[(K, Seq[AddressSet])] = {
-    val groups = groupByIntoSeq(managers.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
+  def fastPropertyGroup[K](p: TLSlaveParameters => K): Seq[(K, Seq[AddressSet])] = {
+    val groups = groupByIntoSeq(slaves.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
       k -> vs.flatMap(_._2)
     }
     val reductionMask = AddressDecoder(groups.map(_._2))
     groups.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~reductionMask)).distinct) }
   }
   // Select a property
-  def fastProperty[K, D <: Data](address: UInt, p: TLManagerParameters => K, d: K => D): D =
+  def fastProperty[K, D <: Data](address: UInt, p: TLSlaveParameters => K, d: K => D): D =
     Mux1H(fastPropertyGroup(p).map { case (v, a) => (a.map(_.contains(address)).reduce(_||_), d(v)) })
 
   // Note: returns the actual fifoId + 1 or 0 if None
@@ -534,48 +555,110 @@ class TLSlavePortParameters private(
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
 
-  private def supportHelper(
+  private def addressHelper(
+      // setting safe to false indicates that all addresses are expected to be legal, which might reduce circuit complexity
       safe:    Boolean,
-      member:  TLManagerParameters => TransferSizes,
+      // member filters out the sizes being checked based on the opcode being emitted or supported
+      member:  TLSlaveParameters => TransferSizes,
       address: UInt,
       lgSize:  UInt,
+      // range provides a limit on the sizes that are expected to be evaluated, which might reduce circuit complexity
       range:   Option[TransferSizes]): Bool = {
+    // trim reduces circuit complexity by intersecting checked sizes with the range argument
     def trim(x: TransferSizes) = range.map(_.intersect(x)).getOrElse(x)
     // groupBy returns an unordered map, convert back to Seq and sort the result for determinism
-    val supportCases = groupByIntoSeq(managers)(m => trim(member(m))).map { case (k, vs) =>
+    // groupByIntoSeq is turning slaves into trimmed membership sizes
+    // We are grouping all the slaves by their transfer size where
+    // if they support the trimmed size then
+    // member is the type of transfer that you are looking for (What you are trying to filter on)
+    // When you consider membership, you are trimming the sizes to only the ones that you care about
+    // you are filtering the slaves based on both whether they support a particular opcode and the size
+    // Grouping the slaves based on the actual transfer size range they support
+    // intersecting the range and checking their membership
+    // FOR SUPPORTCASES instead of returning the list of slaves,
+    // you are returning a map from transfer size to the set of
+    // address sets that are supported for that transfer size
+
+    // find all the slaves that support a certain type of operation and then group their addresses by the supported size
+    // for every size there could be multiple address ranges
+    // safety is a trade off between checking between all possible addresses vs only the addresses
+    // that are known to have supported sizes
+    // the trade off is 'checking all addresses is a more expensive circuit but will always give you
+    // the right answer even if you give it an illegal address'
+    // the not safe version is a cheaper circuit but if you give it an illegal address then it might produce the wrong answer
+    // fast presumes address legality
+    val supportCases = groupByIntoSeq(slaves)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
       k -> vs.flatMap(_.address)
     }
+    // safe produces a circuit that compares against all possible addresses,
+    // whereas fast presumes that the address is legal but uses an efficient address decoder
     val mask = if (safe) ~BigInt(0) else AddressDecoder(supportCases.map(_._2))
+    // Simplified creates the most concise possible representation of each cases' address sets based on the mask.
     val simplified = supportCases.map { case (k, seq) => k -> AddressSet.unify(seq.map(_.widen(~mask)).distinct) }
     simplified.map { case (s, a) =>
+    // s is a size, you are checking for this size either the size of the operation is in s
+    // We return an or-reduction of all the cases, checking whether any contains both the dynamic size and dynamic address on the wire.
       (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)
     }.foldLeft(Bool(false))(_||_)
   }
 
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of manager.supportsAcquireTSafe","")
+  def supportsAcquireTSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireT,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of manager.supportsAcquireBSafe","")
+  def supportsAcquireBSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireB,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of manager.supportsArithmeticSafe","")
+  def supportsArithmeticSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.arithmetic,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of manager.supportsLogicalSafe","")
+  def supportsLogicalSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.logical,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of manager.supportsGetSafe","")
+  def supportsGetSafe        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.get,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of manager.supportsPutFullSafe","")
+  def supportsPutFullSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putFull,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of manager.supportsPutPartialSafe","")
+  def supportsPutPartialSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putPartial,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of manager.supportsHintSafe","")
+  def supportsHintSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.hint,   address, lgSize, range)
+
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of manager.supportsAcquireTFast","")
+  def supportsAcquireTFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireT,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of manager.supportsAcquireBFast","")
+  def supportsAcquireBFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireB,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of manager.supportsArithmeticFast","")
+  def supportsArithmeticFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.arithmetic,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of manager.supportsLogicalFast","")
+  def supportsLogicalFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.logical,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of manager.supportsGetFast","")
+  def supportsGetFast        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.get,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of manager.supportsPutFullFast","")
+  def supportsPutFullFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putFull,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of manager.supportsPutPartialFast","")
+  def supportsPutPartialFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putPartial,   address, lgSize, range)
+  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of manager.supportsHintFast","")
+  def supportsHintFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.hint,   address, lgSize, range)
+
   // Check for support of a given operation at a specific address
-  def supportsAcquireTSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsAcquireT,   address, lgSize, range)
-  def supportsAcquireBSafe  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsAcquireB,   address, lgSize, range)
-  def supportsArithmeticSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsArithmetic, address, lgSize, range)
-  def supportsLogicalSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsLogical,    address, lgSize, range)
-  def supportsGetSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsGet,        address, lgSize, range)
-  def supportsPutFullSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsPutFull,    address, lgSize, range)
-  def supportsPutPartialSafe(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsPutPartial, address, lgSize, range)
-  def supportsHintSafe      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(true, _.supportsHint,       address, lgSize, range)
+  def expectsVipCheckerSupportsAcquireT  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireT,   address, lgSize, range)
+  def expectsVipCheckerSupportsAcquireB  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireB,   address, lgSize, range)
+  def expectsVipCheckerSupportsArithmetic(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.arithmetic, address, lgSize, range)
+  def expectsVipCheckerSupportsLogical   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.logical,    address, lgSize, range)
+  def expectsVipCheckerSupportsGet       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.get,        address, lgSize, range)
+  def expectsVipCheckerSupportsPutFull   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putFull,    address, lgSize, range)
+  def expectsVipCheckerSupportsPutPartial(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putPartial, address, lgSize, range)
+  def expectsVipCheckerSupportsHint      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.hint,       address, lgSize, range)
 
-  def supportsAcquireTFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsAcquireT,   address, lgSize, range)
-  def supportsAcquireBFast  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsAcquireB,   address, lgSize, range)
-  def supportsArithmeticFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsArithmetic, address, lgSize, range)
-  def supportsLogicalFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsLogical,    address, lgSize, range)
-  def supportsGetFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsGet,        address, lgSize, range)
-  def supportsPutFullFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutFull,    address, lgSize, range)
-  def supportsPutPartialFast(address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsPutPartial, address, lgSize, range)
-  def supportsHintFast      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = supportHelper(false, _.supportsHint,       address, lgSize, range)
+  def expectsVipCheckerEmitsProbe        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.probe,         address, lgSize, range)
+  def expectsVipCheckerEmitsArithmetic   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.arithmetic,    address, lgSize, range)
+  def expectsVipCheckerEmitsLogical      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.logical,       address, lgSize, range)
+  def expectsVipCheckerEmitsGet          (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.get,           address, lgSize, range)
+  def expectsVipCheckerEmitsPutFull      (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.putFull,       address, lgSize, range)
+  def expectsVipCheckerEmitsPutPartial   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.putPartial,    address, lgSize, range)
+  def expectsVipCheckerEmitsHint         (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.hint,          address, lgSize, range)
 
-  def findTreeViolation() = managers.flatMap(_.findTreeViolation()).headOption
-  def isTree = !managers.exists(!_.isTree)
+  def findTreeViolation() = slaves.flatMap(_.findTreeViolation()).headOption
+  def isTree = !slaves.exists(!_.isTree)
 
-  def infoString = "Manager Port Beatbytes = " + beatBytes + "\n" + "Manager Port MinLatency = " + minLatency + "\n\n" + managers.map(_.infoString).mkString
+  def infoString = "Slave Port Beatbytes = " + beatBytes + "\n" + "Slave Port MinLatency = " + minLatency + "\n\n" + slaves.map(_.infoString).mkString
 
   def v1copy(
     managers:   Seq[TLSlaveParameters] = slaves,
@@ -684,12 +767,19 @@ class TLMasterParameters private(
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
+  @deprecated("Use supports.probe instead of supportsProbe","")
   def supportsProbe:       TransferSizes   = supports.probe
+  @deprecated("Use supports.arithmetic instead of supportsArithmetic","")
   def supportsArithmetic:  TransferSizes   = supports.arithmetic
+  @deprecated("Use supports.logical instead of supportsLogical","")
   def supportsLogical:     TransferSizes   = supports.logical
+  @deprecated("Use supports.get instead of supportsGet","")
   def supportsGet:         TransferSizes   = supports.get
+  @deprecated("Use supports.putFull instead of supportsPutFull","")
   def supportsPutFull:     TransferSizes   = supports.putFull
+  @deprecated("Use supports.putPartial instead of supportsPutPartial","")
   def supportsPutPartial:  TransferSizes   = supports.putPartial
+  @deprecated("Use supports.hint instead of supportsHint","")
   def supportsHint:        TransferSizes   = supports.hint
 
   require (!sourceId.isEmpty)
@@ -714,8 +804,10 @@ class TLMasterParameters private(
     supportsPutPartial.max).max
 
   def infoString = {
-    s"""Client Name = ${name}
+    s"""Master Name = ${name}
        |visibility = ${visibility}
+       |emits = ${emits.infoString}
+       |sourceId = ${sourceId}
        |
        |""".stripMargin
   }
@@ -876,75 +968,120 @@ class TLMasterPortParameters private(
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
-  require (!clients.isEmpty)
+  require (!masters.isEmpty)
   require (minLatency >= 0)
 
   def clients = masters
 
   // Require disjoint ranges for Ids
-  IdRange.overlaps(clients.map(_.sourceId)).foreach { case (x, y) =>
+  IdRange.overlaps(masters.map(_.sourceId)).foreach { case (x, y) =>
     require (!x.overlaps(y), s"TLClientParameters.sourceId ${x} overlaps ${y}")
   }
 
   // Bounds on required sizes
-  def endSourceId = clients.map(_.sourceId.end).max
-  def maxTransfer = clients.map(_.maxTransfer).max
+  def endSourceId = masters.map(_.sourceId.end).max
+  def maxTransfer = masters.map(_.maxTransfer).max
 
   // The unused sources < endSourceId
   def unusedSources: Seq[Int] = {
-    val usedSources = clients.map(_.sourceId).sortBy(_.start)
+    val usedSources = masters.map(_.sourceId).sortBy(_.start)
     ((Seq(0) ++ usedSources.map(_.end)) zip usedSources.map(_.start)) flatMap { case (end, start) =>
       end until start
     }
   }
 
-  // Operation sizes supported by all inward Clients
-  val allSupportProbe      = clients.map(_.supportsProbe)     .reduce(_ intersect _)
-  val allSupportArithmetic = clients.map(_.supportsArithmetic).reduce(_ intersect _)
-  val allSupportLogical    = clients.map(_.supportsLogical)   .reduce(_ intersect _)
-  val allSupportGet        = clients.map(_.supportsGet)       .reduce(_ intersect _)
-  val allSupportPutFull    = clients.map(_.supportsPutFull)   .reduce(_ intersect _)
-  val allSupportPutPartial = clients.map(_.supportsPutPartial).reduce(_ intersect _)
-  val allSupportHint       = clients.map(_.supportsHint)      .reduce(_ intersect _)
+  // Operation sizes supported by all inward Masters
+  val allSupportProbe      = masters.map(_.supportsProbe)     .reduce(_ intersect _)
+  val allSupportArithmetic = masters.map(_.supportsArithmetic).reduce(_ intersect _)
+  val allSupportLogical    = masters.map(_.supportsLogical)   .reduce(_ intersect _)
+  val allSupportGet        = masters.map(_.supportsGet)       .reduce(_ intersect _)
+  val allSupportPutFull    = masters.map(_.supportsPutFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = masters.map(_.supportsPutPartial).reduce(_ intersect _)
+  val allSupportHint       = masters.map(_.supportsHint)      .reduce(_ intersect _)
 
-  // Operation is supported by at least one client
-  val anySupportProbe      = clients.map(!_.supportsProbe.none)     .reduce(_ || _)
-  val anySupportArithmetic = clients.map(!_.supportsArithmetic.none).reduce(_ || _)
-  val anySupportLogical    = clients.map(!_.supportsLogical.none)   .reduce(_ || _)
-  val anySupportGet        = clients.map(!_.supportsGet.none)       .reduce(_ || _)
-  val anySupportPutFull    = clients.map(!_.supportsPutFull.none)   .reduce(_ || _)
-  val anySupportPutPartial = clients.map(!_.supportsPutPartial.none).reduce(_ || _)
-  val anySupportHint       = clients.map(!_.supportsHint.none)      .reduce(_ || _)
+  // Operation is supported by at least one master
+  val anySupportProbe      = masters.map(!_.supportsProbe.none)     .reduce(_ || _)
+  val anySupportArithmetic = masters.map(!_.supportsArithmetic.none).reduce(_ || _)
+  val anySupportLogical    = masters.map(!_.supportsLogical.none)   .reduce(_ || _)
+  val anySupportGet        = masters.map(!_.supportsGet.none)       .reduce(_ || _)
+  val anySupportPutFull    = masters.map(!_.supportsPutFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = masters.map(!_.supportsPutPartial.none).reduce(_ || _)
+  val anySupportHint       = masters.map(!_.supportsHint.none)      .reduce(_ || _)
 
-  // These return Option[TLClientParameters] for your convenience
-  def find(id: Int) = clients.find(_.sourceId.contains(id))
+  // These return Option[TLMasterParameters] for your convenience
+  def find(id: Int) = masters.find(_.sourceId.contains(id))
 
   // Synthesizable lookup methods
-  def find(id: UInt) = Vec(clients.map(_.sourceId.contains(id)))
+  def find(id: UInt) = Vec(masters.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
 
-  def requestFifo(id: UInt) = Mux1H(find(id), clients.map(c => Bool(c.requestFifo)))
+  def requestFifo(id: UInt) = Mux1H(find(id), masters.map(c => Bool(c.requestFifo)))
 
-  private def safety_helper(member: TLClientParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
-    val allSame = clients.map(member(_) == member(clients(0))).reduce(_ && _)
-    if (allSame) member(clients(0)).containsLg(lgSize) else {
-      Mux1H(find(id), clients.map(member(_).containsLg(lgSize)))
+  // Available during RTL runtime, checks to see if (id, size) is supported by the master's (client's) diplomatic parameters
+  private def sourceIdHelper(member: TLMasterParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
+    val allSame = masters.map(member(_) == member(masters(0))).reduce(_ && _)
+    // this if statement is a coarse generalization of the groupBy in the sourceIdHelper2 version;
+    // the case where there is only one group.
+    if (allSame) member(masters(0)).containsLg(lgSize) else {
+      // Find the master associated with ID and returns whether that particular master is able to receive transaction of lgSize
+      Mux1H(find(id), masters.map(member(_).containsLg(lgSize)))
     }
   }
 
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterProbe instead of clientPort.supportsProbe","")
+  def supportsProbe = expectsVipCheckerSupportsProbe
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterArithmetic instead of clientPort.supportsArithmetic","")
+  def supportsArithmetic = expectsVipCheckerSupportsArithmetic
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterLogical instead of clientPort.supportsLogical","")
+  def supportsLogical = expectsVipCheckerSupportsLogical
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterGet instead of clientPort.supportsGet","")
+  def supportsGet = expectsVipCheckerSupportsGet
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterPutFull instead of clientPort.supportsPutFull","")
+  def supportsPutFull = expectsVipCheckerSupportsPutFull
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterPutPartial instead of clientPort.supportsPutPartial","")
+  def supportsPutPartial = expectsVipCheckerSupportsPutPartial
+  @deprecated("Use edge.expectsVipCheckerSlaveToMasterHint instead of clientPort.supportsHint","")
+  def supportsHint = expectsVipCheckerSupportsHint
+
   // Check for support of a given operation at a specific id
-  val supportsProbe      = safety_helper(_.supportsProbe)      _
-  val supportsArithmetic = safety_helper(_.supportsArithmetic) _
-  val supportsLogical    = safety_helper(_.supportsLogical)    _
-  val supportsGet        = safety_helper(_.supportsGet)        _
-  val supportsPutFull    = safety_helper(_.supportsPutFull)    _
-  val supportsPutPartial = safety_helper(_.supportsPutPartial) _
-  val supportsHint       = safety_helper(_.supportsHint)       _
+  val expectsVipCheckerSupportsProbe      = sourceIdHelper(_.supports.probe)      _
+  val expectsVipCheckerSupportsArithmetic = sourceIdHelper(_.supports.arithmetic) _
+  val expectsVipCheckerSupportsLogical    = sourceIdHelper(_.supports.logical)    _
+  val expectsVipCheckerSupportsGet        = sourceIdHelper(_.supports.get)        _
+  val expectsVipCheckerSupportsPutFull    = sourceIdHelper(_.supports.putFull)    _
+  val expectsVipCheckerSupportsPutPartial = sourceIdHelper(_.supports.putPartial) _
+  val expectsVipCheckerSupportsHint       = sourceIdHelper(_.supports.hint)       _
+
+  // TODO: Merge sourceIdHelper2 with sourceIdHelper
+  private def sourceIdHelper2(
+    member: TLMasterParameters => TransferSizes,
+    sourceId: UInt,
+    lgSize:  UInt): Bool = {
+    // Because sourceIds are uniquely owned by each master, we use them to group the
+    // cases that have to be checked.
+    val emitCases = groupByIntoSeq(masters)(m => member(m)).map { case (k, vs) =>
+      k -> vs.map(_.sourceId)
+    }
+    emitCases.map { case (s, a) =>
+      (s.containsLg(lgSize)) &&
+      a.map(_.contains(sourceId)).reduce(_||_)
+    }.foldLeft(Bool(false))(_||_)
+  }
+
+  // Check for emit of a given operation at a specific id
+  def expectsVipCheckerEmitsAcquireT  (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.acquireT,   sourceId, lgSize)
+  def expectsVipCheckerEmitsAcquireB  (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.acquireB,   sourceId, lgSize)
+  def expectsVipCheckerEmitsArithmetic(sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.arithmetic, sourceId, lgSize)
+  def expectsVipCheckerEmitsLogical   (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.logical,    sourceId, lgSize)
+  def expectsVipCheckerEmitsGet       (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.get,        sourceId, lgSize)
+  def expectsVipCheckerEmitsPutFull   (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.putFull,    sourceId, lgSize)
+  def expectsVipCheckerEmitsPutPartial(sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.putPartial, sourceId, lgSize)
+  def expectsVipCheckerEmitsHint      (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.hint,       sourceId, lgSize)
 
   def infoString = masters.map(_.infoString).mkString
 
   def v1copy(
-    clients: Seq[TLClientParameters] = masters,
+    clients: Seq[TLMasterParameters] = masters,
     minLatency: Int = minLatency,
     echoFields:    Seq[BundleFieldBase] = echoFields,
     requestFields: Seq[BundleFieldBase] = requestFields,
@@ -961,7 +1098,7 @@ class TLMasterPortParameters private(
 
   @deprecated("Use v1copy instead of copy","")
   def copy(
-    clients: Seq[TLClientParameters] = masters,
+    clients: Seq[TLMasterParameters] = masters,
     minLatency: Int = minLatency,
     echoFields:    Seq[BundleFieldBase] = echoFields,
     requestFields: Seq[BundleFieldBase] = requestFields,
@@ -979,7 +1116,7 @@ class TLMasterPortParameters private(
 object TLClientPortParameters {
   @deprecated("Use TLMasterPortParameters.v1 instead of TLClientPortParameters","")
   def apply(
-    clients: Seq[TLClientParameters],
+    clients: Seq[TLMasterParameters],
     minLatency: Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
@@ -996,7 +1133,7 @@ object TLClientPortParameters {
 
 object TLMasterPortParameters {
   def v1(
-    clients: Seq[TLClientParameters],
+    clients: Seq[TLMasterParameters],
     minLatency: Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
@@ -1062,17 +1199,17 @@ object TLBundleParameters
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
-  def apply(client: TLClientPortParameters, manager: TLManagerPortParameters) =
+  def apply(master: TLMasterPortParameters, slave: TLSlavePortParameters) =
     new TLBundleParameters(
-      addressBits = log2Up(manager.maxAddress + 1),
-      dataBits    = manager.beatBytes * 8,
-      sourceBits  = log2Up(client.endSourceId),
-      sinkBits    = log2Up(manager.endSinkId),
-      sizeBits    = log2Up(log2Ceil(max(client.maxTransfer, manager.maxTransfer))+1),
-      echoFields     = client.echoFields,
-      requestFields  = BundleField.accept(client.requestFields, manager.requestKeys),
-      responseFields = BundleField.accept(manager.responseFields, client.responseKeys),
-      hasBCE = client.anySupportProbe && manager.anySupportAcquireB)
+      addressBits = log2Up(slave.maxAddress + 1),
+      dataBits    = slave.beatBytes * 8,
+      sourceBits  = log2Up(master.endSourceId),
+      sinkBits    = log2Up(slave.endSinkId),
+      sizeBits    = log2Up(log2Ceil(max(master.maxTransfer, slave.maxTransfer))+1),
+      echoFields     = master.echoFields,
+      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
+      responseFields = BundleField.accept(slave.responseFields, master.responseKeys),
+      hasBCE = master.anySupportProbe && slave.anySupportAcquireB)
 }
 
 case class TLEdgeParameters(
@@ -1085,18 +1222,50 @@ case class TLEdgeParameters(
   def manager = slave
   def client = master
 
-  val maxTransfer = max(client.maxTransfer, manager.maxTransfer)
+  val maxTransfer = max(master.maxTransfer, slave.maxTransfer)
   val maxLgSize = log2Ceil(maxTransfer)
 
   // Sanity check the link...
-  require (maxTransfer >= manager.beatBytes, s"Link's max transfer (${maxTransfer}) < ${manager.managers.map(_.name)}'s beatBytes (${manager.beatBytes})")
+  require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
-  val bundle = TLBundleParameters(client, manager)
-  def formatEdge = client.infoString + "\n" + manager.infoString
+  // For emits, check that the source is allowed to send this transactions
+  //These A channel messages from MasterToSlave are:
+  //being routed to a slave based on address bits,
+  //    so they need to be passed to a helper that checks whether the slave that owns certain addresses
+  //    claimed to support transactions of this size/type
+  //being sent from a master using sourceId bits,
+  //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
+  //    claimed to emit transactions of this size/type
+  def expectsVipCheckerMasterToSlaveAcquireT   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsAcquireT      (sourceId, lgSize) && slave.expectsVipCheckerSupportsAcquireT   (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveAcquireB   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsAcquireB      (sourceId, lgSize) && slave.expectsVipCheckerSupportsAcquireB   (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveArithmetic (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsArithmetic    (sourceId, lgSize) && slave.expectsVipCheckerSupportsArithmetic (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveLogical    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsLogical       (sourceId, lgSize) && slave.expectsVipCheckerSupportsLogical    (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveGet        (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsGet           (sourceId, lgSize) && slave.expectsVipCheckerSupportsGet        (address, lgSize, range)
+  def expectsVipCheckerMasterToSlavePutFull    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutFull       (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutFull    (address, lgSize, range)
+  def expectsVipCheckerMasterToSlavePutPartial (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutPartial    (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutPartial (address, lgSize, range)
+  def expectsVipCheckerMasterToSlaveHint       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsHint          (sourceId, lgSize) && slave.expectsVipCheckerSupportsHint       (address, lgSize, range)
+
+  //Duality: these B channel messages from SlaveToMaster are:
+  //being routed to a master based on sourceId bits,
+  //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
+  //    claimed to support transactions of this size/type
+  //being sent from a slave owning certain addresses,
+  //    so they need to be passed to a helper that checks with the slave that owns certain addresses claimed
+  //    to emit transactions of this size/type
+  def expectsVipCheckerSlaveToMasterProbe      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsProbe      (sourceId, lgSize) && slave.expectsVipCheckerEmitsProbe         (address, lgSize, range)
+  def expectsVipCheckerSlaveToMasterArithmetic (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsArithmetic (sourceId, lgSize) && slave.expectsVipCheckerEmitsArithmetic    (address, lgSize, range)
+  def expectsVipCheckerSlaveToMasterLogical    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsLogical    (sourceId, lgSize) && slave.expectsVipCheckerEmitsLogical       (address, lgSize, range)
+  def expectsVipCheckerSlaveToMasterGet        (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsGet        (sourceId, lgSize) && slave.expectsVipCheckerEmitsGet           (address, lgSize, range)
+  def expectsVipCheckerSlaveToMasterPutFull    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsPutFull    (sourceId, lgSize) && slave.expectsVipCheckerEmitsPutFull       (address, lgSize, range)
+  def expectsVipCheckerSlaveToMasterPutPartial (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsPutPartial (sourceId, lgSize) && slave.expectsVipCheckerEmitsPutPartial    (address, lgSize, range)
+  def expectsVipCheckerSlaveToMasterHint       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsHint       (sourceId, lgSize) && slave.expectsVipCheckerEmitsHint          (address, lgSize, range)
+
+  val bundle = TLBundleParameters(master, slave)
+  def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
-case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLManagerPortParameters) {def infoString = base.infoString}
-case class TLAsyncClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
+case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLSlavePortParameters) {def infoString = base.infoString}
+case class TLAsyncClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
 case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
@@ -1104,8 +1273,8 @@ case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: T
   def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
-case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLManagerPortParameters) {def infoString = base.infoString}
-case class TLRationalClientPortParameters(base: TLClientPortParameters) {def infoString = base.infoString}
+case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLSlavePortParameters) {def infoString = base.infoString}
+case class TLRationalClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 
 case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
@@ -1129,7 +1298,7 @@ case class ManagerUnificationKey(
 
 object ManagerUnificationKey
 {
-  def apply(x: TLManagerParameters): ManagerUnificationKey = ManagerUnificationKey(
+  def apply(x: TLSlaveParameters): ManagerUnificationKey = ManagerUnificationKey(
     resources          = x.resources,
     regionType         = x.regionType,
     executable         = x.executable,
@@ -1145,8 +1314,8 @@ object ManagerUnificationKey
 
 object ManagerUnification
 {
-  def apply(managers: Seq[TLManagerParameters]): List[TLManagerParameters] = {
-    managers.groupBy(ManagerUnificationKey.apply).values.map { seq =>
+  def apply(slaves: Seq[TLSlaveParameters]): List[TLSlaveParameters] = {
+    slaves.groupBy(ManagerUnificationKey.apply).values.map { seq =>
       val agree = seq.forall(_.fifoId == seq.head.fifoId)
       seq(0).v1copy(
         address = AddressSet.unify(seq.flatMap(_.address)),
@@ -1171,7 +1340,7 @@ case class TLBufferParams(
 class TLSourceIdMap(tl: TLMasterPortParameters) extends IdMap[TLSourceIdMapEntry] {
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
   protected val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.clients.sortBy(_.sourceId)
+  private val sorted = tl.masters.sortBy(_.sourceId)
 
   val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
     TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
