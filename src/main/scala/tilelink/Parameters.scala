@@ -1340,7 +1340,7 @@ case class TLBufferParams(
 class TLSourceIdMap(tl: TLMasterPortParameters) extends IdMap[TLSourceIdMapEntry] {
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
   protected val fmt = s"\t[%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.clients.sortBy(_.sourceId)
+  private val sorted = tl.masters.sortBy(_.sourceId)
 
   val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
     TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
