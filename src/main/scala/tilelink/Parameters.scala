@@ -1208,6 +1208,23 @@ class TLMasterPortParameters private(
       responseKeys  = responseKeys)
   }
 
+  def v2copy(
+    masters:       Seq[TLMasterParameters] = masters,
+    channelBytes:  TLChannelBeatBytes      = channelBytes,
+    minLatency:    Int                     = minLatency,
+    echoFields:    Seq[BundleFieldBase]    = echoFields,
+    requestFields: Seq[BundleFieldBase]    = requestFields,
+    responseKeys:  Seq[BundleKeyBase]      = responseKeys) =
+  {
+    new TLMasterPortParameters(
+      masters       = masters,
+      channelBytes  = channelBytes,
+      minLatency    = minLatency,
+      echoFields    = echoFields,
+      requestFields = requestFields,
+      responseKeys  = responseKeys)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     clients: Seq[TLMasterParameters] = masters,
