@@ -1200,7 +1200,7 @@ class TLMasterPortParameters private(
     responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     new TLMasterPortParameters(
-      masters       = masters,
+      masters       = clients,
       channelBytes  = channelBytes,
       minLatency    = minLatency,
       echoFields    = echoFields,
