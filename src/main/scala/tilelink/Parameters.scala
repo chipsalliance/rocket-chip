@@ -1379,19 +1379,19 @@ case class TLEdgeParameters(
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLSlavePortParameters) {def infoString = base.infoString}
 case class TLAsyncClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)
-case class TLAsyncEdgeParameters(master: TLAsyncClientPortParameters, slave: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+case class TLAsyncEdgeParameters(client: TLAsyncClientPortParameters, manager: TLAsyncManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLAsyncBundleParameters(slave.async, TLBundleParameters(master.base, slave.base))
-  def formatEdge = master.infoString + "\n" + slave.infoString
+  val bundle = TLAsyncBundleParameters(client.async, TLBundleParameters(client.base, manager.base))
+  def formatEdge = master.infoString + "\n" + manager.infoString
 }
 
 case class TLRationalManagerPortParameters(direction: RationalDirection, base: TLSlavePortParameters) {def infoString = base.infoString}
 case class TLRationalClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 
-case class TLRationalEdgeParameters(master: TLRationalClientPortParameters, slave: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+case class TLRationalEdgeParameters(client: TLRationalClientPortParameters, manager: TLRationalManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
 {
-  val bundle = TLBundleParameters(master.base, slave.base)
-  def formatEdge = master.infoString + "\n" + slave.infoString
+  val bundle = TLBundleParameters(client.base, manager.base)
+  def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
 // To be unified, devices must agree on all of these terms
