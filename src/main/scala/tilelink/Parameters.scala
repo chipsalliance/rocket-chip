@@ -1217,7 +1217,7 @@ class TLMasterPortParameters private(
     responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
   {
     v1copy(
-      masters,
+      clients,
       minLatency,
       echoFields,
       requestFields,
