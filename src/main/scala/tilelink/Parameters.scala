@@ -436,11 +436,14 @@ class TLSlavePortParameters private(
   val endSinkId:      Int,
   val minLatency:     Int,
   val responseFields: Seq[BundleFieldBase],
-  val requestKeys:    Seq[BundleKeyBase]) extends SimpleProduct
+  val requestKeys:    Seq[BundleKeyBase],
+  val probeEchoFields:    Seq[BundleFieldBase],
+  val probeRequestFields: Seq[BundleFieldBase],
+  val probeResponseKeys:  Seq[BundleKeyBase]) extends SimpleProduct
 {
   override def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
   override def productPrefix = "TLSlavePortParameters"
-  def productArity: Int = 6
+  def productArity: Int = 9
   def productElement(n: Int): Any = n match {
     case 0 => slaves
     case 1 => channelBytes
@@ -448,6 +451,9 @@ class TLSlavePortParameters private(
     case 3 => minLatency
     case 4 => responseFields
     case 5 => requestKeys
+    case 6 => probeEchoFields
+    case 7 => probeRequestFields
+    case 8 => probeResponseKeys
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
@@ -583,7 +589,10 @@ class TLSlavePortParameters private(
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
     responseFields: Seq[BundleFieldBase] = responseFields,
-    requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
+    requestKeys:    Seq[BundleKeyBase]   = requestKeys,
+    probeEchoFields:    Seq[BundleFieldBase] = probeEchoFields,
+    probeRequestFields: Seq[BundleFieldBase] = probeRequestFields,
+    probeResponseKeys:  Seq[BundleKeyBase]   = probeResponseKeys) =
   {
     new TLSlavePortParameters(
       slaves       = managers,
@@ -591,7 +600,10 @@ class TLSlavePortParameters private(
       endSinkId    = endSinkId,
       minLatency   = minLatency,
       responseFields = responseFields,
-      requestKeys    = requestKeys)
+      requestKeys    = requestKeys,
+      probeEchoFields    = probeEchoFields,
+      probeRequestFields = probeRequestFields,
+      probeResponseKeys  = probeResponseKeys)
   }
 
   @deprecated("Use v1copy instead of copy","")
@@ -601,7 +613,10 @@ class TLSlavePortParameters private(
     endSinkId:  Int = endSinkId,
     minLatency: Int = minLatency,
     responseFields: Seq[BundleFieldBase] = responseFields,
-    requestKeys:    Seq[BundleKeyBase]   = requestKeys) =
+    requestKeys:    Seq[BundleKeyBase]   = requestKeys,
+    probeEchoFields:    Seq[BundleFieldBase] = probeEchoFields,
+    probeRequestFields: Seq[BundleFieldBase] = probeRequestFields,
+    probeResponseKeys:  Seq[BundleKeyBase]   = probeResponseKeys) =
   {
     v1copy(
       managers,
@@ -609,7 +624,10 @@ class TLSlavePortParameters private(
       endSinkId,
       minLatency,
       responseFields,
-      requestKeys)
+      requestKeys,
+      probeEchoFields,
+      probeRequestFields,
+      probeResponseKeys)
   }
 }
 
@@ -620,7 +638,10 @@ object TLSlavePortParameters {
     endSinkId:  Int = 0,
     minLatency: Int = 0,
     responseFields: Seq[BundleFieldBase] = Nil,
-    requestKeys:    Seq[BundleKeyBase]   = Nil) =
+    requestKeys:    Seq[BundleKeyBase]   = Nil,
+    probeEchoFields:    Seq[BundleFieldBase] = Nil,
+    probeRequestFields: Seq[BundleFieldBase] = Nil,
+    probeResponseKeys:  Seq[BundleKeyBase]   = Nil) =
   {
     new TLSlavePortParameters(
       slaves       = managers,
@@ -628,9 +649,11 @@ object TLSlavePortParameters {
       endSinkId    = endSinkId,
       minLatency   = minLatency,
       responseFields = responseFields,
-      requestKeys    = requestKeys)
+      requestKeys    = requestKeys,
+      probeEchoFields    = probeEchoFields,
+      probeRequestFields = probeRequestFields,
+      probeResponseKeys  = probeResponseKeys)
   }
-
 }
 
 object TLManagerPortParameters {
@@ -861,11 +884,13 @@ class TLMasterPortParameters private(
   val minLatency:    Int,
   val echoFields:    Seq[BundleFieldBase],
   val requestFields: Seq[BundleFieldBase],
-  val responseKeys:  Seq[BundleKeyBase]) extends SimpleProduct
+  val responseKeys:  Seq[BundleKeyBase],
+  val probeRequestKeys:    Seq[BundleKeyBase],
+  val probeResponseFields: Seq[BundleFieldBase]) extends SimpleProduct
 {
   override def canEqual(that: Any): Boolean = that.isInstanceOf[TLMasterPortParameters]
   override def productPrefix = "TLMasterPortParameters"
-  def productArity: Int = 6
+  def productArity: Int = 8
   def productElement(n: Int): Any = n match {
     case 0 => masters
     case 1 => channelBytes
@@ -873,6 +898,8 @@ class TLMasterPortParameters private(
     case 3 => echoFields
     case 4 => requestFields
     case 5 => responseKeys
+    case 6 => probeRequestKeys
+    case 7 => probeResponseFields
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
@@ -948,7 +975,9 @@ class TLMasterPortParameters private(
     minLatency: Int = minLatency,
     echoFields:    Seq[BundleFieldBase] = echoFields,
     requestFields: Seq[BundleFieldBase] = requestFields,
-    responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
+    responseKeys:  Seq[BundleKeyBase]   = responseKeys,
+    probeRequestKeys:    Seq[BundleKeyBase]   = probeRequestKeys,
+    probeResponseFields: Seq[BundleFieldBase] = probeResponseFields) =
   {
     new TLMasterPortParameters(
       masters       = clients,
@@ -956,7 +985,9 @@ class TLMasterPortParameters private(
       minLatency    = minLatency,
       echoFields    = echoFields,
       requestFields = requestFields,
-      responseKeys  = responseKeys)
+      responseKeys  = responseKeys,
+      probeRequestKeys    = probeRequestKeys,
+      probeResponseFields = probeResponseFields)
   }
 
   @deprecated("Use v1copy instead of copy","")
@@ -965,14 +996,18 @@ class TLMasterPortParameters private(
     minLatency: Int = minLatency,
     echoFields:    Seq[BundleFieldBase] = echoFields,
     requestFields: Seq[BundleFieldBase] = requestFields,
-    responseKeys:  Seq[BundleKeyBase]   = responseKeys) =
+    responseKeys:  Seq[BundleKeyBase]   = responseKeys,
+    probeRequestKeys:    Seq[BundleKeyBase]   = probeRequestKeys,
+    probeResponseFields: Seq[BundleFieldBase] = probeResponseFields) =
   {
     v1copy(
       clients,
       minLatency,
       echoFields,
       requestFields,
-      responseKeys)
+      responseKeys,
+      probeRequestKeys,
+      probeResponseFields)
   }
 }
 
@@ -1000,7 +1035,9 @@ object TLMasterPortParameters {
     minLatency: Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
-    responseKeys:  Seq[BundleKeyBase]   = Nil) =
+    responseKeys:  Seq[BundleKeyBase]   = Nil,
+    probeRequestKeys:    Seq[BundleKeyBase]   = Nil,
+    probeResponseFields: Seq[BundleFieldBase] = Nil) =
   {
     new TLMasterPortParameters(
       masters       = clients,
@@ -1008,7 +1045,9 @@ object TLMasterPortParameters {
       minLatency    = minLatency,
       echoFields    = echoFields,
       requestFields = requestFields,
-      responseKeys  = responseKeys)
+      responseKeys  = responseKeys,
+      probeRequestKeys    = probeRequestKeys,
+      probeResponseFields = probeResponseFields)
   }
 }
 
@@ -1021,6 +1060,9 @@ case class TLBundleParameters(
   echoFields:     Seq[BundleFieldBase],
   requestFields:  Seq[BundleFieldBase],
   responseFields: Seq[BundleFieldBase],
+  probeEchoFields:     Seq[BundleFieldBase],
+  probeRequestFields:  Seq[BundleFieldBase],
+  probeResponseFields: Seq[BundleFieldBase],
   hasBCE: Boolean)
 {
   // Chisel has issues with 0-width wires
@@ -1044,6 +1086,9 @@ case class TLBundleParameters(
       echoFields     = BundleField.union(echoFields     ++ x.echoFields),
       requestFields  = BundleField.union(requestFields  ++ x.requestFields),
       responseFields = BundleField.union(responseFields ++ x.responseFields),
+      probeEchoFields     = BundleField.union(probeEchoFields     ++ x.probeEchoFields),
+      probeRequestFields  = BundleField.union(probeRequestFields  ++ x.probeRequestFields),
+      probeResponseFields = BundleField.union(probeResponseFields ++ x.probeResponseFields),
       hasBCE || x.hasBCE)
 }
 
@@ -1058,6 +1103,9 @@ object TLBundleParameters
     echoFields     = Nil,
     requestFields  = Nil,
     responseFields = Nil,
+    probeEchoFields     = Nil,
+    probeRequestFields  = Nil,
+    probeResponseFields = Nil,
     hasBCE = false)
 
   def union(x: Seq[TLBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
@@ -1072,6 +1120,9 @@ object TLBundleParameters
       echoFields     = client.echoFields,
       requestFields  = BundleField.accept(client.requestFields, manager.requestKeys),
       responseFields = BundleField.accept(manager.responseFields, client.responseKeys),
+      probeEchoFields     = manager.probeEchoFields,
+      probeRequestFields  = BundleField.accept(manager.probeRequestFields, client.probeRequestKeys),
+      probeResponseFields = BundleField.accept(client.probeResponseFields, manager.probeResponseKeys),
       hasBCE = client.anySupportProbe && manager.anySupportAcquireB)
 }
 

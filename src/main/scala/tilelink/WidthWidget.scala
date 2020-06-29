@@ -185,7 +185,22 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       splice(edgeIn,  in.a,  edgeOut, out.a, sourceMap)
       splice(edgeOut, out.d, edgeIn,  in.d,  sourceMap)
 
+      // Align the CWF A-D request to the channel size
+      // This way we do not need to do anything special to the response
+      out.a.bits.user.lift(CWFRequest).foreach { x =>
+        val alignBytes = (out.d.bits.params.dataBits max in.d.bits.params.dataBits) / 8
+        val mask = ~0.U(log2Ceil(alignBytes).W)
+        x.desired_start_byte := ~(~in.a.bits.user(CWFRequest).desired_start_byte | mask)
+      }
+
       if (edgeOut.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
+        // Align the CWF B-C request to the channel size
+        in.b.bits.user.lift(CWFRequest).foreach { x =>
+          val alignBytes = (out.c.bits.params.dataBits max in.c.bits.params.dataBits) / 8
+          val mask = ~0.U(log2Ceil(alignBytes).W)
+          x.desired_start_byte := ~(~out.b.bits.user(CWFRequest).desired_start_byte | mask)
+        }
+
         splice(edgeOut, out.b, edgeIn,  in.b,  sourceMap)
         splice(edgeIn,  in.c,  edgeOut, out.c, sourceMap)
         out.e.valid := in.e.valid

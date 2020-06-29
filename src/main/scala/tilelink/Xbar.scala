@@ -35,9 +35,11 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
   val node = TLNexusNode(
     clientFn  = { seq =>
       seq(0).v1copy(
-        echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
-        requestFields = BundleField.union(seq.flatMap(_.requestFields)),
-        responseKeys  = seq.flatMap(_.responseKeys).distinct,
+        echoFields          = BundleField.union(seq.flatMap(_.echoFields)),
+        requestFields       = BundleField.union(seq.flatMap(_.requestFields)),
+        responseKeys        = seq.flatMap(_.responseKeys).distinct,
+        probeRequestKeys    = seq.flatMap(_.probeRequestKeys).distinct,
+        probeResponseFields = BundleField.union(seq.flatMap(_.probeResponseFields)),
         minLatency = seq.map(_.minLatency).min,
         clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
           port.clients map { client => client.v1copy(
@@ -49,8 +51,11 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     managerFn = { seq =>
       val fifoIdFactory = TLXbar.relabeler()
       seq(0).v1copy(
-        responseFields = BundleField.union(seq.flatMap(_.responseFields)),
-        requestKeys = seq.flatMap(_.requestKeys).distinct,
+        responseFields     = BundleField.union(seq.flatMap(_.responseFields)),
+        requestKeys        = seq.flatMap(_.requestKeys).distinct,
+        probeEchoFields    = BundleField.union(seq.flatMap(_.probeEchoFields)),
+        probeRequestFields = BundleField.union(seq.flatMap(_.probeRequestFields)),
+        probeResponseKeys  = seq.flatMap(_.probeResponseKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
         endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
         managers = seq.flatMap { port =>
