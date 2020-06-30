@@ -12,8 +12,8 @@ pull_request_rules:
       - "#approved-reviews-by>=1"
       - "#changes-requested-reviews-by=0"
       - base=master
-      - label="Please Merge"
-      - label!="DO NOT MERGE"
+      - label="MERGE WITH MERGIFY"
+      - label!="DONT MERGE"
       - label!="bp-conflict"
     actions:
       merge:
