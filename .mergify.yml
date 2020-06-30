@@ -1,11 +1,4 @@
 pull_request_rules:
-  - name: remove outdated reviews
-    conditions:
-      - base=master
-    actions:
-      dismiss_reviews:
-
-pull_request_rules:
   - name: automatic merge on CI success and review
     conditions:
       - status-success=continuous-integration/travis-ci/pr
@@ -20,36 +13,15 @@ pull_request_rules:
         method: merge
         strict: smart
         strict_method: merge
-
-  - name: backport to 2020.04.x
-    conditions:
-      - merged
-      - base=master
-      - label=bp-to-2020.04.x
-    actions:
-      backport:
-        branches:
-          - 2020.04.x
-        ignore_conflicts: True
-        label_conflicts: "bp-conflict"
-      label:
-        add: [Backported]
-
-  - name: label Mergify backport PR
-    conditions:
-      - base=2020.04.x
-      - body~=This is an automated backport of pull request \#\d+ done by Mergify
-    actions:
-      label:
-        add: [Backport]
-
-  - name: automatic squash-and-merge of backport PRs
+        
+  - name: automatic squash and merge on CI success and review
     conditions:
       - status-success=continuous-integration/travis-ci/pr
+      - "#approved-reviews-by>=1"
       - "#changes-requested-reviews-by=0"
-      - base=2020.04.x
-      - label="Backport"
-      - label!="DO NOT MERGE"
+      - base=master
+      - label="SQUASH & MERGE WITH MERGIFY"
+      - label!="DONT MERGE"
       - label!="bp-conflict"
     actions:
       merge:
