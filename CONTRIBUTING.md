@@ -7,6 +7,7 @@ Thank you for your interest in contributing to Rocket Chip!
 
 + [Submitting a PR](#submitting)
 + [Conditions for Merging a PR](#merging)
+  + [Automatic Merging with mergify.io](#mergify)
 + [Bumping Submodules](#bumping)
 
 ### <a name="submitting"></a> Submitting a PR
@@ -24,7 +25,7 @@ Currently, the requirements for merging a PR are:
  + At least one approved review from an administrator
  + Passing at least one of the GitHub actions checks or the Travis checks (Travis is currently disabled).
  
-#### <a name="merging"></a> Automatic Merging with mergify.io
+#### <a name="mergify"></a> Automatic Merging with mergify.io
 
 This repository uses https://mergify.io/ to automate some pull request tasks.
 Currently, the only rule is that a PR to `master` can be merged automatically if the following conditions are met:
