@@ -17,7 +17,7 @@ pull_request_rules:
       - label!="bp-conflict"
     actions:
       merge:
-        method: squash
+        method: merge
         strict: smart
         strict_method: merge
 
