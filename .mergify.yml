@@ -6,7 +6,7 @@ pull_request_rules:
       dismiss_reviews:
 
 pull_request_rules:
-  - name: automatic squash-and-merge on CI success and review
+  - name: automatic merge on CI success and review
     conditions:
       - status-success=continuous-integration/travis-ci/pr
       - "#approved-reviews-by>=1"
