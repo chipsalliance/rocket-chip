@@ -18,7 +18,6 @@ pull_request_rules:
       - base=master
       - label="MERGE WITH MERGIFY"
       - label!="DONT MERGE"
-      - label!="bp-conflict"
     actions:
       merge:
         method: merge
@@ -44,7 +43,6 @@ pull_request_rules:
       - base=master
       - label="SQUASH & MERGE WITH MERGIFY"
       - label!="DONT MERGE"
-      - label!="bp-conflict"
     actions:
       merge:
         method: squash
