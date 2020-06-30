@@ -22,7 +22,24 @@ Please ensure to fill out the PR template appropriately and update it if your PR
 
 Currently, the requirements for merging a PR are:
  + At least one approved review from an administrator
- + Passing at least one of the GitHub actions checks or the Travis checks
+ + Passing at least one of the GitHub actions checks or the Travis checks (Travis is currently disabled).
+ 
+#### <a name="merging"></a> Automatic Merging with mergify.io
+
+This repository uses https://mergify.io/ to automate some pull request tasks.
+Currently, the only rule is that a PR to `master` can be merged automatically if the following conditions are met:
+ + At least one approved review from an administrator
+ + No disapproving reviews
+ + No merge conflicts
+ + All GitHub Actions CI checks passing
+ + The `DONT MERGE` label is not applied
+ + One of the `MERGE WITH MERGIFY` or `SQUASH & MERGE WITH MERGIFY` labels are applied
+ 
+Our Mergify setup uses a `strict` merge: PRs that match the above conditions will not be merged unless they have passed CI _and are up to date with the current tip of master branch_. Mergify handles updating the matching PRs automatically.
+This ensures that two conflicting PRs won't break CI unexpectedly.
+However, this means your PR may need to keep running CI if others are merging.
+To mitigate the effects of this, we have enabled Mergify's "smart" strict strategy.
+Mergify will automatically queue the mergify-managed PRs and update them serially, one at a time.
 
 ### <a name="bumping"></a> Bumping Submodules
 
