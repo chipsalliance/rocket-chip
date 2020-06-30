@@ -1,8 +1,8 @@
 pull_request_rules:
   - name: automatic merge on CI success and review
     conditions:
+      - status-success=Check Wit Manifest
       - status-success=Prepare riscv-tools Cache
-      - status-success=Check With Manifest
       - status-success=Prepare Verilator Cache
       - status-success=Check Wake Compilation
       - status-success=Test (1)
@@ -27,8 +27,8 @@ pull_request_rules:
         
   - name: automatic squash and merge on CI success and review
     conditions:
+      - status-success=Check Wit Manifest
       - status-success=Prepare riscv-tools Cache
-      - status-success=Check With Manifest
       - status-success=Prepare Verilator Cache
       - status-success=Check Wake Compilation
       - status-success=Test (1)
