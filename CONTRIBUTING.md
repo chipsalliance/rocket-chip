@@ -35,7 +35,7 @@ Currently, the only rule is that a PR to `master` can be merged automatically if
  + The `DONT MERGE` label is not applied
  + One of the `MERGE WITH MERGIFY` or `SQUASH & MERGE WITH MERGIFY` labels are applied
  
-Our Mergify setup uses a `strict` merge: PRs that match the above conditions will not be merged unless they have passed CI _and are up to date with the current tip of master branch_. Mergify handles updating the matching PRs automatically.
+Our Mergify setup enforces a `strict` merge: PRs that match the above conditions will not be merged unless they have passed CI _and are up to date with the current tip of master branch_. Mergify handles updating the matching PRs automatically.
 This ensures that two conflicting PRs won't break CI unexpectedly.
 However, this means your PR may need to keep running CI if others are merging.
 To mitigate the effects of this, we have enabled Mergify's "smart" strict strategy.
@@ -45,7 +45,7 @@ Mergify will automatically queue the mergify-managed PRs and update them seriall
 
 Several projects are managed as git submodules as well as [Wit](https://github.com/sifive/wit) dependencies.
 
-### When to bump
+#### When to bump
 
 Most projects will be bumped by developers as needed; however,
 sometimes users may wish to speed up the bumping process.
@@ -53,7 +53,7 @@ For more stable projects like Chisel 3 and FIRRTL,
 please only bump to stable branches as defined by the specific subproject.
 As of March 2020 these branches are `3.2.x` in Chisel 3 and `1.2.x` in FIRRTL.
 
-### How to bump
+#### How to bump
 
 1. Bump the Git submodule
 
