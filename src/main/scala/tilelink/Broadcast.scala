@@ -189,6 +189,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       val c_first = edgeIn.first(in.c)
       filter.io.release.valid := in.c.valid && c_first && (c_releasedata || c_release)
+      filter.io.release.bits.address := in.c.bits.address >> lineShift
       filter.io.release.bits.keepB   := in.c.bits.param === TLPermissions.TtoB
       filter.io.release.bits.cacheOH := whoC
 
@@ -315,6 +316,7 @@ class ProbeFilterUpdate(val params: ProbeFilterParams) extends Bundle {
 }
 
 class ProbeFilterRelease(val params: ProbeFilterParams) extends Bundle {
+  val address = UInt(params.blockAddressBits.W)
   val keepB   = Bool()
   val cacheOH = UInt(params.caches.W)
 }
