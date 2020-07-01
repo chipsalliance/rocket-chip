@@ -79,11 +79,6 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
   */
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
-
-  // This master can only produce:
-  // emitsGet = TransferSizes(4, 4),
-  // emitsPutFull = TransferSizes(4, 4),
-  // emitsPutPartial = TransferSizes(4, 4)
   val node = TLClientNode(Seq(TLMasterPortParameters.v2(Seq(TLMasterParameters.v2(name = "debug",
                                                                                   emits = TLMasterToSlaveTransferSizes(get = TransferSizes(4,4),
                                                                                                                        putFull = TransferSizes(4,4),
