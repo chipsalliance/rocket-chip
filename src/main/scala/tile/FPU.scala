@@ -754,7 +754,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
       printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
     frfWriteBundle(0).wrdst := load_wb_tag
     frfWriteBundle(0).wrenf := true.B
-    frfWriteBundle(0).wrdata := load_wb_data
+    frfWriteBundle(0).wrdata := ieee(wdata)
   }
 
   val ex_rs = ex_ra.map(a => regfile(a))
