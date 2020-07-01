@@ -81,7 +81,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
     device    = new SimpleDevice("cache-controller", Seq("sifive,broadcast0"))))
 
   lazy val module = new LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    val (ints, fields) = node.in.zip(node.out).zipWithIndex.map { case (((in, edgeIn), (out, edgeOut)), bankIndex) =>
       val clients = edgeIn.client.clients
       val managers = edgeOut.manager.managers
       val lineShift = log2Ceil(params.lineBytes)
@@ -101,13 +101,6 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
         caches = caches.size,
         maxAddress  = edgeIn.manager.maxAddress,
         addressMask = addressMask & ~(params.lineBytes-1))))
-
-      // Hook up the filter interfaces, if they are requested
-      intNode.foreach { _.out(0)._1(0) := filter.io.int }
-      controlNode match {
-        case Some(x) => x.regmap(filter.useRegFields():_*)
-        case None    => filter.tieRegFields()
-      }
 
       // Create the request tracker queues
       val trackers = Seq.tabulate(params.numTrackers) { id =>
@@ -286,7 +279,17 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       out.b.ready := true.B
       out.c.valid := false.B
       out.e.valid := false.B
-    }
+
+      // Collect all the filters together
+      (filter.io.int, controlNode match {
+        case Some(x) => filter.useRegFields(bankIndex)
+        case None    => { filter.tieRegFields(bankIndex); Nil }
+      })
+    }.unzip
+
+    // Hook up the filter interfaces, if they are requested
+    intNode.foreach { _.out(0)._1(0) := ints.reduce(_||_) }
+    controlNode.foreach { _.regmap(fields.flatten:_*) }
   }
 }
 
@@ -348,8 +351,8 @@ class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
 }
 
 abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
-  def useRegFields(): Seq[RegField.Map] = Nil
-  def tieRegFields(): Unit = Unit
+  def useRegFields(bankIndex: Int): Seq[RegField.Map] = Nil
+  def tieRegFields(bankIndex: Int): Unit = Unit
   val io = IO(new ProbeFilterIO(params))
 }
 
