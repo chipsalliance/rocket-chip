@@ -1262,8 +1262,8 @@ object TLClientPortParameters {
 
 object TLMasterPortParameters {
   def v1(
-    clients: Seq[TLMasterParameters],
-    minLatency: Int = 0,
+    clients:       Seq[TLMasterParameters],
+    minLatency:    Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
@@ -1271,6 +1271,22 @@ object TLMasterPortParameters {
     new TLMasterPortParameters(
       masters       = clients,
       channelBytes  = TLChannelBeatBytes(),
+      minLatency    = minLatency,
+      echoFields    = echoFields,
+      requestFields = requestFields,
+      responseKeys  = responseKeys)
+  }
+  def v2(
+    masters:       Seq[TLMasterParameters],
+    channelBytes:  TLChannelBeatBytes   = TLChannelBeatBytes(),
+    minLatency:    Int                  = 0,
+    echoFields:    Seq[BundleFieldBase] = Nil,
+    requestFields: Seq[BundleFieldBase] = Nil,
+    responseKeys:  Seq[BundleKeyBase]   = Nil) =
+  {
+    new TLMasterPortParameters(
+      masters       = masters,
+      channelBytes  = channelBytes,
       minLatency    = minLatency,
       echoFields    = echoFields,
       requestFields = requestFields,
