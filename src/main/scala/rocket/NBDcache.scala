@@ -7,6 +7,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -187,6 +188,9 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   rpq.io.enq.bits := io.req_bits
   rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
+  val acked = Reg(Bool())
+  when (io.mem_grant.valid) { acked := true }
+
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
   }
@@ -207,7 +211,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   when (state === s_meta_clear && io.meta_write.ready) {
     state := s_refill_req
   }
-  when (state === s_wb_resp && io.mem_grant.valid) {
+  when (state === s_wb_resp && io.wb_req.ready && acked) {
     state := s_meta_clear
   }
   when (io.wb_req.fire()) { // s_wb_req
@@ -224,6 +228,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     req := io.req_bits
+    acked := false
     val old_coh = io.req_bits.old_meta.coh
     val needs_wb = old_coh.onCacheControl(M_FLUSH)._1
     val (is_hit, _, coh_on_hit) = old_coh.onAccess(io.req_bits.cmd)
@@ -668,8 +673,9 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   io.write.ready := Bool(true)
 }
 
-class NonBlockingDCache(hartid: Int)(implicit p: Parameters) extends HellaCache(hartid)(p) {
-  override lazy val module = new NonBlockingDCacheModule(this) 
+class NonBlockingDCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends HellaCache(staticIdForMetadataUseOnly)(p) {
+  override lazy val module = new NonBlockingDCacheModule(this)
+  override def getOMSRAMs(): Seq[OMSRAM] = Nil // this is just a dummy value and that we need to eventually fix it
 }
 
 class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule(outer) {
@@ -825,6 +831,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
       lrsc_count := 0
     }
   }
+  when (s2_valid_masked && !(s2_tag_match && s2_has_permission) && s2_lrsc_addr_match) {
+    lrsc_count := 0
+  }
 
   val s2_data = Wire(Vec(nWays, Bits(width=encRowBits)))
   for (w <- 0 until nWays) {
@@ -950,7 +959,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   amoalu.io.rhs := s2_req.data
 
   // nack it like it's hot
-  val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss ||
+  val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss || io.cpu.s2_nack ||
                 s1_req.addr(idxMSB,idxLSB) === prober.io.meta_write.bits.idx && !prober.io.req.ready
   val s2_nack_hit = RegEnable(s1_nack, s1_valid || s1_replay)
   when (s2_nack_hit) { mshrs.io.req.valid := Bool(false) }
@@ -967,7 +976,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   // after a nack, block until nack condition resolves to save energy
   val block_miss = Reg(init=Bool(false))
   block_miss := (s2_valid || block_miss) && s2_nack_miss
-  when (block_miss) {
+  when (block_miss || s1_nack) {
     io.cpu.req.ready := Bool(false)
   }
 

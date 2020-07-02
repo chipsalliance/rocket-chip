@@ -13,8 +13,8 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
 {
   val device = new MemoryDevice
 
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = List(address),
       resources          = device.reg,
       regionType         = RegionType.UNCACHED,

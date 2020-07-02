@@ -3,12 +3,12 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMECC, TL_UL}
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.property._
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
   val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))
@@ -24,7 +24,8 @@ class TLRAM(
     beatBytes: Int = 4,
     ecc: ECCParams = ECCParams(),
     val devName: Option[String] = None,
-  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
+    val dtsCompat: Option[Seq[String]] = None
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, dtsCompat)
 {
   val eccBytes = ecc.bytes
   val code = ecc.code
@@ -32,8 +33,8 @@ class TLRAM(
   require (beatBytes >= 1 && isPow2(beatBytes))
   require (eccBytes <= beatBytes, s"TLRAM eccBytes (${eccBytes}) > beatBytes (${beatBytes}). Use a WidthWidget=>Fragmenter=>SRAM if you need high density and narrow ECC; it will do bursts efficiently")
 
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = List(address),
       resources          = device.reg("mem"),
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
@@ -57,7 +58,7 @@ class TLRAM(
     val lanes = beatBytes/eccBytes
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
     val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
-      size = 1 << addrBits.size,
+      size = BigInt(1) << addrBits.size,
       lanes = lanes,
       bits = width)
 
@@ -67,7 +68,7 @@ class TLRAM(
           device = device,
           omSRAMs = Seq(omSRAM),
           busProtocol = new TL_UL(None),
-          dataECC = Some(OMECC.getCode(ecc)),
+          dataECC = Some(OMECC.fromCode(ecc.code)),
           hasAtomics = Some(atomics),
           busProtocolSpecification = None)
         LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
@@ -95,6 +96,7 @@ class TLRAM(
     val d_rmw_mask  = Reg(UInt(width = beatBytes))
     val d_rmw_data  = Reg(UInt(width = 8*beatBytes))
     val d_poison    = Reg(Bool())
+    val d_lanes     = Reg(UInt(width = lanes))
 
     // Decode raw unregistered SRAM output
     val d_raw_data      = Wire(Vec(lanes, Bits(width = width)))
@@ -104,7 +106,8 @@ class TLRAM(
     val d_correctable   = d_decoded.map(_.correctable)
     val d_uncorrectable = d_decoded.map(_.uncorrectable)
     val d_need_fix      = d_correctable.reduce(_ || _)
-    val d_error         = d_uncorrectable.reduce(_ || _)
+    val d_lane_error    = Cat(d_uncorrectable.reverse) & d_lanes
+    val d_error         = d_lane_error.orR
 
     notifyNode.foreach { nnode =>
       nnode.bundle.correctable.foreach { c =>
@@ -160,6 +163,16 @@ class TLRAM(
     // It is safe to use uncorrected data here because of d_pause
     in.d.bits.data    := Mux(d_ram_valid, d_uncorrected, d_held_data)
     in.d.bits.corrupt := Mux(d_ram_valid, d_error, d_held_error) && (d_read || d_atomic)
+    
+    val mem_active_valid = Seq(CoverBoolean(in.d.valid, Seq("mem_active")))
+    val data_error = Seq(
+      CoverBoolean(!d_need_fix && !d_error , Seq("no_data_error")),
+      CoverBoolean(d_need_fix && !in.d.bits.corrupt, Seq("data_correctable_error_not_reported")),
+      CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error_reported")))
+
+    val error_cross_covers = new CrossProperty(Seq(mem_active_valid, data_error), Seq(), "Ecc Covers")
+    cover(error_cross_covers)
+
 
     // Formulate a response only when SRAM output is unused or correct
     val d_pause = (d_read || d_atomic) && d_ram_valid && d_need_fix
@@ -198,6 +211,7 @@ class TLRAM(
       d_address   := a_address
       d_rmw_mask  := UInt(0)
       d_poison    := in.a.bits.corrupt
+      d_lanes     := Cat(a_lanes.reverse)
       when (!a_read && (a_sublane || a_atomic)) {
         d_rmw_mask := in.a.bits.mask
         d_rmw_data := in.a.bits.data

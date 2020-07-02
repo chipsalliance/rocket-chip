@@ -4,6 +4,8 @@
 package freechips.rocketchip.tile
 
 import Chisel._
+import chisel3.util.HasBlackBoxResource
+import chisel3.experimental.IntParam
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
@@ -86,7 +88,7 @@ trait HasLazyRoCCModule extends CanHavePTWModule
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
     val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
-      ptwPorts ++= rocc.module.io.ptw
+      rocc.module.io.ptw ++=: ptwPorts
       rocc.module.io.cmd <> cmdRouter.io.out(i)
       val dcIF = Module(new SimpleHellaCacheIF()(outer.p))
       dcIF.io.requestor <> rocc.module.io.mem
@@ -116,7 +118,7 @@ trait HasLazyRoCCModule extends CanHavePTWModule
   }
 }
 
-class  AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parameters) extends LazyRoCC(opcodes) {
+class AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new AccumulatorExampleModuleImp(this)
 }
 
@@ -183,6 +185,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   io.mem.req.bits.signed := Bool(false)
   io.mem.req.bits.data := Bits(0) // we're not performing any stores...
   io.mem.req.bits.phys := Bool(false)
+  io.mem.req.bits.dprv := cmd.bits.status.dprv
 }
 
 class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes, nPTWPorts = 1) {
@@ -234,7 +237,7 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
 
 class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new CharacterCountExampleModuleImp(this)
-  override val atlNode = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("CharacterCountRoCC")))))
+  override val atlNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("CharacterCountRoCC")))))
 }
 
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
@@ -325,6 +328,56 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)
   tl_out.e.valid := Bool(false)
+}
+
+class BlackBoxExample(opcodes: OpcodeSet, blackBoxFile: String)(implicit p: Parameters)
+    extends LazyRoCC(opcodes) {
+  override lazy val module = new BlackBoxExampleModuleImp(this, blackBoxFile)
+}
+
+class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(implicit p: Parameters)
+    extends LazyRoCCModuleImp(outer)
+    with HasCoreParameters {
+
+  val blackbox = {
+    val roccIo = io
+    Module(
+      new BlackBox( Map( "xLen" -> IntParam(xLen),
+                         "PRV_SZ" -> IntParam(PRV.SZ),
+                         "coreMaxAddrBits" -> IntParam(coreMaxAddrBits),
+                         "dcacheReqTagBits" -> IntParam(roccIo.mem.req.bits.tag.getWidth),
+                         "M_SZ" -> IntParam(M_SZ),
+                         "mem_req_bits_size_width" -> IntParam(roccIo.mem.req.bits.size.getWidth),
+                         "coreDataBits" -> IntParam(coreDataBits),
+                         "coreDataBytes" -> IntParam(coreDataBytes),
+                         "paddrBits" -> IntParam(paddrBits),
+                         "FPConstants_RM_SZ" -> IntParam(FPConstants.RM_SZ),
+                         "fLen" -> IntParam(fLen),
+                         "FPConstants_FLAGS_SZ" -> IntParam(FPConstants.FLAGS_SZ)
+                   ) ) with HasBlackBoxResource {
+        val io = IO( new Bundle {
+                      val clock = Input(Clock())
+                      val reset = Input(Bool())
+                      val rocc = roccIo.cloneType
+                    })
+        override def desiredName: String = blackBoxFile
+        addResource(s"/vsrc/$blackBoxFile.v")
+      }
+    )
+  }
+
+  blackbox.io.clock := clock
+  blackbox.io.reset := reset
+  blackbox.io.rocc.cmd <> io.cmd
+  io.resp <> blackbox.io.rocc.resp
+  io.mem <> blackbox.io.rocc.mem
+  io.busy := blackbox.io.rocc.busy
+  io.interrupt := blackbox.io.rocc.interrupt
+  blackbox.io.rocc.exception := io.exception
+  io.ptw <> blackbox.io.rocc.ptw
+  io.fpu_req <> blackbox.io.rocc.fpu_req
+  blackbox.io.rocc.fpu_resp <> io.fpu_resp
+
 }
 
 class OpcodeSet(val opcodes: Seq[UInt]) {

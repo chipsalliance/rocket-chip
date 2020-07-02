@@ -1,0 +1,163 @@
+
+global def rocketChipRoot = here
+publish ivyDepLocations = rocketChipRoot, Nil
+
+global def hardfloatScalaModule =
+  makeScalaModuleFromJSON here "hardfloat"
+  | setScalaModuleRootDir "hardfloat"
+  | setScalaModuleDeps (chisel3ScalaModule, Nil)
+  | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+
+global def rocketchipMacros =
+  makeScalaModuleFromJSON here "rocketchipMacros"
+  | setScalaModuleRootDir "{rocketChipRoot}/macros"
+  | addMacrosParadiseCompilerPlugin
+
+global def rocketchipScalaModule =
+  def deps =
+    rocketchipMacros,
+    hardfloatScalaModule,
+    hardfloatScalaModule,
+    apiConfigChipsallianceScalaModule,
+    Nil
+  makeScalaModuleFromJSON here "rocketchip"
+  | setScalaModuleRootDir rocketChipRoot
+  | setScalaModuleDeps deps
+  | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+  | addMacrosParadiseCompilerPlugin
+
+def vlsi_mem_gen = source "{rocketChipRoot}/scripts/vlsi_mem_gen"
+def vlsi_rom_gen = source "{rocketChipRoot}/scripts/vlsi_rom_gen"
+
+tuple VLSIRomGenOptions =
+  global ConfFile:   Path
+  global HexFile:    String
+  global OutputFile: String
+
+global def makeVLSIRomGenOptions confFile hexFile outputFile = VLSIRomGenOptions confFile hexFile outputFile
+
+global def rocket_vlsi_rom_gen options =
+  def cmdline =
+    def confFile = options.getVLSIRomGenOptionsConfFile.getPathName
+    def hexFile  = options.getVLSIRomGenOptionsHexFile
+    vlsi_rom_gen.getPathName, confFile, hexFile, Nil
+
+  def inputs =
+    def confFile = options.getVLSIRomGenOptionsConfFile
+    def outputFile = options.getVLSIRomGenOptionsOutputFile
+    def outputDir = simplify "{outputFile}/.." | mkdir
+    vlsi_rom_gen, confFile, outputDir, Nil
+
+  def outputFile = options.getVLSIRomGenOptionsOutputFile
+  match (job cmdline inputs | getJobStdout)
+    Pass content = write outputFile content
+    Fail error   = makeBadPath error
+
+tuple VLSIMemGenOptions =
+  global BlackBox: Boolean
+  global ConfFile: Path
+  global OutputFile: String
+
+global def makeVLSIMemGenOptions confFile outputFile = VLSIMemGenOptions False confFile outputFile
+
+global def rocket_vlsi_mem_gen options =
+  def cmdline =
+    def blackBox = if options.getVLSIMemGenOptionsBlackBox then "-b", Nil else Nil
+    def outputFile = "-o", options.getVLSIMemGenOptionsOutputFile, Nil
+    def confFile = options.getVLSIMemGenOptionsConfFile.getPathName, Nil
+    vlsi_mem_gen.getPathName, (blackBox ++ outputFile ++ confFile)
+
+  def inputs =
+    def confFile = options.getVLSIMemGenOptionsConfFile
+    def outputFile = options.getVLSIMemGenOptionsOutputFile
+    def outputDir = simplify "{outputFile}/.." | mkdir
+    vlsi_mem_gen, confFile, outputDir, Nil
+
+  job cmdline inputs | getJobOutput
+
+tuple RocketChipGeneratorOptions =
+  global Jars:          List Path
+  global TargetDir:     Path
+  global TopModuleName: String
+  global ConfigNames:   List String
+  global ExtraSources:  List Path
+  global BaseFileName:  Option String
+
+global def makeRocketChipGeneratorOptions jars targetDir topModule configs =
+  RocketChipGeneratorOptions jars targetDir topModule configs Nil None
+
+tuple RocketChipGeneratorOutputs =
+  DTS_:            Path
+  FirrtlFile_:     Path
+  FirrtlAnnoFile_: Path
+  RomConf_:        Path
+  AllOutputs_:     List Path
+  InputOptions_:   RocketChipGeneratorOptions
+  OMFile_:         Option Path
+
+global def getRocketChipGeneratorOutputsDTS             = getRocketChipGeneratorOutputsDTS_
+global def getRocketChipGeneratorOutputsFirrtlFile      = getRocketChipGeneratorOutputsFirrtlFile_
+global def getRocketChipGeneratorOutputsFirrtlAnnoFile  = getRocketChipGeneratorOutputsFirrtlAnnoFile_
+global def getRocketChipGeneratorOutputsRomConf         = getRocketChipGeneratorOutputsRomConf_
+global def getRocketChipGeneratorOutputsAllOutputs      = getRocketChipGeneratorOutputsAllOutputs_
+global def getRocketChipGeneratorOutputsInputOptions    = getRocketChipGeneratorOutputsInputOptions_
+global def getRocketChipGeneratorOutputsObjectModelFile = getRocketChipGeneratorOutputsOMFile_
+
+# Get the package name from the fully-qualified class name. (Everything before the final dot.)
+def getPackageName fullClassName = fullClassName | tokenize `\.` | reverse | tail | reverse | catWith "."
+
+# Get the class name from the fully-qualified class name. (Everything after the final dot.)
+def getClassName fullClassName = fullClassName | tokenize `\.` | reverse | head | getOrElse ""
+
+global def runRocketChipGenerator options =
+  def jars = options.getRocketChipGeneratorOptionsJars
+  def runDir = rocketChipRoot
+  def targetDir = options.getRocketChipGeneratorOptionsTargetDir
+
+  def cmdline =
+    def main = "freechips.rocketchip.system.Generator"
+    def configs = catWith "," options.getRocketChipGeneratorOptionsConfigNames
+    def topModule = options.getRocketChipGeneratorOptionsTopModuleName
+    def relJars = jars | map getPathName | map (relative runDir)
+    def classpath = catWith ":" relJars
+    def relTargetDir = relative runDir targetDir.getPathName
+    def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
+      Some name = "--name", name, Nil
+      None = Nil
+    "java", "-cp", classpath, main,
+    "--target-dir", relTargetDir,
+    "--top-module", topModule,
+    "--configs", configs,
+    baseFileName
+
+  def inputs =
+    def bootrom = source "{rocketChipRoot}/bootrom/bootrom.img"
+    def extras = options.getRocketChipGeneratorOptionsExtraSources
+    (bootrom, targetDir, extras) ++ jars
+
+  def generatorJob =
+    makePlan cmdline inputs
+    | setPlanResources ("openjdk/java/1.8.0", Nil)
+    | setPlanDirectory runDir
+    | runJob
+
+  def filterFiles regex = filter (matches regex _.getPathName) allOutputs
+  def getFile regex = filterFiles regex | head | getOrElse (makeBadPath (makeError "File not found"))
+  def getFileOpt regex = match (filterFiles regex)
+    Nil        = None
+    head, tail = Some head
+
+  def allOutputs = generatorJob.getJobOutputs
+  def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName
+    Some fileName = fileName
+    None =
+      def packageName = getPackageName options.getRocketChipGeneratorOptionsTopModuleName
+      def configNames = options.getRocketChipGeneratorOptionsConfigNames | map getClassName | catWith '_'
+      "{packageName}.{configNames}"
+  def annoFile    = getFile (regExpCat (`.*`, baseFileName.quote, `\.anno\.json`, Nil))
+  def firrtlFile  = getFile `.*\.fir`
+  def romConfFile = getFile `.*\.rom\.conf`
+  def dtsFile     = getFile `.*\.dts`
+  def omFile      = getFileOpt `.*\.objectModel\.json`
+
+  RocketChipGeneratorOutputs dtsFile firrtlFile annoFile romConfFile allOutputs options omFile

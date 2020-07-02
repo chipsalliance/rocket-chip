@@ -30,8 +30,11 @@ object AHBParameters
 
   val maxTransfer = 16
 
-  def RESP_OKAY  = Bool(false)
-  def RESP_ERROR = Bool(true)
+  def RESP_OKAY  = UInt(0, width=2)
+  def RESP_ERROR = UInt(1, width=2)
+  // Only in AHB-Full:
+  def RESP_RETRY = UInt(2, width=2)
+  def RESP_SPLIT = UInt(3, width=2)
 
   def PROT_DATA        = UInt(1, width = protBits)
   def PROT_PRIVILEDGED = UInt(2, width = protBits)

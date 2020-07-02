@@ -7,9 +7,15 @@ import freechips.rocketchip.diplomacy._
 
 package object tilelink
 {
-  type TLInwardNode = InwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLEdgeIn, TLBundle]
-  type TLOutwardNode = OutwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLBundle]
-  type TLNode = NodeHandle[TLClientPortParameters, TLManagerPortParameters, TLEdgeIn, TLBundle, TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLBundle]
+  type TLInwardNode = InwardNodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle]
+  type TLOutwardNode = OutwardNodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
+  type TLNode = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
+  type TLMixedNodeCancel = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle_ACancel, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
+  type TLNode_ACancel    = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle_ACancel, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle_ACancel]
+  type TLManagerParameters = TLSlaveParameters
+  type TLManagerPortParameters = TLSlavePortParameters
+  type TLClientParameters = TLMasterParameters
+  type TLClientPortParameters = TLMasterPortParameters
 
   implicit class TLClockDomainCrossing(val x: HasClockDomainCrossing) extends AnyVal {
     def crossIn (n: TLInwardNode) (implicit valName: ValName) = TLInwardCrossingHelper (valName.name, x, n)

@@ -2,17 +2,26 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.AsyncQueueParams
+
+case object AXI4MonitorBuilder extends Field[AXI4MonitorArgs => AXI4MonitorBase]
 
 object AXI4Imp extends SimpleNodeImp[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4EdgeParameters, AXI4Bundle]
 {
   def edge(pd: AXI4MasterPortParameters, pu: AXI4SlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXI4EdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: AXI4EdgeParameters) = AXI4Bundle(e.bundle)
   def render(e: AXI4EdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label  = (e.slave.beatBytes * 8).toString)
+
+  override def monitor(bundle: AXI4Bundle, edge: AXI4EdgeParameters) {
+    edge.params.lift(AXI4MonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(AXI4MonitorArgs(edge)))
+      monitor.io.in := bundle
+    }
+  }
 
   override def mixO(pd: AXI4MasterPortParameters, node: OutwardNode[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4Bundle]): AXI4MasterPortParameters  =
    pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })

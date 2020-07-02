@@ -272,6 +272,25 @@ class TLEdge(
   def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
   def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
 
+  // Does the request need T permissions to be executed?
+  def needT(a: TLBundleA): Bool = {
+    val acq_needT = MuxLookup(a.param, Wire(Bool()), Array(
+      TLPermissions.NtoB -> false.B,
+      TLPermissions.NtoT -> true.B,
+      TLPermissions.BtoT -> true.B))
+    MuxLookup(a.opcode, Wire(Bool()), Array(
+      TLMessages.PutFullData    -> true.B,
+      TLMessages.PutPartialData -> true.B,
+      TLMessages.ArithmeticData -> true.B,
+      TLMessages.LogicalData    -> true.B,
+      TLMessages.Get            -> false.B,
+      TLMessages.Hint           -> MuxLookup(a.param, Wire(Bool()), Array(
+        TLHints.PREFETCH_READ   -> false.B,
+        TLHints.PREFETCH_WRITE  -> true.B)),
+      TLMessages.AcquireBlock   -> acq_needT,
+      TLMessages.AcquirePerm    -> acq_needT))
+  }
+
   // This is a very expensive circuit; use only if you really mean it!
   def inFlight(x: TLBundle): (UInt, UInt) = {
     val flight = RegInit(UInt(0, width = log2Ceil(3*client.endSourceId+1)))
@@ -308,6 +327,10 @@ class TLEdge(
 
     (flight, next_flight)
   }
+
+  def prettySourceMapping(context: String): String = {
+    s"TL-Source mapping for $context:\n${(new TLSourceIdMap(client)).pretty}\n"
+  }
 }
 
 class TLEdgeOut(
@@ -317,19 +340,9 @@ class TLEdgeOut(
   sourceInfo: SourceInfo)
   extends TLEdge(client, manager, params, sourceInfo)
 {
-  // Set the contents of user bits; seq fills the highest-index match first
-  def putUser[T <: UserBits : ClassTag](x: UInt, seq: Seq[TLClientParameters => UInt]): Vec[UInt] = {
-    val value = Wire(Vec(client.endSourceId, UInt(width = client.userBitWidth)))
-    client.clients.foreach { c =>
-      val upd = c.putUser[T](x, seq.map(_(c)))
-      c.sourceId.range.foreach { id => value(id) := upd }
-    }
-    value
-  }
-
   // Transfers
   def AcquireBlock(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
-    require (manager.anySupportAcquireB)
+    require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.AcquireBlock
@@ -344,7 +357,7 @@ class TLEdgeOut(
   }
 
   def AcquirePerm(fromSource: UInt, toAddress: UInt, lgSize: UInt, growPermissions: UInt) = {
-    require (manager.anySupportAcquireB)
+    require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.AcquirePerm
@@ -359,7 +372,7 @@ class TLEdgeOut(
   }
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt): (Bool, TLBundleC) = {
-    require (manager.anySupportAcquireB)
+    require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.Release
@@ -373,7 +386,7 @@ class TLEdgeOut(
   }
 
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt, data: UInt, corrupt: Bool): (Bool, TLBundleC) = {
-    require (manager.anySupportAcquireB)
+    require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
     c.opcode  := TLMessages.ReleaseData
@@ -431,7 +444,7 @@ class TLEdgeOut(
 
   // Accesses
   def Get(fromSource: UInt, toAddress: UInt, lgSize: UInt) = {
-    require (manager.anySupportGet)
+    require (manager.anySupportGet, s"TileLink: No managers visible from this edge support Gets, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsGetFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Get
@@ -449,7 +462,7 @@ class TLEdgeOut(
     Put(fromSource, toAddress, lgSize, data, Bool(false))
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, corrupt: Bool): (Bool, TLBundleA) = {
-    require (manager.anySupportPutFull)
+    require (manager.anySupportPutFull, s"TileLink: No managers visible from this edge support Puts, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsPutFullFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.PutFullData
@@ -467,7 +480,7 @@ class TLEdgeOut(
     Put(fromSource, toAddress, lgSize, data, mask, Bool(false))
 
   def Put(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, mask: UInt, corrupt: Bool): (Bool, TLBundleA) = {
-    require (manager.anySupportPutPartial)
+    require (manager.anySupportPutPartial, s"TileLink: No managers visible from this edge support masked Puts, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsPutPartialFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.PutPartialData
@@ -482,7 +495,7 @@ class TLEdgeOut(
   }
 
   def Arithmetic(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, atomic: UInt, corrupt: Bool = Bool(false)): (Bool, TLBundleA) = {
-    require (manager.anySupportArithmetic)
+    require (manager.anySupportArithmetic, s"TileLink: No managers visible from this edge support arithmetic AMOs, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsArithmeticFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.ArithmeticData
@@ -497,7 +510,7 @@ class TLEdgeOut(
   }
 
   def Logical(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, atomic: UInt, corrupt: Bool = Bool(false)) = {
-    require (manager.anySupportLogical)
+    require (manager.anySupportLogical, s"TileLink: No managers visible from this edge support logical AMOs, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsLogicalFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.LogicalData
@@ -512,7 +525,7 @@ class TLEdgeOut(
   }
 
   def Hint(fromSource: UInt, toAddress: UInt, lgSize: UInt, param: UInt) = {
-    require (manager.anySupportHint)
+    require (manager.anySupportHint, s"TileLink: No managers visible from this edge support Hints, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsHintFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
     a.opcode  := TLMessages.Hint
@@ -582,69 +595,9 @@ class TLEdgeIn(
     if (todo.isEmpty) Nil else { heads +: myTranspose(tails) }
   }
 
-  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
-  // The first returned sequence element corresponds to the highest-index occurence for each client
-  def getUserSeq[T <: UserBits : ClassTag](bits: TLBundleA): Seq[ValidIO[UInt]] = {
-    require (bits.params.aUserBits == bundle.aUserBits)
-    myTranspose(client.clients.map { c =>
-      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
-    }).map { seq =>
-      val nbits = seq.map(_._2.tag.width).max
-      val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
-      val valid = Wire(init = Vec.fill(client.endSourceId) { Bool(false) })
-      seq.foreach { case (sources, UserBitField(tag, field)) =>
-        sources.range.foreach { id =>
-          valid(id) := Bool(true)
-          value(id) := field
-        }
-      }
-      val out = Wire(Valid(UInt(width = nbits)))
-      out.valid := valid(bits.source)
-      out.bits  := value(bits.source)
-      out
-    }
-  }
-
-  // Extract type-T user bits from every client (multiple occurences of type-T per client are ok)
-  // The first returned sequence element corresponds to the highest-index occurence for each client
-  def getUserOrElse[T <: UserBits : ClassTag](bits: TLBundleA, default: UInt): Seq[UInt] = {
-    require (bits.params.aUserBits == bundle.aUserBits)
-    myTranspose(client.clients.map { c =>
-      c.getUser[T](bits.user.get).map { x => (c.sourceId, x) }
-    }).map { seq =>
-      val nbits = seq.map(_._2.tag.width).max
-      val init = (default | UInt(0, width = nbits))(nbits-1, 0)
-      val value = Wire(init = Vec.fill(client.endSourceId) { init })
-      seq.foreach { case (sources, UserBitField(tag, field)) =>
-        sources.range.foreach { id =>
-          value(id) := field
-        }
-      }
-      value(bits.source)
-    }
-  }
-
-  // Extract highest-index type-T user bits from every client
-  def getUserHead[T <: UserBits : ClassTag](bits: TLBundleA): UInt = {
-    require (bits.params.aUserBits == bundle.aUserBits)
-    val seq = client.clients.map { c =>
-      val x = c.getUser[T](bits.user.get)
-      require (!x.isEmpty, "getUser called on a client ${c.name} with no matching fields")
-      (c.sourceId, x.head)
-    }
-    val nbits = seq.map(_._2.tag.width).max
-    val value = Wire(Vec(client.endSourceId, UInt(width = nbits)))
-    seq.foreach { case (sources, UserBitField(tag, field)) =>
-      sources.range.foreach { id =>
-        value(id) := field
-      }
-    }
-    value(bits.source)
-  }
-
   // Transfers
   def Probe(fromAddress: UInt, toSource: UInt, lgSize: UInt, capPermissions: UInt) = {
-    require (client.anySupportProbe)
+    require (client.anySupportProbe, s"TileLink: No clients visible from this edge support probes, but one of these managers tried to issue one: ${manager.managers}")
     val legal = client.supportsProbe(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Probe
@@ -702,7 +655,7 @@ class TLEdgeIn(
 
   // Accesses
   def Get(fromAddress: UInt, toSource: UInt, lgSize: UInt) = {
-    require (client.anySupportGet)
+    require (client.anySupportGet, s"TileLink: No clients visible from this edge support Gets, but one of these managers would try to issue one: ${manager.managers}")
     val legal = client.supportsGet(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Get
@@ -720,7 +673,7 @@ class TLEdgeIn(
     Put(fromAddress, toSource, lgSize, data, Bool(false))
 
   def Put(fromAddress: UInt, toSource: UInt, lgSize: UInt, data: UInt, corrupt: Bool): (Bool, TLBundleB) = {
-    require (client.anySupportPutFull)
+    require (client.anySupportPutFull, s"TileLink: No clients visible from this edge support Puts, but one of these managers would try to issue one: ${manager.managers}")
     val legal = client.supportsPutFull(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.PutFullData
@@ -738,7 +691,7 @@ class TLEdgeIn(
     Put(fromAddress, toSource, lgSize, data, mask, Bool(false))
 
   def Put(fromAddress: UInt, toSource: UInt, lgSize: UInt, data: UInt, mask: UInt, corrupt: Bool): (Bool, TLBundleB) = {
-    require (client.anySupportPutPartial)
+    require (client.anySupportPutPartial, s"TileLink: No clients visible from this edge support masked Puts, but one of these managers would try to request one: ${manager.managers}")
     val legal = client.supportsPutPartial(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.PutPartialData
@@ -753,7 +706,7 @@ class TLEdgeIn(
   }
 
   def Arithmetic(fromAddress: UInt, toSource: UInt, lgSize: UInt, data: UInt, atomic: UInt, corrupt: Bool = Bool(false)) = {
-    require (client.anySupportArithmetic)
+    require (client.anySupportArithmetic, s"TileLink: No clients visible from this edge support arithmetic AMOs, but one of these managers would try to request one: ${manager.managers}")
     val legal = client.supportsArithmetic(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.ArithmeticData
@@ -768,7 +721,7 @@ class TLEdgeIn(
   }
 
   def Logical(fromAddress: UInt, toSource: UInt, lgSize: UInt, data: UInt, atomic: UInt, corrupt: Bool = Bool(false)) = {
-    require (client.anySupportLogical)
+    require (client.anySupportLogical, s"TileLink: No clients visible from this edge support logical AMOs, but one of these managers would try to request one: ${manager.managers}")
     val legal = client.supportsLogical(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.LogicalData
@@ -783,7 +736,7 @@ class TLEdgeIn(
   }
 
   def Hint(fromAddress: UInt, toSource: UInt, lgSize: UInt, param: UInt) = {
-    require (client.anySupportHint)
+    require (client.anySupportHint, s"TileLink: No clients visible from this edge support Hints, but one of these managers would try to request one: ${manager.managers}")
     val legal = client.supportsHint(toSource, lgSize)
     val b = Wire(new TLBundleB(bundle))
     b.opcode  := TLMessages.Hint

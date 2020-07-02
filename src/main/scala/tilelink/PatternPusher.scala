@@ -35,7 +35,7 @@ case class ReadExpectPattern(address: BigInt, size: Int, data: BigInt) extends P
 
 class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameters) extends LazyModule
 {
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters(name = name)))))
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(name = name)))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {

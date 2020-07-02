@@ -46,7 +46,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	-CC "-I$(RISCV)/include" \
 	-CC "-std=c++11" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
-	$(RISCV)/lib/libfesvr.so \
+	$(RISCV)/lib/libfesvr.a \
 	-sverilog \
 	+incdir+$(generated_dir) \
 	+define+CLOCK_PERIOD=1.0 $(sim_vsrcs) $(sim_csrcs) \
@@ -56,21 +56,22 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_REG_INIT \
 	+define+RANDOMIZE_GARBAGE_ASSIGN \
 	+define+RANDOMIZE_INVALID_ASSIGN \
-	+define+RANDOMIZE_DELAY=2 \
+	+define+RANDOMIZE_DELAY=0.1 \
+	+define+MODEL=$(MODEL) \
 	+libext+.v \
 
 #--------------------------------------------------------------------
 # Build the simulator
 #--------------------------------------------------------------------
 
-simv = $(sim_dir)/simv-$(PROJECT)-$(CONFIG)
+simv = $(sim_dir)/simv-$(PROJECT)-$(CONFIG_STR)
 $(simv) : $(sim_vsrcs) $(sim_csrcs)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv) \
 	-debug_pp \
 
-simv_debug = $(sim_dir)/simv-$(PROJECT)-$(CONFIG)-debug
+simv_debug = $(sim_dir)/simv-$(PROJECT)-$(CONFIG_STR)-debug
 $(simv_debug) : $(sim_vsrcs) $(sim_csrcs)
 	cd $(sim_dir) && \
 	rm -rf csrc && \

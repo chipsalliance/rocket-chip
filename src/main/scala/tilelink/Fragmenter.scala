@@ -43,7 +43,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     if (!alwaysMin) x else
     if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
     TransferSizes.none
-  def mapManager(m: TLManagerParameters) = m.copy(
+  def mapManager(m: TLSlaveParameters) = m.v1copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = shrinkTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet, "Get"),
@@ -54,11 +54,22 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   val node = TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => c.copy(clients = Seq(TLClientParameters(
-      name        = "TLFragmenter",
-      sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
-      requestFifo = true))) },
-    managerFn = { m => m.copy(managers = m.managers.map(mapManager)) })
+    clientFn  = { c => c.v1copy(
+      clients = Seq(TLMasterParameters.v1(
+        name        = "TLFragmenter",
+        sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
+        requestFifo = true))),
+        // This master can only produce:
+        // emitsAcquireT = c.clients.map(_.knownToEmit.get.emitsAcquireT).reduce(_ smallestintervalcover _),
+        // emitsAcquireB = c.clients.map(_.knownToEmit.get.emitsAcquireB).reduce(_ smallestintervalcover _),
+        // emitsArithmetic = c.clients.map(_.knownToEmit.get.emitsArithmetic).reduce(_ smallestintervalcover _),
+        // emitsLogical = c.clients.map(_.knownToEmit.get.emitsLogical).reduce(_ smallestintervalcover _),
+        // emitsGet = c.clients.map(_.knownToEmit.get.emitsGet).reduce(_ smallestintervalcover _),
+        // emitsPutFull = c.clients.map(_.knownToEmit.get.emitsPutFull).reduce(_ smallestintervalcover _),
+        // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
+        // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
+    },
+    managerFn = { m => m.v1copy(managers = m.managers.map(mapManager)) })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -121,7 +132,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
          * get4    get4   0       ackD4   0      ackD4     0    0
          * get1    get1   0       ackD1   0      ackD1     0    0
          *
-         * put64   put16  6                                15   
+         * put64   put16  6                                15
          * put64   put16  6                                14
          * put64   put16  6                                13
          * put64   put16  6       ack16   6                12    12
@@ -217,7 +228,8 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
           // Take denied only from the first beat and hold that value
           val d_denied = out.d.bits.denied holdUnless dFirst
           when (dHasData) {
-            in.d.bits.denied := d_denied
+            in.d.bits.denied  := d_denied
+            in.d.bits.corrupt := d_denied || out.d.bits.corrupt
           }
         }
 
@@ -252,7 +264,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val maxLgPutPartial  = Mux1H(find, maxLgPutPartials)
         val maxLgHint        = Mux1H(find, maxLgHints)
 
-        val limit = if (alwaysMin) lgMinSize else 
+        val limit = if (alwaysMin) lgMinSize else
           MuxLookup(in_a.bits.opcode, lgMinSize, Array(
             TLMessages.PutFullData    -> maxLgPutFull,
             TLMessages.PutPartialData -> maxLgPutPartial,
@@ -291,6 +303,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val fullMask = UInt((BigInt(1) << beatBytes) - 1)
         assert (!repeater.io.full || in_a.bits.mask === fullMask)
         out.a.bits.mask := Mux(repeater.io.full, fullMask, in.a.bits.mask)
+        out.a.bits.user.partialAssignL(in.a.bits.user.subset(_.isData))
 
         // Tie off unused channels
         in.b.valid := Bool(false)
@@ -308,8 +321,10 @@ object TLFragmenter
 {
   def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false)(implicit p: Parameters): TLNode =
   {
-    val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
-    fragmenter.node
+    if (minSize <= maxSize) {
+      val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
+      fragmenter.node
+    } else { TLEphemeralNode()(ValName("no_fragmenter")) }
   }
 
   def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)

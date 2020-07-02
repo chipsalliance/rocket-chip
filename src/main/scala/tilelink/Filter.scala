@@ -13,7 +13,7 @@ class TLFilter(
   )(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(
-    clientFn  = { cp => cp.copy(clients = cp.clients.flatMap { c =>
+    clientFn  = { cp => cp.v1copy(clients = cp.clients.flatMap { c =>
       val out = cfilter(c)
       out.map { o => // Confirm the filter only REMOVES capability
         require (c.sourceId.contains(o.sourceId))
@@ -47,7 +47,7 @@ class TLFilter(
         }
         out
       }
-      mp.copy(managers = managers,
+      mp.v1copy(managers = managers,
               endSinkId = if (managers.exists(_.supportsAcquireB)) mp.endSinkId else 0)
     })
 
@@ -70,22 +70,35 @@ class TLFilter(
 
 object TLFilter
 {
-  type ManagerFilter = TLManagerParameters => Option[TLManagerParameters]
-  type ClientFilter = TLClientParameters => Option[TLClientParameters]
+  type ManagerFilter = TLSlaveParameters => Option[TLSlaveParameters]
+  type ClientFilter = TLMasterParameters => Option[TLMasterParameters]
 
   // preserve manager visibility
   def mIdentity: ManagerFilter = { m => Some(m) }
   // preserve client visibility
   def cIdentity: ClientFilter = { c => Some(c) }
+
   // make only the intersected address sets visible
   def mSelectIntersect(select: AddressSet): ManagerFilter = { m =>
     val filtered = m.address.map(_.intersect(select)).flatten
     val alignment = select.alignment /* alignment 0 means 'select' selected everything */
+    transferSizeHelper(m, filtered, alignment)
+  }
+
+  // make everything except the intersected address sets visible
+  def mSubtract(except: AddressSet): ManagerFilter = { m =>
+    val filtered = m.address.flatMap(_.subtract(except))
+    val alignment: BigInt = if (filtered.isEmpty) 0 else filtered.map(_.alignment).min
+    transferSizeHelper(m, filtered, alignment)
+  }
+
+  // adjust supported transfer sizes based on filtered intersection
+  private def transferSizeHelper(m: TLSlaveParameters, filtered: Seq[AddressSet], alignment: BigInt): Option[TLSlaveParameters] = {
     val maxTransfer = 1 << 30
     val capTransfer = if (alignment == 0 || alignment > maxTransfer) maxTransfer else alignment.toInt
     val cap = TransferSizes(1, capTransfer)
     if (filtered.isEmpty) { None } else {
-      Some(m.copy(
+      Some(m.v1copy(
         address            = filtered,
         supportsAcquireT   = m.supportsAcquireT  .intersect(cap),
         supportsAcquireB   = m.supportsAcquireB  .intersect(cap),
@@ -97,10 +110,11 @@ object TLFilter
         supportsHint       = m.supportsHint      .intersect(cap)))
     }
   }
+
   // hide any fully contained address sets
   def mHideContained(containedBy: AddressSet): ManagerFilter = { m =>
     val filtered = m.address.filterNot(containedBy.contains(_))
-    if (filtered.isEmpty) None else Some(m.copy(address = filtered))
+    if (filtered.isEmpty) None else Some(m.v1copy(address = filtered))
   }
   // hide all cacheable managers
   def mHideCacheable: ManagerFilter = { m =>
@@ -113,7 +127,7 @@ object TLFilter
   // cacheable managers cannot be acquired from
   def mMaskCacheable: ManagerFilter = { m =>
     if (m.supportsAcquireB) {
-      Some(m.copy(
+      Some(m.v1copy(
         regionType       = RegionType.UNCACHED,
         supportsAcquireB = TransferSizes.none,
         supportsAcquireT = TransferSizes.none,
@@ -123,7 +137,7 @@ object TLFilter
   // only cacheable managers are visible, but cannot be acquired from
   def mSelectAndMaskCacheable: ManagerFilter = { m =>
     if (m.supportsAcquireB) {
-      Some(m.copy(
+      Some(m.v1copy(
         regionType       = RegionType.UNCACHED,
         supportsAcquireB = TransferSizes.none,
         supportsAcquireT = TransferSizes.none,

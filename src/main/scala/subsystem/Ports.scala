@@ -30,13 +30,12 @@ case object ExtIn extends Field[Option[SlavePortParams]](None)
 
 /** Adds a port to the system intended to master an AXI4 DRAM controller. */
 trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
-  val module: CanHaveMasterAXI4MemPortModuleImp
-
-  val memAXI4Node = p(ExtMem).map { case MemoryPortParams(memPortParams, nMemoryChannels) =>
-    val portName = "axi4"
-    val device = new MemoryDevice
-
-    val memAXI4Node = AXI4SlaveNode(Seq.tabulate(nMemoryChannels) { channel =>
+  private val memPortParamsOpt = p(ExtMem)
+  private val portName = "axi4"
+  private val device = new MemoryDevice
+  private val idBits = memPortParamsOpt.map(_.master.idBits).getOrElse(1)
+  val memAXI4Node = AXI4SlaveNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels) =>
+    Seq.tabulate(nMemoryChannels) { channel =>
       val base = AddressSet.misaligned(memPortParams.base, memPortParams.size)
       val filter = AddressSet(channel * mbus.blockBytes, ~((nMemoryChannels-1) * mbus.blockBytes))
 
@@ -50,33 +49,19 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
           supportsRead  = TransferSizes(1, mbus.blockBytes),
           interleavedId = Some(0))), // slave does not interleave read responses
         beatBytes = memPortParams.beatBytes)
-    })
-
-    memAXI4Node := mbus.toDRAMController(Some(portName)) {
-      AXI4UserYanker() := AXI4IdIndexer(memPortParams.idBits) := TLToAXI4()
     }
+  }).toList.flatten)
 
-    memAXI4Node
-  }
-}
-
-/** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveMasterAXI4MemPortModuleImp extends LazyModuleImp {
-  val outer: CanHaveMasterAXI4MemPort
-
-  val mem_axi4 = outer.memAXI4Node.map(x => IO(HeterogeneousBag.fromNode(x.in)))
-  (mem_axi4 zip outer.memAXI4Node) foreach { case (io, node) =>
-    (io zip node.in).foreach { case (io, (bundle, _)) => io <> bundle }
+  mbus.coupleTo(s"memory_controller_port_named_$portName") {
+    (memAXI4Node
+      :*= AXI4UserYanker()
+      :*= AXI4IdIndexer(idBits)
+      :*= TLToAXI4()
+      :*= TLWidthWidget(mbus.beatBytes)
+      :*= _)
   }
 
-  def connectSimAXIMem() {
-    (mem_axi4 zip outer.memAXI4Node).foreach { case (io, node) =>
-      (io zip node.in).foreach { case (io, (_, edge)) =>
-        val mem = LazyModule(new SimAXIMem(edge, size = p(ExtMem).get.master.size))
-        Module(mem.module).io.axi4.head <> io
-      }
-    }
-  }
+  val mem_axi4 = InModuleBody { memAXI4Node.makeIOs() }
 }
 
 /** Adds a AXI4 port to the system intended to master an MMIO device bus */
@@ -97,30 +82,19 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>
-    mmioAXI4Node := sbus.toFixedWidthPort(Some(portName)) {
-      (AXI4Buffer()
+    sbus.coupleTo(s"port_named_$portName") {
+      (mmioAXI4Node
+        := AXI4Buffer()
         := AXI4UserYanker()
         := AXI4Deinterleaver(sbus.blockBytes)
         := AXI4IdIndexer(params.idBits)
-        := TLToAXI4())
+        := TLToAXI4()
+        := TLWidthWidget(sbus.beatBytes)
+        := _)
     }
   }
-}
 
-/** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveMasterAXI4MMIOPortModuleImp extends LazyModuleImp {
-  val outer: CanHaveMasterAXI4MMIOPort
-  val mmio_axi4 = IO(HeterogeneousBag.fromNode(outer.mmioAXI4Node.in))
-
-  (mmio_axi4 zip outer.mmioAXI4Node.in) foreach { case (io, (bundle, _)) => io <> bundle }
-
-  def connectSimAXIMMIO() {
-    (mmio_axi4 zip outer.mmioAXI4Node.in) foreach { case (io, (_, edge)) =>
-      // test harness size capped to 4KB (ignoring p(ExtMem).get.master.size)
-      val mmio_mem = LazyModule(new SimAXIMem(edge, size = 4096))
-      Module(mmio_mem.module).io.axi4.head <> io
-    }
-  }
+  val mmio_axi4 = InModuleBody { mmioAXI4Node.makeIOs() }
 }
 
 /** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
@@ -137,21 +111,20 @@ trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
           id   = IdRange(0, 1 << params.idBits))))).toSeq)
 
   slavePortParamsOpt.map { params =>
-    fbus.fromPort(Some(portName), buffer = BufferParams.default) {
-      (TLWidthWidget(params.beatBytes)
+    fbus.coupleFrom(s"port_named_$portName") {
+      ( _
+        := TLBuffer(BufferParams.default)
+        := TLFIFOFixer(TLFIFOFixer.all)
+        := TLWidthWidget(params.beatBytes)
         := AXI4ToTL()
         := AXI4UserYanker(Some(1 << (params.sourceBits - fifoBits - 1)))
         := AXI4Fragmenter()
-        := AXI4IdIndexer(fifoBits))
-    } := l2FrontendAXI4Node
+        := AXI4IdIndexer(fifoBits)
+        := l2FrontendAXI4Node )
+    }
   }
-}
 
-/** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveSlaveAXI4PortModuleImp extends LazyModuleImp {
-  val outer: CanHaveSlaveAXI4Port
-  val l2_frontend_bus_axi4 = IO(HeterogeneousBag.fromNode(outer.l2FrontendAXI4Node.out).flip)
-  (outer.l2FrontendAXI4Node.out zip l2_frontend_bus_axi4) foreach { case ((bundle, _), io) => bundle <> io }
+  val l2_frontend_bus_axi4 = InModuleBody { l2FrontendAXI4Node.makeIOs() }
 }
 
 /** Adds a TileLink port to the system intended to master an MMIO device bus */
@@ -162,8 +135,8 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
 
   val mmioTLNode = TLManagerNode(
     mmioPortParamsOpt.map(params =>
-      TLManagerPortParameters(
-        managers = Seq(TLManagerParameters(
+      TLSlavePortParameters.v1(
+        managers = Seq(TLSlaveParameters.v1(
           address            = AddressSet.misaligned(params.base, params.size),
           resources          = device.ranges,
           executable         = params.executable,
@@ -173,18 +146,19 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>
-    mmioTLNode := sbus.toFixedWidthPort(Some(portName)) {
-      TLBuffer() := TLSourceShrinker(1 << params.idBits)
+    sbus.coupleTo(s"port_named_$portName") {
+      (mmioTLNode
+        := TLBuffer()
+        := TLSourceShrinker(1 << params.idBits)
+        := TLWidthWidget(sbus.beatBytes)
+        := _ )
     }
   }
-}
 
-
-/** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveMasterTLMMIOPortModuleImp extends LazyModuleImp {
-  val outer: CanHaveMasterTLMMIOPort
-  val mmio_tl = IO(HeterogeneousBag.fromNode(outer.mmioTLNode.in))
-  (mmio_tl zip outer.mmioTLNode.in) foreach { case (io, (bundle, _)) => io <> bundle }
+  val mmio_tl = InModuleBody {
+    mmioTLNode.out.foreach { case (_, edge) => println(edge.prettySourceMapping(s"TL MMIO Port")) }
+    mmioTLNode.makeIOs()
+  }
 }
 
 /** Adds an TL port to the system intended to be a slave on an MMIO device bus.
@@ -196,35 +170,19 @@ trait CanHaveSlaveTLPort { this: BaseSubsystem =>
 
   val l2FrontendTLNode = TLClientNode(
     slavePortParamsOpt.map(params =>
-      TLClientPortParameters(
-        clients = Seq(TLClientParameters(
+      TLMasterPortParameters.v1(
+        clients = Seq(TLMasterParameters.v1(
           name     = portName.kebab,
           sourceId = IdRange(0, 1 << params.idBits))))).toSeq)
 
   slavePortParamsOpt.map { params =>
-    sbus.fromPort(Some(portName)) {
-      TLSourceShrinker(1 << params.sourceBits) := TLWidthWidget(params.beatBytes)
-    } := l2FrontendTLNode
+    sbus.coupleFrom(s"port_named_$portName") {
+      ( _
+        := TLSourceShrinker(1 << params.sourceBits)
+        := TLWidthWidget(params.beatBytes)
+        := l2FrontendTLNode )
+    }
   }
-}
 
-/** Actually generates the corresponding IO in the concrete Module */
-trait CanHaveSlaveTLPortModuleImp extends LazyModuleImp {
-  val outer: CanHaveSlaveTLPort
-  val l2_frontend_bus_tl = IO(HeterogeneousBag.fromNode(outer.l2FrontendTLNode.out).flip)
-  (outer.l2FrontendTLNode.out zip l2_frontend_bus_tl) foreach { case ((bundle, _), io) => bundle <> io }
-}
-
-/** Memory with AXI port for use in elaboratable test harnesses. */
-class SimAXIMem(edge: AXI4EdgeParameters, size: BigInt)(implicit p: Parameters) extends LazyModule {
-  val node = AXI4MasterNode(List(edge.master))
-  val srams = AddressSet.misaligned(0, size).map{ aSet => LazyModule(new AXI4RAM(aSet, beatBytes = edge.bundle.dataBits/8))}
-  val xbar = AXI4Xbar()
-  srams.foreach{ s => s.node := AXI4Buffer() := AXI4Fragmenter() := xbar }
-  xbar := node
-
-  lazy val module = new LazyModuleImp(this) {
-    val io = IO(new Bundle { val axi4 = HeterogeneousBag.fromNode(node.out).flip })
-    (node.out zip io.axi4) foreach { case ((bundle, _), io) => bundle <> io }
-  }
+  val l2_frontend_bus_tl = InModuleBody { l2FrontendTLNode.makeIOs() }
 }

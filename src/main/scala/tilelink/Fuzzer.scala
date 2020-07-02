@@ -74,7 +74,7 @@ object LFSRNoiseMaker {
 /** TLFuzzer drives test traffic over TL2 links. It generates a sequence of randomized
   * requests, and issues legal ones into the DUT. TODO: Currently the fuzzer only generates
   * memory operations, not permissions transfers.
-  * @param nOperations is the total number of operations that the fuzzer must complete for the test to pass
+  * @param nOperations is the total number of operations that the fuzzer must complete for the test to pass (0 => run forever)
   * @param inFlight is the number of operations that can be in-flight to the DUT concurrently
   * @param noiseMaker is a function that supplies a random UInt of a given width every time inc is true
   */
@@ -95,18 +95,18 @@ class TLFuzzer(
     require(n > 0, s"nOrdered must be > 0, not $n")
     require((inFlight % n) == 0, s"inFlight (${inFlight}) must be evenly divisible by nOrdered (${nOrdered}).")
     Seq.tabulate(n) {i =>
-      TLClientParameters(name =s"OrderedFuzzer$i",
+      TLMasterParameters.v1(name =s"OrderedFuzzer$i",
         sourceId = IdRange(i * (inFlight/n),  (i + 1)*(inFlight/n)),
         requestFifo = true)
     }
   } else {
-    Seq(TLClientParameters(
+    Seq(TLMasterParameters.v1(
       name = "Fuzzer",
       sourceId = IdRange(0,inFlight)
     ))
   }
 
-  val node = TLClientNode(Seq(TLClientPortParameters(clientParams)))
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(clientParams)))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -196,7 +196,7 @@ class TLFuzzer(
 
     // Wire up Fuzzer flow control
     val a_gen = if (nOperations>0) num_reqs =/= UInt(0) else Bool(true)
-    out.a.valid := a_gen && legal && (!a_first || idMap.io.alloc.valid)
+    out.a.valid := !reset && a_gen && legal && (!a_first || idMap.io.alloc.valid)
     idMap.io.alloc.ready := a_gen && legal && a_first && out.a.ready
     idMap.io.free.valid := d_first && out.d.fire()
     idMap.io.free.bits := out.d.bits.source

@@ -88,8 +88,8 @@ case class PhysicalFilterParams(
 
 class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAdapterNode(managerFn = { mp => mp.copy(
-    managers      = mp.managers.map(_.copy(alwaysGrantsT = false)),
+  val node = TLAdapterNode(managerFn = { mp => mp.v1copy(
+    managers      = mp.managers.map(_.v1copy(alwaysGrantsT = false)),
     endSinkId     = if (mp.endSinkId == 0) { 0 } else { mp.endSinkId+1 },
     minLatency    = 1 min mp.minLatency)})
 

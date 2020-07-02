@@ -19,7 +19,8 @@ abstract class AXI4BundleA(params: AXI4BundleParameters) extends AXI4BundleBase(
   val cache  = UInt(width = params.cacheBits)
   val prot   = UInt(width = params.protBits)
   val qos    = UInt(width = params.qosBits)  // 0=no QoS, bigger = higher priority
-  val user = if (params.userBits > 0) Some(UInt(width = params.userBits)) else None
+  val user   = BundleMap(params.requestFields.filter(_.key.isControl))
+  val echo   = BundleMap(params.echoFields)
   // val region = UInt(width = 4) // optional
 
   // Number of bytes-1 in this operation
@@ -45,7 +46,7 @@ class AXI4BundleW(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val data = UInt(width = params.dataBits)
   val strb = UInt(width = params.dataBits/8)
   val last = Bool()
-  val corrupt = if (params.wcorrupt) Some(Bool()) else None
+  val user = BundleMap(params.requestFields.filter(_.key.isData))
 }
 
 class AXI4BundleR(params: AXI4BundleParameters) extends AXI4BundleBase(params)
@@ -53,7 +54,8 @@ class AXI4BundleR(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val id   = UInt(width = params.idBits)
   val data = UInt(width = params.dataBits)
   val resp = UInt(width = params.respBits)
-  val user = if (params.userBits > 0) Some(UInt(width = params.userBits)) else None
+  val user = BundleMap(params.responseFields) // control and data
+  val echo = BundleMap(params.echoFields)
   val last = Bool()
 }
 
@@ -61,7 +63,8 @@ class AXI4BundleB(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
   val id   = UInt(width = params.idBits)
   val resp = UInt(width = params.respBits)
-  val user = if (params.userBits > 0) Some(UInt(width = params.userBits)) else None
+  val user = BundleMap(params.responseFields.filter(_.key.isControl))
+  val echo = BundleMap(params.echoFields)
 }
 
 class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)

@@ -22,6 +22,7 @@ object BaseExtensions {
   val specifications = Map[OMBaseInstructionSet, String](
     RV32E -> "RV32E Base Integer Instruction Set",
     RV32I -> "RV32I Base Integer Instruction Set",
+    RV64E -> "RV64E Base Integer Instruction Set",
     RV64I -> "RV64I Base Integer Instruction Set"
   )
 

@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.debug
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -58,8 +59,8 @@ class DMIResp( ) extends Bundle {
   *  Therefore it has the 'flipped' version of this.
   */
 class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val req = new  DecoupledIO(new DMIReq(p(DebugModuleParams).nDMIAddrSize))
-  val resp = new DecoupledIO(new DMIResp).flip()
+  val req = new  DecoupledIO(new DMIReq(p(DebugModuleKey).get.nDMIAddrSize))
+  val resp = Flipped(new DecoupledIO(new DMIResp))
 }
 
 /** This includes the clock and reset as these are passed through the
@@ -69,8 +70,8 @@ class DMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p) {
 
 class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
   val dmi      = new DMIIO()(p)
-  val dmiClock = Clock(OUTPUT)
-  val dmiReset = Bool(OUTPUT)
+  val dmiClock = Output(Clock())
+  val dmiReset = Output(Reset())
 }
 
 /** Convert DMI to TL. Avoids using special DMI synchronizers and register accesses
@@ -79,17 +80,21 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
 
-  val node = TLClientNode(Seq(TLClientPortParameters(Seq(TLClientParameters("debug")))))
+  // This master can only produce:
+  // emitsGet = TransferSizes(4, 4),
+  // emitsPutFull = TransferSizes(4, 4),
+  // emitsPutPartial = TransferSizes(4, 4)
+  val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("debug")))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val dmi = new DMIIO()(p).flip()
+      val dmi = Flipped(new DMIIO()(p))
     })
 
     val (tl, edge) = node.out(0)
 
-    val src  = Wire(init = 0.U)
-    val addr = Wire(init = (io.dmi.req.bits.addr << 2))
+    val src  = WireInit(0.U)
+    val addr = WireInit(io.dmi.req.bits.addr << 2)
     val size = (log2Ceil(DMIConsts.dmiDataSize / 8)).U
 
     val (_,  gbits) = edge.Get(src, addr, size)

@@ -3,29 +3,30 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3._
+import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.util._
 import ALU._
 
 class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
-  val fn = Bits(width = SZ_ALU_FN)
-  val dw = Bits(width = SZ_DW)
-  val in1 = Bits(width = dataBits)
-  val in2 = Bits(width = dataBits)
-  val tag = UInt(width = tagBits)
+  val fn = Bits(SZ_ALU_FN.W)
+  val dw = Bits(SZ_DW.W)
+  val in1 = Bits(dataBits.W)
+  val in2 = Bits(dataBits.W)
+  val tag = UInt(tagBits.W)
   override def cloneType = new MultiplierReq(dataBits, tagBits).asInstanceOf[this.type]
 }
 
 class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
-  val data = Bits(width = dataBits)
-  val tag = UInt(width = tagBits)
+  val data = Bits(dataBits.W)
+  val tag = UInt(tagBits.W)
   override def cloneType = new MultiplierResp(dataBits, tagBits).asInstanceOf[this.type]
 }
 
-class MultiplierIO(dataBits: Int, tagBits: Int) extends Bundle {
-  val req = Decoupled(new MultiplierReq(dataBits, tagBits)).flip
-  val kill = Bool(INPUT)
+class MultiplierIO(val dataBits: Int, val tagBits: Int) extends Bundle {
+  val req = Flipped(Decoupled(new MultiplierReq(dataBits, tagBits)))
+  val kill = Input(Bool())
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
 }
 
@@ -42,23 +43,23 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   private def minMulLatency = (cfg.mulUnroll > 0).option(if (cfg.mulEarlyOut) 2 else w/cfg.mulUnroll)
   def minLatency: Int = (minDivLatency ++ minMulLatency).min
 
-  val io = new MultiplierIO(width, log2Up(nXpr))
+  val io = IO(new MultiplierIO(width, log2Up(nXpr)))
   val w = io.req.bits.in1.getWidth
   val mulw = if (cfg.mulUnroll == 0) w else (w + cfg.mulUnroll - 1) / cfg.mulUnroll * cfg.mulUnroll
   val fastMulW = if (cfg.mulUnroll == 0) false else w/2 > cfg.mulUnroll && w % (2*cfg.mulUnroll) == 0
  
-  val s_ready :: s_neg_inputs :: s_mul :: s_div :: s_dummy :: s_neg_output :: s_done_mul :: s_done_div :: Nil = Enum(UInt(), 8)
-  val state = Reg(init=s_ready)
+  val s_ready :: s_neg_inputs :: s_mul :: s_div :: s_dummy :: s_neg_output :: s_done_mul :: s_done_div :: Nil = Enum(8)
+  val state = RegInit(s_ready)
  
-  val req = Reg(io.req.bits)
-  val count = Reg(UInt(width = log2Ceil(
+  val req = Reg(chiselTypeOf(io.req.bits))
+  val count = Reg(UInt(log2Ceil(
     ((cfg.divUnroll != 0).option(w/cfg.divUnroll + 1).toSeq ++
-     (cfg.mulUnroll != 0).option(mulw/cfg.mulUnroll)).reduce(_ max _))))
+     (cfg.mulUnroll != 0).option(mulw/cfg.mulUnroll)).reduce(_ max _)).W))
   val neg_out = Reg(Bool())
   val isHi = Reg(Bool())
   val resHi = Reg(Bool())
-  val divisor = Reg(Bits(width = w+1)) // div only needs w bits
-  val remainder = Reg(Bits(width = 2*mulw+2)) // div only needs 2*w+1 bits
+  val divisor = Reg(Bits((w+1).W)) // div only needs w bits
+  val remainder = Reg(Bits((2*mulw+2).W)) // div only needs 2*w+1 bits
 
   val mulDecode = List(
     FN_MUL    -> List(Y, N, X, X),
@@ -75,7 +76,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
       (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
 
   require(w == 32 || w == 64)
-  def halfWidth(req: MultiplierReq) = Bool(w > 32) && req.dw === DW_32
+  def halfWidth(req: MultiplierReq) = (w > 32).B && req.dw === DW_32
 
   def sext(x: Bits, halfW: Bool, signed: Bool) = {
     val sign = signed && Mux(halfW, x(w/2-1), x(w-1))
@@ -113,9 +114,9 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
     val nextMulReg = Cat(prod, mplier(mulw-1, cfg.mulUnroll))
     val nextMplierSign = count === mulw/cfg.mulUnroll-2 && neg_out
 
-    val eOutMask = (SInt(BigInt(-1) << mulw) >> (count * cfg.mulUnroll)(log2Up(mulw)-1,0))(mulw-1,0)
-    val eOut = Bool(cfg.mulEarlyOut) && count =/= mulw/cfg.mulUnroll-1 && count =/= 0 &&
-      !isHi && (mplier & ~eOutMask) === UInt(0)
+    val eOutMask = ((BigInt(-1) << mulw).S >> (count * cfg.mulUnroll)(log2Up(mulw)-1,0))(mulw-1,0)
+    val eOut = (cfg.mulEarlyOut).B && count =/= mulw/cfg.mulUnroll-1 && count =/= 0 &&
+      !isHi && (mplier & ~eOutMask) === 0.U
     val eOutRes = (mulReg >> (mulw - count * cfg.mulUnroll)(log2Up(mulw)-1,0))
     val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
     remainder := Cat(nextMulReg1 >> w, nextMplierSign, nextMulReg1(w-1,0))
@@ -146,7 +147,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
     val divby0 = count === 0 && !subtractor(w)
     if (cfg.divEarlyOut) {
       val align = 1 << log2Floor(cfg.divUnroll max cfg.divEarlyOutGranularity)
-      val alignMask = ~UInt(align-1, log2Ceil(w))
+      val alignMask = ~((align-1).U(log2Ceil(w).W))
       val divisorMSB = Log2(divisor(w-1,0), w) & alignMask
       val dividendMSB = Log2(remainder(w-1,0), w) | ~alignMask
       val eOutPos = ~(dividendMSB - divisorMSB)
@@ -173,19 +174,20 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   }
 
   val outMul = (state & (s_done_mul ^ s_done_div)) === (s_done_mul & ~s_done_div)
-  val loOut = Mux(Bool(fastMulW) && halfWidth(req) && outMul, result(w-1,w/2), result(w/2-1,0))
+  val loOut = Mux(fastMulW.B && halfWidth(req) && outMul, result(w-1,w/2), result(w/2-1,0))
   val hiOut = Mux(halfWidth(req), Fill(w/2, loOut(w/2-1)), result(w-1,w/2))
-  io.resp.bits <> req
+  io.resp.bits.tag := req.tag
+
   io.resp.bits.data := Cat(hiOut, loOut)
   io.resp.valid := (state === s_done_mul || state === s_done_div)
   io.req.ready := state === s_ready
 }
 
 class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Module with ShouldBeRetimed {
-  val io = new Bundle {
-    val req = Valid(new MultiplierReq(width, log2Ceil(nXpr))).flip
+  val io = IO(new Bundle {
+    val req = Flipped(Valid(new MultiplierReq(width, log2Ceil(nXpr))))
     val resp = Valid(new MultiplierResp(width, log2Ceil(nXpr)))
-  }
+  })
 
   val in = Pipe(io.req)
 
@@ -196,13 +198,15 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Modu
     FN_MULHSU -> List(Y, Y, N))
   val cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.asBool)
-  val cmdHalf = Bool(width > 32) && in.bits.dw === DW_32
+  val cmdHalf = (width > 32).B && in.bits.dw === DW_32
 
   val lhs = Cat(lhsSigned && in.bits.in1(width-1), in.bits.in1).asSInt
   val rhs = Cat(rhsSigned && in.bits.in2(width-1), in.bits.in2).asSInt
   val prod = lhs * rhs
   val muxed = Mux(cmdHi, prod(2*width-1, width), Mux(cmdHalf, prod(width/2-1, 0).sextTo(width), prod(width-1, 0)))
 
-  io.resp := Pipe(in, latency-1)
+  val resp = Pipe(in, latency-1)
+  io.resp.valid := resp.valid
+  io.resp.bits.tag := resp.bits.tag
   io.resp.bits.data := Pipe(in.valid, muxed, latency-1).bits
 }

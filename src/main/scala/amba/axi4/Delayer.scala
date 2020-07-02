@@ -38,8 +38,6 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
       bits.cache := LFSRNoiseMaker(bits.params.cacheBits)
       bits.prot  := LFSRNoiseMaker(bits.params.protBits)
       bits.qos   := LFSRNoiseMaker(bits.params.qosBits)
-      if (bits.params.userBits > 0)
-        bits.user.get := LFSRNoiseMaker(bits.params.userBits)
     }
 
     (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
@@ -60,13 +58,9 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
       rnoise.data := LFSRNoiseMaker(rnoise.params.dataBits)
       rnoise.resp := LFSRNoiseMaker(rnoise.params.respBits)
       rnoise.last := LFSRNoiseMaker(1)(0)
-      if (rnoise.params.userBits > 0)
-        rnoise.user.get := LFSRNoiseMaker(rnoise.params.userBits)
 
       bnoise.id   := LFSRNoiseMaker(bnoise.params.idBits)
       bnoise.resp := LFSRNoiseMaker(bnoise.params.respBits)
-      if (bnoise.params.userBits > 0)
-        bnoise.user.get := LFSRNoiseMaker(bnoise.params.userBits)
 
       feed(out.ar, in.ar, arnoise)
       feed(out.aw, in.aw, awnoise)

@@ -5,7 +5,11 @@ package freechips.rocketchip.amba.axi4
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util._
 import scala.math.{min,max}
+
+case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
+case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(UInt(OUTPUT, width = width), UInt(0))
 
 class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 {
@@ -33,9 +37,12 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
             maxFlight = old.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
         }
       }
+      names.foreach { n => if (n.isEmpty) n += "<unused>" }
+      val bits = log2Ceil(mp.endId) - idBits
+      val field = if (bits > 0) Seq(AXI4ExtraIdField(bits)) else Nil
       mp.copy(
-        userBits = mp.userBits + max(0, log2Ceil(mp.endId) - idBits),
-        masters  = masters.zipWithIndex.map { case (m,i) => m.copy(name = names(i).toList.mkString(", "))})
+        echoFields = field ++ mp.echoFields,
+        masters    = masters.zipWithIndex.map { case (m,i) => m.copy(name = names(i).toList.mkString(", "))})
     },
     slaveFn = { sp => sp
     })
@@ -44,29 +51,26 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
 
       // Leave everything mostly untouched
-      out.ar <> in.ar
-      out.aw <> in.aw
-      out.w <> in.w
-      in.b <> out.b
-      in.r <> out.r
+      out.ar :<> in.ar
+      out.aw :<> in.aw
+      out.w :<> in.w
+      in.b :<> out.b
+      in.r :<> out.r
 
       val bits = log2Ceil(edgeIn.master.endId) - idBits
       if (bits > 0) {
         // (in.aX.bits.id >> idBits).width = bits > 0
-        out.ar.bits.user.get := Cat(in.ar.bits.user.toList ++ Seq(in.ar.bits.id >> idBits))
-        out.aw.bits.user.get := Cat(in.aw.bits.user.toList ++ Seq(in.aw.bits.id >> idBits))
-        // user.isDefined => width > 0
-        in.r.bits.user.foreach { _ := out.r.bits.user.get >> bits }
-        in.b.bits.user.foreach { _ := out.b.bits.user.get >> bits }
+        out.ar.bits.echo(AXI4ExtraId) := in.ar.bits.id >> idBits
+        out.aw.bits.echo(AXI4ExtraId) := in.aw.bits.id >> idBits
         // Special care is needed in case of 0 idBits, b/c .id has width 1 still
         if (idBits == 0) {
           out.ar.bits.id := UInt(0)
           out.aw.bits.id := UInt(0)
-          in.r.bits.id := out.r.bits.user.get
-          in.b.bits.id := out.b.bits.user.get
+          in.r.bits.id := out.r.bits.echo(AXI4ExtraId)
+          in.b.bits.id := out.b.bits.echo(AXI4ExtraId)
         } else {
-          in.r.bits.id := Cat(out.r.bits.user.get, out.r.bits.id)
-          in.b.bits.id := Cat(out.b.bits.user.get, out.b.bits.id)
+          in.r.bits.id := Cat(out.r.bits.echo(AXI4ExtraId), out.r.bits.id)
+          in.b.bits.id := Cat(out.b.bits.echo(AXI4ExtraId), out.b.bits.id)
         }
       }
     }

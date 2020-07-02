@@ -1,27 +1,30 @@
 // See LICENSE.Berkeley for license details.
 
-import sbt.complete._
 import sbt.complete.DefaultParsers._
-import xerial.sbt.pack._
-import sys.process._
+import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2-SNAPSHOT",
-  scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.12.4"),
+  scalaVersion := "2.12.10",
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
+  libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.0.8" % "test"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  resolvers ++= Seq(
+    Resolver.sonatypeRepo("snapshots"),
+    Resolver.sonatypeRepo("releases"),
+    Resolver.mavenLocal
+  ),
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  pomExtra := <url>https://github.com/freechipsproject/rocket-chip</url>
+  pomExtra := <url>https://github.com/chipsalliance/rocket-chip</url>
   <licenses>
     <license>
       <name>Apache 2</name>
@@ -35,8 +38,8 @@ lazy val commonSettings = Seq(
       </license>
     </licenses>
     <scm>
-      <url>https://github.com/freechipsproject/rocketchip.git</url>
-      <connection>scm:git:github.com/freechipsproject/rocketchip.git</connection>
+      <url>https://github.com/chipsalliance/rocketchip.git</url>
+      <connection>scm:git:github.com/chipsalliance/rocketchip.git</connection>
     </scm>,
   publishTo := {
     val v = version.value
@@ -62,23 +65,29 @@ def dependOnChisel(prj: Project) = {
   }
 }
 
+lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
+  .settings(commonSettings)
+  .settings(publishArtifact := false)
 lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
-  .settings(crossScalaVersions := Seq("2.12.4"))
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val rocketchip = dependOnChisel(project in file("."))
   .settings(commonSettings, chipSettings)
+  .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
   .dependsOn(hardfloat % "compile-internal;test-internal")
   .dependsOn(`rocket-macros` % "compile-internal;test-internal")
   .settings(
       aggregate := false,
       // Include macro classes, resources, and sources in main jar.
+      mappings in (Compile, packageBin) ++= (mappings in (`api-config-chipsalliance`, Compile, packageBin)).value,
+      mappings in (Compile, packageSrc) ++= (mappings in (`api-config-chipsalliance`, Compile, packageSrc)).value,
       mappings in (Compile, packageBin) ++= (mappings in (hardfloat, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
       mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
-      exportJars := true
+      exportJars := true,
+      Test / unmanagedBase := baseDirectory.value / "test_lib"
   )
 
 

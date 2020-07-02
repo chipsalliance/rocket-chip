@@ -49,18 +49,22 @@ class AsyncBundle[T <: Data](private val gen: T, val params: AsyncQueueParams = 
 object GrayCounter {
   def apply(bits: Int, increment: Bool = true.B, clear: Bool = false.B, name: String = "binary"): UInt = {
     val incremented = Wire(UInt(bits.W))
-    val binary = AsyncResetReg(incremented, name)
+    val binary = RegNext(next=incremented, init=0.U).suggestName(name)
     incremented := Mux(clear, 0.U, binary + increment.asUInt())
     incremented ^ (incremented >> 1)
   }
 }
 
-class AsyncValidSync(sync: Int, desc: String) extends Module {
+class AsyncValidSync(sync: Int, desc: String) extends RawModule {
   val io = IO(new Bundle {
     val in = Input(Bool())
     val out = Output(Bool())
   })
-  io.out := AsyncResetSynchronizerShiftReg(io.in, sync, Some(desc))
+  val clock = IO(Input(Clock()))
+  val reset = IO(Input(AsyncReset()))
+  withClockAndReset(clock, reset){
+    io.out := AsyncResetSynchronizerShiftReg(io.in, sync, Some(desc))
+  }
 }
 
 class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Module {
@@ -74,17 +78,17 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
   val bits = params.bits
   val sink_ready = WireInit(true.B)
   val mem = Reg(Vec(params.depth, gen)) // This does NOT need to be reset at all.
-  val widx = GrayCounter(bits+1, io.enq.fire(), !sink_ready, "widx_bin")
+  val widx = withReset(reset.asAsyncReset)(GrayCounter(bits+1, io.enq.fire(), !sink_ready, "widx_bin"))
   val ridx = AsyncResetSynchronizerShiftReg(io.async.ridx, params.sync, Some("ridx_gray"))
   val ready = sink_ready && widx =/= (ridx ^ (params.depth | params.depth >> 1).U)
 
   val index = if (bits == 0) 0.U else io.async.widx(bits-1, 0) ^ (io.async.widx(bits, bits) << (bits-1))
   when (io.enq.fire()) { mem(index) := io.enq.bits }
 
-  val ready_reg = AsyncResetReg(ready.asUInt, "ready_reg")(0)
+  val ready_reg = withReset(reset.asAsyncReset)(RegNext(next=ready, init=false.B).suggestName("ready_reg"))
   io.enq.ready := ready_reg && sink_ready
 
-  val widx_reg = AsyncResetReg(widx, "widx_gray")
+  val widx_reg = withReset(reset.asAsyncReset)(RegNext(next=widx, init=0.U).suggestName("widx_gray"))
   io.async.widx := widx_reg
 
   io.async.index match {
@@ -93,14 +97,24 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
   }
 
   io.async.safe.foreach { sio =>
-    val source_valid = Module(new AsyncValidSync(params.sync+1, "source_valid"))
-    val sink_extend  = Module(new AsyncValidSync(1, "sink_extend"))
-    val sink_valid   = Module(new AsyncValidSync(params.sync, "sink_valid"))
-    source_valid.reset := reset.asBool || !sio.sink_reset_n
-    sink_extend .reset := reset.asBool || !sio.sink_reset_n
+    val source_valid_0 = Module(new AsyncValidSync(params.sync, "source_valid_0"))
+    val source_valid_1 = Module(new AsyncValidSync(params.sync, "source_valid_1"))
 
-    source_valid.io.in := true.B
-    sio.widx_valid := source_valid.io.out
+    val sink_extend  = Module(new AsyncValidSync(params.sync, "sink_extend"))
+    val sink_valid   = Module(new AsyncValidSync(params.sync, "sink_valid"))
+    source_valid_0.reset := (reset.asBool || !sio.sink_reset_n).asAsyncReset
+    source_valid_1.reset := (reset.asBool || !sio.sink_reset_n).asAsyncReset
+    sink_extend   .reset := (reset.asBool || !sio.sink_reset_n).asAsyncReset
+    sink_valid    .reset := reset.asAsyncReset
+
+    source_valid_0.clock := clock
+    source_valid_1.clock := clock
+    sink_extend   .clock := clock
+    sink_valid    .clock := clock
+
+    source_valid_0.io.in := true.B
+    source_valid_1.io.in := source_valid_0.io.out
+    sio.widx_valid := source_valid_1.io.out
     sink_extend.io.in := sio.ridx_valid
     sink_valid.io.in := sink_extend.io.out
     sink_ready := sink_valid.io.out
@@ -112,8 +126,8 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
     //  occurred.
     // TODO: write some sort of sanity check assertion for users
     // that denote don't reset when there is activity
-//    assert (!(reset || !sio.sink_reset_n) || !io.enq.valid, "Enque while sink is reset and AsyncQueueSource is unprotected")
-//    assert (!reset_rise || prev_idx_match.asBool, "Sink reset while AsyncQueueSource not empty")
+    //    assert (!(reset || !sio.sink_reset_n) || !io.enq.valid, "Enqueue while sink is reset and AsyncQueueSource is unprotected")
+    //    assert (!reset_rise || prev_idx_match.asBool, "Sink reset while AsyncQueueSource not empty")
   }
 }
 
@@ -127,7 +141,7 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
 
   val bits = params.bits
   val source_ready = WireInit(true.B)
-  val ridx = GrayCounter(bits+1, io.deq.fire(), !source_ready, "ridx_bin")
+  val ridx = withReset(reset.asAsyncReset)(GrayCounter(bits+1, io.deq.fire(), !source_ready, "ridx_bin"))
   val widx = AsyncResetSynchronizerShiftReg(io.async.widx, params.sync, Some("widx_gray"))
   val valid = source_ready && ridx =/= widx
 
@@ -141,37 +155,47 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
   // be considered unless the asynchronously reset deq valid register is set.
   // It is possible that bits latches when the source domain is reset / has power cut
   // This is safe, because isolation gates brought mem low before the zeroed widx reached us
-  val deq_bits_nxt = Mux(valid, io.async.mem(if (params.narrow) 0.U else index), io.deq.bits)
-  io.deq.bits := SynchronizerShiftReg(deq_bits_nxt, sync = 1, name = Some("deq_bits_reg"))
+  val deq_bits_nxt = io.async.mem(if (params.narrow) 0.U else index)
+  io.deq.bits := ClockCrossingReg(deq_bits_nxt, en = valid, doInit = false, name = Some("deq_bits_reg"))
 
-  val valid_reg = AsyncResetReg(valid.asUInt, "valid_reg")(0)
+  val valid_reg = withReset(reset.asAsyncReset)(RegNext(next=valid, init=false.B).suggestName("valid_reg"))
   io.deq.valid := valid_reg && source_ready
 
-  val ridx_reg = AsyncResetReg(ridx, "ridx_gray")
+  val ridx_reg = withReset(reset.asAsyncReset)(RegNext(next=ridx, init=0.U).suggestName("ridx_gray"))
   io.async.ridx := ridx_reg
 
   io.async.safe.foreach { sio =>
-    val sink_valid    = Module(new AsyncValidSync(params.sync+1, "sink_valid"))
-    val source_extend = Module(new AsyncValidSync(1, "source_extend"))
-    val source_valid  = Module(new AsyncValidSync(params.sync, "source_valid"))
-    sink_valid   .reset := reset.asBool || !sio.source_reset_n
-    source_extend.reset := reset.asBool || !sio.source_reset_n
+    val sink_valid_0    = Module(new AsyncValidSync(params.sync, "sink_valid_0"))
+    val sink_valid_1    = Module(new AsyncValidSync(params.sync, "sink_valid_1"))
 
-    sink_valid.io.in := true.B
-    sio.ridx_valid := sink_valid.io.out
+    val source_extend = Module(new AsyncValidSync(params.sync, "source_extend"))
+    val source_valid  = Module(new AsyncValidSync(params.sync, "source_valid"))
+    sink_valid_0 .reset := (reset.asBool || !sio.source_reset_n).asAsyncReset
+    sink_valid_1 .reset := (reset.asBool || !sio.source_reset_n).asAsyncReset
+    source_extend.reset := (reset.asBool || !sio.source_reset_n).asAsyncReset
+    source_valid .reset := reset.asAsyncReset
+
+    sink_valid_0 .clock := clock
+    sink_valid_1 .clock := clock
+    source_extend.clock := clock
+    source_valid .clock := clock
+
+    sink_valid_0.io.in := true.B
+    sink_valid_1.io.in := sink_valid_0.io.out
+    sio.ridx_valid := sink_valid_1.io.out
     source_extend.io.in := sio.widx_valid
     source_valid.io.in := source_extend.io.out
     source_ready := source_valid.io.out
     sio.sink_reset_n := !reset.asBool
 
-    val reset_and_extend = !source_ready || !sio.source_reset_n || reset.asBool
-    val reset_and_extend_prev = RegNext(reset_and_extend, true.B)
-    val reset_rise = !reset_and_extend_prev && reset_and_extend
-    val prev_idx_match = AsyncResetReg(updateData=(io.async.widx===io.async.ridx), resetData=0)
-
     // TODO: write some sort of sanity check assertion for users
     // that denote don't reset when there is activity
-//    assert (!reset_rise || prev_idx_match.asBool, "Source reset while AsyncQueueSink not empty")
+    // 
+    // val reset_and_extend = !source_ready || !sio.source_reset_n || reset.asBool
+    // val reset_and_extend_prev = RegNext(reset_and_extend, true.B)
+    // val reset_rise = !reset_and_extend_prev && reset_and_extend
+    // val prev_idx_match = AsyncResetReg(updateData=(io.async.widx===io.async.ridx), resetData=0)
+    // assert (!reset_rise || prev_idx_match.asBool, "Source reset while AsyncQueueSink not empty")
   }
 }
 

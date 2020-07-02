@@ -11,23 +11,41 @@ trait HasBuiltInDeviceParams {
   val errorDevice: Option[DevNullParams]
 }
 
-/* Optionally add some built-in devices to a bus wrapper */
-trait CanHaveBuiltInDevices { this: TLBusWrapper =>
+sealed trait BuiltInDevices {
+  def errorOpt: Option[TLError]
+  def zeroOpt: Option[TLZero]
+}
 
-  def attachBuiltInDevices(params: HasBuiltInDeviceParams) {
-    params.errorDevice.foreach { dnp => LazyScope("wrapped_error_device") {
+object BuiltInDevices {
+  def none = new BuiltInDevices {
+    val errorOpt = None
+    val zeroOpt = None
+  }
+
+  def attach(
+    params: HasBuiltInDeviceParams with HasTLBusParams,
+    outwardNode: TLOutwardNode)(implicit p: Parameters) = new BuiltInDevices {
+    val errorOpt = params.errorDevice.map { dnp => LazyScope("wrapped_error_device") {
       val error = LazyModule(new TLError(
         params = dnp,
-        beatBytes = beatBytes))
+        beatBytes = params.beatBytes))
+
       error.node := TLBuffer() := outwardNode
+      error
     }}
 
-    params.zeroDevice.foreach { addr => LazyScope("wrapped_zero_device") {
+    val zeroOpt = params.zeroDevice.map { addr => LazyScope("wrapped_zero_device") {
       val zero = LazyModule(new TLZero(
         address = addr,
-        beatBytes = beatBytes))
-      zero.node := TLFragmenter(beatBytes, blockBytes) := TLBuffer() := outwardNode
+        beatBytes = params.beatBytes))
+      zero.node := TLFragmenter(params.beatBytes, params.blockBytes) := TLBuffer() := outwardNode
+      zero
     }}
   }
+}
+
+/* Optionally add some built-in devices to a bus wrapper */
+trait CanHaveBuiltInDevices {
+  def builtInDevices: BuiltInDevices
 }
 

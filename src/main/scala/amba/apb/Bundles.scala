@@ -3,12 +3,10 @@
 package freechips.rocketchip.amba.apb
 
 import Chisel._
-import freechips.rocketchip.util.GenericParameterizedBundle
-
-abstract class APBBundleBase(params: APBBundleParameters) extends GenericParameterizedBundle(params)
+import freechips.rocketchip.util._
 
 // Signal directions are from the master's point-of-view
-class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
+class APBBundle(val params: APBBundleParameters) extends Bundle
 {
   // Flow control signals from the master
   val psel      = Bool(OUTPUT)
@@ -20,10 +18,12 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
   val pprot     = UInt(OUTPUT, width = params.protBits)
   val pwdata    = UInt(OUTPUT, width = params.dataBits)
   val pstrb     = UInt(OUTPUT, width = params.dataBits/8)
+  val pauser    = BundleMap(params.requestFields)
 
   val pready    = Bool(INPUT)
   val pslverr   = Bool(INPUT)
   val prdata    = UInt(INPUT, width = params.dataBits)
+  val pduser    = BundleMap(params.responseFields)
 
   def tieoff() {
     pready.dir match {
@@ -31,12 +31,14 @@ class APBBundle(params: APBBundleParameters) extends APBBundleBase(params)
         pready  := Bool(false)
         pslverr := Bool(false)
         prdata  := UInt(0)
+        pduser :<= BundleMap()
       case OUTPUT =>
         pwrite  := Bool(false)
         paddr   := UInt(0)
         pprot   := APBParameters.PROT_DEFAULT
         pwdata  := UInt(0)
         pstrb   := UInt(0)
+        pauser :<= BundleMap()
       case _ =>
     }
   }

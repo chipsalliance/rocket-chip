@@ -82,17 +82,6 @@ object DiplomaticObjectModelUtils {
 
   def getAllClassNames(klass: Class[_]): Seq[String] =
     keepLast(getSuperClasses(klass).map(getDemangledName _))
-
-  def convertCode(code: Code): Option[OMECC] = {
-    val x = code.toString.split('.')(3).split('@')(0)
-    x match {
-      case "SECDEDCode" => Some(OMECC.SECDED)
-      case "IdentityCode" => Some(OMECC.Identity)
-      case "ParityCode" => Some(OMECC.Parity)
-      case "SECCode" => Some(OMECC.SEC)
-      case _ => throw new IllegalArgumentException
-    }
-  }
 }
 
 class OMEnumSerializer extends CustomSerializer[OMEnum](format => {
@@ -125,18 +114,21 @@ object DiplomaticObjectModelAddressing {
     )
   }
 
-  private def omAddressSets(ranges: Seq[AddressSet]): Seq[OMAddressSet] = {
+  private def omAddressSets(ranges: Seq[AddressSet], name: String): Seq[OMAddressSet] = {
     ranges.map {
       case AddressSet(base, mask) =>
+        require(mask != 0, s"omAddressSets: $name has invalid mask of 0")
         OMAddressSet(base = base, mask = mask)
     }
   }
 
-  private def omMemoryRegion(name: String, description: String, value: ResourceValue, omRegMap: Option[OMRegisterMap]): OMMemoryRegion = {
+  private def omMemoryRegion(name: String, description: String, value: ResourceValue,
+    omRegMap: Option[OMRegisterMap],
+    omAddressBlocks: Seq[OMAddressBlock] = Nil): OMMemoryRegion = {
     val (omRanges, permissions) = value match {
       case rm: ResourceMapping =>
-        (omAddressSets(rm.address),rm.permissions)
-      case ra: ResourceAddress => (omAddressSets(ra.address), ra.permissions)
+        (omAddressSets(rm.address, name),rm.permissions)
+      case ra: ResourceAddress => (omAddressSets(ra.address, name), ra.permissions)
       case _ => throw new IllegalArgumentException()
     }
 
@@ -145,7 +137,8 @@ object DiplomaticObjectModelAddressing {
       description = description,
       addressSets = omRanges,
       permissions = omPerms(permissions),
-      registerMap = omRegMap
+      registerMap = omRegMap,
+      addressBlocks = (omAddressBlocks ++ omRegMap.map{_.addressBlocks}.getOrElse(Nil)).distinct
     )
   }
 
@@ -153,13 +146,18 @@ object DiplomaticObjectModelAddressing {
     Nil
   }
 
-  def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
-    resourceBindings.map.collect {
+  def getOMMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None,
+    omAddressBlocks: Seq[OMAddressBlock] = Nil): Seq[OMMemoryRegion] = {
+    val result =  resourceBindings.map.collect {
       case (x: String, seq: Seq[Binding]) if (DiplomacyUtils.regFilter(x) || DiplomacyUtils.rangeFilter(x)) =>
         seq.map {
-          case Binding(device: Option[Device], value: ResourceValue) => omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap)
+          case Binding(device: Option[Device], value: ResourceValue) =>
+            omMemoryRegion(name, DiplomacyUtils.regName(x).getOrElse(""), value, omRegMap, omAddressBlocks)
         }
     }.flatten.toSeq
+    require(omRegMap.isEmpty || (result.size == 1),
+      s"If Register Map is specified, there must be exactly one Memory Region, not ${result.size}")
+    result
   }
 
   def getOMPortMemoryRegions(name: String, resourceBindings: ResourceBindings, omRegMap: Option[OMRegisterMap] = None): Seq[OMMemoryRegion]= {
@@ -176,7 +174,8 @@ object DiplomaticObjectModelAddressing {
     width: Int,
     depth: BigInt,
     granWidth: Int,
-    uid: Int
+    uid: Int,
+    rtlModule: OMRTLModule = OMRTLModule()
   ): OMSRAM = {
     OMSRAM(
       description = desc,
@@ -184,7 +183,8 @@ object DiplomaticObjectModelAddressing {
       dataWidth = width,
       depth = depth,
       writeMaskGranularity = granWidth,
-      uid = uid
+      uid = uid,
+      rtlModule = rtlModule
     )
   }
 

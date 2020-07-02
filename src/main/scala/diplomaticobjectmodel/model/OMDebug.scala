@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomaticobjectmodel.model
 
 
 import freechips.rocketchip.config._
-import freechips.rocketchip.devices.debug.{DebugModuleParams, ExportDebugCJTAG, ExportDebugDMI, ExportDebugJTAG, ExportDebugAPB}
+import freechips.rocketchip.devices.debug.{DebugModuleParams, ExportDebug}
 
 sealed trait OMDebugInterfaceType extends OMEnum
 case object JTAG extends OMDebugInterfaceType
@@ -14,6 +14,7 @@ case object DebugAPB extends OMDebugInterfaceType
 
 sealed trait OMDebugAuthenticationType extends OMEnum
 case object NONE extends OMDebugAuthenticationType
+case object PASSTHRU extends OMDebugAuthenticationType
 
 // These directly come from RISC-V Debug Spec 0.14
 case class OMDebug(
@@ -55,15 +56,17 @@ case class OMDebug(
   hasAbstractPostIncrement: Boolean,
   hasAbstractPostExec: Boolean,
   hasClockGate: Boolean,
+  crossingHasSafeReset: Boolean,   // Do async crossings have "safe" reset logic
   _types: Seq[String] = Seq("OMDebug", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMDevice
 
 object OMDebug {
   def getOMDebugInterfaceType(p: Parameters): OMDebugInterfaceType = {
-    if (p(ExportDebugJTAG)) { JTAG }
-    else if (p(ExportDebugCJTAG)) { CJTAG }
-    else if (p(ExportDebugDMI)) { DMI }
-    else if (p(ExportDebugAPB)) { DebugAPB }
+    val export = p(ExportDebug)
+    if (export.jtag) { JTAG }
+    else if (export.cjtag) { CJTAG }
+    else if (export.dmi) { DMI }
+    else if (export.apb) { DebugAPB }
     else { throw new IllegalArgumentException }
   }
 }

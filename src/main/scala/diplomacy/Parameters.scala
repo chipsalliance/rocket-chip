@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.util.{IrrevocableIO,ReadyValidIO}
 import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
 import scala.reflect.ClassTag
 
@@ -96,14 +97,27 @@ case class TransferSizes(min: Int, max: Int)
   def intersect(x: TransferSizes) =
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
+  
+  // Not a union, because the result may contain sizes contained by neither term
+  def cover(x: TransferSizes) = {
+    if (none) {
+      x
+    } else if (x.none) {
+      this
+    } else {
+      TransferSizes(scala.math.min(min, x.min), scala.math.max(max, x.max))
+    }
+  }
 
   override def toString() = "TransferSizes[%d, %d]".format(min, max)
-
 }
 
 object TransferSizes {
   def apply(x: Int) = new TransferSizes(x)
   val none = new TransferSizes(0)
+
+  def cover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ cover _)
+  def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
   implicit def asBool(x: TransferSizes) = !x.none
 }
@@ -115,7 +129,7 @@ object TransferSizes {
 case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 {
   // Forbid misaligned base address (and empty sets)
-  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, got: ($base, $mask)")
+  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, got: ${this.toString}")
   require (base >= 0, s"AddressSet negative base is ambiguous: $base") // TL2 address widths are not fixed => negative is ambiguous
   // We do allow negative mask (=> ignore all high bits)
 
@@ -153,13 +167,13 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   }
 
   def subtract(x: AddressSet): Seq[AddressSet] = {
-    if (!overlaps(x)) {
-      Seq(this)
-    } else {
-      val new_inflex = ~x.mask & mask
-      // !!! this fractures too much; find a better algorithm
-      val fracture = AddressSet.enumerateMask(new_inflex).flatMap(m => intersect(AddressSet(m, ~new_inflex)))
-      fracture.filter(!_.overlaps(x))
+    intersect(x) match {
+      case None => Seq(this)
+      case Some(remove) => AddressSet.enumerateBits(mask & ~remove.mask).map { bit =>
+        val nmask = (mask & (bit-1)) | remove.mask
+        val nbase = (remove.base ^ bit) & ~nmask
+        AddressSet(nbase, nmask)
+      }
     }
   }
 
@@ -205,24 +219,20 @@ object AddressSet
     }
   }
 
+  def unify(seq: Seq[AddressSet], bit: BigInt): Seq[AddressSet] = {
+    // Pair terms up by ignoring 'bit'
+    seq.distinct.groupBy(x => x.copy(base = x.base & ~bit)).map { case (key, seq) =>
+      if (seq.size == 1) {
+        seq.head // singleton -> unaffected
+      } else {
+        key.copy(mask = key.mask | bit) // pair - widen mask by bit
+      }
+    }.toList
+  }
+
   def unify(seq: Seq[AddressSet]): Seq[AddressSet] = {
-    val n = seq.size
-    val array = Array(seq:_*)
-    var filter = Array.fill(n) { false }
-    for (i <- 0 until n-1) { if (!filter(i)) {
-      for (j <- i+1 until n) { if (!filter(j)) {
-        val a = array(i)
-        val b = array(j)
-        if (a.mask == b.mask && isPow2(a.base ^ b.base)) {
-          val c_base = a.base & ~(a.base ^ b.base)
-          val c_mask = a.mask | (a.base ^ b.base)
-          filter.update(j, true)
-          array.update(i, AddressSet(c_base, c_mask))
-        }
-      }}
-    }}
-    val out = (array zip filter) flatMap { case (a, f) => if (f) None else Some(a) }
-    if (out.size != n) unify(out) else out.toList
+    val bits = seq.map(_.base).foldLeft(BigInt(0))(_ | _)
+    AddressSet.enumerateBits(bits).foldLeft(seq) { case (acc, bit) => unify(acc, bit) }.sorted
   }
 
   def enumerateMask(mask: BigInt): Seq[BigInt] = {
@@ -252,6 +262,10 @@ case class BufferParams(depth: Int, flow: Boolean, pipe: Boolean)
 
   def apply[T <: Data](x: DecoupledIO[T]) =
     if (isDefined) Queue(x, depth, flow=flow, pipe=pipe)
+    else x
+
+  def irrevocable[T <: Data](x: ReadyValidIO[T]) =
+    if (isDefined) Queue.irrevocable(x, depth, flow=flow, pipe=pipe)
     else x
 
   def sq[T <: Data](x: DecoupledIO[T]) =
@@ -309,44 +323,22 @@ trait DirectedBuffers[T] {
   def copyInOut(x: BufferParams): T
 }
 
-trait UserBits {
-  def width: Int
-  require (width >= 0)
+trait IdMapEntry {
+  def name: String
+  def from: IdRange
+  def to: IdRange
+  def isCache: Boolean
+  def requestFifo: Boolean
+  def pretty(fmt: String) =
+    if (from ne to) { // if the subclass uses the same reference for both from and to, assume its format string has an arity of 5
+      fmt.format(to.start, to.end, from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    } else {
+      fmt.format(from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")
+    }
 }
 
-case class PadUserBits(width: Int) extends UserBits
-
-case class UserBitField[T <: UserBits](tag: T, value: UInt)
-
-object UserBits {
-  // Highest index fields are returned first in the output
-  def extract[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt): Seq[UserBitField[T]] = meta match {
-    case Nil => Nil
-    case head :: tail =>
-      tail.scanLeft((head, 0)) {
-        case ((x, base), y) => (y, base+x.width)
-      }.collect {
-        case (x: T, y) => UserBitField(x, userBits(y+x.width-1, y))
-      }.reverse
-  }
-  // Fills highest indexed fields from the front of 'seq' input
-  def inject[T <: UserBits : ClassTag](meta: Seq[UserBits], userBits: UInt, seq: Seq[UInt]): UInt = meta match {
-    case Nil => userBits
-    case head :: tail => {
-      val elts = tail.scanLeft((head, 0)) {
-        case ((x, base), y) => (y, base+x.width)
-      }
-      val mask = ~UInt(elts.collect {
-        case (x: T, y) => ((BigInt(1) << x.width) - 1) << y
-      }.foldLeft(BigInt(0)) {
-        case (b, a) => b | a
-      }, width = meta.map(_.width).sum)
-      val concat = elts.reverse.zip(seq).collect {
-        case ((x: T, y), v) => (v|UInt(0, width=x.width))(x.width-1, 0) << y
-      }.foldLeft(UInt(0)) {
-        case (b, a) => b | a
-      }
-      (userBits & mask) | concat
-    }
-  }
+abstract class IdMap[T <: IdMapEntry] {
+  protected val fmt: String
+  val mapping: Seq[T]
+  def pretty: String = mapping.map(_.pretty(fmt)).mkString(",\n")
 }

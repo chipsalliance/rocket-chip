@@ -1,0 +1,142 @@
+# This file describes the GitHub Actions workflow for continuous integration of rocket-chip.
+#
+# See
+# https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# for API reference documentation on this file format.
+
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+
+jobs:
+  check-wit:
+    name: Check Wit Manifest
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - run: ci-tests/check_submodules
+
+
+  prepare-riscv-tools-cache:
+    name: Prepare riscv-tools Cache
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - id: cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ./regression/install
+            ./regression/stamps/rocket-tools_checkout.stamp
+          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
+
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CXX: g++-4.8
+          CC: gcc-4.8
+        run: make tools -C regression SUITE=none
+
+
+  prepare-verilator-cache:
+    name: Prepare Verilator Cache
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/cache@v2
+        with:
+          path: ./emulator/verilator
+          key: verilator-${{ hashFiles('./verilator.hash') }}-v1
+
+      # WARNING: The version of gcc used to compile Verilator MUST match the
+      # version of gcc used to compile the fesvr. There is some bug related to
+      # some C struct not being ABI-compatible across gcc 4 and 5, which we have
+      # not debugged yet.
+      - name: Install Dependencies
+        run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
+
+      - env:
+          CXX: g++-4.8
+          CC: gcc-4.8
+        run: make verilator -C regression SUITE=none
+
+
+  check-wake-compilation:
+    name: Check Wake Compilation
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use SBT Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.sbt
+          key: sbt-${{ hashFiles('**/build.sbt') }}-v1
+
+      - run: ci-tests/wake_scala_compilation
+
+  # This job is defined as a matrix job, where the definitions of each test
+  # bucket is located in a shell script at ./regression/run-test-bucket.
+  test:
+    name: Test
+    runs-on: ubuntu-16.04
+    needs: [prepare-riscv-tools-cache, prepare-verilator-cache]
+    strategy:
+      fail-fast: false
+      matrix:
+        bucket: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use riscv-tools Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ./regression/install
+            ./regression/stamps/rocket-tools_checkout.stamp
+          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
+
+      - name: Use Verilator Cache
+        uses: actions/cache@v2
+        with:
+          path: ./emulator/verilator
+          key: verilator-${{ hashFiles('./verilator.hash') }}-v1
+
+      - name: Use SBT Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.sbt
+          key: sbt-${{ hashFiles('**/build.sbt') }}-v1
+
+      - name: Install Dependencies
+        run: |
+          sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
+          python3 -m pip install pexpect==4.3.1
+
+      - env:
+          CXX: g++-4.8
+          CC: gcc-4.8
+        run: ./regression/run-test-bucket ${{ matrix.bucket }}
+
+      - if: failure()
+        name: Upload Artifacts on Failure
+        uses: actions/upload-artifact@v1
+        with:
+          name: test-bucket-${{ matrix.bucket }}-failures
+          path: emulator/output

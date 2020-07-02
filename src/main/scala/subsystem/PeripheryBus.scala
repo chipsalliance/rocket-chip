@@ -6,6 +6,7 @@ import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
 case class BusAtomics(
@@ -18,25 +19,34 @@ case class PeripheryBusParams(
     beatBytes: Int,
     blockBytes: Int,
     atomics: Option[BusAtomics] = Some(BusAtomics()),
-    frequency: BigInt = BigInt(100000000), // 100 MHz as default bus frequency
+    dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None,
-    replicatorMask: BigInt = 0)
+    replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
+  with TLBusWrapperInstantiationLike
+{
+  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
+    val pbus = LazyModule(new PeripheryBus(this, loc.name))
+    pbus.suggestName(loc.name)
+    context.tlBusWrapperLocationMap += (loc -> pbus)
+    pbus
+  }
+}
 
-class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
-    extends TLBusWrapper(params, "periphery_bus")
-    with CanHaveBuiltInDevices
-    with CanAttachTLSlaves {
+class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Parameters)
+    extends TLBusWrapper(params, name)
+{
+  private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
+  val prefixNode = replicator.map(_.prefix)
 
   private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val node: TLNode = params.atomics.map { pa =>
     val in_xbar = LazyModule(new TLXbar)
     val out_xbar = LazyModule(new TLXbar)
-    val fixer_node =
-      if (params.replicatorMask == 0) fixer.node else { fixer.node :*= RegionReplicator(params.replicatorMask) }
+    val fixer_node = replicator.map(fixer.node :*= _.node).getOrElse(fixer.node)
     (out_xbar.node
       :*= fixer_node
       :*= TLBuffer(pa.buffer)
@@ -50,13 +60,5 @@ class PeripheryBus(params: PeripheryBusParams)(implicit p: Parameters)
   def outwardNode: TLOutwardNode = node
   def busView: TLEdge = fixer.node.edges.in.head
 
-  attachBuiltInDevices(params)
-
-  def toTile
-      (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: => TLInwardNode): NoHandle = {
-    to("tile" named name) { FlipRendering { implicit p =>
-      gen :*= TLWidthWidget(params.beatBytes) :*= TLBuffer(buffer) :*= outwardNode
-    }}
-  }
+  val builtInDevices: BuiltInDevices = BuiltInDevices.attach(params, outwardNode)
 }

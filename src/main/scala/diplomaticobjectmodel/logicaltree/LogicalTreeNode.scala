@@ -23,9 +23,10 @@ class GenericLogicalTreeNode extends LogicalTreeNode(() => None) {
 
 object LogicalModuleTree {
   private val tree: mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]] = mutable.Map[LogicalTreeNode, Seq[LogicalTreeNode]]()
-  val root = new GenericLogicalTreeNode()
 
   def add(parent: LogicalTreeNode, child: => LogicalTreeNode): Unit = {
+    require(parent != null, "Cannot add null parent to the LogicalModuleTree")
+    require(child != null, "Cannot add null child to the LogicalModuleTree")
     val treeOpt = tree.get(parent)
     val treeNode = treeOpt.map{
       children => child +: children
@@ -35,7 +36,7 @@ object LogicalModuleTree {
 
   def rootLogicalTreeNode: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
-    assert(roots.size == 1, "Logical Tree contains more than one root.")
+    require(roots.size == 1, s"Logical Tree contains more than one root:\n$roots")
     roots.head
   }
 
@@ -64,7 +65,8 @@ object LogicalModuleTree {
     val resourceBindingsMaps= cache()
 
     def getOMComponentTree(node: LogicalTreeNode): Seq[OMComponent] = {
-      node.getOMComponents(resourceBindings(node.getDevice, resourceBindingsMaps), tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
+      val rbs = resourceBindings(node.getDevice, resourceBindingsMaps)
+      node.getOMComponents(rbs, tree.get(node).getOrElse(Nil).flatMap(getOMComponentTree))
     }
 
     getOMComponentTree(rootLogicalTreeNode)

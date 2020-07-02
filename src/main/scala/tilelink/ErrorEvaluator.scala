@@ -36,8 +36,8 @@ object RequestPattern
 // This helps when building unit tests to confirm that errors are propagated correctly.
 class TLErrorEvaluator(test: RequestPattern, testOn: Boolean, testOff: Boolean, deny: Boolean = false)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAdapterNode(managerFn = { mp => mp.copy(managers =
-    mp.managers.map { m => m.copy(mayDenyPut = true, mayDenyGet = deny || m.mayDenyGet) }) })
+  val node = TLAdapterNode(managerFn = { mp => mp.v1copy(managers =
+    mp.managers.map { m => m.v1copy(mayDenyPut = true, mayDenyGet = deny || m.mayDenyGet) }) })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>

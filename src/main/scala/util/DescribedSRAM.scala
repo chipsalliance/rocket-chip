@@ -4,24 +4,13 @@
 package freechips.rocketchip.util
 
 import chisel3.internal.InstanceId
-import freechips.rocketchip.util.Annotated
-import freechips.rocketchip.diplomacy.DiplomaticSRAM
-import Chisel._
-import chisel3.SyncReadMem
+import chisel3.{Data, SyncReadMem, Vec}
+import chisel3.util.log2Ceil
 import freechips.rocketchip.amba.axi4.AXI4RAM
+import freechips.rocketchip.diplomacy.DiplomaticSRAM
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
-
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMSRAM, OMRTLModule}
 import scala.math.log10
-
-object DescribedSRAMIdAssigner {
-  private var nextId: Int = 0
-  def genId(): Int = this.synchronized {
-    val id = nextId
-    nextId += 1
-    id
-  }
-}
 
 object DescribedSRAM {
   def apply[T <: Data](
@@ -31,7 +20,7 @@ object DescribedSRAM {
     data: T
   ): (SyncReadMem[T], OMSRAM) = {
 
-    val mem = SeqMem(size, data)
+    val mem = SyncReadMem(size, data)
 
     mem.suggestName(name)
 
@@ -40,14 +29,15 @@ object DescribedSRAM {
       case d => d.getWidth
     }
 
-    val uid = DescribedSRAMIdAssigner.genId()
+    val uid = 0
 
     val omSRAM = DiplomaticObjectModelAddressing.makeOMSRAM(
-      desc = "mem-" + uid,
+      desc = desc,
       width = data.getWidth,
       depth = size,
       granWidth = granWidth,
-      uid = uid
+      uid = uid,
+      rtlModule = OMRTLModule(moduleName=name)
     )
 
     Annotated.srams(
@@ -57,8 +47,7 @@ object DescribedSRAM {
       data_width = data.getWidth,
       depth = size,
       description = desc,
-      write_mask_granularity = granWidth,
-      uid = uid
+      write_mask_granularity = granWidth
     )
 
     (mem, omSRAM)

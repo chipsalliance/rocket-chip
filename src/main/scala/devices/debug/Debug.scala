@@ -3,18 +3,21 @@
 package freechips.rocketchip.devices.debug
 
 
-import Chisel._
-import chisel3.experimental._
+import chisel3._
+import chisel3.experimental.chiselName
+import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.Instructions
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug.systembusaccess._
+import freechips.rocketchip.devices.tilelink.TLBusBypass
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DebugLogicalTreeNode, LogicalModuleTree}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.amba.apb.{APBToTL, APBFanout}
@@ -99,7 +102,9 @@ import DebugAbstractCommandType._
   *  supportQuickAccess : Whether or not to support the quick access command.
   *  supportHartArray : Whether or not to implement the hart array register (if >1 hart).
   *  hasImplicitEbreak: There is an additional RO program buffer word containing an ebreak
+  *  crossingHasSafeReset: Include "safe" logic in Async Crossings so that only one side needs to be reset.
   **/
+
 case class DebugModuleParams (
   nDMIAddrSize  : Int = 7,
   nProgramBufferWords: Int = 16,
@@ -112,7 +117,10 @@ case class DebugModuleParams (
   supportHartArray   : Boolean = true,
   nHaltGroups        : Int = 1,
   nExtTriggers       : Int = 0,
-  hasImplicitEbreak : Boolean = false
+  hasHartResets      : Boolean = false,
+  hasImplicitEbreak  : Boolean = false,
+  hasAuthentication  : Boolean = false,
+  crossingHasSafeReset : Boolean = true
 ) {
 
   require ((nDMIAddrSize >= 7) && (nDMIAddrSize <= 32), s"Legal DMIAddrSize is 7-32, not ${nDMIAddrSize}")
@@ -127,6 +135,7 @@ case class DebugModuleParams (
     // TODO: Check that quick access requirements are met.
   }
 
+  def address = AddressSet(0, 0xFFF) // This is required for correct functionality; it's not configurable.
 }
 
 object DefaultDebugModuleParams {
@@ -139,8 +148,7 @@ object DefaultDebugModuleParams {
   }
 }
 
-
-case object DebugModuleParams extends Field[DebugModuleParams]
+case object DebugModuleKey extends Field[Option[DebugModuleParams]](Some(DebugModuleParams()))
 
 /** Functional parameters exposed to the design configuration.
   *
@@ -155,18 +163,28 @@ case class DebugModuleHartSelFuncs (
 case object DebugModuleHartSelKey extends Field(DebugModuleHartSelFuncs())
 
 class DebugExtTriggerOut (nExtTriggers: Int) extends Bundle {
-  val req = Vec(nExtTriggers, Bool()).asOutput
-  val ack = Vec(nExtTriggers, Bool()).asInput
+  val req = Output(UInt(nExtTriggers.W))
+  val ack = Input(UInt(nExtTriggers.W))
 }
 
 class DebugExtTriggerIn (nExtTriggers: Int) extends Bundle {
-  val req = Vec(nExtTriggers, Bool()).asInput
-  val ack = Vec(nExtTriggers, Bool()).asOutput
+  val req = Input(UInt(nExtTriggers.W))
+  val ack = Output(UInt(nExtTriggers.W))
 }
 
 class DebugExtTriggerIO () (implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val out = new DebugExtTriggerOut(p(DebugModuleParams).nExtTriggers)
-  val in  = new DebugExtTriggerIn (p(DebugModuleParams).nExtTriggers)
+  val out = new DebugExtTriggerOut(p(DebugModuleKey).get.nExtTriggers)
+  val in  = new DebugExtTriggerIn (p(DebugModuleKey).get.nExtTriggers)
+}
+
+class DebugAuthenticationIO () (implicit val p: Parameters) extends ParameterizedBundle()(p) {
+  val dmactive    = Output(Bool())
+  val dmAuthWrite = Output(Bool())
+  val dmAuthRead  = Output(Bool())
+  val dmAuthWdata = Output(UInt(32.W))
+  val dmAuthBusy  = Input(Bool())
+  val dmAuthRdata = Input(UInt(32.W))
+  val dmAuthenticated = Input(Bool())
 }
 
 // *****************************************
@@ -183,15 +201,17 @@ class DebugInternalBundle (val nComponents: Int)(implicit val p: Parameters) ext
   val ackhavereset = Bool()
   val hasel        = Bool()
   val hamask       = Vec(nComponents, Bool())
+  val hrmask       = Vec(nComponents, Bool())
 }
 
 /* structure for top-level Debug Module signals which aren't the bus interfaces.
  */
 
 class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends ParameterizedBundle()(p) {
-  val debugUnavail    = Vec(nComponents, Bool()).asInput
-  val ndreset         = Bool(OUTPUT)
-  val dmactive        = Bool(OUTPUT)
+  val debugUnavail    = Input(Vec(nComponents, Bool()))
+  val ndreset         = Output(Bool())
+  val dmactive        = Output(Bool())
+  val dmactiveAck     = Input(Bool())
 }
 
 // *****************************************
@@ -214,11 +234,11 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
   *  DebugModule is responsible for control registers and RAM, and
   *  Debug ROM. It runs partially off of the dmiClk (e.g. TCK) and
   *  the TL clock. Therefore, it is divided into "Outer" portion (running
-  *  of off dmiClock and dmiReset) and "Inner" (running off tlClock and tlReset).
+  *  of off dmiClock and dmiReset) and "Inner" (running off tl_clock and tl_reset).
   *  This allows DMCONTROL.haltreq, hartsel, hasel, hawindowsel, hawindow, dmactive,
   *  and ndreset to be modified even while the Core is in reset or not being clocked.
   *  Not all reads from the Debugger to the Debug Module will actually complete
-  *  in these scenarios either, they will just block until tlClock and tlReset
+  *  in these scenarios either, they will just block until tl_clock and tl_reset
   *  allow them to complete. This is not strictly necessary for 
   *  proper debugger functionality.
   */
@@ -226,10 +246,10 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
 // Local reg mapper function : Notify when written, but give the value as well.  
 object WNotifyWire {
   def apply(n: Int, value: UInt, set: Bool, name: String, desc: String) : RegField = {
-    RegField(n, UInt(0), RegWriteFn((valid, data) => {
+    RegField(n, 0.U, RegWriteFn((valid, data) => {
       set := valid
       value := data
-      Bool(true)
+      true.B
     }), Some(RegFieldDesc(name = name, desc = desc,
       access = RegFieldAccessType.W)))
   }
@@ -239,22 +259,36 @@ object WNotifyWire {
 object RWNotify {
     def apply (n: Int, rVal: UInt, wVal: UInt, rNotify: Bool, wNotify: Bool, desc: Option[RegFieldDesc] = None): RegField = {
       RegField(n,
-        RegReadFn ((ready)       => {rNotify := ready ; (Bool(true), rVal)}),
+        RegReadFn ((ready)       => {rNotify := ready ; (true.B, rVal)}),
         RegWriteFn((valid, data) => {
           wNotify := valid
           when (valid) {wVal := data}
-          Bool(true)
+          true.B
         }
         ), desc)
     }
 }
 
+// Local reg mapper function : Notify with value when written, take read input as presented.
+//   This allows checking or correcting the write value before storing it in the register field.
+object WNotifyVal {
+  def apply(n: Int, rVal: UInt, wVal: UInt, wNotify: Bool, desc: RegFieldDesc): RegField = {
+    RegField(n, rVal, RegWriteFn((valid, data) => {
+      wNotify := valid
+      wVal := data
+      true.B
+    }
+    ), desc)
+  }
+}
+
+@chiselName
 class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyModule {
 
   // For Shorter Register Names
   import DMI_RegAddrs._
 
-  val cfg = p(DebugModuleParams)
+  val cfg = p(DebugModuleKey).get
 
   val intnode = IntNexusNode(
     sourceFn       = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
@@ -281,36 +315,38 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     val io = IO(new Bundle {
       val ctrl = (new DebugCtrlBundle(nComponents))
       val innerCtrl = new DecoupledIO(new DebugInternalBundle(nComponents))
-      val hgDebugInt = Vec(nComponents, Bool()).asInput
+      val hgDebugInt = Input(Vec(nComponents, Bool()))
+      val hartResetReq = cfg.hasHartResets.option(Output(Vec(nComponents, Bool())))
+      val dmAuthenticated = cfg.hasAuthentication.option(Input(Bool()))
     })
+
+    val omRegMap = withReset(reset.asAsyncReset) {
+    // FIXME: Instead of casting reset to ensure it is Async, assert/require reset.Type == AsyncReset (when this feature is available)
+
+    val dmAuthenticated = io.dmAuthenticated.map( dma =>
+      ResetSynchronizerShiftReg(in=dma, sync=3, name=Some("dmAuthenticated_sync"))).getOrElse(true.B)
 
     //----DMCONTROL (The whole point of 'Outer' is to maintain this register on dmiClock (e.g. TCK) domain, so that it
     //               can be written even if 'Inner' is not being clocked or is in reset. This allows halting
     //               harts while the rest of the system is in reset. It doesn't really allow any other
     //               register accesses, which will keep returning 'busy' to the debugger interface.
 
-    val DMCONTROLReset = Wire(init = (new DMCONTROLFields().fromBits(0.U)))
-    val DMCONTROLNxt = Wire(init = new DMCONTROLFields().fromBits(0.U))
+    val DMCONTROLReset = WireInit(0.U.asTypeOf(new DMCONTROLFields()))
+    val DMCONTROLNxt = WireInit(0.U.asTypeOf(new DMCONTROLFields()))
+    val DMCONTROLReg = RegNext(next=DMCONTROLNxt, init=0.U.asTypeOf(DMCONTROLNxt)).suggestName("DMCONTROLReg")
 
-    val DMCONTROLReg = Wire(init = new DMCONTROLFields().fromBits(AsyncResetReg(updateData = DMCONTROLNxt.asUInt,
-      resetData = BigInt(0),
-      enable = true.B,
-      name = "DMCONTROL"
-    )))
-
-    val DMCONTROLRdData = Wire(init = DMCONTROLReg)
-
-    val DMCONTROLWrDataVal = Wire(init = 0.U(32.W))
-    val DMCONTROLWrData = {
-      // Mask off unused hart ID bits to eliminate some flops
-      val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
-      val fields = DMCONTROLWrDataVal.asTypeOf(new DMCONTROLFields)
-      val res = Wire(init = fields)
-      res.hartsello := fields.hartsello & hartsel_mask
-      res
-    }
-    val DMCONTROLWrEn   = Wire(init = false.B)
-    val DMCONTROLRdEn   = Wire(init = false.B)
+    val hartsel_mask = if (nComponents > 1) ((1 << p(MaxHartIdBits)) - 1).U else 0.U
+    val DMCONTROLWrData = WireInit(0.U.asTypeOf(new DMCONTROLFields()))
+    val dmactiveWrEn        = WireInit(false.B)
+    val ndmresetWrEn        = WireInit(false.B)
+    val clrresethaltreqWrEn = WireInit(false.B)
+    val setresethaltreqWrEn = WireInit(false.B)
+    val hartselloWrEn       = WireInit(false.B)
+    val haselWrEn           = WireInit(false.B)
+    val ackhaveresetWrEn    = WireInit(false.B)
+    val hartresetWrEn       = WireInit(false.B)
+    val resumereqWrEn       = WireInit(false.B)
+    val haltreqWrEn         = WireInit(false.B)
 
     val dmactive = DMCONTROLReg.dmactive
 
@@ -318,18 +354,15 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     when (~dmactive) {
       DMCONTROLNxt := DMCONTROLReset
     } .otherwise {
-      when (DMCONTROLWrEn) {
-        DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset
-        DMCONTROLNxt.hartsello    := DMCONTROLWrData.hartsello
-        DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq
-        DMCONTROLNxt.resumereq    := DMCONTROLWrData.resumereq
-        DMCONTROLNxt.ackhavereset := DMCONTROLWrData.ackhavereset
-        DMCONTROLNxt.hasel        := (if (supportHartArray) DMCONTROLWrData.hasel else false.B)
-      }
+      when (dmAuthenticated && ndmresetWrEn)  { DMCONTROLNxt.ndmreset     := DMCONTROLWrData.ndmreset }
+      when (dmAuthenticated && hartselloWrEn) { DMCONTROLNxt.hartsello    := DMCONTROLWrData.hartsello & hartsel_mask}
+      when (dmAuthenticated && haselWrEn)     { DMCONTROLNxt.hasel        := DMCONTROLWrData.hasel }
+      when (dmAuthenticated && hartresetWrEn) { DMCONTROLNxt.hartreset    := DMCONTROLWrData.hartreset }
+      when (dmAuthenticated && haltreqWrEn)   { DMCONTROLNxt.haltreq      := DMCONTROLWrData.haltreq }
     }
 
     // Put this last to override its own effects.
-    when (DMCONTROLWrEn) {
+    when (dmactiveWrEn) {
       DMCONTROLNxt.dmactive := DMCONTROLWrData.dmactive
     }
 
@@ -338,41 +371,37 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     //  HAMASK is 1 bit per component
     //  HAWINDOWSEL selects a 32-bit slice of HAMASK to be visible for read/write in HAWINDOW
     //--------------------------------------------------------------
-    val hamask = Wire(init = Vec.fill(nComponents){false.B})
+    val hamask = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
     def haWindowSize = 32
 
       // The following need to be declared even if supportHartArray is false due to reference
       // at compile time by dmiNode.regmap
-    val HAWINDOWSELRdData = Wire(init = (new HAWINDOWSELFields()).fromBits(0.U))
-    val HAWINDOWSELWrDataVal = Wire(init = 0.U(32.W))
-    val HAWINDOWSELWrData = (new HAWINDOWSELFields()).fromBits(HAWINDOWSELWrDataVal)
-    val HAWINDOWSELWrEn   = Wire(init = false.B)
-    val HAWINDOWSELRdEn   = Wire(init = false.B)
+    val HAWINDOWSELWrData = WireInit(0.U.asTypeOf(new HAWINDOWSELFields()))
+    val HAWINDOWSELWrEn   = WireInit(false.B)
 
-    val HAWINDOWRdData = Wire(init = (new HAWINDOWFields()).fromBits(0.U))
-    val HAWINDOWWrDataVal = Wire(init = 0.U(32.W))
-    val HAWINDOWWrData = (new HAWINDOWFields()).fromBits(HAWINDOWWrDataVal)
-    val HAWINDOWWrEn   = Wire(init = false.B)
-    val HAWINDOWRdEn   = Wire(init = false.B)
+    val HAWINDOWRdData = WireInit(0.U.asTypeOf(new HAWINDOWFields()))
+    val HAWINDOWWrData = WireInit(0.U.asTypeOf(new HAWINDOWFields()))
+    val HAWINDOWWrEn   = WireInit(false.B)
+
+    def hartSelected(hart: Int): Bool = {
+      ((io.innerCtrl.bits.hartsel === hart.U) ||
+        (if (supportHartArray) io.innerCtrl.bits.hasel && io.innerCtrl.bits.hamask(hart) else false.B))
+    }
+
+    val HAWINDOWSELNxt = WireInit(0.U.asTypeOf(new HAWINDOWSELFields()))
+    val HAWINDOWSELReg = RegNext(next=HAWINDOWSELNxt, init=0.U.asTypeOf(HAWINDOWSELNxt))
 
     if (supportHartArray) {
-      val HAWINDOWSELReset = Wire(init = (new HAWINDOWSELFields().fromBits(0.U)))
-      val HAWINDOWSELNxt = Wire(init = (new HAWINDOWSELFields().fromBits(0.U)))
-      val HAWINDOWSELReg = Wire(init = new HAWINDOWSELFields().fromBits(AsyncResetReg(updateData = HAWINDOWSELNxt.asUInt,
-        resetData = 0,
-        enable = true.B,
-        name = "HAWINDOWSELReg"
-      )))
+      val HAWINDOWSELReset = WireInit(0.U.asTypeOf(new HAWINDOWSELFields()))
 
-      HAWINDOWSELRdData := HAWINDOWSELReg
       HAWINDOWSELNxt := HAWINDOWSELReg
-      when (~dmactive) {
+      when (~dmactive || ~dmAuthenticated) {
         HAWINDOWSELNxt := HAWINDOWSELReset
       } .otherwise {
         when (HAWINDOWSELWrEn) {
             // Unneeded upper bits of HAWINDOWSEL are tied to 0.  Entire register is 0 if all harts fit in one window
           if (nComponents > haWindowSize) {
-            HAWINDOWSELNxt.hawindowsel := HAWINDOWSELWrData.hawindowsel & (log2Up(nComponents) - 5).U
+            HAWINDOWSELNxt.hawindowsel := HAWINDOWSELWrData.hawindowsel & ((1 << (log2Up(nComponents) - 5)) - 1).U
           } else {
             HAWINDOWSELNxt.hawindowsel := 0.U
           }
@@ -382,21 +411,18 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       val numHAMASKSlices = ((nComponents - 1)/haWindowSize)+1
       HAWINDOWRdData.maskdata := 0.U     // default, overridden below
       for (ii <- 0 until numHAMASKSlices) {
-        val sliceMask = if (nComponents > ((ii*haWindowSize) + haWindowSize-1)) 0xFFFFFFFF  // All harts in this slice exist
-                        else (1<<(nComponents - (ii*haWindowSize))) - 1         // Partial last slice
-        val HAMASKRst = Wire(init = (new HAWINDOWFields().fromBits(0.U)))
-        val HAMASKNxt = Wire(init = (new HAWINDOWFields().fromBits(0.U)))
-        val HAMASKReg = Wire(init = Vec(AsyncResetReg(updateData = HAMASKNxt.asUInt,
-          resetData = 0,
-          enable = true.B,
-          name = s"HAMASKReg${ii}")))
+        val sliceMask = if (nComponents > ((ii*haWindowSize) + haWindowSize-1)) (BigInt(1) << haWindowSize) - 1  // All harts in this slice exist
+                        else (BigInt(1)<<(nComponents - (ii*haWindowSize))) - 1         // Partial last slice
+        val HAMASKRst = WireInit(0.U.asTypeOf(new HAWINDOWFields()))
+        val HAMASKNxt = WireInit(0.U.asTypeOf(new HAWINDOWFields()))
+        val HAMASKReg = RegNext(next=HAMASKNxt, init=0.U.asTypeOf(HAMASKNxt))
 
         when (ii.U === HAWINDOWSELReg.hawindowsel) {
           HAWINDOWRdData.maskdata := HAMASKReg.asUInt & sliceMask.U
         }
 
         HAMASKNxt.maskdata := HAMASKReg.asUInt
-        when (~dmactive) {
+        when (~dmactive || ~dmAuthenticated) {
           HAMASKNxt := HAMASKRst
         }.otherwise {
           when (HAWINDOWWrEn && (ii.U === HAWINDOWSELReg.hawindowsel)) {
@@ -420,6 +446,65 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     }
 
     //--------------------------------------------------------------
+    // Halt-on-reset
+    //  hrmaskReg is current set of harts that should halt-on-reset
+    //    Reset state (dmactive=0) is all zeroes
+    //    Bits are set by writing 1 to DMCONTROL.setresethaltreq
+    //    Bits are cleared by writing 1 to DMCONTROL.clrresethaltreq
+    //    Spec says if both are 1, then clrresethaltreq is executed
+    //--------------------------------------------------------------
+    val hrmask    = Wire(Vec(nComponents, Bool()))
+    val hrmaskNxt = Wire(Vec(nComponents, Bool()))
+    val hrmaskReg = RegNext(next=hrmaskNxt, init=0.U.asTypeOf(hrmaskNxt)).suggestName("hrmaskReg")
+
+    hrmaskNxt := hrmaskReg
+    for (component <- 0 until nComponents) {
+      when (~dmactive || ~dmAuthenticated) {
+        hrmaskNxt(component) := false.B
+      }.elsewhen (clrresethaltreqWrEn && DMCONTROLWrData.clrresethaltreq && hartSelected(component)) {
+        hrmaskNxt(component) := false.B
+      }.elsewhen (setresethaltreqWrEn && DMCONTROLWrData.setresethaltreq && hartSelected(component)) {
+        hrmaskNxt(component) := true.B
+      }
+    }
+    hrmask := hrmaskNxt
+
+
+    val dmControlRegFields = RegFieldGroup("dmcontrol", Some("debug module control register"), Seq(
+      WNotifyVal(1, DMCONTROLReg.dmactive & io.ctrl.dmactiveAck, DMCONTROLWrData.dmactive, dmactiveWrEn,
+        RegFieldDesc("dmactive", "debug module active", reset=Some(0))),
+      WNotifyVal(1, DMCONTROLReg.ndmreset,    DMCONTROLWrData.ndmreset, ndmresetWrEn,
+        RegFieldDesc("ndmreset", "debug module reset output", reset=Some(0))),
+      WNotifyVal(1, 0.U,                      DMCONTROLWrData.clrresethaltreq, clrresethaltreqWrEn,
+        RegFieldDesc("clrresethaltreq", "clear reset halt request", reset=Some(0), access=RegFieldAccessType.W)),
+      WNotifyVal(1, 0.U,                      DMCONTROLWrData.setresethaltreq, setresethaltreqWrEn,
+        RegFieldDesc("setresethaltreq", "set reset halt request",   reset=Some(0), access=RegFieldAccessType.W)),
+      RegField(12),
+      if (nComponents > 1) WNotifyVal(p(MaxHartIdBits),
+                      DMCONTROLReg.hartsello, DMCONTROLWrData.hartsello, hartselloWrEn,
+        RegFieldDesc("hartsello",       "hart select low", reset=Some(0)))
+      else RegField(1),
+      if (nComponents > 1) RegField(10-p(MaxHartIdBits))
+      else RegField(9),
+      if (supportHartArray)
+        WNotifyVal(1, DMCONTROLReg.hasel,     DMCONTROLWrData.hasel, haselWrEn,
+        RegFieldDesc("hasel",           "hart array select", reset=Some(0)))
+      else RegField(1),
+      RegField(1),
+      WNotifyVal(1, 0.U,                      DMCONTROLWrData.ackhavereset, ackhaveresetWrEn,
+        RegFieldDesc("ackhavereset",    "acknowledge reset", reset=Some(0),  access=RegFieldAccessType.W)),
+      if (cfg.hasHartResets)
+        WNotifyVal(1, DMCONTROLReg.hartreset, DMCONTROLWrData.hartreset, hartresetWrEn,
+        RegFieldDesc("hartreset",       "hart reset request", reset=Some(0)))
+      else RegField(1),
+      WNotifyVal(1, 0.U,                      DMCONTROLWrData.resumereq, resumereqWrEn,
+        RegFieldDesc("resumereq",       "resume request", reset=Some(0), access=RegFieldAccessType.W)),
+      WNotifyVal(1, DMCONTROLReg.haltreq,     DMCONTROLWrData.haltreq, haltreqWrEn,     // Spec says W, but maintaining previous behavior
+        RegFieldDesc("haltreq",         "halt request", reset=Some(0)))
+    ))
+
+
+    //--------------------------------------------------------------
     // DMI register decoder for Outer
     //--------------------------------------------------------------
       // regmap addresses are byte offsets from lowest address
@@ -428,23 +513,21 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     def DMI_HAWINDOW_OFFSET    = ((DMI_HAWINDOW - DMI_DMCONTROL) << 2)
 
     val omRegMap = dmiNode.regmap(
-      DMI_DMCONTROL_OFFSET   -> Seq(RWNotify(32, DMCONTROLRdData.asUInt(),
-        DMCONTROLWrDataVal, DMCONTROLRdEn, DMCONTROLWrEn, Some(RegFieldDesc("dmi_dmcontrol", "", reset=Some(0))))),
-      DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWSELRdData.asUInt(),
-        HAWINDOWSELWrDataVal, HAWINDOWSELRdEn, HAWINDOWSELWrEn, Some(RegFieldDesc("dmi_hawindowsel", "", reset=Some(0))))) else Nil),
-      DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(RWNotify(32, HAWINDOWRdData.asUInt(),
-        HAWINDOWWrDataVal, HAWINDOWRdEn, HAWINDOWWrEn, Some(RegFieldDesc("dmi_hawindow", "", reset=Some(0))))) else Nil)
+      DMI_DMCONTROL_OFFSET   -> dmControlRegFields,
+      DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray && (nComponents > 32)) Seq(
+        WNotifyVal(log2Up(nComponents)-5, HAWINDOWSELReg.hawindowsel, HAWINDOWSELWrData.hawindowsel, HAWINDOWSELWrEn,
+        RegFieldDesc("hawindowsel", "hart array window select", reset=Some(0)))) else Nil),
+      DMI_HAWINDOW_OFFSET    -> (if (supportHartArray) Seq(
+        WNotifyVal(if (nComponents > 31) 32 else nComponents, HAWINDOWRdData.maskdata, HAWINDOWWrData.maskdata, HAWINDOWWrEn,
+        RegFieldDesc("hawindow", "hart array window", reset=Some(0), volatile=(nComponents > 32)))) else Nil)
     )
 
     //--------------------------------------------------------------
     // Interrupt Registers
     //--------------------------------------------------------------
 
-    val debugIntNxt = Wire(init = Vec.fill(nComponents){false.B})
-    val debugIntRegs = Wire(init = Vec(AsyncResetReg(updateData = debugIntNxt.asUInt,
-      resetData = 0,
-      enable = true.B,
-      name = "debugInterrupts").asBools))
+    val debugIntNxt = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
+    val debugIntRegs = RegNext(next=debugIntNxt, init=0.U.asTypeOf(debugIntNxt)).suggestName("debugIntRegs")
 
     debugIntNxt := debugIntRegs
 
@@ -458,107 +541,156 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     // so resumereq is passed through to Inner.
     // hartsel/hasel/hamask must also be used by the DebugModule state machine,
     // so it is passed to Inner.
-    // It is true that there is no backpressure -- writes
-    // which occur 'too fast' will be dropped.
 
     for (component <- 0 until nComponents) {
-      when (~dmactive) {
+      when (~dmactive || ~dmAuthenticated) {
         debugIntNxt(component) := false.B
       }. otherwise {
-        when (DMCONTROLWrEn && ((DMCONTROLWrData.hartsello === component.U)
+        when (haltreqWrEn && ((DMCONTROLWrData.hartsello === component.U)
           || (if (supportHartArray) DMCONTROLWrData.hasel && hamask(component) else false.B))) {
           debugIntNxt(component) := DMCONTROLWrData.haltreq
         }
       }
     }
 
-    io.innerCtrl.valid := DMCONTROLWrEn | (HAWINDOWWrEn & supportHartArray.B)
-    io.innerCtrl.bits.hartsel      := Mux(DMCONTROLWrEn, DMCONTROLWrData.hartsello, DMCONTROLReg.hartsello)
-    io.innerCtrl.bits.resumereq    := DMCONTROLWrEn & DMCONTROLWrData.resumereq    // This bit is W1
-    io.innerCtrl.bits.ackhavereset := DMCONTROLWrEn & DMCONTROLWrData.ackhavereset
+    // These registers ensure that requests to dmInner are not lost if inner clock isn't running or requests occur too close together.
+    // If the innerCtrl async queue is not ready, the notification will be posted and held until ready is received.
+    // Additional notifications that occur while one is already waiting update the pending data so that the last value written is sent.
+    // Volatile events resumereq and ackhavereset are registered when they occur and remain pending until ready is received.
+    val innerCtrlValid = Wire(Bool())
+    val innerCtrlValidReg = RegInit(false.B).suggestName("innerCtrlValidReg")
+    val innerCtrlResumeReqReg = RegInit(false.B).suggestName("innerCtrlResumeReqReg")
+    val innerCtrlAckHaveResetReg = RegInit(false.B).suggestName("innerCtrlAckHaveResetReg")
+
+    innerCtrlValid := hartselloWrEn | resumereqWrEn | ackhaveresetWrEn | setresethaltreqWrEn | clrresethaltreqWrEn | haselWrEn |
+       (HAWINDOWWrEn & supportHartArray.B)
+
+    innerCtrlValidReg        := io.innerCtrl.valid & ~io.innerCtrl.ready             // Hold innerctrl request until the async queue accepts it
+    innerCtrlResumeReqReg    := io.innerCtrl.bits.resumereq & ~io.innerCtrl.ready    // Hold resumereq until accepted
+    innerCtrlAckHaveResetReg := io.innerCtrl.bits.ackhavereset & ~io.innerCtrl.ready // Hold ackhavereset until accepted
+
+    io.innerCtrl.valid             := innerCtrlValid | innerCtrlValidReg
+    io.innerCtrl.bits.hartsel      := Mux(hartselloWrEn, DMCONTROLWrData.hartsello, DMCONTROLReg.hartsello)
+    io.innerCtrl.bits.resumereq    := (resumereqWrEn & DMCONTROLWrData.resumereq) | innerCtrlResumeReqReg
+    io.innerCtrl.bits.ackhavereset := (ackhaveresetWrEn & DMCONTROLWrData.ackhavereset) | innerCtrlAckHaveResetReg
+    io.innerCtrl.bits.hrmask       := hrmask
     if (supportHartArray) {
-      io.innerCtrl.bits.hasel        := Mux(DMCONTROLWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
-      io.innerCtrl.bits.hamask       := hamask
+      io.innerCtrl.bits.hasel      := Mux(haselWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
+      io.innerCtrl.bits.hamask     := hamask
     }
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
     io.ctrl.dmactive := DMCONTROLReg.dmactive
 
-  }
+    if (cfg.hasHartResets) {
+      val hartResetNxt = Wire(Vec(nComponents, Bool()))
+      val hartResetReg = RegNext(next=hartResetNxt, init=0.U.asTypeOf(hartResetNxt))
+
+      for (component <- 0 until nComponents) {
+        hartResetNxt(component) := DMCONTROLReg.hartreset & hartSelected(component)
+        io.hartResetReq.get(component) := hartResetReg(component)
+      }
+    }
+  omRegMap   // FIXME: Remove this when withReset is removed
+  }}
 }
 
 class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends LazyModule {
 
+  val cfg = p(DebugModuleKey).get
+
   val dmiXbar = LazyModule (new TLXbar())
 
-  val dmi2tlOpt = (!p(ExportDebugAPB)).option({
+  val dmi2tlOpt = (!p(ExportDebug).apb).option({
     val dmi2tl = LazyModule(new DMIToTL())
     dmiXbar.node := dmi2tl.node
     dmi2tl
   })
 
-  val apbNodeOpt = p(ExportDebugAPB).option({
+  val apbNodeOpt = p(ExportDebug).apb.option({
     val apb2tl = LazyModule(new APBToTL())
     val apb2tlBuffer = LazyModule(new TLBuffer(BufferParams.pipe))
-    val apbXbar = LazyModule(new APBFanout())
-    val apbRegs = LazyModule(new APBDebugRegisters())
+    val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
+    val tlErrorParams = DevNullParams(AddressSet.misaligned(dmTopAddr, APBDebugConsts.apbDebugRegBase-dmTopAddr), maxAtomic=0, maxTransfer=4)
+    val tlError  = LazyModule(new TLError(tlErrorParams, buffer=false))
+    val apbXbar  = LazyModule(new APBFanout())
+    val apbRegs  = LazyModule(new APBDebugRegisters())
 
     apbRegs.node := apbXbar.node
     apb2tl.node  := apbXbar.node
     apb2tlBuffer.node := apb2tl.node
     dmiXbar.node := apb2tlBuffer.node
-
+    tlError.node := dmiXbar.node
     apbXbar.node
   })
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
   val intnode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
-  val dmiInnerNode = TLAsyncCrossingSource() := dmiXbar.node
+  val dmiBypass = LazyModule(new TLBusBypass(beatBytes=4, bufferError=false, maxAtomic=0, maxTransfer=4))
+  val dmiInnerNode = TLAsyncCrossingSource() := dmiBypass.node := dmiXbar.node
   dmOuter.dmiNode := dmiXbar.node
   
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
 
     val nComponents = dmOuter.intnode.edges.out.size
 
     val io = IO(new Bundle {
-      val dmi   = (!p(ExportDebugAPB)).option(new DMIIO()(p).flip())
+      val dmi_clock = Input(Clock())
+      val dmi_reset = Input(Reset())
+      val dmi   = (!p(ExportDebug).apb).option(Flipped(new DMIIO()(p)))
       // Optional APB Interface is fully diplomatic so is not listed here.
       val ctrl = new DebugCtrlBundle(nComponents)
-      val innerCtrl = new AsyncBundle(new DebugInternalBundle(nComponents), AsyncQueueParams.singleton())
-      val hgDebugInt = Vec(nComponents, Bool()).asInput
+      val innerCtrl = new AsyncBundle(new DebugInternalBundle(nComponents), AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset))
+      val hgDebugInt = Input(Vec(nComponents, Bool()))
+      val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
+      val dmAuthenticated = p(DebugModuleKey).get.hasAuthentication.option(Input(Bool()))
     })
+    val rf_reset = IO(Input(Reset()))    // RF transform
 
-    dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
+    childClock := io.dmi_clock
+    childReset := io.dmi_reset
 
-    io.ctrl <> dmOuter.module.io.ctrl
-    io.innerCtrl := ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton())
-    dmOuter.module.io.hgDebugInt := io.hgDebugInt
+    withClockAndReset(childClock, childReset) {
+      dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
+
+      val dmactiveAck = AsyncResetSynchronizerShiftReg(in=io.ctrl.dmactiveAck, sync=3, name=Some("dmactiveAckSync"))
+      dmiBypass.module.io.bypass := ~io.ctrl.dmactive | ~dmactiveAck
+
+      io.ctrl <> dmOuter.module.io.ctrl
+      dmOuter.module.io.ctrl.dmactiveAck := dmactiveAck   // send synced version down to dmOuter
+      io.innerCtrl <> ToAsyncBundle(dmOuter.module.io.innerCtrl, AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset))
+      dmOuter.module.io.hgDebugInt := io.hgDebugInt
+      io.hartResetReq.foreach { x => dmOuter.module.io.hartResetReq.foreach {y => x := y}}
+      io.dmAuthenticated.foreach { x => dmOuter.module.io.dmAuthenticated.foreach { y => y := x}}
+    }
   }
 }
 
+@chiselName
 class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
 
   // For Shorter Register Names
   import DMI_RegAddrs._
 
-  val cfg = p(DebugModuleParams)
+  val cfg = p(DebugModuleKey).get
   def getCfg = () => cfg
-  val hartSelFuncs = p(DebugModuleHartSelKey)
+
+  val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
 
   val dmiNode = TLRegisterNode(
        // Address is range 0 to 0x1FF except DMCONTROL, HAWINDOWSEL, HAWINDOW which are handled by Outer
     address = AddressSet.misaligned(0, DMI_DMCONTROL << 2) ++
               AddressSet.misaligned((DMI_DMCONTROL + 1) << 2, ((DMI_HAWINDOWSEL << 2) - ((DMI_DMCONTROL + 1) << 2))) ++
-              AddressSet.misaligned((DMI_HAWINDOW + 1) << 2, (0x200 - ((DMI_HAWINDOW + 1) << 2))),
+              AddressSet.misaligned((DMI_HAWINDOW + 1) << 2, (dmTopAddr - ((DMI_HAWINDOW + 1) << 2))),
     device = device,
     beatBytes = 4,
     executable = false
   )
 
   val tlNode = TLRegisterNode(
-    address=Seq(AddressSet(0, 0xFFF)), // This is required for correct functionality, it's not configurable.
+    address=Seq(cfg.address),
     device=device,
     beatBytes=beatBytes,
     executable=true
@@ -579,14 +711,28 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 0)) cfg.nHaltGroups
       else 0  // no halt groups possible if single hart with no external triggers
 
+    val hartSelFuncs = if (getNComponents() > 1) p(DebugModuleHartSelKey) else DebugModuleHartSelFuncs(
+      hartIdToHartSel = (x) => 0.U,
+      hartSelToHartId = (x) => x
+    )
+
     val io = IO(new Bundle {
-      val dmactive = Bool(INPUT)
-      val innerCtrl = (new DecoupledIO(new DebugInternalBundle(nComponents))).flip
-      val debugUnavail = Vec(nComponents, Bool()).asInput
-      val hgDebugInt = Vec(nComponents, Bool()).asOutput
+      val dmactive = Input(Bool())
+      val innerCtrl = Flipped(new DecoupledIO(new DebugInternalBundle(nComponents)))
+      val debugUnavail = Input(Vec(nComponents, Bool()))
+      val hgDebugInt = Output(Vec(nComponents, Bool()))
       val extTrigger = (nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val hartIsInReset = Input(Vec(nComponents, Bool()))
+      val tl_clock = Input(Clock())
+      val tl_reset = Input(Reset())
+      val auth = cfg.hasAuthentication.option(new DebugAuthenticationIO())
     })
 
+    sb2tlOpt.map { sb =>
+      sb.module.clock := io.tl_clock
+      sb.module.reset := io.tl_reset
+      sb.module.rf_reset := io.tl_reset
+    }
 
     //--------------------------------------------------------------
     // Import constants for shorter variable names
@@ -608,9 +754,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Register & Wire Declarations (which need to be pre-declared)
     //--------------------------------------------------------------
 
-    val haltedBitRegs    = RegInit(Vec.fill(nComponents){false.B})
-    val resumeReqRegs    = RegInit(Vec.fill(nComponents){false.B})
-    val haveResetBitRegs = RegInit(Vec.fill(nComponents){true.B})
+    val haltedBitRegs    = Reg(Vec(nComponents, Bool()))
+    val resumeReqRegs    = Reg(Vec(nComponents, Bool()))
+    val haveResetBitRegs = Reg(Vec(nComponents, Bool()))
+    val resumeAcks       = Wire(Vec(nComponents, Bool()))
 
     // --- regmapper outputs
 
@@ -623,32 +770,38 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val hartExceptionWrEn    = Wire(Bool())
     val hartExceptionId      = Wire(UInt(sbIdWidth.W))
 
-    val dmiProgramBufferRdEn = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
-    val dmiProgramBufferAccessLegal = Wire(init = false.B)
-    val dmiProgramBufferWrEnMaybe = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
+    val dmiProgramBufferRdEn = WireInit(VecInit(Seq.fill(cfg.nProgramBufferWords * 4) {false.B} ))
+    val dmiProgramBufferAccessLegal = WireInit(false.B)
+    val dmiProgramBufferWrEnMaybe = WireInit(VecInit(Seq.fill(cfg.nProgramBufferWords * 4) {false.B} ))
 
-    val dmiAbstractDataRdEn = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
-    val dmiAbstractDataAccessLegal = Wire (init = false.B)
-    val dmiAbstractDataWrEnMaybe = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
+    val dmiAbstractDataRdEn = WireInit(VecInit(Seq.fill(cfg.nAbstractDataWords * 4) {false.B} ))
+    val dmiAbstractDataAccessLegal = WireInit(false.B)
+    val dmiAbstractDataWrEnMaybe = WireInit(VecInit(Seq.fill(cfg.nAbstractDataWords * 4) {false.B} ))
 
     //--------------------------------------------------------------
     // Registers coming from 'CONTROL' in Outer
     //--------------------------------------------------------------
 
-    val selectedHartReg = RegInit(0.U(p(MaxHartIdBits).W))
+    val dmAuthenticated = io.auth.map(a => a.dmAuthenticated).getOrElse(true.B)
+
+    val selectedHartReg = Reg(UInt(p(MaxHartIdBits).W))
       // hamaskFull is a vector of all selected harts including hartsel, whether or not supportHartArray is true
-    val hamaskFull = Wire(init = Vec.fill(nComponents){false.B})
+    val hamaskFull = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
 
     if (nComponents > 1) {
-      when (io.innerCtrl.fire()){
+      when (~io.dmactive) {
+        selectedHartReg := 0.U
+      }.elsewhen (io.innerCtrl.fire()){
         selectedHartReg := io.innerCtrl.bits.hartsel
       }
     }
 
     if (supportHartArray) {
-      val hamaskZero = Wire(init = Vec.fill(nComponents){false.B})
-      val hamaskReg = RegInit(Vec.fill(nComponents){false.B})
-      when (io.innerCtrl.fire()){
+      val hamaskZero = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
+      val hamaskReg = Reg(Vec(nComponents, Bool()))
+      when (~io.dmactive || ~dmAuthenticated) {
+        hamaskReg := hamaskZero
+      }.elsewhen (io.innerCtrl.fire()){
         hamaskReg := Mux(io.innerCtrl.bits.hasel, io.innerCtrl.bits.hamask, hamaskZero)
       }
       hamaskFull := hamaskReg
@@ -662,10 +815,43 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
      // Construct a Vec from io.innerCtrl fields indicating whether each hart is being selected in this write
      // A hart may be selected by hartsel field or by hart array
-    val hamaskWrSel = Wire(init = Vec.fill(nComponents){false.B})
+    val hamaskWrSel = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
     for (component <- 0 until nComponents ) {
       hamaskWrSel(component) := ((io.innerCtrl.bits.hartsel === component.U) ||
         (if (supportHartArray) io.innerCtrl.bits.hasel && io.innerCtrl.bits.hamask(component) else false.B))
+    }
+
+    //-------------------------------------
+    // Halt-on-reset logic
+    //  hrmask is set in dmOuter and passed in
+    //  Debug interrupt is generated when a reset occurs whose corresponding hrmask bit is set
+    //  Debug interrupt is maintained until the hart enters halted state
+    //-------------------------------------
+    val hrReset    = WireInit(VecInit(Seq.fill(nComponents) { false.B } ))
+    val hrDebugInt = Wire(Vec(nComponents, Bool()))
+    val hrmaskReg  = RegInit(hrReset)
+    val hartIsInResetSync = Wire(Vec(nComponents, Bool()))
+
+    for (component <- 0 until nComponents) {
+      hartIsInResetSync(component) := AsyncResetSynchronizerShiftReg(io.hartIsInReset(component), 3, Some(s"debug_hartReset_$component"))
+    }
+
+    when (~io.dmactive || ~dmAuthenticated) {
+      hrmaskReg := hrReset
+    }.elsewhen (io.innerCtrl.fire()){
+      hrmaskReg := io.innerCtrl.bits.hrmask
+    }
+
+    withReset(reset.asAsyncReset) {          // ensure interrupt requests are negated at first clock edge
+      val hrDebugIntReg = RegInit(VecInit(Seq.fill(nComponents) { false.B } ))
+      when (~io.dmactive || ~dmAuthenticated) {
+        hrDebugIntReg := hrReset
+      }.otherwise {
+        hrDebugIntReg := hrmaskReg &
+          (hartIsInResetSync |               // set debugInt during reset
+          (hrDebugIntReg & ~haltedBitRegs))  // maintain until core halts
+      }
+      hrDebugInt := hrDebugIntReg
     }
 
     //--------------------------------------------------------------
@@ -674,57 +860,71 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     //----DMSTATUS
 
-    val DMSTATUSRdData = Wire(init = (new DMSTATUSFields()).fromBits(0.U))
-    DMSTATUSRdData.authenticated := true.B // Not implemented
+    val DMSTATUSRdData = WireInit(0.U.asTypeOf(new DMSTATUSFields()))
+    DMSTATUSRdData.authenticated := dmAuthenticated
     DMSTATUSRdData.version       := 2.U    // Version 0.13
+    io.auth.map(a => DMSTATUSRdData.authbusy := a.dmAuthBusy)
 
     val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
 
-    DMSTATUSRdData.anynonexistent := (selectedHartReg >= nComponents.U)   // only hartsel can be nonexistent
-       // all harts nonexistent if hartsel is out of range and there are no harts selected in the hart array
-    DMSTATUSRdData.allnonexistent := (selectedHartReg >= nComponents.U) & (~hamaskFull.reduce(_ | _))
+    when (dmAuthenticated) {
+      DMSTATUSRdData.hasresethaltreq := true.B
 
-    when (~DMSTATUSRdData.allnonexistent) {  // if no existent harts selected, all other status is false
-      DMSTATUSRdData.anyunavail   := (io.debugUnavail &  hamaskFull).reduce(_ | _)
-      DMSTATUSRdData.anyhalted    := ((~io.debugUnavail &  haltedBitRegs) &  hamaskFull).reduce(_ | _)
-      DMSTATUSRdData.anyrunning   := ((~io.debugUnavail & ~haltedBitRegs) &  hamaskFull).reduce(_ | _)
-      DMSTATUSRdData.anyhavereset := (haveResetBitRegs &  hamaskFull).reduce(_ | _)
-      DMSTATUSRdData.anyresumeack := (~resumeReqRegs &  hamaskFull).reduce(_ | _)
-      when (~DMSTATUSRdData.anynonexistent) {  // if one hart is nonexistent, no 'all' status is set
-        DMSTATUSRdData.allunavail   := (io.debugUnavail | ~hamaskFull).reduce(_ & _)
-        DMSTATUSRdData.allhalted    := ((~io.debugUnavail &  haltedBitRegs) | ~hamaskFull).reduce(_ & _)
-        DMSTATUSRdData.allrunning   := ((~io.debugUnavail & ~haltedBitRegs) | ~hamaskFull).reduce(_ & _)
-        DMSTATUSRdData.allhavereset := (haveResetBitRegs | ~hamaskFull).reduce(_ & _)
-        DMSTATUSRdData.allresumeack := (~resumeReqRegs | ~hamaskFull).reduce(_ & _)
+      DMSTATUSRdData.anynonexistent := (selectedHartReg >= nComponents.U)   // only hartsel can be nonexistent
+         // all harts nonexistent if hartsel is out of range and there are no harts selected in the hart array
+      DMSTATUSRdData.allnonexistent := (selectedHartReg >= nComponents.U) & (~hamaskFull.reduce(_ | _))
+
+      when (~DMSTATUSRdData.allnonexistent) {  // if no existent harts selected, all other status is false
+        DMSTATUSRdData.anyunavail   := (io.debugUnavail &  hamaskFull).reduce(_ | _)
+        DMSTATUSRdData.anyhalted    := ((~io.debugUnavail &  haltedBitRegs) &  hamaskFull).reduce(_ | _)
+        DMSTATUSRdData.anyrunning   := ((~io.debugUnavail & ~haltedBitRegs) &  hamaskFull).reduce(_ | _)
+        DMSTATUSRdData.anyhavereset := (haveResetBitRegs &  hamaskFull).reduce(_ | _)
+        DMSTATUSRdData.anyresumeack := (resumeAcks &  hamaskFull).reduce(_ | _)
+        when (~DMSTATUSRdData.anynonexistent) {  // if one hart is nonexistent, no 'all' status is set
+          DMSTATUSRdData.allunavail   := (io.debugUnavail | ~hamaskFull).reduce(_ & _)
+          DMSTATUSRdData.allhalted    := ((~io.debugUnavail &  haltedBitRegs) | ~hamaskFull).reduce(_ & _)
+          DMSTATUSRdData.allrunning   := ((~io.debugUnavail & ~haltedBitRegs) | ~hamaskFull).reduce(_ & _)
+          DMSTATUSRdData.allhavereset := (haveResetBitRegs | ~hamaskFull).reduce(_ & _)
+          DMSTATUSRdData.allresumeack := (resumeAcks | ~hamaskFull).reduce(_ & _)
+        }
       }
+
+      //TODO
+      DMSTATUSRdData.confstrptrvalid := false.B
+      DMSTATUSRdData.impebreak := (cfg.hasImplicitEbreak).B
     }
 
     for (component <- 0 until nComponents ) {
-      when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset && hamaskWrSel(component)) {
+      when (~io.dmactive || ~dmAuthenticated) {
+        haveResetBitRegs(component) := false.B
+      }.elsewhen (hartIsInResetSync(component)) {
+        haveResetBitRegs(component) := true.B
+      }.elsewhen (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset && hamaskWrSel(component)) {
         haveResetBitRegs(component) := false.B
       }
     }
 
     //----DMCS2 (Halt Groups)
 
-    val DMCS2RdData = Wire(init = (new DMCS2Fields()).fromBits(0.U))
-    val DMCS2WrDataVal = Wire(init = 0.U(32.W))
-    val DMCS2WrEn   = Wire(init = false.B)
-    val DMCS2RdEn   = Wire(init = false.B)
-    val hgDebugInt  = Wire(Vec.fill(nComponents){false.B})
+    val DMCS2RdData    = WireInit(0.U.asTypeOf(new DMCS2Fields()))
+    val DMCS2WrData    = WireInit(0.U.asTypeOf(new DMCS2Fields()))
+    val hgselectWrEn   = WireInit(false.B)
+    val hgwriteWrEn    = WireInit(false.B)
+    val haltgroupWrEn  = WireInit(false.B)
+    val exttriggerWrEn = WireInit(false.B)
+    val hgDebugInt     = WireInit(VecInit(Seq.fill(nComponents) {false.B} ))
 
-    if (nHaltGroups > 0) {
-      val DMCS2WrData = (new DMCS2Fields()).fromBits(DMCS2WrDataVal)
+    if (nHaltGroups > 0) withReset (reset.asAsyncReset) {     // async reset ensures triggers don't falsely fire during startup
       val hgBits = log2Up(nHaltGroups)
        // hgParticipate: Each entry indicates which hg that entity belongs to (1 to nHartGroups). 0 means no hg assigned.
-      val hgParticipateHart = RegInit(Vec(Seq.fill(nComponents)(0.U(hgBits.W))))
-      val hgParticipateTrig = if (nExtTriggers > 0) RegInit(Vec(Seq.fill(nExtTriggers)(0.U(hgBits.W)))) else Nil
+      val hgParticipateHart = RegInit(VecInit(Seq.fill(nComponents)(0.U(hgBits.W))))
+      val hgParticipateTrig = if (nExtTriggers > 0) RegInit(VecInit(Seq.fill(nExtTriggers)(0.U(hgBits.W)))) else Nil
 
       for (component <- 0 until nComponents) {
-        when (~io.dmactive) {
+        when (~io.dmactive || ~dmAuthenticated) {
           hgParticipateHart(component) := 0.U
         }.otherwise {
-          when (DMCS2WrEn & DMCS2WrData.hgwrite & ~DMCS2WrData.hgselect &
+          when (haltgroupWrEn & DMCS2WrData.hgwrite & ~DMCS2WrData.hgselect &
               hamaskFull(component) & (DMCS2WrData.haltgroup <= nHaltGroups.U)) {
             hgParticipateHart(component) := DMCS2WrData.haltgroup
           }
@@ -733,21 +933,21 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       DMCS2RdData.haltgroup := hgParticipateHart(selectedHartReg)
 
       if (nExtTriggers > 0) {
-        val hgSelect = RegInit(false.B)
+        val hgSelect = Reg(Bool())
 
-        when (~io.dmactive) {
+        when (~io.dmactive || ~dmAuthenticated) {
           hgSelect := false.B
         }.otherwise {
-           when (DMCS2WrEn) {
+           when (hgselectWrEn) {
              hgSelect := DMCS2WrData.hgselect
            }
         }
 
         for (trigger <- 0 until nExtTriggers) {
-          when (~io.dmactive) {
+          when (~io.dmactive || ~dmAuthenticated) {
             hgParticipateTrig(trigger) := 0.U
           }.otherwise {
-            when (DMCS2WrEn & DMCS2WrData.hgwrite & DMCS2WrData.hgselect &
+            when (haltgroupWrEn & DMCS2WrData.hgwrite & DMCS2WrData.hgselect &
                 (DMCS2WrData.exttrigger === trigger.U) & (DMCS2WrData.haltgroup <= nHaltGroups.U)) {
               hgParticipateTrig(trigger) := DMCS2WrData.haltgroup
             }
@@ -764,11 +964,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
         if (nExtTriggers > 1) {
           val trigBits = log2Up(nExtTriggers-1)
-          val hgExtTrigger = RegInit(0.U(trigBits.W))
-          when (~io.dmactive) {
+          val hgExtTrigger = Reg(UInt(trigBits.W))
+          when (~io.dmactive || ~dmAuthenticated) {
             hgExtTrigger := 0.U
           }.otherwise {
-            when (DMCS2WrEn & (DMCS2WrData.exttrigger < nExtTriggers.U)) {
+            when (exttriggerWrEn & (DMCS2WrData.exttrigger < nExtTriggers.U)) {
                hgExtTrigger := DMCS2WrData.exttrigger
             }
           }
@@ -786,27 +986,31 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       //  FIRED: Back to IDLE when all harts in this hg have set their haltedBitRegs
       //                     and all trig out in this hg have been acknowledged
 
-      val hgFired = RegInit(Vec.fill(nHaltGroups+1){false.B})
-      val hgHartFiring     = Wire(init = Vec.fill(nHaltGroups+1){false.B})     // which hg's are firing due to hart halting
-      val hgTrigFiring     = Wire(init = Vec.fill(nHaltGroups+1){false.B})     // which hg's are firing due to trig in
-      val hgHartsAllHalted = Wire(init = Vec.fill(nHaltGroups+1){false.B})     // in which hg's have all harts halted
-      val hgTrigsAllAcked  = Wire(init = Vec.fill(nHaltGroups+1){ true.B})     // in which hg's have all trigouts been acked
+      val hgFired          = RegInit (VecInit(Seq.fill(nHaltGroups+1) {false.B} ))
+      val hgHartFiring     = WireInit(VecInit(Seq.fill(nHaltGroups+1) {false.B} ))     // which hg's are firing due to hart halting
+      val hgTrigFiring     = WireInit(VecInit(Seq.fill(nHaltGroups+1) {false.B} ))     // which hg's are firing due to trig in
+      val hgHartsAllHalted = WireInit(VecInit(Seq.fill(nHaltGroups+1) {false.B} ))     // in which hg's have all harts halted
+      val hgTrigsAllAcked  = WireInit(VecInit(Seq.fill(nHaltGroups+1) { true.B} ))     // in which hg's have all trigouts been acked
 
       io.extTrigger.foreach {extTrigger =>
-        val trigInReq  = SynchronizerShiftReg(extTrigger.in.req,  3, Some("dm_extTriggerInReqSync"))
-        val trigOutAck = SynchronizerShiftReg(extTrigger.out.ack, 3, Some("dm_extTriggerOutAckSync"))
+        val extTriggerInReq = Wire(Vec(nExtTriggers, Bool()))
+        val extTriggerOutAck = Wire(Vec(nExtTriggers, Bool()))
+        extTriggerInReq := extTrigger.in.req.asBools
+        extTriggerOutAck := extTrigger.out.ack.asBools
+        val trigInReq  = ResetSynchronizerShiftReg(in=extTriggerInReq,  sync=3, name=Some("dm_extTriggerInReqSync"))
+        val trigOutAck = ResetSynchronizerShiftReg(in=extTriggerOutAck, sync=3, name=Some("dm_extTriggerOutAckSync"))
         for (hg <- 1 to nHaltGroups) {
           hgTrigFiring(hg) := (trigInReq & ~RegNext(trigInReq) & hgParticipateTrig.map(_ === hg.U)).reduce(_ | _)
           hgTrigsAllAcked(hg) := (trigOutAck | hgParticipateTrig.map(_ =/= hg.U)).reduce(_ & _)
         }
-        extTrigger.in.ack := trigInReq        // acknowledge all trig in
+        extTrigger.in.ack := trigInReq.asUInt()
       }
 
       for (hg <- 1 to nHaltGroups) {
         hgHartFiring(hg) := hartHaltedWrEn & ~haltedBitRegs(hartHaltedId) & (hgParticipateHart(hartSelFuncs.hartIdToHartSel(hartHaltedId)) === hg.U)
         hgHartsAllHalted(hg) := (haltedBitRegs | hgParticipateHart.map(_ =/= hg.U)).reduce(_ & _)
 
-        when (~io.dmactive) {
+        when (~io.dmactive || ~dmAuthenticated) {
           hgFired(hg) := false.B
         }.elsewhen (~hgFired(hg) & (hgHartFiring(hg) | hgTrigFiring(hg))) {
           hgFired(hg) := true.B
@@ -822,66 +1026,68 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
       // For each hg that has fired, assert trigger out for all external triggers in that hg
       io.extTrigger.foreach {extTrigger =>
+        val extTriggerOutReq = RegInit(VecInit(Seq.fill(cfg.nExtTriggers) {false.B} ))
         for (trig <- 0 until nExtTriggers) {
-          extTrigger.out.req(trig) := hgFired(hgParticipateTrig(trig))
+          extTriggerOutReq(trig) := hgFired(hgParticipateTrig(trig))
         }
+        extTrigger.out.req := extTriggerOutReq.asUInt()
       }
     }
-    io.hgDebugInt := hgDebugInt
+    io.hgDebugInt := hgDebugInt | hrDebugInt
 
-
-    //TODO
-    DMSTATUSRdData.confstrptrvalid := false.B
-
-    DMSTATUSRdData.impebreak := (cfg.hasImplicitEbreak).B
 
     //----HARTINFO
 
-    val HARTINFORdData = Wire (init = (new HARTINFOFields()).fromBits(0.U))
-    HARTINFORdData.dataaccess  := true.B
-    HARTINFORdData.datasize    := cfg.nAbstractDataWords.U
-    HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
-    HARTINFORdData.nscratch    := cfg.nScratch.U
+    val HARTINFORdData = WireInit(0.U.asTypeOf(new HARTINFOFields()))
+    when (dmAuthenticated) {
+      HARTINFORdData.dataaccess  := true.B
+      HARTINFORdData.datasize    := cfg.nAbstractDataWords.U
+      HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
+      HARTINFORdData.nscratch    := cfg.nScratch.U
+    }
 
     //----HALTSUM*
     val numHaltedStatus = ((nComponents - 1) / 32) + 1
-    val haltedStatus   = Wire(Vec(numHaltedStatus, Bits(width = 32)))
+    val haltedStatus   = Wire(Vec(numHaltedStatus, Bits(32.W)))
 
     for (ii <- 0 until numHaltedStatus) {
-      haltedStatus(ii) := Cat(haltedBitRegs.slice(ii * 32, (ii + 1) * 32).reverse)
+      when (dmAuthenticated) {
+        haltedStatus(ii) := Cat(haltedBitRegs.slice(ii * 32, (ii + 1) * 32).reverse)
+      }.otherwise {
+        haltedStatus(ii) := 0.U
+      }
     }
 
     val haltedSummary = Cat(haltedStatus.map(_.orR).reverse)
-    val HALTSUM1RdData = (new HALTSUM1Fields()).fromBits(haltedSummary)
+    val HALTSUM1RdData = haltedSummary.asTypeOf(new HALTSUM1Fields())
 
     val selectedHaltedStatus = Mux((selectedHartReg >> 5) > numHaltedStatus.U, 0.U, haltedStatus(selectedHartReg >> 5))
-    val HALTSUM0RdData = (new HALTSUM0Fields()).fromBits(selectedHaltedStatus)
+    val HALTSUM0RdData = selectedHaltedStatus.asTypeOf(new HALTSUM0Fields())
 
     // Since we only support 1024 harts, we don't implement HALTSUM2 or HALTSUM3
 
     //----ABSTRACTCS
 
-    val ABSTRACTCSReset = Wire(init = (new ABSTRACTCSFields()).fromBits(0.U))
+    val ABSTRACTCSReset = WireInit(0.U.asTypeOf(new ABSTRACTCSFields()))
     ABSTRACTCSReset.datacount   := cfg.nAbstractDataWords.U
     ABSTRACTCSReset.progbufsize := cfg.nProgramBufferWords.U
 
     val ABSTRACTCSReg       = Reg(new ABSTRACTCSFields())
-    val ABSTRACTCSWrDataVal = Wire(init = 0.U(32.W))
-    val ABSTRACTCSWrData    = (new ABSTRACTCSFields()).fromBits(ABSTRACTCSWrDataVal)
-    val ABSTRACTCSRdData    = Wire(init = ABSTRACTCSReg)
+    val ABSTRACTCSWrData    = WireInit(0.U.asTypeOf(new ABSTRACTCSFields()))
+    val ABSTRACTCSRdData    = WireInit(ABSTRACTCSReg)
 
-    val ABSTRACTCSRdEn = Wire(init = false.B)
-    val ABSTRACTCSWrEnMaybe = Wire(init = false.B)
+    val ABSTRACTCSRdEn = WireInit(false.B)
+    val ABSTRACTCSWrEnMaybe = WireInit(false.B)
 
-    val ABSTRACTCSWrEnLegal = Wire(init = false.B)
+    val ABSTRACTCSWrEnLegal = WireInit(false.B)
     val ABSTRACTCSWrEn      = ABSTRACTCSWrEnMaybe && ABSTRACTCSWrEnLegal
 
-    val errorBusy        = Wire(init = false.B)
-    val errorException   = Wire(init = false.B)
-    val errorUnsupported = Wire(init = false.B)
-    val errorHaltResume  = Wire(init = false.B)
+    val errorBusy        = WireInit(false.B)
+    val errorException   = WireInit(false.B)
+    val errorUnsupported = WireInit(false.B)
+    val errorHaltResume  = WireInit(false.B)
 
-    when(~io.dmactive){
+    when (~io.dmactive || ~dmAuthenticated) {
       ABSTRACTCSReg := ABSTRACTCSReset
     }.otherwise {
       when (errorBusy){
@@ -900,42 +1106,49 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     // For busy, see below state machine.
-    val abstractCommandBusy = Wire(init = true.B)
+    val abstractCommandBusy = WireInit(true.B)
     ABSTRACTCSRdData.busy := abstractCommandBusy
+    when (~dmAuthenticated) {   // read value must be 0 when not authenticated
+      ABSTRACTCSRdData.datacount := 0.U
+      ABSTRACTCSRdData.progbufsize := 0.U
+    }
 
     //---- ABSTRACTAUTO
 
-    val ABSTRACTAUTOReset     = Wire(init = (new ABSTRACTAUTOFields()).fromBits(0.U))
+    val ABSTRACTAUTOReset     = WireInit(0.U.asTypeOf(new ABSTRACTAUTOFields()))
     val ABSTRACTAUTOReg       = Reg(new ABSTRACTAUTOFields())
-    val ABSTRACTAUTOWrDataVal = Wire(init = 0.U(32.W))
-    val ABSTRACTAUTOWrData    = (new ABSTRACTAUTOFields()).fromBits(ABSTRACTAUTOWrDataVal)
-    val ABSTRACTAUTORdData    = Wire(init = ABSTRACTAUTOReg)
+    val ABSTRACTAUTOWrData    = WireInit(0.U.asTypeOf(new ABSTRACTAUTOFields()))
+    val ABSTRACTAUTORdData    = WireInit(ABSTRACTAUTOReg)
 
-    val ABSTRACTAUTORdEn = Wire(init = false.B)
-    val ABSTRACTAUTOWrEnMaybe = Wire(init = false.B)
+    val ABSTRACTAUTORdEn = WireInit(false.B)
+    val autoexecdataWrEnMaybe = WireInit(false.B)
+    val autoexecprogbufWrEnMaybe = WireInit(false.B)
 
-    val ABSTRACTAUTOWrEnLegal = Wire(init = false.B)
-    val ABSTRACTAUTOWrEn      = ABSTRACTAUTOWrEnMaybe && ABSTRACTAUTOWrEnLegal
+    val ABSTRACTAUTOWrEnLegal = WireInit(false.B)
 
-    when (~io.dmactive) {
+    when (~io.dmactive || ~dmAuthenticated) {
       ABSTRACTAUTOReg := ABSTRACTAUTOReset
-    }.elsewhen (ABSTRACTAUTOWrEn) {
-      ABSTRACTAUTOReg.autoexecprogbuf := ABSTRACTAUTOWrData.autoexecprogbuf & ( (1 << cfg.nProgramBufferWords) - 1).U
-      ABSTRACTAUTOReg.autoexecdata := ABSTRACTAUTOWrData.autoexecdata & ( (1 << cfg.nAbstractDataWords) - 1).U
+    }.otherwise {
+      when (autoexecprogbufWrEnMaybe && ABSTRACTAUTOWrEnLegal) {
+        ABSTRACTAUTOReg.autoexecprogbuf := ABSTRACTAUTOWrData.autoexecprogbuf & ( (1 << cfg.nProgramBufferWords) - 1).U
+      }
+      when (autoexecdataWrEnMaybe && ABSTRACTAUTOWrEnLegal) {
+        ABSTRACTAUTOReg.autoexecdata := ABSTRACTAUTOWrData.autoexecdata & ( (1 << cfg.nAbstractDataWords) - 1).U
+      }
     }
 
-    val dmiAbstractDataAccessVec  = Wire(init = Vec.fill(cfg.nAbstractDataWords * 4){false.B})
+    val dmiAbstractDataAccessVec  = WireInit(VecInit(Seq.fill(cfg.nAbstractDataWords * 4) {false.B} ))
     dmiAbstractDataAccessVec := (dmiAbstractDataWrEnMaybe zip dmiAbstractDataRdEn).map{ case (r,w) => r | w}
 
-    val dmiProgramBufferAccessVec  = Wire(init = Vec.fill(cfg.nProgramBufferWords * 4){false.B})
+    val dmiProgramBufferAccessVec  = WireInit(VecInit(Seq.fill(cfg.nProgramBufferWords * 4) {false.B} ))
     dmiProgramBufferAccessVec := (dmiProgramBufferWrEnMaybe zip dmiProgramBufferRdEn).map{ case (r,w) => r | w}
 
     val dmiAbstractDataAccess  = dmiAbstractDataAccessVec.reduce(_ || _ )
     val dmiProgramBufferAccess = dmiProgramBufferAccessVec.reduce(_ || _)
 
     // This will take the shorter of the lists, which is what we want.
-    val autoexecData  = Wire(init = Vec.fill(cfg.nAbstractDataWords){false.B})
-    val autoexecProg  = Wire(init = Vec.fill(cfg.nProgramBufferWords){false.B})
+    val autoexecData  = WireInit(VecInit(Seq.fill(cfg.nAbstractDataWords) {false.B} ))
+    val autoexecProg  = WireInit(VecInit(Seq.fill(cfg.nProgramBufferWords) {false.B} ))
       (autoexecData zip ABSTRACTAUTOReg.autoexecdata.asBools).zipWithIndex.foreach {case (t, i) => t._1 := dmiAbstractDataAccessVec(i * 4) && t._2 }
       (autoexecProg zip ABSTRACTAUTOReg.autoexecprogbuf.asBools).zipWithIndex.foreach {case (t, i) => t._1 := dmiProgramBufferAccessVec(i * 4) && t._2}
 
@@ -943,19 +1156,19 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     //---- COMMAND
 
-    val COMMANDReset = Wire(init = (new COMMANDFields()).fromBits(0.U))
+    val COMMANDReset = WireInit(0.U.asTypeOf(new COMMANDFields()))
     val COMMANDReg = Reg(new COMMANDFields())
 
-    val COMMANDWrDataVal    = Wire(init = 0.U(32.W))
-    val COMMANDWrData       = Wire(init = (new COMMANDFields()).fromBits(COMMANDWrDataVal))
-    val COMMANDWrEnMaybe    = Wire(init = false.B)
-    val COMMANDWrEnLegal    = Wire(init = false.B)
-    val COMMANDRdEn  = Wire(init = false.B)
+    val COMMANDWrDataVal    = WireInit(0.U(32.W))
+    val COMMANDWrData       = WireInit(COMMANDWrDataVal.asTypeOf(new COMMANDFields()))
+    val COMMANDWrEnMaybe    = WireInit(false.B)
+    val COMMANDWrEnLegal    = WireInit(false.B)
+    val COMMANDRdEn  = WireInit(false.B)
 
     val COMMANDWrEn = COMMANDWrEnMaybe && COMMANDWrEnLegal
     val COMMANDRdData = COMMANDReg
 
-    when (~io.dmactive) {
+    when (~io.dmactive || ~dmAuthenticated) {
       COMMANDReg := COMMANDReset
     }.otherwise {
       when (COMMANDWrEn) {
@@ -968,11 +1181,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // These are byte addressible, s.t. the Processor can use
     // byte-addressible instructions to store to them.
     val abstractDataMem       = Reg(Vec(cfg.nAbstractDataWords*4, UInt(8.W)))
-    val abstractDataNxt       = Wire(init = abstractDataMem)
+    val abstractDataNxt       = WireInit(abstractDataMem)
 
     // --- Program Buffer
     val programBufferMem    = Reg(Vec(cfg.nProgramBufferWords*4, UInt(8.W)))
-    val programBufferNxt    = Wire(init = programBufferMem)
+    val programBufferNxt    = WireInit(programBufferMem)
 
     //--------------------------------------------------------------
     // These bits are implementation-specific bits set
@@ -980,12 +1193,15 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     //--------------------------------------------------------------
 
     for (component <- 0 until nComponents) {
-      when (~io.dmactive) {
+      when (~io.dmactive || ~dmAuthenticated) {
         haltedBitRegs(component) := false.B
         resumeReqRegs(component) := false.B
       }.otherwise {
         // Hart Halt Notification Logic
-        when (hartHaltedWrEn) {
+        when (hartIsInResetSync(component)) {
+          haltedBitRegs(component) := false.B
+          resumeReqRegs(component) := false.B
+        }.elsewhen (hartHaltedWrEn) {
           when (hartSelFuncs.hartIdToHartSel(hartHaltedId) === component.U) {
             haltedBitRegs(component) := true.B
           }
@@ -1008,38 +1224,112 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           resumeReqRegs(component) := true.B
         }
       }
+      resumeAcks(component) := ~resumeReqRegs(component) && ~(resumereq && hamaskWrSel(component))
     }
+
+    //---- AUTHDATA
+    val authRdEnMaybe = WireInit(false.B)
+    val authWrEnMaybe = WireInit(false.B)
+    io.auth.map { a =>
+      a.dmactive    := io.dmactive
+      a.dmAuthRead  := authRdEnMaybe & ~a.dmAuthBusy
+      a.dmAuthWrite := authWrEnMaybe & ~a.dmAuthBusy
+    }
+
+    val dmstatusRegFields = RegFieldGroup("dmi_dmstatus", Some("debug module status register"), Seq(
+      RegField.r(4, DMSTATUSRdData.version,         RegFieldDesc("version",         "version",         reset=Some(2))),
+      RegField.r(1, DMSTATUSRdData.confstrptrvalid, RegFieldDesc("confstrptrvalid", "confstrptrvalid", reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.hasresethaltreq, RegFieldDesc("hasresethaltreq", "hasresethaltreq", reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.authbusy,        RegFieldDesc("authbusy",        "authbusy",        reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.authenticated,   RegFieldDesc("authenticated",   "authenticated",   reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.anyhalted,       RegFieldDesc("anyhalted",       "anyhalted",       reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.allhalted,       RegFieldDesc("allhalted",       "allhalted",       reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.anyrunning,      RegFieldDesc("anyrunning",      "anyrunning",      reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.allrunning,      RegFieldDesc("allrunning",      "allrunning",      reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.anyunavail,      RegFieldDesc("anyunavail",      "anyunavail",      reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.allunavail,      RegFieldDesc("allunavail",      "allunavail",      reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.anynonexistent,  RegFieldDesc("anynonexistent",  "anynonexistent",  reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.allnonexistent,  RegFieldDesc("allnonexistent",  "allnonexistent",  reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.anyresumeack,    RegFieldDesc("anyresumeack",    "anyresumeack",    reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.allresumeack,    RegFieldDesc("allresumeack",    "allresumeack",    reset=Some(1))),
+      RegField.r(1, DMSTATUSRdData.anyhavereset,    RegFieldDesc("anyhavereset",    "anyhavereset",    reset=Some(0))),
+      RegField.r(1, DMSTATUSRdData.allhavereset,    RegFieldDesc("allhavereset",    "allhavereset",    reset=Some(0))),
+      RegField(2),
+      RegField.r(1, DMSTATUSRdData.impebreak,       RegFieldDesc("impebreak",       "impebreak",       reset=Some(if (cfg.hasImplicitEbreak) 1 else 0)))
+    ))
+
+    val dmcs2RegFields = RegFieldGroup("dmi_dmcs2", Some("debug module control/status register 2"), Seq(
+      WNotifyVal(1, DMCS2RdData.hgselect,  DMCS2WrData.hgselect, hgselectWrEn,
+        RegFieldDesc("hgselect", "select halt groups or external triggers", reset=Some(0), volatile=true)),
+      WNotifyVal(1, 0.U,                   DMCS2WrData.hgwrite,  hgwriteWrEn,
+        RegFieldDesc("hgwrite",  "write 1 to change halt groups", reset=None, access=RegFieldAccessType.W)),
+      WNotifyVal(5, DMCS2RdData.haltgroup, DMCS2WrData.haltgroup, haltgroupWrEn,
+        RegFieldDesc("haltgroup", "halt group", reset=Some(0), volatile=true)),
+      if (nExtTriggers > 1)
+        WNotifyVal(4, DMCS2RdData.exttrigger, DMCS2WrData.exttrigger, exttriggerWrEn,
+        RegFieldDesc("exttrigger", "external trigger select", reset=Some(0), volatile=true))
+      else RegField(4)
+    ))
+
+    val hartinfoRegFields = RegFieldGroup("dmi_hartinfo", Some("hart information"), Seq(
+      RegField.r(12, HARTINFORdData.dataaddr,   RegFieldDesc("dataaddr",   "data address",                reset=Some(DsbRegAddrs.DATA))),
+      RegField.r(4,  HARTINFORdData.datasize,   RegFieldDesc("datasize",   "number of DATA registers",    reset=Some(cfg.nAbstractDataWords))),
+      RegField.r(1,  HARTINFORdData.dataaccess, RegFieldDesc("dataaccess", "data access type",            reset=Some(1))),
+      RegField(3),
+      RegField.r(4,  HARTINFORdData.nscratch,   RegFieldDesc("nscratch",   "number of scratch registers", reset=Some(cfg.nScratch)))
+    ))
+
+    val abstractcsRegFields = RegFieldGroup("dmi_abstractcs", Some("abstract command control/status"), Seq(
+      RegField.r(4, ABSTRACTCSRdData.datacount, RegFieldDesc("datacount", "number of DATA registers", reset=Some(cfg.nAbstractDataWords))),
+      RegField(4),
+      WNotifyVal(3, ABSTRACTCSRdData.cmderr, ABSTRACTCSWrData.cmderr, ABSTRACTCSWrEnMaybe,
+        RegFieldDesc("cmderr", "command error", reset=Some(0), wrType=Some(RegFieldWrType.ONE_TO_CLEAR))),
+      RegField(1),
+      RegField.r(1, ABSTRACTCSRdData.busy, RegFieldDesc("busy", "busy", reset=Some(0))),
+      RegField(11),
+      RegField.r(5, ABSTRACTCSRdData.progbufsize, RegFieldDesc("progbufsize", "number of PROGBUF registers", reset=Some(cfg.nProgramBufferWords)))
+    ))
 
     val (sbcsFields, sbAddrFields, sbDataFields):
     (Seq[RegField], Seq[Seq[RegField]], Seq[Seq[RegField]]) = sb2tlOpt.map{ sb2tl =>
-      SystemBusAccessModule(sb2tl,io.dmactive)(p)
+      SystemBusAccessModule(sb2tl, io.dmactive, dmAuthenticated)(p)
     }.getOrElse((Seq.empty[RegField], Seq.fill[Seq[RegField]](4)(Seq.empty[RegField]), Seq.fill[Seq[RegField]](4)(Seq.empty[RegField])))
 
     //--------------------------------------------------------------
     // Program Buffer Access (DMI ... System Bus can override)
     //--------------------------------------------------------------
     val omRegMap = dmiNode.regmap(
-      (DMI_DMSTATUS    << 2) -> Seq(RegField.r(32, DMSTATUSRdData.asUInt(), RegFieldDesc("dmi_dmstatus", ""))),
+      (DMI_DMSTATUS    << 2) -> dmstatusRegFields,
       //TODO (DMI_CFGSTRADDR0 << 2) -> cfgStrAddrFields,
-      (DMI_DMCS2       << 2) -> (if (nHaltGroups > 0) Seq(RWNotify(32, DMCS2RdData.asUInt(),
-        DMCS2WrDataVal, DMCS2RdEn, DMCS2WrEn, Some(RegFieldDesc("dmi_dmcs2", "", reset=Some(0))))) else Nil),
-      (DMI_HARTINFO    << 2) -> Seq(RegField.r(32, HARTINFORdData.asUInt(), RegFieldDesc("dmi_hartinfo", "" /*, reset=Some(HARTINFORdData.litValue)*/))),
-      (DMI_HALTSUM0    << 2) -> Seq(RegField.r(32, HALTSUM0RdData.asUInt(), RegFieldDesc("dmi_haltsum0", ""))),
-      (DMI_HALTSUM1    << 2) -> Seq(RegField.r(32, HALTSUM1RdData.asUInt(), RegFieldDesc("dmi_haltsum1", ""))),
-      (DMI_ABSTRACTCS  << 2) -> Seq(RWNotify(32, ABSTRACTCSRdData.asUInt(), ABSTRACTCSWrDataVal, ABSTRACTCSRdEn, ABSTRACTCSWrEnMaybe,
-        Some(RegFieldDesc("dmi_abstractcs", "" /*, reset=Some(ABSTRACTCSReset.litValue)*/)))),
-      (DMI_ABSTRACTAUTO<< 2) -> Seq(RWNotify(32, ABSTRACTAUTORdData.asUInt(), ABSTRACTAUTOWrDataVal, ABSTRACTAUTORdEn, ABSTRACTAUTOWrEnMaybe,
-        Some(RegFieldDesc("dmi_abstractauto", "", reset=Some(0))))),
-      (DMI_COMMAND     << 2) -> Seq(RWNotify(32, COMMANDRdData.asUInt(), COMMANDWrDataVal, COMMANDRdEn, COMMANDWrEnMaybe,
-        Some(RegFieldDesc("dmi_command", "", reset=Some(0))))),
-      (DMI_DATA0       << 2) -> RegFieldGroup("dmi_data", None, abstractDataMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, abstractDataNxt(i),
+      (DMI_DMCS2       << 2) -> (if (nHaltGroups > 0) dmcs2RegFields else Nil),
+      (DMI_HARTINFO    << 2) -> hartinfoRegFields,
+      (DMI_HALTSUM0    << 2) -> RegFieldGroup("dmi_haltsum0", Some("Halt Summary 0"),
+         Seq(RegField.r(32, HALTSUM0RdData.asUInt(), RegFieldDesc("dmi_haltsum0", "halt summary 0")))),
+      (DMI_HALTSUM1    << 2) -> RegFieldGroup("dmi_haltsum1", Some("Halt Summary 1"),
+         Seq(RegField.r(32, HALTSUM1RdData.asUInt(), RegFieldDesc("dmi_haltsum1", "halt summary 1")))),
+      (DMI_ABSTRACTCS  << 2) -> abstractcsRegFields,
+      (DMI_ABSTRACTAUTO<< 2) -> RegFieldGroup("dmi_abstractauto", Some("abstract command autoexec"), Seq(
+        WNotifyVal(cfg.nAbstractDataWords, ABSTRACTAUTORdData.autoexecdata, ABSTRACTAUTOWrData.autoexecdata, autoexecdataWrEnMaybe,
+          RegFieldDesc("autoexecdata", "abstract command data autoexec", reset=Some(0))),
+        RegField(16-cfg.nAbstractDataWords),
+        WNotifyVal(cfg.nProgramBufferWords, ABSTRACTAUTORdData.autoexecprogbuf, ABSTRACTAUTOWrData.autoexecprogbuf, autoexecprogbufWrEnMaybe,
+          RegFieldDesc("autoexecprogbuf", "abstract command progbuf autoexec", reset=Some(0))))),
+      (DMI_COMMAND     << 2) -> RegFieldGroup("dmi_command", Some("Abstract Command Register"),
+        Seq(RWNotify(32, COMMANDRdData.asUInt(), COMMANDWrDataVal, COMMANDRdEn, COMMANDWrEnMaybe,
+        Some(RegFieldDesc("dmi_command", "abstract command register", reset=Some(0), volatile=true))))),
+      (DMI_DATA0       << 2) -> RegFieldGroup("dmi_data", Some("abstract command data registers"), abstractDataMem.zipWithIndex.map{case (x, i) =>
+        RWNotify(8, Mux(dmAuthenticated, x, 0.U), abstractDataNxt(i),
         dmiAbstractDataRdEn(i),
         dmiAbstractDataWrEnMaybe(i),
-        Some(RegFieldDesc(s"dmi_data_$i", "", reset = Some(0))))}),
-      (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", None, programBufferMem.zipWithIndex.map{case (x, i) => RWNotify(8, x, programBufferNxt(i),
+        Some(RegFieldDesc(s"dmi_data_$i", s"abstract command data register $i", reset = Some(0), volatile=true)))}, false),
+      (DMI_PROGBUF0    << 2) -> RegFieldGroup("dmi_progbuf", Some("abstract command progbuf registers"), programBufferMem.zipWithIndex.map{case (x, i) =>
+        RWNotify(8, Mux(dmAuthenticated, x, 0.U), programBufferNxt(i),
         dmiProgramBufferRdEn(i),
         dmiProgramBufferWrEnMaybe(i),
-        Some(RegFieldDesc(s"dmi_progbuf_$i", "", reset = Some(0))))}),
+        Some(RegFieldDesc(s"dmi_progbuf_$i", s"abstract command progbuf register $i", reset = Some(0))))}, false),
+      (DMI_AUTHDATA   << 2) -> (if (cfg.hasAuthentication) RegFieldGroup("dmi_authdata", Some("authentication data exchange register"),
+        Seq(RWNotify(32, io.auth.get.dmAuthRdata, io.auth.get.dmAuthWdata, authRdEnMaybe, authWrEnMaybe,
+        Some(RegFieldDesc("authdata", "authentication data exchange", volatile=true))))) else Nil),
       (DMI_SBCS       << 2) -> sbcsFields,
       (DMI_SBDATA0    << 2) -> sbDataFields(0),
       (DMI_SBDATA1    << 2) -> sbDataFields(1),
@@ -1053,7 +1343,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     // Abstract data mem is written by both the tile link interface and DMI...
     abstractDataMem.zipWithIndex.foreach { case (x, i) =>
-      when (dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
+      when (dmAuthenticated && dmiAbstractDataWrEnMaybe(i) && dmiAbstractDataAccessLegal) {
         x := abstractDataNxt(i)
       }
     }
@@ -1075,7 +1365,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
 
     programBufferMem.zipWithIndex.foreach { case (x, i) =>
-      when (dmiProgramBufferWrEnMaybe(i) && dmiProgramBufferAccessLegal) {
+      when (dmAuthenticated && dmiProgramBufferWrEnMaybe(i) && dmiProgramBufferAccessLegal) {
         x := programBufferNxt(i)
       }
     }
@@ -1085,9 +1375,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     //--------------------------------------------------------------
 
     val goReg        = Reg(Bool())
-    val goAbstract   = Wire(init = false.B)
-    val goCustom     = Wire(init = false.B)
-    val jalAbstract  = Wire(init = (new GeneratedUJ()).fromBits(Instructions.JAL.value.U))
+    val goAbstract   = WireInit(false.B)
+    val goCustom     = WireInit(false.B)
+    val jalAbstract  = WireInit(Instructions.JAL.value.U.asTypeOf(new GeneratedUJ()))
     jalAbstract.setImm(ABSTRACT(cfg) - WHERETO)
 
     when (~io.dmactive){
@@ -1107,13 +1397,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val go = Bool()
     }
 
-    val flags = Wire(init = Vec.fill(1 << selectedHartReg.getWidth){new flagBundle().fromBits(0.U)})
+    val flags = WireInit(VecInit(Seq.fill(1 << selectedHartReg.getWidth) {0.U.asTypeOf(new flagBundle())} ))
     assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
       s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
     flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
 
     for (component <- 0 until nComponents) {
-      val componentSel = Wire(init = component.U)
+      val componentSel = WireInit(component.U)
       flags(hartSelFuncs.hartSelToHartId(componentSel)).resume := resumeReqRegs(component)
     }
 
@@ -1121,8 +1411,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Abstract Command Decoding & Generation
     //----------------------------
 
-    val accessRegisterCommandWr  = Wire(init = (new ACCESS_REGISTERFields()).fromBits(COMMANDWrData.asUInt()))
-    val accessRegisterCommandReg = Wire(init = (new ACCESS_REGISTERFields()).fromBits(COMMANDReg.asUInt()))
+    val accessRegisterCommandWr  = WireInit(COMMANDWrData.asUInt().asTypeOf(new ACCESS_REGISTERFields()))
+    val accessRegisterCommandReg = WireInit(COMMANDReg.asUInt().asTypeOf(new ACCESS_REGISTERFields()))
 
     // TODO: Quick Access
 
@@ -1155,8 +1445,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         // TODO: Check bounds of imm.
 
         require(imm % 2 == 0, "Immediate must be even for UJ encoding.")
-        val immWire = Wire(init = imm.S(21.W))
-        val immBits = Wire(init = Vec(immWire.asBools))
+        val immWire = WireInit(imm.S(21.W))
+        val immBits = WireInit(VecInit(immWire.asBools))
 
         imm0 := immBits.slice(1,  1  + 10).asUInt()
         imm1 := immBits.slice(11, 11 + 11).asUInt()
@@ -1170,20 +1460,20 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val abstractGeneratedS = Wire(new GeneratedS())
     val nop = Wire(new GeneratedI())
 
-    abstractGeneratedI.opcode := ((new GeneratedI()).fromBits(Instructions.LW.value.U)).opcode
+    abstractGeneratedI.opcode := (Instructions.LW.value.U.asTypeOf(new GeneratedI())).opcode
     abstractGeneratedI.rd     := (accessRegisterCommandReg.regno & 0x1F.U)
     abstractGeneratedI.funct3 := accessRegisterCommandReg.size
     abstractGeneratedI.rs1    := 0.U
     abstractGeneratedI.imm    := DATA.U
 
-    abstractGeneratedS.opcode := ((new GeneratedS()).fromBits(Instructions.SW.value.U)).opcode
+    abstractGeneratedS.opcode := (Instructions.SW.value.U.asTypeOf(new GeneratedS())).opcode
     abstractGeneratedS.immlo  := (DATA & 0x1F).U
     abstractGeneratedS.funct3 := accessRegisterCommandReg.size
     abstractGeneratedS.rs1    := 0.U
     abstractGeneratedS.rs2    := (accessRegisterCommandReg.regno & 0x1F.U)
     abstractGeneratedS.immhi  := (DATA >> 5).U
 
-    nop := ((new GeneratedI()).fromBits(Instructions.ADDI.value.U))
+    nop := Instructions.ADDI.value.U.asTypeOf(new GeneratedI())
     nop.rd   := 0.U
     nop.rs1  := 0.U
     nop.imm  := 0.U
@@ -1236,7 +1526,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       ABSTRACT(cfg) -> RegFieldGroup("debug_abstract", Some("Instructions generated by Debug Module"),
         abstractGeneratedMem.zipWithIndex.map{ case (x,i) => RegField.r(32, x, RegFieldDesc(s"debug_abstract_$i", "", volatile=true))}),
       FLAGS         -> RegFieldGroup("debug_flags", Some("Memory region used to control hart going/resuming in Debug Mode"),
-        flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true))}),
+        if (nComponents == 1) {
+          Seq.tabulate(1024) { i => RegField.r(8, flags(0).asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true)) }
+        } else {
+          flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true))}
+        }),
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
         DebugRomContents().zipWithIndex.map{case (x, i) => RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
     )
@@ -1262,10 +1556,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     import CtrlState._
 
     // This is not an initialization!
-    val ctrlStateReg = Reg(CtrlState(Waiting))
+    val ctrlStateReg = Reg(chiselTypeOf(CtrlState(Waiting)))
 
     val hartHalted   = haltedBitRegs(selectedHartReg)
-    val ctrlStateNxt = Wire(init = ctrlStateReg)
+    val ctrlStateNxt = WireInit(ctrlStateReg)
 
     //------------------------
     // DMI Register Control and Status
@@ -1279,7 +1573,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     dmiProgramBufferAccessLegal := (ctrlStateReg === CtrlState(Waiting))
 
     errorBusy := (ABSTRACTCSWrEnMaybe    && ~ABSTRACTCSWrEnLegal)        ||
-                 (ABSTRACTAUTOWrEnMaybe  && ~ABSTRACTAUTOWrEnLegal)      ||
+                 (autoexecdataWrEnMaybe  && ~ABSTRACTAUTOWrEnLegal)      ||
+                 (autoexecprogbufWrEnMaybe && ~ABSTRACTAUTOWrEnLegal)    ||
                  (COMMANDWrEnMaybe       && ~COMMANDWrEnLegal)           ||
                  (dmiAbstractDataAccess  && ~dmiAbstractDataAccessLegal) ||
                  (dmiProgramBufferAccess && ~dmiProgramBufferAccessLegal)
@@ -1290,8 +1585,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val commandWrIsUnsupported = COMMANDWrEn && !commandWrIsAccessRegister;
 
-    val commandRegIsUnsupported = Wire(init = true.B)
-    val commandRegBadHaltResume = Wire(init = false.B)
+    val commandRegIsUnsupported = WireInit(true.B)
+    val commandRegBadHaltResume = WireInit(false.B)
 
     // We only support abstract commands for GPRs and any custom registers, if specified.
     val accessRegIsGPR = (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)
@@ -1368,7 +1663,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       }
     }
 
-    when (~io.dmactive) {
+    when (~io.dmactive || ~dmAuthenticated) {
       ctrlStateReg := CtrlState(Waiting)
     }.otherwise {
       ctrlStateReg := ctrlStateNxt
@@ -1384,8 +1679,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 // Also is the Sink side of hartsel & resumereq fields of DMCONTROL.
 class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule{
 
+  val cfg = p(DebugModuleKey).get
   val dmInner = LazyModule(new TLDebugModuleInner(device, getNComponents, beatBytes))
-  val dmiXing = LazyModule(new TLAsyncCrossingSink(AsyncQueueParams.singleton()))
+  val dmiXing = LazyModule(new TLAsyncCrossingSink(AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset)))
   val dmiNode = dmiXing.node
   val tlNode = dmInner.tlNode
 
@@ -1397,50 +1693,69 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
   // raising dmactive (hence enabling the clock) during these transactions.
   require(dmInner.tlNode.concurrency == 0)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
 
+    // Clock/reset domains:
+    //   debug_clock / debug_reset = Debug inner domain
+    //   tl_clock / tl_reset = tilelink domain (External: clock / reset)
+    //
     val io = IO(new Bundle {
+      val debug_clock = Input(Clock())
+      val debug_reset = Input(Reset())
+      val tl_clock = Input(Clock())
+      val tl_reset = Input(Reset())
       // These are all asynchronous and come from Outer
-      val dmactive = Bool(INPUT)
-      val innerCtrl = new AsyncBundle(new DebugInternalBundle(getNComponents()), AsyncQueueParams.singleton()).flip
+      val dmactive = Input(Bool())
+      val innerCtrl = Flipped(new AsyncBundle(new DebugInternalBundle(getNComponents()), AsyncQueueParams.singleton(safe=cfg.crossingHasSafeReset)))
       // This comes from tlClk domain.
-      val debugUnavail    = Vec(getNComponents(), Bool()).asInput
-      val hgDebugInt      = Vec(getNComponents(), Bool()).asOutput
-      val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
-      val psd = new PSDTestMode().asInput
+      val debugUnavail    = Input(Vec(getNComponents(), Bool()))
+      val hgDebugInt      = Output(Vec(getNComponents(), Bool()))
+      val extTrigger = (p(DebugModuleKey).get.nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val hartIsInReset = Input(Vec(getNComponents(), Bool()))
+      val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
     })
+    val rf_reset = IO(Input(Reset()))    // RF transform
 
-    val dmactive_synced = ~ResetCatchAndSync(clock, ~io.dmactive, "dmactiveSync", io.psd)
-    // Need to clock DM during reset because of synchronous reset.  The unit
-    // should also be reset when dmactive_synced is low, so keep the clock
-    // alive for one cycle after dmactive_synced falls to action this behavior.
-    val clock_en = RegNext(dmactive_synced || reset)
-    val gated_clock =
-      if (!p(DebugModuleParams).clockGate) clock
-      else ClockGate(clock, clock_en, "debug_clock_gate")
+    childClock := io.debug_clock
+    childReset := io.debug_reset
 
-    // Keep the async-crossing sink in the gated-clock domain, both to save
-    // power and also for the sake of the ready-valid handshake with dmInner
-    withClock (gated_clock) {
-      dmInner.module.clock := gated_clock
+    val dmactive_synced = withClockAndReset(childClock, childReset) {
+      val dmactive_synced = AsyncResetSynchronizerShiftReg(in=io.dmactive, sync=3, name=Some("dmactiveSync"))
+      dmInner.module.clock := io.debug_clock
+      dmInner.module.reset := io.debug_reset
+      dmInner.module.io.tl_clock := io.tl_clock
+      dmInner.module.io.tl_reset := io.tl_reset
       dmInner.module.io.dmactive := dmactive_synced
-      dmInner.module.io.innerCtrl := FromAsyncBundle(io.innerCtrl)
+      dmInner.module.io.innerCtrl <> FromAsyncBundle(io.innerCtrl)
       dmInner.module.io.debugUnavail := io.debugUnavail
       io.hgDebugInt := dmInner.module.io.hgDebugInt
       io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+      dmInner.module.io.hartIsInReset := io.hartIsInReset
+      io.auth.foreach { x => dmInner.module.io.auth.foreach {y => x <> y}}
+      dmactive_synced
     }
   }
 }
 
 /** Create a version of the TLDebugModule which includes a synchronization interface
   * internally for the DMI. This is no longer optional outside of this module
-  *  because the Clock must run when tlClock isn't running or tlReset is asserted.
+  *  because the Clock must run when tl_clock isn't running or tl_reset is asserted.
   */
 
 class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   val device = new SimpleDevice("debug-controller", Seq("sifive,debug-013","riscv,debug-013")){
     override val alwaysExtended = true
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      val attach = Map(
+        "debug-attach"     -> (
+          (if (p(ExportDebug).apb) Seq(ResourceString("apb")) else Seq()) ++
+          (if (p(ExportDebug).jtag) Seq(ResourceString("jtag")) else Seq()) ++
+          (if (p(ExportDebug).cjtag) Seq(ResourceString("cjtag")) else Seq()) ++
+          (if (p(ExportDebug).dmi) Seq(ResourceString("dmi")) else Seq())))
+      Description(name, mapping ++ attach)
+    }
   }
 
   val dmOuter : TLDebugModuleOuterAsync = LazyModule(new TLDebugModuleOuterAsync(device)(p))
@@ -1452,38 +1767,63 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   dmInner.dmiNode := dmOuter.dmiInnerNode
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new LazyRawModuleImp(this) {
     val nComponents = dmOuter.dmOuter.intnode.edges.out.size
 
+    // Clock/reset domains:
+    //  tl_clock / tl_reset = tilelink domain
+    //  debug_clock / debug_reset = Inner debug (synchronous to tl_clock)
+    //  apb_clock / apb_reset = Outer debug with APB
+    //  dmiClock / dmiReset = Outer debug without APB
+    //
     val io = IO(new Bundle {
+      val debug_clock = Input(Clock())
+      val debug_reset = Input(Reset())
+      val tl_clock = Input(Clock())
+      val tl_reset = Input(Reset())
+
       val ctrl = new DebugCtrlBundle(nComponents)
-      val dmi = (!p(ExportDebugAPB)).option(new ClockedDMIIO().flip)
-      val apb_clock = p(ExportDebugAPB).option(Clock(INPUT))
-      val apb_reset = p(ExportDebugAPB).option(Bool(INPUT))
-      val extTrigger = (p(DebugModuleParams).nExtTriggers > 0).option(new DebugExtTriggerIO())
-      val psd = new PSDTestMode().asInput
+      val dmi = (!p(ExportDebug).apb).option(Flipped(new ClockedDMIIO()))
+      val apb_clock = p(ExportDebug).apb.option(Input(Clock()))
+      val apb_reset = p(ExportDebug).apb.option(Input(Reset()))
+      val extTrigger = (p(DebugModuleKey).get.nExtTriggers > 0).option(new DebugExtTriggerIO())
+      val hartIsInReset = Input(Vec(nComponents, Bool()))
+      val hartResetReq = p(DebugModuleKey).get.hasHartResets.option(Output(Vec(nComponents, Bool())))
+      val auth = p(DebugModuleKey).get.hasAuthentication.option(new DebugAuthenticationIO())
     })
+
+    childClock := io.tl_clock
+    childReset := io.tl_reset
 
     dmOuter.module.io.dmi.foreach { dmOuterDMI =>
       dmOuterDMI <> io.dmi.get.dmi
-      dmOuter.module.reset := io.dmi.get.dmiReset
-      dmOuter.module.clock := io.dmi.get.dmiClock
+      dmOuter.module.io.dmi_reset := io.dmi.get.dmiReset
+      dmOuter.module.io.dmi_clock := io.dmi.get.dmiClock
+      dmOuter.module.rf_reset := io.dmi.get.dmiReset
     }
 
     (io.apb_clock zip io.apb_reset)  foreach { case (c, r) =>
-      dmOuter.module.reset := r
-      dmOuter.module.clock := c
+      dmOuter.module.io.dmi_reset := r
+      dmOuter.module.io.dmi_clock := c
+      dmOuter.module.rf_reset := r
     }
 
-    dmInner.module.io.innerCtrl    := dmOuter.module.io.innerCtrl
+    dmInner.module.rf_reset := io.debug_reset
+    dmInner.module.io.debug_clock := io.debug_clock
+    dmInner.module.io.debug_reset := io.debug_reset
+    dmInner.module.io.tl_clock := io.tl_clock
+    dmInner.module.io.tl_reset := io.tl_reset
+    dmInner.module.io.innerCtrl    <> dmOuter.module.io.innerCtrl
     dmInner.module.io.dmactive     := dmOuter.module.io.ctrl.dmactive
     dmInner.module.io.debugUnavail := io.ctrl.debugUnavail
     dmOuter.module.io.hgDebugInt   := dmInner.module.io.hgDebugInt
 
-    dmInner.module.io.psd <> io.psd
-
     io.ctrl <> dmOuter.module.io.ctrl
     io.extTrigger.foreach { x => dmInner.module.io.extTrigger.foreach {y => x <> y}}
+    dmInner.module.io.hartIsInReset := io.hartIsInReset
+    io.hartResetReq.foreach { x => dmOuter.module.io.hartResetReq.foreach {y => x := y}}
+    io.auth.foreach { x => dmOuter.module.io.dmAuthenticated.get := x.dmAuthenticated }
+    io.auth.foreach { x => dmInner.module.io.auth.foreach {y => x <> y}}
   }
 
   val logicalTreeNode = new DebugLogicalTreeNode(

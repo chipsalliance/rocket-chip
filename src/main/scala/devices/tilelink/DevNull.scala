@@ -14,8 +14,8 @@ case class DevNullParams(
   executable: Boolean = true,
   mayDenyGet: Boolean = true,
   mayDenyPut: Boolean = true,
+  hint: Boolean = true
 ) {
-  require (1 <= maxAtomic, s"Atomic transfer size must be > 1 (was $maxAtomic)")
   require (maxAtomic <= maxTransfer, s"Atomic transfer size must be <= max transfer (but $maxAtomic > $maxTransfer)")
   require (maxTransfer <= 4096, s"Max transfer size must be <= 4096 (was $maxTransfer)")
   def acquire: Boolean = region == RegionType.TRACKED
@@ -25,31 +25,33 @@ case class DevNullParams(
   * They may discard writes, refuse to respond to requests, issue error responses,
   * or otherwise violate 'expected' memory behavior.
   */
-abstract class DevNullDevice(params: DevNullParams, beatBytes: Int, device: SimpleDevice)
+abstract class DevNullDevice(params: DevNullParams, minLatency: Int, beatBytes: Int, protected val device: SimpleDevice)
                             (implicit p: Parameters)
     extends LazyModule with HasClockDomainCrossing {
-  val xfer = TransferSizes(1, params.maxTransfer)
-  val atom = TransferSizes(1, params.maxAtomic)
-  val node = TLManagerNode(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  val xfer = if (params.maxTransfer > 0) TransferSizes(1, params.maxTransfer) else TransferSizes.none
+  val atom = if (params.maxAtomic > 0) TransferSizes(1, params.maxAtomic) else TransferSizes.none
+  val acq  = if (params.acquire) xfer else TransferSizes.none
+  val hint = if (params.hint) xfer else TransferSizes.none
+  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = params.address,
       resources          = device.reg,
       regionType         = params.region,
       executable         = params.executable,
-      supportsAcquireT   = if (params.acquire) xfer else TransferSizes.none,
-      supportsAcquireB   = if (params.acquire) xfer else TransferSizes.none,
+      supportsAcquireT   = acq,
+      supportsAcquireB   = acq,
       supportsGet        = xfer,
       supportsPutPartial = xfer,
       supportsPutFull    = xfer,
       supportsArithmetic = atom,
       supportsLogical    = atom,
-      supportsHint       = xfer,
+      supportsHint       = hint,
       fifoId             = Some(0), // requests are handled in order
       mayDenyGet         = params.mayDenyGet,
       mayDenyPut         = params.mayDenyPut,
       alwaysGrantsT      = params.acquire)),
     beatBytes  = beatBytes,
     endSinkId  = if (params.acquire) 1 else 0,
-    minLatency = 1))) // no bypass needed for this device
+    minLatency = minLatency)))
   val tl_xing = this.crossIn(node)
 }

@@ -3,6 +3,7 @@
 package freechips.rocketchip
 
 import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import chisel3.Data
 import freechips.rocketchip.config.Parameters
 import scala.language.implicitConversions
 
@@ -64,4 +65,8 @@ package object diplomacy
   implicit def moduleValue[T](value: ModuleValue[T]): T = value.getWrappedValue
 
   implicit def noCrossing(value: NoCrossing.type): ClockCrossingType = SynchronousCrossing(BufferParams.none)
+
+  type BundleBridgeInwardNode[T <: Data] = InwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
+  type BundleBridgeOutwardNode[T <: Data] = OutwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
+  type BundleBridgeNode[T <: Data] = NodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T, BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
 }

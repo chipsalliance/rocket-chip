@@ -5,7 +5,9 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.experimental._
+import chisel3.{withClock,withReset}
+import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -13,8 +15,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{ICacheLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.ICacheLogicalTreeNode
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -58,15 +59,15 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val perf = new FrontendPerfEvents().asInput
 }
 
-class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
+class Frontend(val icacheParams: ICacheParams, staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
-  val icache = LazyModule(new ICache(icacheParams, hartid))
+  val icache = LazyModule(new ICache(icacheParams, staticIdForMetadataUseOnly))
   val masterNode = icache.masterNode
   val slaveNode = icache.slaveNode
+  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(masterNode.edges.out.head.bundle.addressBits.W)))
 }
 
-class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
-    with HasExternallyDrivenTileConstants {
+class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p) {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
   val errors = new ICacheErrors
@@ -77,6 +78,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasRocketCoreParameters
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
+  val io_reset_vector = outer.resetVectorSinkNode.bundle
   implicit val edge = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
@@ -107,7 +109,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   s1_valid := s0_valid
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
-  val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io.reset_vector))
+  val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io_reset_vector))
   val s2_btb_resp_valid = if (usingBTB) Reg(Bool()) else false.B
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_btb_taken = s2_btb_resp_valid && s2_btb_resp_bits.taken
@@ -152,15 +154,15 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.sfence := io.cpu.sfence
   tlb.io.kill := !s2_valid
 
-  icache.io.hartid := io.hartid
   icache.io.req.valid := s0_valid
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
   icache.io.s2_vaddr := s2_pc
   icache.io.s1_kill := s2_redirect || tlb.io.resp.miss || s2_replay
-  icache.io.s2_kill := s2_speculative && !s2_tlb_resp.cacheable || s2_xcpt
-  icache.io.s2_prefetch := s2_tlb_resp.prefetchable
+  val s2_can_speculatively_refill = s2_tlb_resp.cacheable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableSpeculativeICacheRefill
+  icache.io.s2_kill := s2_speculative && !s2_can_speculatively_refill || s2_xcpt
+  icache.io.s2_prefetch := s2_tlb_resp.prefetchable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableICachePrefetch
 
   fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
   fq.io.enq.bits.pc := s2_pc
@@ -172,6 +174,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   fq.io.enq.bits.btb := s2_btb_resp_bits
   fq.io.enq.bits.btb.taken := s2_btb_taken
   fq.io.enq.bits.xcpt := s2_tlb_resp
+  assert(!(s2_speculative && io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableSpeculativeICacheRefill && !icache.io.s2_kill))
   when (icache.io.resp.valid && icache.io.resp.bits.ae) { fq.io.enq.bits.xcpt.ae.inst := true }
 
   if (usingBTB) {
@@ -346,16 +349,18 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend(tileParams.icache.get, hartId))
+  val frontend = LazyModule(new Frontend(tileParams.icache.get, staticIdForMetadataUseOnly))
   tlMasterXbar.node := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
+  frontend.icache.hartIdSinkNode := hartIdNode
+  frontend.resetVectorSinkNode := resetVectorNode
   nPTWPorts += 1
 
   // This should be a None in the case of not having an ITIM address, when we
   // don't actually use the device that is instantiated in the frontend.
   private val deviceOpt = if (tileParams.icache.get.itimAddr.isDefined) Some(frontend.icache.device) else None
 
-  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(deviceOpt, tileParams.icache.get)
+  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(frontend.icache, deviceOpt, tileParams.icache.get)
 }
 
 trait HasICacheFrontendModule extends CanHavePTWModule {

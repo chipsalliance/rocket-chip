@@ -105,7 +105,7 @@ trait DeviceInterrupts
   def describeInterrupts(resources: ResourceBindings): Map[String, Seq[ResourceValue]] = {
     val int = resources("int")
 
-    int.foreach { b => require (b.device.isDefined, "Device ${devname} property 'int' is missing user device") }
+    int.foreach { b => require (b.device.isDefined, s"Device ${this} property 'int' is missing user device") }
     val parents = int.map(_.device.get).distinct
     val simple = parents.size == 1 && !alwaysExtended
 
@@ -150,7 +150,7 @@ trait DeviceRegName
       devname
     } else {
       val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
-      val mainreg = reg.find(x => DiplomacyUtils.regName(x._1) == "control").getOrElse(reg.head)._2
+      val mainreg = reg.head._2
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
         case x: ResourceAddress => s"${devname}@${x.address.head.base.toString(16)}"

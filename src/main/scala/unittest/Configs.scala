@@ -24,16 +24,17 @@ class WithAMBAUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new AHBBridgeTest(true, txns=8*txns, timeout=timeout)),
-      Module(new AHBNativeTest(true, txns=6*txns, timeout=timeout)),
-      Module(new AHBNativeTest(false,txns=6*txns, timeout=timeout)),
-      Module(new APBBridgeTest(true, txns=6*txns, timeout=timeout)),
-      Module(new APBBridgeTest(false,txns=6*txns, timeout=timeout)),
-      Module(new AXI4LiteFuzzRAMTest(txns=6*txns, timeout=timeout)),
-      Module(new AXI4FullFuzzRAMTest(txns=3*txns, timeout=timeout)),
-      Module(new AXI4BridgeTest(     txns=3*txns, timeout=timeout)),
-      Module(new AXI4XbarTest(       txns=1*txns, timeout=timeout)),
-      Module(new AXI4RAMAsyncCrossingTest(txns=3*txns, timeout=timeout))) }
+      Module(new AHBBridgeTest(true,         txns=8*txns, timeout=timeout)),
+      Module(new AHBNativeTest(true,         txns=6*txns, timeout=timeout)),
+      Module(new AHBNativeTest(false,        txns=6*txns, timeout=timeout)),
+      Module(new APBBridgeTest(true,         txns=6*txns, timeout=timeout)),
+      Module(new APBBridgeTest(false,        txns=6*txns, timeout=timeout)),
+      Module(new AXI4LiteFuzzRAMTest(        txns=6*txns, timeout=timeout)),
+      Module(new AXI4LiteUserBitsFuzzRAMTest(txns=6*txns, timeout=timeout)),
+      Module(new AXI4FullFuzzRAMTest(        txns=3*txns, timeout=timeout)),
+      Module(new AXI4BridgeTest(             txns=3*txns, timeout=timeout)),
+      Module(new AXI4XbarTest(               txns=1*txns, timeout=timeout)),
+      Module(new AXI4RAMAsyncCrossingTest(   txns=3*txns, timeout=timeout))) }
 })
 
 class WithTLSimpleUnitTests extends Config((site, here, up) => {
@@ -42,7 +43,6 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new TLUserTest(               txns=   txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(1,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),
@@ -79,6 +79,7 @@ class WithTLXbarUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
+      Module(new TLJbarTest(3, 2,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(1,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(2,           txns=5*txns, timeout=timeout)),
       Module(new TLRAMXbarTest(8,           txns=5*txns, timeout=timeout)),
@@ -120,18 +121,36 @@ class WithScatterGatherTests extends Config((site, here, up) => {
       Module(new ScatterTest(8)),
       Module(new ScatterTest(9)))}})
 
+class WithPLRUTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    Seq(
+      Module(new PLRUTest(2)),
+      Module(new PLRUTest(3)),
+      Module(new PLRUTest(4)),
+      Module(new PLRUTest(5)),
+      Module(new PLRUTest(6)))}})
+
 class WithPowerQueueTests extends Config((site, here, up) => {
   case UnitTests => (q: Parameters) => {
     Seq(
-      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   1,  2, 10000)),
-      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   2,  6, 10000)),
-      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   3, 10, 10000)),
-      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 12, 10000)),
-      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 16, 10000)),
-      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 20, 10000)),
-      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 1, 12, 10000)),
-      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 3, 16, 10000)),
-      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 5, 20, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   1,  2, false, false, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   2,  6, false, false, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   3, 10, false, false, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   2,  8, false, true,  10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   4,  8, true,  false, 10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   1, 16, true,  true,  10000)),
+      Module(new PositionedQueueTest(FloppedLanePositionedQueue,                   4,  2, true,  true,  10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 12, false, false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 16, false, false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4, 20, false, false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 1, 12, false, false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 3, 16, false, false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 5, 20, false, false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 2, 32, true,  false, 10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 2, 16, false, true,  10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 4,  8, true,  true,  10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 1, 16, true,  true,  10000)),
+      Module(new PositionedQueueTest(OnePortLanePositionedQueue(new IdentityCode), 2,  8, true,  true,  10000)),
       Module(new MultiPortQueueTest(1, 1, 2, 10000)),
       Module(new MultiPortQueueTest(3, 3, 2, 10000)),
       Module(new MultiPortQueueTest(5, 5, 6, 10000)),
@@ -148,4 +167,5 @@ class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithT
 class TLXbarUnitTestConfig extends Config(new WithTLXbarUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class ECCUnitTestConfig extends Config(new WithECCTests)
 class ScatterGatherTestConfig extends Config(new WithScatterGatherTests)
+class PLRUUnitTestConfig extends Config(new WithPLRUTests)
 class PowerQueueTestConfig extends Config(new WithPowerQueueTests)

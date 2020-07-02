@@ -7,7 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.{HeterogeneousBag, MaskGen}
+import freechips.rocketchip.util._
 import scala.math.{min,max}
 
 case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
@@ -17,7 +17,8 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
       executable    = executable,
       supportsWrite = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)),
       supportsRead  = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)))),
-    beatBytes  = beatBytes)))
+    beatBytes  = beatBytes,
+    lite = true)))
 {
   require (address.contiguous)
 
@@ -27,7 +28,7 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val (ahb, _) = this.in(0)
 
     val indexBits = log2Up((address.mask+1)/beatBytes)
-    val params = RegMapperParams(indexBits, beatBytes, 1)
+    val params = RegMapperParams(indexBits, beatBytes)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
@@ -45,7 +46,6 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     in.bits.index := d_index
     in.bits.data  := ahb.hwdata
     in.bits.mask  := d_mask
-    in.bits.extra := UInt(0)
 
     when (ahb.hready) { d_phase := Bool(false) }
     ahb.hreadyout := !d_phase || out.valid
@@ -103,4 +103,18 @@ class AHBRegisterRouter[B <: AHBRegBundleBase, M <: LazyModuleImp]
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
   lazy val module = moduleBuilder(bundleBuilder(AHBRegBundleArg()), this)
+}
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
+trait HasAHBControlRegMap { this: RegisterRouter =>
+  // Externally, this node should be used to connect the register control port to a bus
+  val controlNode = AHBRegisterNode(
+    address = address.head,
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
 }

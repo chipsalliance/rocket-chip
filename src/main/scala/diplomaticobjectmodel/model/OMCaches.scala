@@ -13,6 +13,7 @@ trait OMCache extends OMDevice {
   def dataMemorySizeBytes: Int
   def dataECC: Option[OMECC]
   def tagECC: Option[OMECC]
+  def memories: Seq[OMSRAM]
 }
 
 case class OMICache(
@@ -26,6 +27,7 @@ case class OMICache(
   tagECC: Option[OMECC],
   nTLBEntries: Int,
   maxTimSize: Int,
+  memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMICache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
@@ -39,33 +41,34 @@ case class OMDCache(
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
   nTLBEntries: Int,
+  memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
 ) extends OMCache
 
-case class OMECC(code: String) extends OMEnum
+trait OMECC extends OMEnum
+
+case object OMECCIdentity extends OMECC
+case object OMECCParity extends OMECC
+case object OMECCSEC extends OMECC
+case object OMECCSECDED extends OMECC
 
 object OMECC {
-  val Identity = OMECC("Identity")
-  val Parity = OMECC("Parity")
-  val SEC = OMECC("SEC")
-  val SECDED = OMECC("SECDED")
-
-  def getCode(code: String): OMECC = {
+  def fromString(code: String): OMECC = {
     code.toLowerCase match {
-      case "identity" => OMECC.Identity
-      case "parity"   => OMECC.Parity
-      case "sec"      => OMECC.SEC
-      case "secded"   => OMECC.SECDED
+      case "identity" => OMECCIdentity
+      case "parity"   => OMECCParity
+      case "sec"      => OMECCSEC
+      case "secded"   => OMECCSECDED
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }
 
-  def getCode(code: AnyRef): OMECC = {
+  def fromCode(code: Code): OMECC = {
     code match {
-      case _: IdentityCode => OMECC.Identity
-      case _: ParityCode   => OMECC.Parity
-      case _: SECCode      => OMECC.SEC
-      case _: SECDEDCode   => OMECC.SECDED
+      case _: IdentityCode => OMECCIdentity
+      case _: ParityCode   => OMECCParity
+      case _: SECCode      => OMECCSEC
+      case _: SECDEDCode   => OMECCSECDED
       case _ => throw new IllegalArgumentException(s"ERROR: invalid getCode arg: $code")
     }
   }

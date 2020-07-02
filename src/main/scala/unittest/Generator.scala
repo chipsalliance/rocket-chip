@@ -2,10 +2,7 @@
 
 package freechips.rocketchip.unittest
 
-object Generator extends freechips.rocketchip.util.GeneratorApp {
-  val longName = names.topModuleProject + "." + names.configs
-  generateFirrtl
-  generateAnno
-  generateTestSuiteMakefrags // TODO: Needed only for legacy make targets
-  generateArtefacts
-}
+import firrtl.options.StageMain
+import freechips.rocketchip.system.RocketChipStage
+
+object Generator extends StageMain(new RocketChipStage)

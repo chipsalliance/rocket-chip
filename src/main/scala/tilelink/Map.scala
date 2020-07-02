@@ -14,8 +14,8 @@ class TLMap(fn: AddressSet => BigInt)(implicit p: Parameters) extends LazyModule
   val node = TLAdapterNode(
     clientFn = { cp => cp },
     managerFn = { mp =>
-      mp.copy(managers = mp.managers.map(m =>
-        m.copy(address = m.address.map(a =>
+      mp.v1copy(managers = mp.managers.map(m =>
+        m.v1copy(address = m.address.map(a =>
           AddressSet(fn(a), a.mask)))))})
 
   lazy val module = new LazyModuleImp(this) {

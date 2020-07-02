@@ -7,7 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.HeterogeneousBag
+import freechips.rocketchip.util._
 import scala.math.{min,max}
 
 case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
@@ -27,7 +27,7 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val (apb, _) = this.in(0)
 
     val indexBits = log2Up((address.mask+1)/beatBytes)
-    val params = RegMapperParams(indexBits, beatBytes, 1)
+    val params = RegMapperParams(indexBits, beatBytes)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
@@ -40,7 +40,6 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     in.bits.index := apb.paddr >> log2Ceil(beatBytes)
     in.bits.data  := apb.pwdata
     in.bits.mask  := Mux(apb.pwrite, apb.pstrb, UInt((1<<beatBytes) - 1))
-    in.bits.extra := UInt(0)
 
     in.valid := apb.psel && !taken
     out.ready := apb.penable
@@ -87,4 +86,18 @@ class APBRegisterRouter[B <: APBRegBundleBase, M <: LazyModuleImp]
   // require (size >= 4096) ... not absolutely required, but highly recommended
 
   lazy val module = moduleBuilder(bundleBuilder(APBRegBundleArg()), this)
+}
+
+/** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
+trait HasAPBControlRegMap { this: RegisterRouter =>
+  // Externally, this node should be used to connect the register control port to a bus
+  val controlNode = APBRegisterNode(
+    address = address.head,
+    concurrency = concurrency,
+    beatBytes = beatBytes,
+    undefZero = undefZero,
+    executable = executable)
+
+  // Internally, this function should be used to populate the control port with registers
+  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
 }

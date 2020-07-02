@@ -60,8 +60,8 @@ class Term(val value: BigInt, val mask: BigInt = 0)
 {
   var prime = true
 
-  def covers(x: Term) = ((value ^ x.value) &~ mask | x.mask &~ mask) == 0
-  def intersects(x: Term) = ((value ^ x.value) &~ mask &~ x.mask) == 0
+  def covers(x: Term) = ((value ^ x.value) &~ mask | x.mask &~ mask).signum == 0
+  def intersects(x: Term) = ((value ^ x.value) &~ mask &~ x.mask).signum == 0
   override def equals(that: Any) = that match {
     case x: Term => x.value == value && x.mask == mask
     case _ => false
@@ -136,12 +136,18 @@ object Simplify
   def stringify(s: Seq[Term], bits: Int) = s.map(t => (0 until bits).map(i => if ((t.mask & (1 << i)) != 0) "x" else ((t.value >> i) & 1).toString).reduceLeft(_+_).reverse).reduceLeft(_+" + "+_)
 
   def apply(minterms: Seq[Term], dontcares: Seq[Term], bits: Int) = {
-    val prime = getPrimeImplicants(minterms ++ dontcares, bits)
-    minterms.foreach(t => assert(prime.exists(_.covers(t))))
-    val (eprime, prime2, uncovered) = getEssentialPrimeImplicants(prime, minterms)
-    val cover = eprime ++ getCover(prime2, uncovered, bits)
-    minterms.foreach(t => assert(cover.exists(_.covers(t)))) // sanity check
-    cover
+    if (dontcares.isEmpty) {
+      // As an elaboration performance optimization, don't be too clever if
+      // there are no don't-cares; synthesis can figure it out.
+      minterms
+    } else {
+      val prime = getPrimeImplicants(minterms ++ dontcares, bits)
+      minterms.foreach(t => assert(prime.exists(_.covers(t))))
+      val (eprime, prime2, uncovered) = getEssentialPrimeImplicants(prime, minterms)
+      val cover = eprime ++ getCover(prime2, uncovered, bits)
+      minterms.foreach(t => assert(cover.exists(_.covers(t)))) // sanity check
+      cover
+    }
   }
 }
 

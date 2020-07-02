@@ -17,7 +17,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
-  case MaxHartIdBits => log2Up(site(RocketTilesKey).size)
+  case MaxHartIdBits => log2Up(site(TilesLocated(InSubsystem)).map(_.tileParams.hartId).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
     beatBytes = site(XLen)/8,
@@ -25,29 +25,63 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
-    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)),
-    replicatorMask = site(MultiChipMaskKey))
+    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes))
+    blockBytes = site(CacheBlockBytes),
+    dtsFrequency = Some(100000000)) // Default to 100 MHz pbus clock
   case MemoryBusKey => MemoryBusParams(
     beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes),
-    replicatorMask = site(MultiChipMaskKey))
+    blockBytes = site(CacheBlockBytes))
   case FrontBusKey => FrontBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
-  case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
-  case DebugModuleParams => DefaultDebugModuleParams(site(XLen))
+  case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
+  case SubsystemExternalResetVectorKey => false
+  case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
+  case TilesLocated(InSubsystem) => 
+    LegacyTileFieldHelper(site(RocketTilesKey), site(RocketCrossingKey), RocketTileAttachParams.apply _)
 })
 
 /* Composable partial function Configs to set individual parameters */
 
-class WithNBigCores(n: Int) extends Config((site, here, up) => {
+class WithJustOneBus extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated(InSubsystem) => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey))
+  )
+})
+
+class WithIncoherentBusTopology extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated(InSubsystem) => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey)),
+    HierarchicalBusTopologyParams(
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      cbus = site(ControlBusKey),
+      xTypes = SubsystemCrossingParams()))
+})
+
+class WithCoherentBusTopology extends Config((site, here, up) => {
+  case TLNetworkTopologyLocated(InSubsystem) => List(
+    JustOneBusTopologyParams(sbus = site(SystemBusKey)),
+    HierarchicalBusTopologyParams(
+      pbus = site(PeripheryBusKey),
+      fbus = site(FrontBusKey),
+      cbus = site(ControlBusKey),
+      xTypes = SubsystemCrossingParams()),
+    CoherentBusTopologyParams(
+      sbus = site(SystemBusKey),
+      mbus = site(MemoryBusKey),
+      l2 = site(BankedL2Key)))
+})
+
+class WithNBigCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
         mulUnroll = 8,
@@ -60,12 +94,38 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => big.copy(hartId = i))
+    List.tabulate(n)(i => big.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
-class WithNSmallCores(n: Int) extends Config((site, here, up) => {
+class WithNMedCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val med = RocketTileParams(
+      core = RocketCoreParams(fpu = None),
+      btb = None,
+      dcache = Some(DCacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        nMSHRs = 0,
+        blockBytes = site(CacheBlockBytes))),
+      icache = Some(ICacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nSets = 64,
+        nWays = 1,
+        nTLBEntries = 4,
+        blockBytes = site(CacheBlockBytes))))
+    List.tabulate(n)(i => med.copy(hartId = i + idOffset)) ++ prev
+  }
+})
+
+class WithNSmallCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
+  case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
@@ -82,7 +142,7 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => small.copy(hartId = i))
+    List.tabulate(n)(i => small.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
@@ -170,10 +230,9 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(master = r.master.copy(cork = Some(true)))
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(coherenceManager = { subsystem =>
-    val ww = LazyModule(new TLWidthWidget(subsystem.sbus.beatBytes)(subsystem.p))
-    (ww.node, ww.node, None)
-  })
+  case BankedL2Key => up(BankedL2Key, site).copy(
+    coherenceManager = CoherenceManagerWrapper.incoherentManager
+  )
 })
 
 class WithRV32 extends Config((site, here, up) => {
@@ -210,6 +269,10 @@ class WithRoccExample extends Config((site, here, up) => {
     (p: Parameters) => {
         val counter = LazyModule(new CharacterCountExample(OpcodeSet.custom2)(p))
         counter
+    },
+    (p: Parameters) => {
+      val blackbox = LazyModule(new BlackBoxExample(OpcodeSet.custom3, "RoccBlackBox")(p))
+      blackbox
     })
 })
 
@@ -245,7 +308,7 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMParams => up(BootROMParams, site).copy(contentFileName = bootROMFile)
+  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
@@ -273,19 +336,16 @@ class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
 })
 
 class WithJtagDTM extends Config ((site, here, up) => {
-  case ExportDebugDMI => false
-  case ExportDebugJTAG => true
+  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(JTAG))
 })
 
 class WithDebugAPB extends Config ((site, here, up) => {
-  case ExportDebugDMI => false
-  case ExportDebugJTAG => false
-  case ExportDebugAPB => true
+  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(APB))
 })
 
 
 class WithDebugSBA extends Config ((site, here, up) => {
-  case DebugModuleParams => up(DebugModuleParams, site).copy(hasBusMaster = true)
+  case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(hasBusMaster = true))
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {
@@ -359,3 +419,17 @@ class WithScratchpadsOnly extends Config((site, here, up) => {
         scratch = Some(0x80000000L))))
   }
 })
+
+/** Boilerplate code for translating between the old XTilesParamsKey/XTilesCrossingKey pattern and new TilesLocated pattern */
+object LegacyTileFieldHelper {
+  def apply[TPT <: InstantiableTileParams[_], TCT <: TileCrossingParamsLike, TAP <: CanAttachTile](
+    tileParams: Seq[TPT],
+    tcp: Seq[TCT],
+    apply: (TPT, TCT, LookupByHartIdImpl) => TAP): Seq[TAP] =
+  {
+    val crossingParams = heterogeneousOrGlobalSetting(tcp, tileParams.size)
+    tileParams.zip(crossingParams).map { case (t, c) =>
+      apply(t, c, PriorityMuxHartIdFromSeq(tileParams))
+    }
+  }
+}

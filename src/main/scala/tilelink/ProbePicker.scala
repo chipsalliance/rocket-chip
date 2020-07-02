@@ -14,14 +14,14 @@ class ProbePicker(implicit p: Parameters) extends LazyModule
     clientFn = { p =>
       // The ProbePicker assembles multiple clients based on the assumption they are contiguous in the clients list
       // This should be true for custers of xbar :=* BankBinder connections
-      def combine(next: TLClientParameters, pair: (TLClientParameters, Seq[TLClientParameters])) = {
+      def combine(next: TLMasterParameters, pair: (TLMasterParameters, Seq[TLMasterParameters])) = {
         val (head, output) = pair
         if (head.visibility.exists(x => next.visibility.exists(_.overlaps(x)))) {
           (next, head +: output) // pair is not banked, push head without merging
         } else {
-          def redact(x: TLClientParameters) = x.copy(sourceId = IdRange(0,1), nodePath = Nil, visibility = Seq(AddressSet(0, ~0)))
-          require (redact(next) == redact(head))
-          val merge = head.copy(
+          def redact(x: TLMasterParameters) = x.v1copy(sourceId = IdRange(0,1), nodePath = Nil, visibility = Seq(AddressSet(0, ~0)))
+          require (redact(next) == redact(head), s"${redact(next)} != ${redact(head)}")
+          val merge = head.v1copy(
             sourceId = IdRange(
               head.sourceId.start min next.sourceId.start,
               head.sourceId.end   max next.sourceId.end),
@@ -29,9 +29,9 @@ class ProbePicker(implicit p: Parameters) extends LazyModule
           (merge, output)
         }
       }
-      val myNil: Seq[TLClientParameters] = Nil
+      val myNil: Seq[TLMasterParameters] = Nil
       val (head, output) = p.clients.init.foldRight((p.clients.last, myNil))(combine)
-      p.copy(clients = head +: output)
+      p.v1copy(clients = head +: output)
     },
     managerFn = { p => p })
 

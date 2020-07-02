@@ -146,6 +146,10 @@ class SCIEPipelined(xLen: Int) extends BlackBox(Map("XLEN" -> xLen)) with HasBla
       |  reg funct3_0;
       |  reg [XLEN-1:0] result;
       |
+      |`ifndef RANDOM
+      |`define RANDOM $$random
+      |`endif
+      |
       |  always @(posedge clock)
       |  begin
       |    /* Gating using the valid signal is optional, but saves power. */
@@ -185,6 +189,17 @@ class SCIEPipelined(xLen: Int) extends BlackBox(Map("XLEN" -> xLen)) with HasBla
       |
       |  /* Drive the output. */
       |  assign rd = result;
+      |
+      | /* Suppress Xs at simulation start */
+      | `ifdef RANDOMIZE_REG_INIT
+      | initial begin
+      |   `ifndef VERILATOR
+      |   #`RANDOMIZE_DELAY begin end
+      |   `endif
+      |   absolute_differences = {(XLEN / 32){`RANDOM}};
+      |   funct3_0 = absolute_differences[0];
+      | end
+      | `endif
       |
       |endmodule
      """.stripMargin)

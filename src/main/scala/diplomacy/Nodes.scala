@@ -3,6 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.experimental.IO
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Parameters,Field}
 import freechips.rocketchip.util.HeterogeneousBag
@@ -94,18 +95,36 @@ abstract class BaseNode(implicit val valName: ValName)
   }
 
   def description: String
+  def formatNode: String = ""
 
   def inputs:  Seq[(BaseNode, RenderedEdge)]
   def outputs: Seq[(BaseNode, RenderedEdge)]
 
+  protected[diplomacy] def flexibleArityDirection: Boolean = false
   protected[diplomacy] val sinkCard: Int
   protected[diplomacy] val sourceCard: Int
   protected[diplomacy] val flexes: Seq[BaseNode]
+  protected[diplomacy] val flexOffset: Int
 }
 
 object BaseNode
 {
   protected[diplomacy] var serial = 0
+}
+
+trait FormatEdge {
+  def formatEdge: String
+}
+
+trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
+  def edges: Edges[I,O]
+  override def formatNode = {
+    edges.out.map(currEdge =>
+      "On Output Edge:\n\n" + currEdge.formatEdge).mkString +
+    "\n---------------------------------------------\n\n" +
+    edges.in.map(currEdge =>
+      "On Input Edge:\n\n" + currEdge.formatEdge).mkString
+  }
 }
 
 trait NoHandle
@@ -221,7 +240,7 @@ case class StarCycleException(loop: Seq[String] = Nil) extends CycleException("s
 case class DownwardCycleException(loop: Seq[String] = Nil) extends CycleException("downward", loop)
 case class UpwardCycleException(loop: Seq[String] = Nil) extends CycleException("upward", loop)
 
-case class Edges[EI, EO](in: EI, out: EO)
+case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
 sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inner: InwardNodeImp [DI, UI, EI, BI],
   val outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -241,7 +260,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
                                              iBindings.filter(_._3 == BIND_FLEX).map(_._2)
   protected[diplomacy] lazy val flexOffset = { // positive = sink cardinality; define 0 to be sink (both should work)
     def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
-      if (visited.contains(v.serial)) {
+      if (visited.contains(v.serial) || !v.flexibleArityDirection) {
         visited
       } else {
         v.flexes.foldLeft(visited + (v.serial -> v))((sum, n) => DFS(n, sum))
@@ -250,9 +269,20 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     val flexSet = DFS(this, Map()).values
     val allSink   = flexSet.map(_.sinkCard).sum
     val allSource = flexSet.map(_.sourceCard).sum
-    require (flexSet.size == 1 || allSink == 0 || allSource == 0,
+    require (allSink == 0 || allSource == 0,
       s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have ${allSink} :*= operators and ${allSource} :=* operators connected to them, making it impossible to determine cardinality inference direction.")
     allSink - allSource
+  }
+
+  protected[diplomacy] def edgeArityDirection(n: BaseNode): Int = {
+    if (  flexibleArityDirection)   flexOffset else
+    if (n.flexibleArityDirection) n.flexOffset else
+    0
+  }
+
+  protected[diplomacy] def edgeAritySelect(n: BaseNode, l: => Int, r: => Int): Int = {
+    val dir = edgeArityDirection(n)
+    if (dir < 0) l else if (dir > 0) r else 1
   }
 
   private var starCycleGuard = false
@@ -260,27 +290,27 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     try {
       if (starCycleGuard) throw StarCycleException()
       starCycleGuard = true
-      val oStars = oBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset <  0) }
-      val iStars = iBindings.count { case (_,_,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && flexOffset >= 0) }
+      val oStars = oBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) < 0) }
+      val iStars = iBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) > 0) }
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) 0 else n.iStar }
+        case BIND_FLEX  => edgeAritySelect(n, 0, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) 0 else n.oStar }
+        case BIND_FLEX  => edgeAritySelect(n, n.oStar, 0)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.foldLeft(0)(_+_)
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset < 0) oStar else n.iStar }
+        case BIND_FLEX  => edgeAritySelect(n, oStar, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
-        case BIND_FLEX  => { if (flexOffset >= 0) iStar else n.oStar }
+        case BIND_FLEX  => edgeAritySelect(n, n.oStar, iStar)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
       val oTotal = oSum.lastOption.getOrElse(0)
@@ -349,8 +379,14 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   // If you need access to the edges of a foreign Node, use this method (in/out create bundles)
   lazy val edges = Edges(edgesIn, edgesOut)
 
-  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => Wire(outer.bundleO(e)))
-  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => Wire(inner.bundleI(e)))
+  // These need to be chisel3.Wire because Chisel.Wire assigns Reset to a default value of Bool,
+  // and FIRRTL will not allow a Reset assigned to Bool to later be assigned to AsyncReset.
+  // If the diplomatic Bundle contains Resets this will hamstring them into synchronous resets.
+  // The jury is still out on whether the lack of ability to override the reset type
+  // is a  Chisel/firrtl bug or whether this should be supported,
+  // but as of today it does not work to do so.
+  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
+  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
 
   protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
@@ -434,6 +470,67 @@ abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B]
   implicit valName: ValName)
   extends MixedCustomNode(imp, imp)
 
+/* A JunctionNode creates multiple parallel arbiters.
+ * For example,
+ *   val jbar = LazyModule(new JBar)
+ *   slave1.node := jbar.node
+ *   slave2.node := jbar.node
+ *   extras.node :=* jbar.node
+ *   jbar.node :*= masters1.node
+ *   jbar.node :*= masters2.node
+ * In the above example, only the first two connections have their multiplicity specified.
+ * All the other connections include a '*' on the JBar's side, so the JBar decides the multiplicity.
+ * Thus, in this example, we get 2x crossbars with 2 masters like this:
+ *    {slave1, extras.1} <= jbar.1 <= {masters1.1, masters2.1}
+ *    {slave2, extras.2} <= jbar.2 <= {masters1.2, masters2,2}
+ * Here is another example:
+ *   val jbar = LazyModule(new JBar)
+ *   jbar.node :=* masters.node
+ *   slaves1.node :=* jbar.node
+ *   slaves2.node :=* jbar.node
+ * In the above example, the first connection takes multiplicity (*) from the right (masters).
+ * Supposing masters.node had 3 edges, this would result in these three arbiters:
+ *   {slaves1.1, slaves2.1} <= jbar.1 <= { masters.1 }
+ *   {slaves1.2, slaves2.2} <= jbar.2 <= { masters.2 }
+ *   {slaves1.3, slaves2.3} <= jbar.3 <= { masters.3 }
+ */
+class MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
+  inner: InwardNodeImp [DI, UI, EI, BI],
+  outer: OutwardNodeImp[DO, UO, EO, BO])(
+  dFn: Seq[DI] => Seq[DO],
+  uFn: Seq[UO] => Seq[UI])(
+  implicit valName: ValName)
+  extends MixedNode(inner, outer)
+{
+  protected[diplomacy] var multiplicity = 0
+
+  def uRatio = iPorts.size / multiplicity
+  def dRatio = oPorts.size / multiplicity
+
+  override def description = "junction"
+  protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
+    require (iKnown == 0 || oKnown == 0, s"$context appears left of a :=* or a := AND right of a :*= or :=. Only one side may drive multiplicity.")
+    multiplicity = iKnown max oKnown
+   (multiplicity, multiplicity)
+  }
+  protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] =
+    p.grouped(multiplicity).toList.transpose.map(dFn).transpose.flatten
+  protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] =
+    p.grouped(multiplicity).toList.transpose.map(uFn).transpose.flatten
+
+  def inoutGrouped: Seq[(Seq[(BI, EI)], Seq[(BO, EO)])] = {
+    val iGroups = in .grouped(multiplicity).toList.transpose
+    val oGroups = out.grouped(multiplicity).toList.transpose
+    iGroups zip oGroups
+  }
+}
+
+class JunctionNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
+  dFn: Seq[D] => Seq[D],
+  uFn: Seq[U] => Seq[U])(
+  implicit valName: ValName)
+    extends MixedJunctionNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
+
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -443,6 +540,7 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   extends MixedNode(inner, outer)
 {
   override def description = "adapter"
+  protected[diplomacy] override def flexibleArityDirection = true
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     require (oStars + iStars <= 1, s"$context appears left of a :*= $iStars times and right of a :=* $oStars times; at most once is allowed")
     if (oStars > 0) {
@@ -541,6 +639,14 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = Seq()
+
+  def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
+    val bundles = this.out.map(_._1)
+    val ios = IO(Flipped(new HeterogeneousBag(bundles.map(_.cloneType))))
+    ios.suggestName(valName.name)
+    bundles.zip(ios).foreach { case (bundle, io) => bundle <> io }
+    ios
+  }
 }
 
 // There are no Mixed SinkNodes
@@ -558,6 +664,14 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[U]): Seq[U] = pi
+
+  def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
+    val bundles = this.in.map(_._1)
+    val ios = IO(new HeterogeneousBag(bundles.map(_.cloneType)))
+    ios.suggestName(valName.name)
+    bundles.zip(ios).foreach { case (bundle, io) => io <> bundle }
+    ios
+  }
 }
 
 class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[diplomacy](

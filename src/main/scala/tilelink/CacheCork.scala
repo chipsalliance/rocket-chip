@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.amba.AMBAProt
 import scala.math.{min,max}
 import TLMessages._
 
@@ -13,15 +14,15 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
 {
   val node = TLAdapterNode(
     clientFn  = { case cp =>
-      cp.copy(clients = cp.clients.map { c => c.copy(
+      cp.v1copy(clients = cp.clients.map { c => c.v1copy(
         supportsProbe = TransferSizes.none,
         sourceId = IdRange(c.sourceId.start*2, c.sourceId.end*2))})},
     managerFn = { case mp =>
-      mp.copy(
+      mp.v1copy(
         endSinkId = if (mp.managers.exists(_.regionType == RegionType.UNCACHED)) sinkIds else 0,
-        managers = mp.managers.map { m => m.copy(
+        managers = mp.managers.map { m => m.v1copy(
           supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
-          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.supportsAcquireT,
+          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull.intersect(m.supportsGet) else m.supportsAcquireT,
           alwaysGrantsT    = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.alwaysGrantsT)})})
 
   lazy val module = new LazyModuleImp(this) {
@@ -91,6 +92,15 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
           lgSize     = in.c.bits.size,
           data       = in.c.bits.data,
           corrupt    = in.c.bits.corrupt)._2
+        c_a.bits.user.lift(AMBAProt).foreach { x =>
+          x.fetch       := false.B
+          x.secure      := true.B
+          x.privileged  := true.B
+          x.bufferable  := true.B
+          x.modifiable  := true.B
+          x.readalloc   := true.B
+          x.writealloc  := true.B
+        }
 
         // Releases without Data succeed instantly
         val c_d = Wire(in.d)

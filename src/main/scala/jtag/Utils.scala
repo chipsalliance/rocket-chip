@@ -2,28 +2,14 @@
 
 package freechips.rocketchip.jtag
 
-import Chisel._
-import chisel3.core.{Input, Output}
-import chisel3.experimental.withClock
+import chisel3._
+import chisel3.util._
 
 /** Bundle representing a tristate pin.
   */
 class Tristate extends Bundle {
   val data = Bool()
   val driven = Bool()  // active high, pin is hi-Z when driven is low
-}
-
-/** Generates a register that updates on the falling edge of the input clock signal.
-  */
-object NegEdgeReg {
-  def apply[T <: Data](clock: Clock, next: T, enable: Bool=true.B, name: Option[String] = None): T = {
-    // TODO pass in initial value as well
-    withClock((!clock.asUInt).asClock) {
-      val reg = RegEnable(next = next, enable = enable)
-      name.foreach{reg.suggestName(_)}
-      reg
-    }
-  }
 }
 
 /** A module that counts transitions on the input clock line, used as a basic sanity check and

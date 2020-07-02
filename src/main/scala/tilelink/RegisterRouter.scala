@@ -3,16 +3,30 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.experimental.RawModule
+import chisel3.RawModule
 import firrtl.annotations.ModuleName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMMemoryRegion, OMRegister, OMRegisterMap}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.{ElaborationArtefacts, GenRegDescsAnno, HeterogeneousBag}
+import freechips.rocketchip.util._
 
 import scala.math.{max, min}
+
+class TLRegisterRouterExtraBundle(val sourceBits: Int, val sizeBits: Int) extends Bundle {
+  val source = UInt(width = sourceBits max 1)
+  val size   = UInt(width = sizeBits max 1)
+}
+
+case object TLRegisterRouterExtra extends ControlKey[TLRegisterRouterExtraBundle]("tlrr_extra")
+case class TLRegisterRouterExtraField(sourceBits: Int, sizeBits: Int) extends BundleField(TLRegisterRouterExtra) {
+  def data = Output(new TLRegisterRouterExtraBundle(sourceBits, sizeBits))
+  def default(x: TLRegisterRouterExtraBundle) = {
+    x.size   := 0.U
+    x.source := 0.U
+  }
+}
 
 case class TLRegisterNode(
     address:     Seq[AddressSet],
@@ -23,8 +37,8 @@ case class TLRegisterNode(
     undefZero:   Boolean = true,
     executable:  Boolean = false)(
     implicit valName: ValName)
-  extends SinkNode(TLImp)(Seq(TLManagerPortParameters(
-    Seq(TLManagerParameters(
+  extends SinkNode(TLImp)(Seq(TLSlavePortParameters.v1(
+    Seq(TLSlaveParameters.v1(
       address            = address,
       resources          = Seq(Resource(device, deviceKey)),
       executable         = executable,
@@ -33,7 +47,7 @@ case class TLRegisterNode(
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1)))) // the Queue adds at most one cycle
+    minLatency = min(concurrency, 1)))) with TLFormatNode // the Queue adds at most one cycle
 {
   val size = 1 << log2Ceil(1 + address.map(_.max).max - address.map(_.base).min)
   require (size >= beatBytes)
@@ -49,18 +63,18 @@ case class TLRegisterNode(
     val a = bundleIn.a
     val d = bundleIn.d
 
-    // Please forgive me ...
-    val baseEnd = 0
-    val (sizeEnd,   sizeOff)   = (edge.bundle.sizeBits   + baseEnd, baseEnd)
-    val (sourceEnd, sourceOff) = (edge.bundle.sourceBits + sizeEnd, sizeEnd)
-
-    val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, sourceEnd)
+    val fields = TLRegisterRouterExtraField(edge.bundle.sourceBits, edge.bundle.sizeBits) +: a.bits.params.echoFields
+    val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, fields)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
     in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra := Cat(a.bits.source, a.bits.size)
+    in.bits.extra :<= a.bits.echo
+
+    val a_extra = in.bits.extra(TLRegisterRouterExtra)
+    a_extra.source := a.bits.source
+    a_extra.size   := a.bits.size
 
     // Invoke the register map builder
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
@@ -72,12 +86,12 @@ case class TLRegisterNode(
     out.ready := d.ready
 
     // We must restore the size to enable width adapters to work
-    d.bits := edge.AccessAck(
-      toSource    = out.bits.extra(sourceEnd-1, sourceOff),
-      lgSize      = out.bits.extra(sizeEnd-1, sizeOff))
+    val d_extra = out.bits.extra(TLRegisterRouterExtra)
+    d.bits := edge.AccessAck(toSource = d_extra.source, lgSize = d_extra.size)
 
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
+    d.bits.echo :<= out.bits.extra
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
 
     // Tie off unused channels
@@ -172,7 +186,7 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 // !!! eliminate third trait
 
 /** Mix this trait into a RegisterRouter to be able to attach its register map to a TL bus */
-trait HasTLControlRegMap { this: RegisterRouter[_] =>
+trait HasTLControlRegMap { this: RegisterRouter =>
   protected val controlNode = TLRegisterNode(
     address = address,
     device = device,

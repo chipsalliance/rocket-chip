@@ -38,11 +38,48 @@ class DebugLogicalTreeNode(
   dmOuter: () => TLDebugModuleOuterAsync,
   dmInner: () => TLDebugModuleInnerAsync
 )(implicit val p: Parameters) extends LogicalTreeNode(() => Some(device)) {
+  /**
+   * Translate register field offsets to account for the fact that the dmOuter
+   * registers are offset from the base DebugModule address.
+   *
+   * Although the rocket-chip regmap helper takes offsets that are relative to
+   * the base of the register address block, for the Object Model we have
+   * decided to collapse the two separate DebugModule register address blocks
+   * into a single one, so we need to account for the dmOuter offset.
+   */
+  private def translateDMOuterRegisterOffsets(regMap: OMRegisterMap): OMRegisterMap = {
+    val addressSets = dmOuter().dmOuter.dmiNode.address
+    addressSets.foreach { addressSet =>
+      require(
+        addressSet.contiguous,
+        s"DebugLogicalTree address logic currently assumes contiguous AddressSets; ${addressSet} is not contiguous"
+      )
+    }
+
+    val baseAddressBytes = addressSets.map(_.base).reduceLeft(_ min _)
+
+    regMap.copy(
+      registerFields = regMap.registerFields.map(
+        field => field.copy(
+          bitRange = field.bitRange.copy(
+            base = field.bitRange.base + baseAddressBytes * 8
+          )
+        )
+      )
+    )
+  }
+
   def getOMDebug(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val nComponents: Int = dmOuter().dmOuter.module.getNComponents()
     val needCustom: Boolean = dmInner().dmInner.module.getNeedCustom()
-    val omRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val omInnerRegMap: OMRegisterMap = dmInner().dmInner.module.omRegMap
+    val omOuterRegMap: OMRegisterMap = translateDMOuterRegisterOffsets(dmOuter().dmOuter.module.omRegMap)
     val cfg: DebugModuleParams = dmInner().dmInner.getCfg()
+
+    val omRegMap = OMRegisterMap(
+      registerFields = omInnerRegMap.registerFields ++ omOuterRegMap.registerFields,
+      groups = omInnerRegMap.groups ++ omOuterRegMap.groups
+    )
 
     val memRegions :Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing
       .getOMMemoryRegions("Debug", resourceBindings, Some(omRegMap))
@@ -74,7 +111,7 @@ class DebugLogicalTreeNode(
         hasSBAccess64 = cfg.maxSupportedSBAccess >= 64,
         hasSBAccess128 = cfg.maxSupportedSBAccess == 128,
         hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
-        authenticationType = NONE,
+        authenticationType = (if (cfg.hasAuthentication) PASSTHRU else NONE),
         nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
         hasHartInfo = true,
         hasAbstractauto = true,
@@ -82,15 +119,16 @@ class DebugLogicalTreeNode(
         nHaltSummaryRegisters = 2,
         nHaltGroups = cfg.nHaltGroups,
         nExtTriggers = cfg.nExtTriggers,
-        hasResetHaltReq = false,
-        hasHartReset = false,
+        hasResetHaltReq = true,
+        hasHartReset = cfg.hasHartResets,
         hasAbstractAccessFPU = false,
         hasAbstractAccessCSR = false,
         hasAbstractAccessMemory = false,
         hasCustom = needCustom,
         hasAbstractPostIncrement = false,
         hasAbstractPostExec = true,
-        hasClockGate = cfg.clockGate
+        hasClockGate = cfg.clockGate,
+        crossingHasSafeReset = cfg.crossingHasSafeReset
     )
     )
   }
@@ -177,19 +215,16 @@ class BusMemoryLogicalTreeNode(
   busProtocolSpecification: Option[OMSpecification] = None) extends LogicalTreeNode(() => Some(device)) {
   def getOMBusMemory(resourceBindings: ResourceBindings): Seq[OMComponent] = {
     val memRegions: Seq[OMMemoryRegion] = DiplomaticObjectModelAddressing.getOMMemoryRegions("OMMemory", resourceBindings, None)
-    val Description(name, mapping) = device.describe(resourceBindings)
 
     val omBusMemory = OMBusMemory(
       memoryRegions = memRegions,
       interrupts = Nil,
       specifications = Nil,
       busProtocol = Some(busProtocol),
-      dataECC = dataECC.getOrElse(OMECC.Identity),
+      dataECC = dataECC.getOrElse(OMECCIdentity),
       hasAtomics = hasAtomics.getOrElse(false),
       memories = omSRAMs
     )
-
-    val ints = DiplomaticObjectModelAddressing.describeInterrupts(name, resourceBindings)
     Seq(omBusMemory)
   }
 
@@ -198,13 +233,14 @@ class BusMemoryLogicalTreeNode(
   }
 }
 
-class SubSystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
+class SubsystemLogicalTreeNode(var getOMInterruptDevice: (ResourceBindings) => Seq[OMInterrupt] = (ResourceBindings) => Nil)
   extends LogicalTreeNode(() => None) {
   override def getOMComponents(resourceBindings: ResourceBindings, components: Seq[OMComponent]): Seq[OMComponent] = {
     List(
       OMCoreComplex(
         components = components,
-        documentationName = ""
+        documentationName = "",
+        resetType = None
       )
     )
   }
