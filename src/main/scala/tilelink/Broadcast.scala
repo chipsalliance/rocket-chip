@@ -81,7 +81,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
     device    = new SimpleDevice("cache-controller", Seq("sifive,broadcast0"))))
 
   lazy val module = new LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    val (ints, fields) = node.in.zip(node.out).zipWithIndex.map { case (((in, edgeIn), (out, edgeOut)), bankIndex) =>
       val clients = edgeIn.client.clients
       val managers = edgeOut.manager.managers
       val lineShift = log2Ceil(params.lineBytes)
@@ -94,17 +94,13 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val cache_targets = caches.map(c => c.start.U)
 
       // Create the probe filter
+      val flatAddresses = AddressSet.unify(edgeOut.manager.managers.flatMap(_.address))
+      val addressMask = AddressDecoder(flatAddresses.map(Seq(_)), flatAddresses.map(_.mask).reduce(_|_))
       val filter = Module(params.filterFactory(ProbeFilterParams(
         mshrs  = params.numTrackers,
         caches = caches.size,
-        blockAddressBits = log2Ceil(edgeIn.manager.maxAddress) - lineShift)))
-
-      // Hook up the filter interfaces, if they are requested
-      intNode.foreach { _.out(0)._1(0) := filter.io.int }
-      controlNode match {
-        case Some(x) => x.regmap(filter.useRegFields():_*)
-        case None    => filter.tieRegFields()
-      }
+        maxAddress  = edgeIn.manager.maxAddress,
+        addressMask = addressMask & ~(params.lineBytes-1))))
 
       // Create the request tracker queues
       val trackers = Seq.tabulate(params.numTrackers) { id =>
@@ -189,6 +185,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       val c_first = edgeIn.first(in.c)
       filter.io.release.valid := in.c.valid && c_first && (c_releasedata || c_release)
+      filter.io.release.bits.address := in.c.bits.address
       filter.io.release.bits.keepB   := in.c.bits.param === TLPermissions.TtoB
       filter.io.release.bits.cacheOH := whoC
 
@@ -252,7 +249,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       filter.io.request.valid := in.a.valid && a_first && trackerReady
       filter.io.request.bits.mshr    := OHToUInt(selectTracker)
-      filter.io.request.bits.address := in.a.bits.address >> lineShift
+      filter.io.request.bits.address := in.a.bits.address
       filter.io.request.bits.needT   := edgeIn.needT(in.a.bits)
       filter.io.request.bits.allocOH := a_cache // Note: this assumes a cache doing MMIO has allocated
 
@@ -262,7 +259,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       filter.io.response.ready := !probe_busy
       when (filter.io.response.fire()) {
         probe_todo  := todo
-        probe_line  := filter.io.response.bits.address
+        probe_line  := filter.io.response.bits.address >> lineShift
         probe_perms := Mux(filter.io.response.bits.needT, TLPermissions.toN, TLPermissions.toB)
       }
 
@@ -282,23 +279,48 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       out.b.ready := true.B
       out.c.valid := false.B
       out.e.valid := false.B
-    }
+
+      // Collect all the filters together
+      (filter.io.int, controlNode match {
+        case Some(x) => filter.useRegFields(bankIndex)
+        case None    => { filter.tieRegFields(bankIndex); Nil }
+      })
+    }.unzip
+
+    // Hook up the filter interfaces, if they are requested
+    intNode.foreach { _.out(0)._1(0) := ints.reduce(_||_) }
+    controlNode.foreach { _.regmap(fields.flatten:_*) }
   }
 }
 
-// blockAddressBits is after removing the block offset (typically lowest 6 bits for 64 bytes)
-case class ProbeFilterParams(mshrs: Int, caches: Int, blockAddressBits: Int)
+// maxAddress is the largest legal physical address that will be filtered
+// addressMask is set for those bits which can actually toggle in an address; ie:
+//   - offset bits are 0
+//   - bank bits are 0
+//   - bits unused by any actual slave are 0
+case class ProbeFilterParams(mshrs: Int, caches: Int, maxAddress: BigInt, addressMask: BigInt)
 {
   require (mshrs >= 0)
   require (caches >= 0)
-  require (blockAddressBits > 0)
+  require (maxAddress > 0)
+  require (addressMask != 0)
 
   val mshrBits = log2Ceil(mshrs)
+  val addressBits = log2Ceil(maxAddress)
+
+  require ((addressMask >> addressBits) == 0)
+
+  private def bigBits(x: BigInt, tail: List[Boolean] = Nil): List[Boolean] =
+    if (x == 0) tail.reverse else bigBits(x >> 1, ((x & 1) == 1) :: tail)
+  val addressMaskBitList: List[Boolean] = bigBits(addressMask)
+  val addressMaskBits: Int = addressMaskBitList.filter(x => x).size
+
+  def maskBits(address: UInt) = Cat((addressMaskBitList zip address.asBools).filter(_._1).map(_._2).reverse)
 }
 
 class ProbeFilterRequest(val params: ProbeFilterParams) extends Bundle {
   val mshr    = UInt(params.mshrBits.W)
-  val address = UInt(params.blockAddressBits.W)
+  val address = UInt(params.addressBits.W)
   val allocOH = UInt(params.caches.W)
   val needT   = Bool()
 }
@@ -315,6 +337,7 @@ class ProbeFilterUpdate(val params: ProbeFilterParams) extends Bundle {
 }
 
 class ProbeFilterRelease(val params: ProbeFilterParams) extends Bundle {
+  val address = UInt(params.addressBits.W)
   val keepB   = Bool()
   val cacheOH = UInt(params.caches.W)
 }
@@ -328,8 +351,8 @@ class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
 }
 
 abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
-  def useRegFields(): Seq[RegField.Map] = Nil
-  def tieRegFields(): Unit = Unit
+  def useRegFields(bankIndex: Int): Seq[RegField.Map] = Nil
+  def tieRegFields(bankIndex: Int): Unit = Unit
   val io = IO(new ProbeFilterIO(params))
 }
 
