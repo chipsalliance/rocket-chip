@@ -168,7 +168,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val priv = UInt(width = 3)
   val exception = Bool()
   val interrupt = Bool()
-  val cause = UInt(width = log2Ceil(1 + CSR.busErrorIntCause))
+  val cause = UInt(width = xLen)
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
@@ -636,7 +636,7 @@ class CSRFile(
   val cause =
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, io.cause))
-  val cause_lsbs = cause(io.trace.head.cause.getWidth-1, 0)
+  val cause_lsbs = cause(log2Ceil(1 + CSR.busErrorIntCause)-1, 0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
