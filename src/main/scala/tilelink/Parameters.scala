@@ -735,6 +735,23 @@ class TLSlavePortParameters private(
       requestKeys    = requestKeys)
   }
 
+    def v2copy(
+    slaves:         Seq[TLSlaveParameters] = slaves,
+    channelBytes:   TLChannelBeatBytes     = channelBytes,
+    endSinkId:      Int                    = endSinkId,
+    minLatency:     Int                    = minLatency,
+    responseFields: Seq[BundleFieldBase]   = responseFields,
+    requestKeys:    Seq[BundleKeyBase]     = requestKeys) =
+  {
+    new TLSlavePortParameters(
+      slaves         = slaves,
+      channelBytes   = channelBytes,
+      endSinkId      = endSinkId,
+      minLatency     = minLatency,
+      responseFields = responseFields,
+      requestKeys    = requestKeys)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     managers:   Seq[TLSlaveParameters] = slaves,
