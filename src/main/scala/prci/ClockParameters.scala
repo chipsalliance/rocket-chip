@@ -5,9 +5,12 @@ import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.{HeterogeneousBag}
+import freechips.rocketchip.util._
 import scala.math.max
 import scala.collection.immutable.ListMap
+
+class ClockSinkLocation(override val name: String) extends Location[ClockSinkNode](name)
+class ClockSourceLocation(override val name: String) extends Location[ClockSourceNode](name)
 
 // All Clock parameters specify only the PLL values required at power-on
 // Dynamic control of the PLL from software can take the values out-of-range
