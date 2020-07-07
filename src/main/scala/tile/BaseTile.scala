@@ -3,6 +3,7 @@
 package freechips.rocketchip.tile
 
 import Chisel._
+import chisel3.Reset
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
@@ -290,4 +291,6 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   this.suggestName(tileParams.name)
 }
 
-abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters
+abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
+  val rf_reset = (p(SubsystemResetSchemeKey) == ResetAsynchronousFull).option(IO(Input(Reset())))
+}
