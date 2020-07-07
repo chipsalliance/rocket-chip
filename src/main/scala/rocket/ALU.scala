@@ -4,8 +4,8 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.CoreModule
+import freechips.rocketchip.config.{Parameters, Field}
+import freechips.rocketchip.tile.{CoreModule, CoreBundle}
 
 object ALU
 {
@@ -44,20 +44,31 @@ object ALU
   def cmpEq(cmd: UInt) = !cmd(3)
 }
 
-import ALU._
-import Instructions._
 
-class ALU(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val dw = Bits(INPUT, SZ_DW)
-    val fn = Bits(INPUT, SZ_ALU_FN)
-    val in2 = UInt(INPUT, xLen)
-    val in1 = UInt(INPUT, xLen)
-    val out = UInt(OUTPUT, xLen)
-    val adder_out = UInt(OUTPUT, xLen)
-    val cmp_out = Bool(OUTPUT)
-  }
+class ALUIO(implicit p: Parameters) extends CoreBundle()(p) {
+  val dw  = Input(Bits(SZ_DW.W))
+  val fn  = Input(Bits(p(ALU_FN_X).getWidth.W))
+  val in3 = Input(UInt(xLen.W))
+  val in2 = Input(UInt(xLen.W))
+  val in1 = Input(UInt(xLen.W))
+  val out = Output(UInt(xLen.W))
+  val adder_out = Output(UInt(xLen.W))
+  val cmp_out = Output(Bool())
+}
+trait HasALUIO { this: CoreModule =>
+  val io = IO(new ALUIO)
+}
 
+object ALUKey extends Field[Parameters=>HasALUIO](
+  (q: Parameters) => {
+    implicit val p = q
+    Module(new ALU)
+  })
+
+class ALU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
+
+  import ALU._
+  import Instructions._
   // ADD, SUB
   val in2_inv = Mux(isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv

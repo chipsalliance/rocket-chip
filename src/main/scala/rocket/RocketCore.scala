@@ -24,6 +24,7 @@ case class RocketCoreParams(
   useAtomics: Boolean = true,
   useAtomicsOnlyForIO: Boolean = false,
   useCompressed: Boolean = true,
+  override val useBitManip: Boolean = false,
   useRVE: Boolean = false,
   useSCIE: Boolean = false,
   nLocalInterrupts: Int = 0,
@@ -176,6 +177,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (usingVM.option(new SVMDecode)) ++:
     (usingSupervisor.option(new SDecode)) ++:
     (usingDebug.option(new DebugDecode)) ++:
+    (p(BDecodeTableKey)(p)) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine)) ++:
     Seq(new IDecode)
@@ -264,10 +266,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val (id_raddr1_illegal, id_raddr1) = decodeReg(id_expanded_inst(0).rs1)
   val (id_waddr_illegal,  id_waddr)  = decodeReg(id_expanded_inst(0).rd)
 
+  val readingXsrc3 = usingBitManip
   val id_load_use = Wire(Bool())
   val id_reg_fence = Reg(init=Bool(false))
-  val id_ren = IndexedSeq(id_ctrl.rxs1, id_ctrl.rxs2)
-  val id_raddr = IndexedSeq(id_raddr1, id_raddr2)
+  val id_ren = IndexedSeq(id_ctrl.rxs1, id_ctrl.rxs2) ++ (if (readingXsrc3) IndexedSeq(id_ctrl.rxs3) else Nil)
+  val id_raddr = IndexedSeq(id_raddr1, id_raddr2) ++ (if (readingXsrc3) IndexedSeq(id_raddr3) else Nil)
   val rf = new RegFile(regAddrMask, xLen)
   val id_rs = id_raddr.map(rf.read _)
   val ctrl_killd = Wire(Bool())
@@ -293,6 +296,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
+    id_raddr3_illegal && !id_ctrl.scie && id_ctrl.rxs3 ||
     id_raddr2_illegal && !id_ctrl.scie && id_ctrl.rxs2 ||
     id_raddr1_illegal && !id_ctrl.scie && id_ctrl.rxs1 ||
     id_waddr_illegal && !id_ctrl.scie && id_ctrl.wxd ||
@@ -373,10 +377,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_RS2 -> ex_rs(1).asSInt,
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, SInt(2), SInt(4))))
+  val ex_op3 = if (readingXsrc3) ex_rs(2).asSInt else 0.U
 
-  val alu = Module(new ALU)
+  val alu = p(ALUKey)(p)
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
+  alu.io.in3 := ex_op3.asUInt
   alu.io.in2 := ex_op2.asUInt
   alu.io.in1 := ex_op1.asUInt
 
@@ -703,6 +709,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= UInt(0), id_raddr1),
                            (id_ctrl.rxs2 && id_raddr2 =/= UInt(0), id_raddr2),
+                           (id_ctrl.rxs3 && id_raddr2 =/= UInt(0), id_raddr3),
                            (id_ctrl.wxd  && id_waddr  =/= UInt(0), id_waddr))
   val fp_hazard_targets = Seq((io.fpu.dec.ren1, id_raddr1),
                               (io.fpu.dec.ren2, id_raddr2),
