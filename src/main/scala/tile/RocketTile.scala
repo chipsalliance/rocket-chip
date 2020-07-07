@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
-import freechips.rocketchip.subsystem.{SubsystemResetSchemeKey, ResetSynchronous, TileCrossingParamsLike}
+import freechips.rocketchip.subsystem.TileCrossingParamsLike
 import freechips.rocketchip.util._
 
 case class RocketTileParams(
@@ -128,9 +128,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasLazyRoCCModule
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
-
-  require(p(SubsystemResetSchemeKey)  == ResetSynchronous,
-    "Rocket only supports synchronous reset at  this time")
 
   val core = Module(new Rocket(outer)(outer.p))
 
