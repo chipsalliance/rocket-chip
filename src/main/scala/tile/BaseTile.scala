@@ -291,6 +291,10 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   this.suggestName(tileParams.name)
 }
 
-abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters {
+abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyRawModuleImp(outer) with HasTileParameters {
+  val clock = IO(Input(Clock()))
+  val reset = IO(Input(Reset()))
   val rf_reset = (p(SubsystemResetSchemeKey) == ResetAsynchronousFull).option(IO(Input(Reset())))
+  childClock := clock
+  childReset := reset
 }
