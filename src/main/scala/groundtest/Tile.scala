@@ -40,11 +40,11 @@ abstract class GroundTestTile(
   val slaveNode: TLInwardNode = TLIdentityNode()
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(
-    if (dc.nMSHRs == 0) new DCache(hartId, crossing)
-    else new NonBlockingDCache(hartId))
-  }
+    if (dc.nMSHRs == 0) new DCache(staticIdForMetadataUseOnly, crossing)
+    else new NonBlockingDCache(staticIdForMetadataUseOnly)
+  )}
 
-  dcacheOpt.foreach { _.hartIdSinkNode := hartIdNode }
+  dcacheOpt.foreach { _.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode } }
 
   override lazy val module = new GroundTestTileModuleImp(this)
 }

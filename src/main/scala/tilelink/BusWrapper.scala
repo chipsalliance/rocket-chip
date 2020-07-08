@@ -69,10 +69,12 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
   def busView: TLEdge
-  val prefixNode: Option[BundleBridgeSink[UInt]]
+  def prefixNode: Option[BundleBridgeNode[UInt]]
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
+
+  protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
   def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }
@@ -386,7 +388,10 @@ class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)
   val inwardNode: TLInwardNode = address_adjuster.map(_.node :*=* TLFIFOFixer(params.policy) :*=* viewNode).getOrElse(viewNode)
   def outwardNode: TLOutwardNode = address_adjuster.map(_.node).getOrElse(viewNode)
   def busView: TLEdge = viewNode.edges.in.head
-  val prefixNode = address_adjuster.map(_.prefix)
+  val prefixNode = address_adjuster.map { a =>
+    a.prefix := addressPrefixNexusNode
+    addressPrefixNexusNode
+  }
   val builtInDevices = BuiltInDevices.none
 }
 

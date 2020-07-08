@@ -54,7 +54,8 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 
 class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
-  val hartIdSinkNode = BundleBridgeSink[UInt]()
+  val hartIdSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
+  val mmioAddressPrefixSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
   val useVM = p(TileKey).core.useVM
   val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(
     clients = Seq(TLMasterParameters.v1(
@@ -143,12 +144,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   require(!usingVM || outer.icacheParams.itimAddr.isEmpty || pgIdxBits >= untagBits,
     s"When VM and ITIM are enabled, I$$ set size must not exceed ${1<<(pgIdxBits-10)} KiB; got ${(outer.size/nWays)>>10} KiB")
 
-  val io_hartid = outer.hartIdSinkNode.bundle
+  val io_hartid = outer.hartIdSinkNodeOpt.map(_.bundle)
+  val io_mmio_address_prefix = outer.mmioAddressPrefixSinkNodeOpt.map(_.bundle)
   val scratchpadOn = RegInit(false.B)
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
   def lineInScratchpad(line: UInt) = scratchpadMax.map(scratchpadOn && line <= _).getOrElse(false.B)
   val scratchpadBase = outer.icacheParams.itimAddr.map { dummy =>
-    p(LookupByHartId)(_.icache.flatMap(_.itimAddr.map(_.U)), io_hartid)
+    p(LookupByHartId)(_.icache.flatMap(_.itimAddr.map(_.U)), io_hartid.get) | io_mmio_address_prefix.get
   }
   def addrMaybeInScratchpad(addr: UInt) = scratchpadBase.map(base => addr >= base && addr < base + outer.size).getOrElse(false.B)
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))

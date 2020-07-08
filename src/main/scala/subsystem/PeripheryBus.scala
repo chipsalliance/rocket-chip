@@ -40,7 +40,10 @@ class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Paramet
     extends TLBusWrapper(params, name)
 {
   private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
-  val prefixNode = replicator.map(_.prefix)
+  val prefixNode = replicator.map { r =>
+    r.prefix := addressPrefixNexusNode
+    addressPrefixNexusNode
+  }
 
   private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val node: TLNode = params.atomics.map { pa =>

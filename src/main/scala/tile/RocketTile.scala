@@ -56,11 +56,7 @@ class RocketTile private(
   override val logicalTreeNode = new RocketLogicalTreeNode(this, p(XLen), pgLevels)
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map { s =>
-    val coreParams = {
-      class C(implicit val p: Parameters) extends HasCoreParameters
-      new C
-    }
-    LazyModule(new ScratchpadSlavePort(AddressSet.misaligned(s, d.dataScratchpadBytes), coreParams.coreDataBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO))
+    LazyModule(new ScratchpadSlavePort(AddressSet.misaligned(s, d.dataScratchpadBytes), lazyCoreParamsView.coreDataBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO))
   }}
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, lm.node.portParams.head.beatBytes))
 

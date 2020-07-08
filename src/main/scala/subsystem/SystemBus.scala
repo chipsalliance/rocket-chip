@@ -33,7 +33,10 @@ class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p
     extends TLBusWrapper(params, name)
 {
   private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
-  val prefixNode = replicator.map(_.prefix)
+  val prefixNode = replicator.map { r =>
+    r.prefix := addressPrefixNexusNode
+    addressPrefixNexusNode
+  }
 
   private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
   val inwardNode: TLInwardNode = system_bus_xbar.node :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* replicator.map(_.node).getOrElse(TLTempNode())

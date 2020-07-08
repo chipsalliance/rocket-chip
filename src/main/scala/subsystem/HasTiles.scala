@@ -40,11 +40,13 @@ case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
 /** An interface for describing the parameteization of how Tiles are connected to interconnects */
 trait TileCrossingParamsLike {
   /** The type of clock crossing that should be inserted at the tile boundary. */
-  val crossingType: ClockCrossingType
+  def crossingType: ClockCrossingType
   /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect master. */
-  val master: TilePortParamsLike
+  def master: TilePortParamsLike
   /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect slave. */
-  val slave: TilePortParamsLike
+  def slave: TilePortParamsLike
+  /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the tile */
+  def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
@@ -310,6 +312,9 @@ trait CanAttachTile {
     implicit val p = context.p
     tile.hartIdNode := context.tileHartIdNode
     tile.resetVectorNode := context.tileResetVectorNode
+    context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere).prefixNode.foreach {
+      tile.mmioAddressPrefixNode := _
+    }
   }
 }
 
