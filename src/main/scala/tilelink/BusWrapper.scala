@@ -74,7 +74,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
 
-  protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = true, default = Some(() => 0.U(1.W)))
+  protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
   def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }

@@ -227,8 +227,8 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     * with a static base address (which is looked up based on the driven hartid value).
     */
   val mmioAddressPrefixNexusNode = BundleBridgeNexus[UInt](
-    inputFn = BundleBridgeNexus.orReduction[UInt](registered = true) _,
-    outputFn = BundleBridgeNexus.fillN[UInt](registered = true) _,
+    inputFn = BundleBridgeNexus.orReduction[UInt](registered = false) _,
+    outputFn = BundleBridgeNexus.fillN[UInt](registered = false) _,
     default = Some(() => 0.U(1.W))
   )
 
