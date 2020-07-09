@@ -488,6 +488,7 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] val sourceCard: Int
 
   /** The "flex" cardinality.
+    * 
     * How many times is this node used in a way that could be either source or sink, depending on final
     * directional determination.
     */
@@ -509,7 +510,7 @@ trait FormatEdge {
   def formatEdge: String
 }
 
-/** Trait that iterates over edges to produce formatted string (in practice this is generally GraphML metadata.) */
+/** Trait that enables iterating over a [[BaseNode]]'s edges to produce a formatted string representation (in practice this is generally GraphML metadata.) */
 trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
   def edges: Edges[I,O]
   /** Format the edges of the [[BaseNode]] for emission (generally in GraphML).  */
