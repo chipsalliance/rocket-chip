@@ -103,7 +103,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.expectsVipCheckerMasterToSlaveGet(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries Get type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (edge.master.expectsVipCheckerEmitsGet(bundle.source, bundle.size), "'A' channel carries Get type which master claims it can't emit" + diplomacyInfo + extra)
+      monAssert (edge.slave.expectsVipCheckerSupportsGet(edge.address(bundle), bundle.size, None), "'A' channel carries Get type which slave claims it can't support" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel Get carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Get address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel Get carries invalid param" + extra)
