@@ -6,6 +6,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInf
 import chisel3.Data
 import freechips.rocketchip.config.Parameters
 import scala.language.implicitConversions
+
 package object diplomacy
 {
   type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = NodeHandle[D, U, E, B, D, U, E, B]
