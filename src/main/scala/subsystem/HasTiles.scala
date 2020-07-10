@@ -12,7 +12,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.ClockGroup
+import freechips.rocketchip.prci.{ClockGroup, ClockNode}
 import freechips.rocketchip.util._
 
 /** Entry point for Config-uring the presence of Tiles */
@@ -48,6 +48,8 @@ trait TileCrossingParamsLike {
   def slave: TilePortParamsLike
   /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the tile */
   def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
+  /** Inject a clock/reset management subgraph */
+  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
@@ -328,15 +330,17 @@ trait CanAttachTile {
   def connectPRC(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetClockDriverFrom = context.locateTLBusWrapper(crossingParams.master.where)
-    domain.clockNode := (crossingParams.crossingType match {
-      case _: SynchronousCrossing => tlBusToGetClockDriverFrom.fixedClockNode
-      case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
-      case _: AsynchronousCrossing => {
-        val tileClockGroup = ClockGroup()
-        tileClockGroup := context.asyncClockGroupsNode
-        tileClockGroup
-      }
-    })
+    domain.clockNode :=
+      crossingParams.injectClockNode(context) :=
+      (crossingParams.crossingType match {
+        case _: SynchronousCrossing => tlBusToGetClockDriverFrom.fixedClockNode
+        case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
+        case _: AsynchronousCrossing => {
+          val tileClockGroup = ClockGroup()
+          tileClockGroup := context.asyncClockGroupsNode
+          tileClockGroup
+        }
+      })
   }
 }
 

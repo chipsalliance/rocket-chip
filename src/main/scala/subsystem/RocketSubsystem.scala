@@ -10,6 +10,7 @@ import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugM
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.prci.{ClockNode, ClockTempNode}
 import freechips.rocketchip.tile._
 
 case class RocketCrossingParams(
@@ -17,7 +18,11 @@ case class RocketCrossingParams(
   master: TileMasterPortParams = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS
-) extends TileCrossingParamsLike
+) extends TileCrossingParamsLike {
+  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode = {
+    ClockTempNode() // TODO reset stretcher could go here, parameterized by args to this case class
+  }
+}
 
 case class RocketTileAttachParams(
   tileParams: RocketTileParams,
