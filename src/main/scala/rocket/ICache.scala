@@ -58,10 +58,13 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
   val hartIdSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
   val mmioAddressPrefixSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
   val useVM = p(TileKey).core.useVM
-  val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(
-    clients = Seq(TLMasterParameters.v1(
+  val masterNode = TLClientNode(Seq(TLMasterPortParameters.v2(
+    clients = Seq(TLMasterParameters.v2(
       sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
-      name = s"Core ${staticIdForMetadataUseOnly} ICache")),
+      name     = s"Core ${staticIdForMetadataUseOnly} ICache",
+      emits    = TLMasterToSlaveTransferSizes(
+        get = (icacheParams.fetchBytes, icacheParams.fetchBytes)
+      ))),
     requestFields = useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
   val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
