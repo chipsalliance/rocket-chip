@@ -3,14 +3,29 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+
+import freechips.rocketchip.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
+import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation}
 import freechips.rocketchip.util._
 import scala.math.max
 import scala.collection.immutable.ListMap
 
 class ClockSinkLocation(override val name: String) extends Location[ClockSinkNode](name)
 class ClockSourceLocation(override val name: String) extends Location[ClockSourceNode](name)
+
+case class ClockTopologyLocated(loc: HierarchicalLocation) extends Field[Seq[(Location[ClockSinkNode],Location[ClockSourceNode])]](Nil)
+
+case class ClockTopology(val connections: Seq[(Location[ClockSinkNode], Location[ClockSourceNode])])
+
+trait HasConfigurableClockTopology { this: Attachable =>
+  def location: HierarchicalLocation
+
+  p(ClockTopologyLocated(location)).foreach { case(sinkLocation, sourceLocation) =>
+    println(s"${sinkLocation} := ${sourceLocation}")
+    locateClockSink(sinkLocation) := locateClockSource(sourceLocation)
+  }
+}
 
 // All Clock parameters specify only the PLL values required at power-on
 // Dynamic control of the PLL from software can take the values out-of-range
