@@ -77,14 +77,14 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
 
-  nPTWPorts += roccs.map(_.nPTWPorts).foldLeft(0)(_ + _)
+  nPTWPorts += roccs.map(_.nPTWPorts).sum
   nDCachePorts += roccs.size
 }
 
 trait HasLazyRoCCModule extends CanHavePTWModule
     with HasCoreParameters { this: RocketTileModuleImp with HasFpuOpt =>
 
-  val (respArb, cmdRouter) = if(outer.roccs.size > 0) {
+  val (respArb, cmdRouter) = if(outer.roccs.nonEmpty) {
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
     val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
     outer.roccs.zipWithIndex.foreach { case (rocc, i) =>
