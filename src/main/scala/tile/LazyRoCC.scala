@@ -299,7 +299,6 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
     count := 0.U
     finished := false.B
     state := s_acq
-    printf(p"received cmd 0x${Hexadecimal(io.cmd.bits.inst.asUInt)} addr=0x${Hexadecimal(io.cmd.bits.rs1)} needle=0x${Hexadecimal(io.cmd.bits.rs2)}\n");
   }
 
   when (tl_out.a.fire()) { state := s_gnt }
