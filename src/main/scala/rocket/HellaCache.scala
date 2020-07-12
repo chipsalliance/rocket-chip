@@ -188,15 +188,29 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
     with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
-  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
+  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v2(
     name          = s"Core ${staticIdForMetadataUseOnly} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
-    supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
+    emits = TLMasterToSlaveTransferSizes(
+      arithmetic = if (params.useAtomics) TransferSizes(4, p(XLen) / 8) else TransferSizes.none,
+      logical = if (params.useAtomics) TransferSizes(4, p(XLen) / 8) else TransferSizes.none,
+      get = TransferSizes(1, p(XLen) / 8),
+      putFull = TransferSizes(1, p(XLen) / 8)
+    ),
+    supports = TlSlaveToMasterTransferSizes(
+      probe = TransferSizes(cfg.blockBytes, cfg.blockBytes)
+    ))))
 
-  protected def mmioClientParameters = Seq(TLMasterParameters.v1(
+  protected def mmioClientParameters = Seq(TLMasterParameters.v2(
     name          = s"Core ${staticIdForMetadataUseOnly} DCache MMIO",
     sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
-    requestFifo   = true))
+    requestFifo   = true,
+    emits = TLMasterToSlaveTransferSizes(
+      arithmetic = if (params.useAtomics) TransferSizes(4, p(XLen) / 8) else TransferSizes.none,
+      logical = if (params.useAtomics) TransferSizes(4, p(XLen) / 8) else TransferSizes.none,
+      get = TransferSizes(1, p(XLen) / 8),
+      putFull = TransferSizes(1, p(XLen) / 8)
+    )))
 
   def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
