@@ -197,7 +197,7 @@ class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends Laz
 class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
   val req_addr = Reg(UInt(coreMaxAddrBits.W))
-  val req_rd = Reg(io.resp.bits.rd.cloneType)
+  val req_rd = Reg(chiselTypeOf(io.resp.bits.rd))
   val req_offset = req_addr(pgIdxBits - 1, 0)
   val req_vpn = req_addr(coreMaxAddrBits - 1, pgIdxBits)
   val pte = Reg(new PTE)
