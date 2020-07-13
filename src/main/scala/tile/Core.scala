@@ -3,6 +3,7 @@
 package freechips.rocketchip.tile
 
 import Chisel._
+import chisel3.MultiIOModule
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.rocket._
@@ -118,7 +119,7 @@ trait HasCoreParameters extends HasTileParameters {
 
 }
 
-abstract class CoreModule(implicit val p: Parameters) extends Module
+abstract class CoreModule(implicit val p: Parameters) extends MultiIOModule
   with HasCoreParameters
 
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
