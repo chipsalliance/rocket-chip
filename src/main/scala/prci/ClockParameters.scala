@@ -23,7 +23,8 @@ case class ClockParameters(
 
 case class ClockSourceParameters(
   jitterPS: Option[Double] = None, // if known at chisel elaboration
-  give:     Option[ClockParameters] = None)
+  give:     Option[ClockParameters] = None,
+  name:     Option[String] = None)
 
 case class ClockSinkParameters(
   phaseDeg:      Double = 0,
@@ -31,7 +32,8 @@ case class ClockSinkParameters(
   phaseErrorDeg: Double = 5,
   freqErrorPPM:  Double = 10000,
   jitterPS:      Double = 200,
-  take:          Option[ClockParameters] = None) 
+  take:          Option[ClockParameters] = None,
+  name:          Option[String] = None)
 {
   require (phaseErrorDeg >= 0)
   require (freqErrorPPM >= 0)
@@ -74,7 +76,7 @@ case class ClockGroupEdgeParameters(
   val sourceParameters = ClockSourceParameters()
   val members: ListMap[String, ClockEdgeParameters] = ListMap(
     sink.members.zipWithIndex.map { case (s, i) =>
-      s"${sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+      s"${sink.name}_${s.name.getOrElse(i)}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
   }:_*)
 
   val bundle = ClockGroupBundleParameters(members.map{ case (k, v) => k -> v.bundle})
