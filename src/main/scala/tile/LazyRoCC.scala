@@ -254,7 +254,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
   val needle = Reg(UInt(8.W))
   val addr = Reg(UInt(coreMaxAddrBits.W))
   val count = Reg(UInt(xLen.W))
-  val resp_rd = Reg(io.resp.bits.rd.cloneType)
+  val resp_rd = Reg(chiselTypeOf(io.resp.bits.rd))
 
   val addr_block = addr(coreMaxAddrBits - 1, blockOffset)
   val offset = addr(blockOffset - 1, 0)
