@@ -340,6 +340,7 @@ class BlackBoxExample(opcodes: OpcodeSet, blackBoxFile: String)(implicit p: Para
 
 class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(implicit p: Parameters)
     extends LazyRoCCModuleImp(outer)
+    with RequireSyncReset
     with HasCoreParameters {
 
   val blackbox = {
@@ -361,7 +362,7 @@ class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(imp
         val io = IO( new Bundle {
                       val clock = Input(Clock())
                       val reset = Input(Reset())
-                      val rocc = roccIo.cloneType
+                      val rocc = chiselTypeOf(roccIo)
                     })
         override def desiredName: String = blackBoxFile
         addResource(s"/vsrc/$blackBoxFile.v")
