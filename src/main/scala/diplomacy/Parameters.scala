@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import chisel3.util.{IrrevocableIO,ReadyValidIO}
-import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
+import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams, CreditedDelay}
 import scala.reflect.ClassTag
 
 /** Options for describing the attributes of memory regions */
@@ -316,6 +316,12 @@ case class RationalCrossing(direction: RationalDirection = FastToSlow) extends C
 case class AsynchronousCrossing(depth: Int = 8, sourceSync: Int = 3, sinkSync: Int = 3, safe: Boolean = true, narrow: Boolean = false) extends ClockCrossingType
 {
   def asSinkParams = AsyncQueueParams(depth, sinkSync, safe, narrow)
+}
+case class CreditedCrossing(sourceDelay: CreditedDelay, sinkDelay: CreditedDelay) extends ClockCrossingType
+
+object CreditedCrossing {
+  def apply(delay: CreditedDelay): CreditedCrossing = CreditedCrossing(delay, delay.flip)
+  def apply(): CreditedCrossing = CreditedCrossing(CreditedDelay(1, 1))
 }
 
 trait DirectedBuffers[T] {
