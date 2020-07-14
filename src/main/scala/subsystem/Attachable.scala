@@ -42,9 +42,9 @@ trait HasTileLinkLocations extends HasPRCILocations { this: LazyModule =>
 
 /** Layers of hierarchy with this trait have a map of ClockSource/Sink Locations to ClockSource/Sink nodes */
 trait HasClockLocations { this: LazyModule =>
-  val clockSourceLocationMap = LocationMap.empty[ClockSourceNode]
-  def locateClockSource(location: Location[ClockSourceNode]): ClockSourceNode = locateClockSource(location.name)
-  def locateClockSource(name: String): ClockSourceNode = clockSourceLocationMap(Location[ClockSourceNode](name))
+  val clockSourceLocationMap = LocationMap.empty[FixedClockBroadcastNode]
+  def locateClockSource(location: Location[FixedClockBroadcastNode]): FixedClockBroadcastNode = locateClockSource(location.name)
+  def locateClockSource(name: String): FixedClockBroadcastNode = clockSourceLocationMap(Location[FixedClockBroadcastNode](name))
 
   val clockSinkLocationMap = LocationMap.empty[ClockSinkNode]
   def locateClockSink(location: Location[ClockSinkNode]): ClockSinkNode = locateClockSink(location.name)

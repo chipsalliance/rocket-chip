@@ -12,11 +12,11 @@ import scala.math.max
 import scala.collection.immutable.ListMap
 
 class ClockSinkLocation(override val name: String) extends Location[ClockSinkNode](name)
-class ClockSourceLocation(override val name: String) extends Location[ClockSourceNode](name)
+class ClockSourceLocation(override val name: String) extends Location[FixedClockBroadcastNode](name)
 
-case class ClockTopologyLocated(loc: HierarchicalLocation) extends Field[Seq[(Location[ClockSinkNode],Location[ClockSourceNode])]](Nil)
+case class ClockTopologyLocated(loc: HierarchicalLocation) extends Field[Seq[(Location[ClockSinkNode],Location[FixedClockBroadcastNode])]](Nil)
 
-case class ClockTopology(val connections: Seq[(Location[ClockSinkNode], Location[ClockSourceNode])])
+case class ClockTopology(val connections: Seq[(Location[ClockSinkNode], Location[FixedClockBroadcastNode])])
 
 trait HasConfigurableClockTopology { this: Attachable =>
   def location: HierarchicalLocation
