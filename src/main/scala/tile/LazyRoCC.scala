@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import chisel3.experimental.IntParam
-import chisel3.internal.naming.chiselName
+import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
