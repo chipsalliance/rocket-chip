@@ -82,3 +82,31 @@ object TLCreditedSink {
   def apply(delay: CreditedDelay)(implicit p: Parameters): TLCreditedSinkNode = apply(TLCreditedDelay(delay))
   def apply()(implicit p: Parameters): TLCreditedSinkNode = apply(CreditedDelay(1, 1))
 }
+
+/** Synthesizeable unit tests */
+import freechips.rocketchip.unittest._
+
+class TLRAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit p: Parameters) extends LazyModule {
+  val model = LazyModule(new TLRAMModel("CreditedCrossing"))
+  val fuzz = LazyModule(new TLFuzzer(txns))
+  val island = LazyModule(new CrossingWrapper(params))
+  val ram  = island { LazyModule(new TLRAM(AddressSet(0x0, 0x3ff))) }
+
+  island.crossTLIn(ram.node) := TLFragmenter(4, 256) := TLDelayer(0.1) := model.node := fuzz.node
+
+  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+    io.finished := fuzz.module.io.finished
+  }
+}
+
+class TLRAMCreditedCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut_1000 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(1, 0), CreditedDelay(0, 0)))).module)
+  val dut_0100 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(0, 1), CreditedDelay(0, 0)))).module)
+  val dut_0010 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(0, 0), CreditedDelay(1, 0)))).module)
+  val dut_0001 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(0, 0), CreditedDelay(0, 1)))).module)
+  val dut_1111 = Module(LazyModule(new TLRAMCreditedCrossing(txns, CreditedCrossing(CreditedDelay(1, 1), CreditedDelay(1, 1)))).module)
+
+  val duts = Seq(dut_1000, dut_0100, dut_0010, dut_0001, dut_1111)
+  duts.foreach { _.io.start := true.B }
+  io.finished := duts.map(_.io.finished).reduce(_ && _)
+}

@@ -53,6 +53,7 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLRR1Test(                txns= 3*txns, timeout=timeout)),
       Module(new TLRAMRationalCrossingTest(txns= 3*txns, timeout=timeout)),
       Module(new TLRAMAsyncCrossingTest(   txns= 5*txns, timeout=timeout)),
+      Module(new TLRAMCreditedCrossingTest(txns= 5*txns, timeout=timeout)),
       Module(new TLRAMAtomicAutomataTest(  txns=10*txns, timeout=timeout)),
       Module(new TLRAMECCTest(8, 4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMECCTest(4, 1,        txns=15*txns, timeout=timeout)),
