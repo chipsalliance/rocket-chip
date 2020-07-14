@@ -14,7 +14,7 @@ import scala.language.implicitConversions
   * expressed in the form of abstract classes, traits, and type parameters, which
   * comprises nearly all of the types defined in this file.
   *
-  * The [[NodeImp]] ("node implementation") is the main abstract type that determines
+  * The [[NodeImp]] ("node implementation") is the main abstract type that associates
   * the type parameters of all other abstract types. Defining a concrete
   * implementation of [[NodeImp]] will therefore determine concrete types for all
   * type parameters. For example, passing in a concrete instance of NodeImp to a
@@ -89,10 +89,11 @@ import scala.language.implicitConversions
   *                                     ^  ↓  *
   *                                     .  ↓  *
   *      |------------------------------.--↓--*------------------------------------|   
-  *      |                              .  ↓  *                            NodeImp |            
+  *      |                              .  ↓  *                         BaseNode   | 
+  *      |                              .  ↓  *                         (NodeImp)  |            
   *      |                              .  ↓  *                                    |
   *      |  |---------------------------.--↓--*-----------------------------|      |
-  *      |  |                           .  ↓  *           InwardNodeImp     |      |
+  *      |  |                           .  ↓  *   InwardNode (InwardNodeImp)|      |
   *      |  |                        (mixI)↓  *                             |      |
   *      |  |                           .  ↓  *                             |      |
   *      |  |    Upwards-flowing input  .  ↓  * Downwards-Flowing input     |      |
@@ -105,7 +106,7 @@ import scala.language.implicitConversions
   *      |                              ^  ↓  +                                    |
   *      |                              :  ↓  +                                    |
   *      |  |---------------------------:--↓--+-----------------------------|      |
-  *      |  |                           :  ↓  +           OutwardNodeImp    |      |
+  *      |  |                           :  ↓  +  OutwardNode(OutwardNodeImp)|      |
   *      |  |                           :  ↓ (mixO)                         |      |
   *      |  |                           :  ↓  +                             |      |
   *      |  |  Upwards-flowing output   :  ↓  + Downwards-Flowing output    |      |
@@ -131,7 +132,7 @@ import scala.language.implicitConversions
   * For example, the expression a := b will connect the outer side of b to the
   * inner side of a.
   *
-  * We would like the := operator to have additional properties that make it
+  * The := operator has additional properties that make it
   * intuitive to use:
   *
   * 1. It should be chainable, so that a := b := c will have the intuitive effect
