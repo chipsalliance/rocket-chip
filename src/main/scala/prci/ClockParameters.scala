@@ -23,7 +23,7 @@ trait HasConfigurableClockTopology { this: Attachable =>
 
   p(ClockTopologyLocated(location)).foreach { case(sinkLocation, sourceLocation) =>
     println(s"${sinkLocation} := ${sourceLocation}")
-    locateClockSink(sinkLocation) := locateClockSource(sourceLocation)
+    anyLocationMap.required[ClockSinkNode](sinkLocation) := anyLocationMap.required[FixedClockBroadcastNode](sourceLocation)
   }
 }
 

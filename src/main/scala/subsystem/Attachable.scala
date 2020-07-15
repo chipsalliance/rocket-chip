@@ -40,17 +40,6 @@ trait HasTileLinkLocations extends HasPRCILocations { this: LazyModule =>
   def locateTLBusWrapper(name: String): TLBusWrapper = tlBusWrapperLocationMap(Location[TLBusWrapper](name))
 }
 
-/** Layers of hierarchy with this trait have a map of ClockSource/Sink Locations to ClockSource/Sink nodes */
-trait HasClockLocations { this: LazyModule =>
-  val clockSourceLocationMap = LocationMap.empty[FixedClockBroadcastNode]
-  def locateClockSource(location: Location[FixedClockBroadcastNode]): FixedClockBroadcastNode = locateClockSource(location.name)
-  def locateClockSource(name: String): FixedClockBroadcastNode = clockSourceLocationMap(Location[FixedClockBroadcastNode](name))
-
-  val clockSinkLocationMap = LocationMap.empty[ClockSinkNode]
-  def locateClockSink(location: Location[ClockSinkNode]): ClockSinkNode = locateClockSink(location.name)
-  def locateClockSink(name: String): ClockSinkNode = clockSinkLocationMap(Location[ClockSinkNode](name))
-}
-
 /** Subclasses of this trait have the ability to instantiate things inside a context that has TL attachement locations */
 trait CanInstantiateWithinContextThatHasTileLinkLocations {
   def instantiate(context: HasTileLinkLocations)(implicit p: Parameters): Unit
@@ -66,6 +55,6 @@ trait CanConnectWithinContextThatHasTileLinkLocations {
   * to be able to define additional resources available to agents trying to attach themselves, other than
   * what is being made available via the LocationMaps in trait HasTileLinkLocations.
   */
-trait Attachable extends HasTileLinkLocations with HasClockLocations { this: LazyModule =>
+trait Attachable extends HasTileLinkLocations { this: LazyModule =>
   def locateTLBusWrapper(location: TLBusWrapperLocation): TLBusWrapper = locateTLBusWrapper(location.name)
 }
