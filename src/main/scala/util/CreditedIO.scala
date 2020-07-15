@@ -86,14 +86,14 @@ final class CreditedIO[T <: Data](gen: T) extends Bundle
   def pipeline(debitDelay: Int, creditDelay: Int): CreditedIO[T] = {
     val res = Wire(CreditedIO(genType))
     if (debitDelay <= 0) {
-      credit := ShiftRegister(res.credit, creditDelay)
+      credit := ShiftRegister(res.credit, creditDelay, false.B, true.B)
       res.debit := debit
       res.bits  := bits
     } else {
       // We can't use ShiftRegister, because we want debit-gated enables
       val out = pipeline(debitDelay-1, creditDelay)
       out.credit := res.credit
-      res.debit := RegNext(out.debit)
+      res.debit := RegNext(out.debit, false.B)
       res.bits  := RegEnable(out.bits, out.debit)
     }
     res
