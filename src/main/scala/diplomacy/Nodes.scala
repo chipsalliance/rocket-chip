@@ -822,7 +822,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
     * */
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
 
-  /** @todo */
+  /** rewrite in [[EphemeralNode]], which will be eliminated in the final DAG. */
   protected[diplomacy] def iForward(x: Int): Option[(Int, InwardNode[DI, UI, BI])] = None
   /** Downstream inward parameters.
     *
@@ -898,7 +898,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
     * */
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
 
-  /** @todo */
+  /** rewrite in [[EphemeralNode]], which will be eliminated in the final DAG. */
   protected[diplomacy] def oForward(x: Int): Option[(Int, OutwardNode[DO, UO, BO])] = None
   /** Upstream outward parameters.
     *
