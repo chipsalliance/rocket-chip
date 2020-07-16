@@ -129,7 +129,7 @@ object SystemBusAccessModule
       }
     }
 
-    sb2tl.module.io.addrIn := Mux(sb2tl.module.io.rdEn,
+    sb2tl.module.io.addrIn := Mux(SBADDRESSWrEn(0),
       Cat(Cat(SBADDRESSFieldsReg.drop(1).reverse), SBADDRESSWrData(0)),
       Cat(SBADDRESSFieldsReg.reverse))
     anyAddressWrEn         := SBADDRESSWrEn.reduce(_ || _)
