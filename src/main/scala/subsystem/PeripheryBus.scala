@@ -15,6 +15,8 @@ case class BusAtomics(
   widenBytes: Option[Int] = None
 )
 
+case object PBusSink extends ClockSinkLocation("pbus_clock_sink")
+
 case class PeripheryBusParams(
     beatBytes: Int,
     blockBytes: Int,
@@ -22,7 +24,8 @@ case class PeripheryBusParams(
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None,
-    replication: Option[ReplicatedRegion] = None)
+    replication: Option[ReplicatedRegion] = None,
+    clockSinkWhere: ClockSinkLocation = PBusSink)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
@@ -32,6 +35,7 @@ case class PeripheryBusParams(
     val pbus = LazyModule(new PeripheryBus(this, loc.name))
     pbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> pbus)
+    context.anyLocationMap += (clockSinkWhere -> pbus.clockSinkNode)
     pbus
   }
 }

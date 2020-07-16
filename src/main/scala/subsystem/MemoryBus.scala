@@ -8,7 +8,10 @@ import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
+
+case object MBusSink extends ClockSinkLocation("mbus_clock_sink")
 
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(
@@ -17,7 +20,8 @@ case class MemoryBusParams(
   dtsFrequency: Option[BigInt] = None,
   zeroDevice: Option[AddressSet] = None,
   errorDevice: Option[DevNullParams] = None,
-  replication: Option[ReplicatedRegion] = None)
+  replication: Option[ReplicatedRegion] = None,
+  clockSinkWhere: ClockSinkLocation = MBusSink)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
@@ -27,6 +31,7 @@ case class MemoryBusParams(
     val mbus = LazyModule(new MemoryBus(this, loc.name))
     mbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> mbus)
+    context.anyLocationMap += (clockSinkWhere -> mbus.clockSinkNode)
     mbus
   }
 }

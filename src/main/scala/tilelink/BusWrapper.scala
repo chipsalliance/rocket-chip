@@ -37,16 +37,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     with CanAttachTLSlaves
     with CanAttachTLMasters
 {
-  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName)).suggestName(busName + "_clock_groups")
-  private val clockGroup = LazyModule(new ClockGroup(busName))
-  val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
-  val clockNode = clockGroup.node
-  val fixedClockNode = FixedClockBroadcast(fixedClockOpt) // device clocks attach here
-  private val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
-
-  clockGroup.node := clockGroupAggregator.node
-  fixedClockNode := clockGroup.node // first member of group is always domain's own clock
-  clockSinkNode := fixedClockNode
+  val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
 
   InModuleBody {
     // make sure the above connections work properly because mismatched-by-name signals will just be ignored.
