@@ -38,6 +38,7 @@ abstract class GroundTestTile(
   val cpuDevice: SimpleDevice = new SimpleDevice("groundtest", Nil)
   val intOutwardNode: IntOutwardNode = IntIdentityNode()
   val slaveNode: TLInwardNode = TLIdentityNode()
+  val statusNode = BundleBridgeSource(() => new GroundTestStatus)
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(
     if (dc.nMSHRs == 0) new DCache(staticIdForMetadataUseOnly, crossing)
@@ -50,7 +51,7 @@ abstract class GroundTestTile(
 }
 
 class GroundTestTileModuleImp(outer: GroundTestTile) extends BaseTileModuleImp(outer) {
-  val status = IO(new GroundTestStatus)
+  val status = outer.statusNode.bundle
   val halt_and_catch_fire = None
 
   outer.dcacheOpt foreach { dcache =>
