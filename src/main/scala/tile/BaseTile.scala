@@ -271,7 +271,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   /** Node to broadcast V1.0 instruction trace to external consumers. */
   val traceCoreNexusNode = BundleBroadcast[TraceCoreInterface]()
   /** Node for external consumers to source  a V1.0 instruction trace from the core. */
-  def traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface] =
+  val traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface] =
     BundleBridgeNameNode(traceCoreSignalName) :*= traceCoreNexusNode := traceCoreSourceNode
 
   /** Node for watchpoints to control trace driven by core. */
