@@ -10,8 +10,6 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
-case object SBusSink extends ClockSinkLocation("sbus_clock_sink")
-
 case class SystemBusParams(
     beatBytes: Int,
     blockBytes: Int,
@@ -20,16 +18,17 @@ case class SystemBusParams(
     zeroDevice: Option[AddressSet] = None,
     errorDevice: Option[DevNullParams] = None,
     replication: Option[ReplicatedRegion] = None,
-    clockSinkWhere: ClockSinkLocation = SBusSink)
+    clockSinkWhere: Option[ClockSinkLocation] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with TLBusWrapperInstantiationLike
 {
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
     val sbus = LazyModule(new SystemBus(this, loc.name))
+    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
     sbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> sbus)
-    context.anyLocationMap += (clockSinkWhere -> sbus.clockSinkNode)
+    context.anyLocationMap += (clockSinkLocation -> sbus.clockSinkNode)
     sbus
   }
 }

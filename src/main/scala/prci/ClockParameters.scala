@@ -24,7 +24,6 @@ trait HasConfigurableClockTopology { this: Attachable =>
   p(ClockTopologyLocated(location)) match {
     case Some(clockMappings) => {
       clockMappings.foreach { case(sinkLoc, sourceLoc) =>
-        println(s"${sinkLoc} := ${sourceLoc}")
         val clockSink = anyLocationMap.required[ClockSinkNode](sinkLoc)
         val clockSource = anyLocationMap.required[FixedClockBroadcastNode](sourceLoc)
         clockSink := clockSource
@@ -33,13 +32,24 @@ trait HasConfigurableClockTopology { this: Attachable =>
     case None => {
       // If no explicit mapping is specified, create a default source node at this location
       // and drive all sinks from the default source
-      val defaultSource = FixedClockBroadcast(Some(ClockParameters(freqMHz = 500))) := ClockSourceNode(freqMHz = 500)
-
       require(anyLocationMap.keys.toSeq.collect{ case loc: ClockSourceLocation => loc }.isEmpty,
         s"${location}'s contains clock sources, but no mapping has been specified")
 
+      val clockSource = ClockSourceNode(freqMHz = 500)
+      val defaultSource = FixedClockBroadcast(Some(ClockParameters(freqMHz = 500))) := clockSource
+
       val clockSinks = anyLocationMap.values.toSeq.collect { case sink: ClockSinkNode => sink}
-      clockSinks.foreach { _ := defaultSource }
+      clockSinks.foreach { sink =>
+        sink := defaultSource
+      }
+
+      /*
+      InModuleBody {
+        val (clockBundle, _) = clockSource.out.head
+        clockBundle.clock := clock
+        clockBundle.clock := reset
+      }
+      */
     }
   }
 }

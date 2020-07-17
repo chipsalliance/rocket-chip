@@ -21,7 +21,7 @@ case class MemoryBusParams(
   zeroDevice: Option[AddressSet] = None,
   errorDevice: Option[DevNullParams] = None,
   replication: Option[ReplicatedRegion] = None,
-  clockSinkWhere: ClockSinkLocation = MBusSink)
+  clockSinkWhere: Option[ClockSinkLocation] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
   with HasRegionReplicatorParams
@@ -29,9 +29,11 @@ case class MemoryBusParams(
 {
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): MemoryBus = {
     val mbus = LazyModule(new MemoryBus(this, loc.name))
+    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
+
     mbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> mbus)
-    context.anyLocationMap += (clockSinkWhere -> mbus.clockSinkNode)
+    context.anyLocationMap += (clockSinkLocation -> mbus.clockSinkNode)
     mbus
   }
 }
