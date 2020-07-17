@@ -296,11 +296,40 @@ class TLSlaveParameters private(
         putFull       = supportsPutFull,
         putPartial    = supportsPutPartial,
         hint          = supportsHint),
-      emits           = emits,
+      emits         = emits,
       mayDenyGet    = mayDenyGet,
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
       fifoId        = fifoId)
+  }
+
+  def v2copy(
+    nodePath:      Seq[BaseNode]                = nodePath,
+    resources:     Seq[Resource]                = resources,
+    setName:       Option[String]               = setName,
+    address:       Seq[AddressSet]              = address,
+    regionType:    RegionType.T                 = regionType,
+    executable:    Boolean                      = executable,
+    fifoId:        Option[Int]                  = fifoId,
+    supports:      TLMasterToSlaveTransferSizes = supports,
+    emits:         TLSlaveToMasterTransferSizes = emits,
+    alwaysGrantsT: Boolean                      = alwaysGrantsT,
+    mayDenyGet:    Boolean                      = mayDenyGet,
+    mayDenyPut:    Boolean                      = mayDenyPut) =
+  {
+    new TLSlaveParameters(
+      nodePath      = nodePath,
+      resources     = resources,
+      setName       = setName,
+      address       = address,
+      regionType    = regionType,
+      executable    = executable,
+      fifoId        = fifoId,
+      supports      = supports,
+      emits         = emits,
+      alwaysGrantsT = alwaysGrantsT,
+      mayDenyGet    = mayDenyGet,
+      mayDenyPut    = mayDenyPut)
   }
 
   @deprecated("Use v1copy instead of copy","")
@@ -385,6 +414,35 @@ object TLSlaveParameters {
       mayDenyPut    = mayDenyPut,
       alwaysGrantsT = alwaysGrantsT,
       fifoId        = fifoId)
+  }
+
+  def v2(
+    address:       Seq[AddressSet],
+    nodePath:      Seq[BaseNode]                = Seq(),
+    resources:     Seq[Resource]                = Seq(),
+    setName:       Option[String]               = None,
+    regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
+    executable:    Boolean                      = false,
+    fifoId:        Option[Int]                  = None,
+    supports:      TLMasterToSlaveTransferSizes = TLMasterToSlaveTransferSizes.unknownSupports,
+    emits:         TLSlaveToMasterTransferSizes = TLSlaveToMasterTransferSizes.unknownEmits,
+    alwaysGrantsT: Boolean                      = false,
+    mayDenyGet:    Boolean                      = false,
+    mayDenyPut:    Boolean                      = false) =
+  {
+    new TLSlaveParameters(
+    nodePath      = nodePath,
+    resources     = resources,
+    setName       = setName,
+    address       = address,
+    regionType    = regionType,
+    executable    = executable,
+    fifoId        = fifoId,
+    supports      = supports,
+    emits         = emits,
+    alwaysGrantsT = alwaysGrantsT,
+    mayDenyGet    = mayDenyGet,
+    mayDenyPut    = mayDenyPut)
   }
 }
 
@@ -677,6 +735,23 @@ class TLSlavePortParameters private(
       requestKeys    = requestKeys)
   }
 
+    def v2copy(
+    slaves:         Seq[TLSlaveParameters] = slaves,
+    channelBytes:   TLChannelBeatBytes     = channelBytes,
+    endSinkId:      Int                    = endSinkId,
+    minLatency:     Int                    = minLatency,
+    responseFields: Seq[BundleFieldBase]   = responseFields,
+    requestKeys:    Seq[BundleKeyBase]     = requestKeys) =
+  {
+    new TLSlavePortParameters(
+      slaves         = slaves,
+      channelBytes   = channelBytes,
+      endSinkId      = endSinkId,
+      minLatency     = minLatency,
+      responseFields = responseFields,
+      requestKeys    = requestKeys)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     managers:   Seq[TLSlaveParameters] = slaves,
@@ -847,6 +922,33 @@ class TLMasterParameters private(
       sourceId          = sourceId)
   }
 
+  def v2copy(
+    nodePath:          Seq[BaseNode]                = nodePath,
+    resources:         Seq[Resource]                = resources,
+    name:              String                       = name,
+    visibility:        Seq[AddressSet]              = visibility,
+    unusedRegionTypes: Set[RegionType.T]            = unusedRegionTypes,
+    executesOnly:      Boolean                      = executesOnly,
+    requestFifo:       Boolean                      = requestFifo,
+    supports:          TLSlaveToMasterTransferSizes = supports,
+    emits:             TLMasterToSlaveTransferSizes = emits,
+    neverReleasesData: Boolean                      = neverReleasesData,
+    sourceId:          IdRange                      = sourceId) =
+  {
+    new TLMasterParameters(
+      nodePath          = nodePath,
+      resources         = resources,
+      name              = name,
+      visibility        = visibility,
+      unusedRegionTypes = unusedRegionTypes,
+      executesOnly      = executesOnly,
+      requestFifo       = requestFifo,
+      supports          = supports,
+      emits             = emits,
+      neverReleasesData = neverReleasesData,
+      sourceId          = sourceId)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     name:                String          = name,
@@ -911,6 +1013,33 @@ object TLMasterParameters {
         hint              = supportsHint),
       emits             = TLMasterToSlaveTransferSizes.unknownEmits,
       neverReleasesData = false,
+      sourceId          = sourceId)
+  }
+
+  def v2(
+    nodePath:          Seq[BaseNode]                = Seq(),
+    resources:         Seq[Resource]                = Nil,
+    name:              String,
+    visibility:        Seq[AddressSet]              = Seq(AddressSet(0, ~0)),
+    unusedRegionTypes: Set[RegionType.T]            = Set(),
+    executesOnly:      Boolean                      = false,
+    requestFifo:       Boolean                      = false,
+    supports:          TLSlaveToMasterTransferSizes = TLSlaveToMasterTransferSizes.unknownSupports,
+    emits:             TLMasterToSlaveTransferSizes = TLMasterToSlaveTransferSizes.unknownEmits,
+    neverReleasesData: Boolean                      = false,
+    sourceId:          IdRange                      = IdRange(0,1)) =
+  {
+    new TLMasterParameters(
+      nodePath          = nodePath,
+      resources         = resources,
+      name              = name,
+      visibility        = visibility,
+      unusedRegionTypes = unusedRegionTypes,
+      executesOnly      = executesOnly,
+      requestFifo       = requestFifo,
+      supports          = supports,
+      emits             = emits,
+      neverReleasesData = neverReleasesData,
       sourceId          = sourceId)
   }
 }
@@ -1096,6 +1225,23 @@ class TLMasterPortParameters private(
       responseKeys  = responseKeys)
   }
 
+  def v2copy(
+    masters:       Seq[TLMasterParameters] = masters,
+    channelBytes:  TLChannelBeatBytes      = channelBytes,
+    minLatency:    Int                     = minLatency,
+    echoFields:    Seq[BundleFieldBase]    = echoFields,
+    requestFields: Seq[BundleFieldBase]    = requestFields,
+    responseKeys:  Seq[BundleKeyBase]      = responseKeys) =
+  {
+    new TLMasterPortParameters(
+      masters       = masters,
+      channelBytes  = channelBytes,
+      minLatency    = minLatency,
+      echoFields    = echoFields,
+      requestFields = requestFields,
+      responseKeys  = responseKeys)
+  }
+
   @deprecated("Use v1copy instead of copy","")
   def copy(
     clients: Seq[TLMasterParameters] = masters,
@@ -1133,8 +1279,8 @@ object TLClientPortParameters {
 
 object TLMasterPortParameters {
   def v1(
-    clients: Seq[TLMasterParameters],
-    minLatency: Int = 0,
+    clients:       Seq[TLMasterParameters],
+    minLatency:    Int = 0,
     echoFields:    Seq[BundleFieldBase] = Nil,
     requestFields: Seq[BundleFieldBase] = Nil,
     responseKeys:  Seq[BundleKeyBase]   = Nil) =
@@ -1142,6 +1288,22 @@ object TLMasterPortParameters {
     new TLMasterPortParameters(
       masters       = clients,
       channelBytes  = TLChannelBeatBytes(),
+      minLatency    = minLatency,
+      echoFields    = echoFields,
+      requestFields = requestFields,
+      responseKeys  = responseKeys)
+  }
+  def v2(
+    masters:       Seq[TLMasterParameters],
+    channelBytes:  TLChannelBeatBytes   = TLChannelBeatBytes(),
+    minLatency:    Int                  = 0,
+    echoFields:    Seq[BundleFieldBase] = Nil,
+    requestFields: Seq[BundleFieldBase] = Nil,
+    responseKeys:  Seq[BundleKeyBase]   = Nil) =
+  {
+    new TLMasterPortParameters(
+      masters       = masters,
+      channelBytes  = channelBytes,
       minLatency    = minLatency,
       echoFields    = echoFields,
       requestFields = requestFields,
