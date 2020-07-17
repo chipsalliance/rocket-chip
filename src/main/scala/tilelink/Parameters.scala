@@ -559,6 +559,29 @@ class TLSlavePortParameters private(
 
   // Diplomatically determined operation sizes supported by all outward Slaves
   // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
+  val allEmitClaims = slaves.map(_.emits).reduce( _ intersect _)
+  val allEmitClaimsAcquireT   = allEmitClaims.acquireT
+  val allEmitClaimsAcquireB   = allEmitClaims.acquireB
+  val allEmitClaimsArithmetic = allEmitClaims.arithmetic
+  val allEmitClaimsLogical    = allEmitClaims.logical
+  val allEmitClaimsGet        = allEmitClaims.get
+  val allEmitClaimsPutFull    = allEmitClaims.putFull
+  val allEmitClaimsPutPartial = allEmitClaims.putPartial
+  val allEmitClaimsHint       = allEmitClaims.hint
+
+  // Operation Emited by at least one outward Slaves
+  val anyEmitClaims = slaves.map(_.emits).reduce(_ cover _)
+  val anyEmitClaimsAcquireT   = !anyEmitClaims.acquireT.none
+  val anyEmitClaimsAcquireB   = !anyEmitClaims.acquireB.none
+  val anyEmitClaimsArithmetic = !anyEmitClaims.arithmetic.none
+  val anyEmitClaimsLogical    = !anyEmitClaims.logical.none
+  val anyEmitClaimsGet        = !anyEmitClaims.get.none
+  val anyEmitClaimsPutFull    = !anyEmitClaims.putFull.none
+  val anyEmitClaimsPutPartial = !anyEmitClaims.putPartial.none
+  val anyEmitClaimsHint       = !anyEmitClaims.hint.none
+
+  // Diplomatically determined operation sizes supported by all outward Slaves
+  // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
   val allSupports = slaves.map(_.supports).reduce( _ intersect _)
   val allSupportAcquireT   = allSupports.acquireT
   val allSupportAcquireB   = allSupports.acquireB
