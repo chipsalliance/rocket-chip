@@ -22,6 +22,7 @@ case class RocketCrossingParams(
   def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode = {
     ClockTempNode() // TODO reset stretcher could go here, parameterized by args to this case class
   }
+  def forceSeparateClockReset: Boolean = false
 }
 
 case class RocketTileAttachParams(

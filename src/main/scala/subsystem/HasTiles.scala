@@ -50,6 +50,8 @@ trait TileCrossingParamsLike {
   def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
   /** Inject a clock/reset management subgraph */
   def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode
+  /** Keep the tile clock separate from the interconnect clock (e.g. even if they are synchronous to one another) */
+  def forceSeparateClockReset: Boolean
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
@@ -333,7 +335,9 @@ trait CanAttachTile {
     domain.clockNode :=
       crossingParams.injectClockNode(context) :=
       (crossingParams.crossingType match {
-        case _: SynchronousCrossing => tlBusToGetClockDriverFrom.fixedClockNode
+        case s: SynchronousCrossing =>
+          if (crossingParams.forceSeparateClockReset) tlBusToGetClockDriverFrom.clockNode
+          else tlBusToGetClockDriverFrom.fixedClockNode
         case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
         case _: AsynchronousCrossing => {
           val tileClockGroup = ClockGroup()
@@ -361,7 +365,7 @@ trait InstantiatesTiles { this: BaseSubsystem =>
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
-  val tileCrossingTypes = tileAttachParams.map(_.crossingParams.crossingType)
+  val tileCrossingTypes: Seq[ClockCrossingType] = tileAttachParams.map(_.crossingParams.crossingType)
   def nTiles: Int = tileAttachParams.size
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
