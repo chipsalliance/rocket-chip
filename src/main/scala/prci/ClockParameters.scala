@@ -14,16 +14,33 @@ import scala.collection.immutable.ListMap
 class ClockSinkLocation(override val name: String) extends Location[ClockSinkNode](name)
 class ClockSourceLocation(override val name: String) extends Location[FixedClockBroadcastNode](name)
 
-case class ClockTopologyLocated(loc: HierarchicalLocation) extends Field[Seq[(Location[ClockSinkNode],Location[FixedClockBroadcastNode])]](Nil)
+case class ClockTopologyLocated(loc: HierarchicalLocation) extends Field[Option[Seq[(Location[ClockSinkNode],Location[FixedClockBroadcastNode])]]](None)
 
 case class ClockTopology(val connections: Seq[(Location[ClockSinkNode], Location[FixedClockBroadcastNode])])
 
 trait HasConfigurableClockTopology { this: Attachable =>
   def location: HierarchicalLocation
 
-  p(ClockTopologyLocated(location)).foreach { case(sinkLocation, sourceLocation) =>
-    println(s"${sinkLocation} := ${sourceLocation}")
-    anyLocationMap.required[ClockSinkNode](sinkLocation) := anyLocationMap.required[FixedClockBroadcastNode](sourceLocation)
+  p(ClockTopologyLocated(location)) match {
+    case Some(clockMappings) => {
+      clockMappings.foreach { case(sinkLoc, sourceLoc) =>
+        println(s"${sinkLoc} := ${sourceLoc}")
+        val clockSink = anyLocationMap.required[ClockSinkNode](sinkLoc)
+        val clockSource = anyLocationMap.required[FixedClockBroadcastNode](sourceLoc)
+        clockSink := clockSource
+      }
+    }
+    case None => {
+      // If no explicit mapping is specified, create a default source node at this location
+      // and drive all sinks from the default source
+      val defaultSource = FixedClockBroadcast(Some(ClockParameters(freqMHz = 500))) := ClockSourceNode(freqMHz = 500)
+
+      require(anyLocationMap.keys.toSeq.collect{ case loc: ClockSourceLocation => loc }.isEmpty,
+        s"${location}'s contains clock sources, but no mapping has been specified")
+
+      val clockSinks = anyLocationMap.values.toSeq.collect { case sink: ClockSinkNode => sink}
+      clockSinks.foreach { _ := defaultSource }
+    }
   }
 }
 

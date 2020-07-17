@@ -81,7 +81,6 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 
   // TODO must there really always be an "sbus"?
   val sbus = tlBusWrapperLocationMap(SBUS)
-  tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := asyncClockGroupsNode }
 
   // TODO deprecate these public members to see where users are manually hardcoding a particular bus that might actually not exist in a certain dynamic topology
   val pbus = tlBusWrapperLocationMap.lift(PBUS).getOrElse(sbus)

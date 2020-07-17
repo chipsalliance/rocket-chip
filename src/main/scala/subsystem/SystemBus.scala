@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 
-case object SBusSink extends CLockSinkLocation("sbus_clock_sink")
+case object SBusSink extends ClockSinkLocation("sbus_clock_sink")
 
 case class SystemBusParams(
     beatBytes: Int,

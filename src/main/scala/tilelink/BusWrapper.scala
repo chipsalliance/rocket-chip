@@ -39,18 +39,10 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 {
   val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
 
-  InModuleBody {
-    // make sure the above connections work properly because mismatched-by-name signals will just be ignored.
-    (clockGroup.node.edges.in zip clockGroupAggregator.node.edges.out).zipWithIndex map { case ((in: ClockGroupEdgeParameters , out: ClockGroupEdgeParameters), i) =>
-      require(in.members.keys == out.members.keys, s"clockGroup := clockGroupAggregator not working as you expect for index ${i}, becuase clockGroup has ${in.members.keys} and clockGroupAggregator has ${out.members.keys}")
-    }
-  }
-
   def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
   def dtsFrequency = params.dtsFrequency
-  val dtsClk = fixedClockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
 
   /* If you violate this requirement, you will have a rough time.
    * The codebase is riddled with the assumption that this is true.
@@ -79,15 +71,13 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
     from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
-  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
-    bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
+  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType): NoHandle = {
     coupleTo(s"bus_named_${bus.busName}") {
       bus.crossInHelper(xType) :*= TLWidthWidget(beatBytes) :*= _
     }
   }
 
-  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
-    bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
+  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType): NoHandle = {
     coupleFrom(s"bus_named_${bus.busName}") {
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
@@ -107,34 +97,31 @@ object TLBusWrapperConnection {
   /** Backwards compatibility factory for master driving clock and slave setting cardinality */
   def crossTo(
       xType: ClockCrossingType,
-      driveClockFromMaster: Option[Boolean] = Some(true),
       nodeBinding: NodeBinding = BIND_STAR,
       flipRendering: Boolean = false) = {
-    apply(xType, driveClockFromMaster, nodeBinding, flipRendering)(
+    apply(xType, nodeBinding, flipRendering)(
           slaveNodeView  = { case(w, p) => w.crossInHelper(xType)(p) })
   }
 
   /** Backwards compatibility factory for slave driving clock and master setting cardinality */
   def crossFrom(
       xType: ClockCrossingType,
-      driveClockFromMaster: Option[Boolean] = Some(false),
       nodeBinding: NodeBinding = BIND_QUERY,
       flipRendering: Boolean = true) = {
-    apply(xType, driveClockFromMaster, nodeBinding, flipRendering)(
+    apply(xType, nodeBinding, flipRendering)(
           masterNodeView  = { case(w, p) => w.crossOutHelper(xType)(p) })
   }
 
   /** Factory for making generic connections between TLBusWrappers */
   def apply
     (xType: ClockCrossingType = NoCrossing,
-     driveClockFromMaster: Option[Boolean] = None,
      nodeBinding: NodeBinding = BIND_ONCE,
      flipRendering: Boolean = false)(
      slaveNodeView: (TLBusWrapper, Parameters) => TLInwardNode = { case(w, _) => w.inwardNode },
      masterNodeView: (TLBusWrapper, Parameters) => TLOutwardNode = { case(w, _) => w.outwardNode },
      inject: Parameters => TLNode = { _ => TLTempNode() }) = {
     new TLBusWrapperConnection(
-      xType, driveClockFromMaster, nodeBinding, flipRendering)(
+      xType, nodeBinding, flipRendering)(
       slaveNodeView, masterNodeView, inject)
   }
 }
@@ -143,9 +130,6 @@ object TLBusWrapperConnection {
   * It has the following serializable parameters:
   *   - xType: What type of TL clock crossing adapter to insert between the buses.
   *       The appropriate half of the crossing adapter ends up inside each bus.
-  *   - driveClockFromMaster: if None, don't bind the bus's diplomatic clockGroupNode,
-  *       otherwise have either the master or the slave bus bind the other one's clockGroupNode,
-  *       assuming the inserted crossing type is not asynchronous.
   *   - nodeBinding: fine-grained control of multi-edge cardinality resolution for diplomatic bindings within the connection.
   *   - flipRendering: fine-grained control of the graphML rendering of the connection.
   * If has the following non-serializable parameters:
@@ -156,7 +140,6 @@ object TLBusWrapperConnection {
   */
 class TLBusWrapperConnection
     (val xType: ClockCrossingType,
-     val driveClockFromMaster: Option[Boolean],
      val nodeBinding: NodeBinding,
      val flipRendering: Boolean)
     (slaveNodeView: (TLBusWrapper, Parameters) => TLInwardNode,
@@ -167,11 +150,6 @@ class TLBusWrapperConnection
   def connect(context: HasTileLinkLocations, master: Location[TLBusWrapper], slave: Location[TLBusWrapper])(implicit p: Parameters): Unit = {
     val masterTLBus = context.locateTLBusWrapper(master)
     val slaveTLBus  = context.locateTLBusWrapper(slave)
-    def bindClocks(implicit p: Parameters) = driveClockFromMaster match {
-      case Some(true)  => slaveTLBus.clockGroupNode  := asyncMux(xType, context.asyncClockGroupsNode, masterTLBus.clockGroupNode)
-      case Some(false) => masterTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, slaveTLBus.clockGroupNode)
-      case None =>
-    }
     def bindTLNodes(implicit p: Parameters) = nodeBinding match {
       case BIND_ONCE  => slaveNodeView(slaveTLBus, p) :=   TLWidthWidget(masterTLBus.beatBytes) :=   inject(p) :=   masterNodeView(masterTLBus, p)
       case BIND_QUERY => slaveNodeView(slaveTLBus, p) :=*  TLWidthWidget(masterTLBus.beatBytes) :=*  inject(p) :=*  masterNodeView(masterTLBus, p)
@@ -180,12 +158,10 @@ class TLBusWrapperConnection
     }
 
     if (flipRendering) { FlipRendering { implicit p =>
-      bindClocks(implicitly[Parameters])
       slaveTLBus.from(s"bus_named_${masterTLBus.busName}") {
         bindTLNodes(implicitly[Parameters])
       }
     } } else {
-      bindClocks(implicitly[Parameters])
       masterTLBus.to (s"bus_named_${slaveTLBus.busName}")  {
         bindTLNodes(implicitly[Parameters])
       }
