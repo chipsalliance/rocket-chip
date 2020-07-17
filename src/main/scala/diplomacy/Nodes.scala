@@ -43,10 +43,10 @@ trait InwardNodeImp[DI, UI, EI, BI <: Data]
     */
   def edgeI(pd: DI, pu: UI, p: Parameters, sourceInfo: SourceInfo): EI
 
-  /** Create an inward [[Bundle]] parameterized by the inward edge
+  /** Create an inward Bundle parameterized by the inward edge
     *
     * @param ei inward Edge of this node.
-    * @return inward [[Bundle]] of this node
+    * @return inward Bundle of this node
     */
   def bundleI(ei: EI): BI
 
@@ -94,10 +94,10 @@ trait OutwardNodeImp[DO, UO, EO, BO <: Data]
     */
   def edgeO(pd: DO, pu: UO, p: Parameters, sourceInfo: SourceInfo): EO
 
-  /** Create an outward [[Bundle]] parameterized by the inward edge
+  /** Create an outward Bundle parameterized by the inward edge
     *
     * @param eo the outward Edge of this node
-    * @return an outward [[Bundle]] of this node
+    * @return an outward Bundle of this node
     */
   def bundleO(eo: EO): BO
 
@@ -168,18 +168,18 @@ abstract class SimpleNodeImp[D, U, E, B <: Data]
     */
   def edgeI(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo): E = edge(pd, pu, p, sourceInfo)
 
-  /** Generate the [[Bundle]] from the negotiated Edge parameters.
+  /** Generate the Bundle from the negotiated Edge parameters.
     * 
     * @param e the negotiated Edge parameters
-    * @return the corresponding [[Bundle]] of this node
+    * @return the corresponding Bundle of this node
     */
   def bundle(e: E): B
-  /** Generate an output [[Bundle]] from the negotiated Edge parameters.
+  /** Generate an output Bundle from the negotiated Edge parameters.
     * 
     *  By default just calls [[bundle]].
     */
   def bundleO(e: E): B = bundle(e)
-  /** Generate an input [[Bundle]] from the negotiated Edge parameters.
+  /** Generate an input Bundle from the negotiated Edge parameters.
     * 
     *  By default just calls [[bundle]].
     */
@@ -751,7 +751,7 @@ case class UpwardCycleException(loop: Seq[String] = Nil) extends CycleException(
 
 /** [[Edges]] is a collection of parameters describing the functionality and connection for an interface,
   * which is often derived from the interconnection protocol and can inform the parameterization
-  * of the hardware [[Bundle]]s that actually implement the protocol.
+  * of the hardware Bundles that actually implement the protocol.
   */
 case class Edges[EI, EO](in: Seq[EI], out: Seq[EO])
 
@@ -797,7 +797,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inward = this
   val outward = this
 
-  /** For a given node, converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]].
+  /** For a given node, converts `OutwardNode.accPO` and `InwardNode.accPI` to `MixedNode.oPortMapping` and `MixedNode.iPortMapping`.
     *
     * Given counts of known inward and outward binding and inward and outward star bindings, return the resolved inward stars and outward stars.
     *
@@ -1017,7 +1017,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case Some ((j, m)) => iTrace((j, m, p, s))
     } }
 
-  /** Final output ports after all stars and port forwarding (e.g. [[EphermeralNode]]s) have been resolved.
+  /** Final output ports after all stars and port forwarding (e.g. [[EphemeralNode]]s) have been resolved.
     *  
     *  Each Port is a tuple of :
     * - numeric index of this binding in the [[InwardNode]] on the other end
@@ -1027,7 +1027,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     */
   lazy val oPorts: Seq[(Int, InwardNode[DO, UO, BO], Parameters, SourceInfo)] = oDirectPorts.map(oTrace)
 
-  /** Final input ports after all stars and port forwarding (e.g. [[EphermeralNode]]s) have been resolved.
+  /** Final input ports after all stars and port forwarding (e.g. [[EphemeralNode]]s) have been resolved.
     *  
     *  Each Port is a tuple of :
     * - numeric index of this binding in [[OutwardNode]] on the other end
@@ -1084,10 +1084,10 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   // is a Chisel/firrtl bug or whether this should be supported,
   // but as of today it does not work to do so.
 
-  /**Create actual [[Wire]]s corresponding to the [[Bundle]]s parameterized by the outward edges of this Node. */
+  /**Create actual Wires corresponding to the Bundles parameterized by the outward edges of this Node. */
   protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
 
-  /**Create actual [[Wire]]s corresponding to the [[Bundle]]s parameterized by the inward edges of this Node. */
+  /**Create actual Wires corresponding to the Bundles parameterized by the inward edges of this Node. */
   protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
 
   /** Create the [[Dangle]]s which describe the connections from this node output to other nodes inputs */
@@ -1134,7 +1134,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected val identity = false
 
   /** Actually instantiate this node during [[LazyModuleImp]] evaluation.
-    *  Mark that it's safe to use the [[Bundle]] wires,
+    *  Mark that it's safe to use the Bundle wires,
     *  instantiate monitors on all input ports if appropriate,
     *  and return all the dangles of this node.
     */
@@ -1147,7 +1147,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     danglesOut ++ danglesIn
   }
 
-  /* Complete instantiation. It is no longer safe to access the [[Bundle]]
+  /* Complete instantiation. It is no longer safe to access the Bundle
    * wires as the [[LazyModuleImp]] has been completely evaluated
    *  to create a [[Module]].
    */

@@ -26,9 +26,9 @@ import scala.language.implicitConversions
   * creating and associating application-specific node, edge, parameter, and bundle types.
   *
   *
-  * # Concepts, metaphors, and mnemonics to help with understanding Diplomacy code:
+  * =Concepts, metaphors, and mnemonics to help with understanding Diplomacy code=
   *
-  * ## Parameter Types
+  * ==Parameter Types==
   *  
   *  There are several types of parameters involved in diplomacy code.
   *  
@@ -44,7 +44,7 @@ import scala.language.implicitConversions
   *    diplomatic components. In contrast to edge parameters, this may carry information like the width of an address
   *    or opcode field.
   *  
-  * ## Inward/Outward vs. Upward/Downward
+  * ==Inward/Outward vs. Upward/Downward==
   *
   * Diplomacy defines two dimensions: inward/outward and upward/downward.
   *
@@ -67,7 +67,7 @@ import scala.language.implicitConversions
   * parameters that move in the upstream direction while downward refers to
   * parameters that move in the downstream direction.
   *
-  * ## Acronyms
+  * ==Acronyms==
   *  
   * Diplomacy has some commonly used acronyms described below:
   *   D[IO], U[IO], E[IO], B[IO] are the types of parameters which will be propagated.
@@ -77,7 +77,9 @@ import scala.language.implicitConversions
   *   B: Bundle should extends from [[chisel3.Data]].
   *
   *
-  * # Anatomy of a Node:
+  * == Anatomy of a diplomacy Node== 
+  *  
+  *  {{{
   *
   *  
   *                                        ↓                      Upwards (aka Source)
@@ -122,47 +124,50 @@ import scala.language.implicitConversions
   *                                        ↓
   *                                        ↓                          Downwards (aka Sink)
   *
+  * }}}
+  * 
+  * == Handles ==
   *
-  * # Handles
-  *
-  * Two Diplomatic nodes can be bound together using the := operator or one of
+  * Two Diplomatic nodes can be bound together using the `:=` operator or one of
   * its sibling operators. Binding is asymmetric, and the binding operation will
   * connect the outer side of one node to the inner side of the other.
   *
-  * For example, the expression a := b will connect the outer side of b to the
-  * inner side of a.
+  * For example, the expression `a := b` will connect the outer side of `b` to the
+  * inner side of `a`.
   *
-  * We would like the := operator to have additional properties that make it
+  * We would like the `:=` operator to have additional properties that make it
   * intuitive to use:
   *
-  * 1. It should be chainable, so that a := b := c will have the intuitive effect
-  *    of binding c to b and b to a. This requires that the return type of := be the
-  *    same as its arguments, because the result of one := operation must be
-  *    valid as an argument to other := operation.
+  * 1. It should be chainable, so that `a := b := c` will have the intuitive effect
+  *    of binding c to b and b to a. This requires that the return type of `:=` be the
+  *    same as its arguments, because the result of one `:=` operation must be
+  *    valid as an argument to other `:=` operations.
   *
-  * 2. It should be associative, so that (a := b) := c is equivalent to a := (b
-  *    := c). This means that the order in which the bind operations execute does
+  * 2. It should be associative, so that `(a := b) := c` is equivalent to `a := (b := c).`
+  *    This means that the order in which the bind operations execute does
   *    not matter, even if split across multiple files.
   *
-  * 3. a := b should only be allowed if and only if b allows outward edges and a
+  * 3. `a := b` should only be allowed if and only if `b` allows outward edges and `a`
   *    allows inward edges. This should be preserved even when chaining
   *    operations, and it should ideally be enforced at compile time.
   *
-  * Handles are a way of satisfying all of these properties. A Handle represents
+  * [[Handle]]s are a way of satisfying all of these properties. A Handle represents
   * the aggregation of a chain of Nodes, and it preserves information about
   * the connectability of the innermost and the outermost sides of the chain.
   *
-  * If b supports inward edges, then a := b returns a Handle that supports inward
-  * edges that go into b. If a supports outward edges, then a := b returns a
-  * Handle that supports outward edges coming out of a.
+  * If `b` supports inward edges, then `a := b` returns a [[Handle]] that supports inward
+  * edges that go into `b`. If `a` supports outward edges, then `a := b` returns a
+  * [[Handle]] that supports outward edges coming out of `a`.
   *
-  *  ## Node Terms
+  *  ==Node Terms==
   *
-  *  These are some common terms for Nodes:
+  *  These are some conventionally used terms for diplomatic Nodes:
   *    - Mixed: implies that the inward and outward NodeImp are not the same (some sort of protocol conversion is occuring)
   *    - Adapter: the number of inward and outward edges are the same
   *    - Nexus: the number of nodes connecting from either side is unknown
-  *    -  
+  *    - Identity: modifies neither the parameters nor the protocol for the edges that pass through it
+  *    - Source: cannot have inward edges
+  *    - Sink: cannot have outward edges
   */
 package object diplomacy
 {
