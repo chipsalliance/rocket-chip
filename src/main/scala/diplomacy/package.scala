@@ -132,7 +132,7 @@ import scala.language.implicitConversions
   * For example, the expression a := b will connect the outer side of b to the
   * inner side of a.
   *
-  * The := operator has additional properties that make it
+  * We would like the := operator to have additional properties that make it
   * intuitive to use:
   *
   * 1. It should be chainable, so that a := b := c will have the intuitive effect
@@ -155,7 +155,14 @@ import scala.language.implicitConversions
   * If b supports inward edges, then a := b returns a Handle that supports inward
   * edges that go into b. If a supports outward edges, then a := b returns a
   * Handle that supports outward edges coming out of a.
-  *  
+  *
+  *  ## Node Terms
+  *
+  *  These are some common terms for Nodes:
+  *    - Mixed: implies that the inward and outward NodeImp are not the same (some sort of protocol conversion is occuring)
+  *    - Adapter: the number of inward and outward edges are the same
+  *    - Nexus: the number of nodes connecting from either side is unknown
+  *    -  
   */
 package object diplomacy
 {

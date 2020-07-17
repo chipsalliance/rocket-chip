@@ -269,7 +269,16 @@ abstract class BaseNode(implicit val valName: ValName)
   /** @return metedata to visualize outward edges from this node. */
   def outputs: Seq[(BaseNode, RenderedEdge)]
 
-  /** @return whether this node can handle [[BIND_FLEX]] type connections.
+  /** @return whether this node can handle [[BIND_FLEX]] type connections on either side.
+    *  
+    *  For example, a node `b` will have `flexibleArityDirection` be `true` if both are legal:
+    *  
+    *    `a :*=* b :*= c`, which resolves to `a :*= b :*= c`
+    *    OR 
+    *    ` a :=* b :*=* c`, which resolves to `a :=* b :=* c`
+    *  
+    *  If this is false, the node can only support `:*=*` if it connects to a node with
+    *  `flexibleArityDirection` = true
     */
   protected[diplomacy] def flexibleArityDirection: Boolean = false
 
@@ -294,7 +303,7 @@ abstract class BaseNode(implicit val valName: ValName)
 
   /** Resolves the flex to be either source or sink.
     *
-    * @return a value >= 0 if it is sink cardinality, a negative value for source cardinality.
+    * @return a value >= 0 if it is sink cardinality, a negative value for source cardinality. The magnitude of the value does not matter.
     */
   protected[diplomacy] val flexOffset: Int
 }
@@ -634,11 +643,14 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
     */
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
 
-  /** @todo */
+  /** "Forward" an input connection through this node so that the node can be removed from the graph.
+    *  
+    *  @return None if no forwarding is needing.
+    */
   protected[diplomacy] def iForward(x: Int): Option[(Int, InwardNode[DI, UI, BI])] = None
   /** Downstream inward parameters.
     *
-    * Generated from other nodes.
+    * Generated from the other nodes this node is connected to.
     */
   protected[diplomacy] val diParams: Seq[DI]
   /** Upstream inward parameters.
@@ -647,6 +659,11 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
     */
   protected[diplomacy] val uiParams: Seq[UI]
 
+  /* Create a binding from this node to an OutwardNode
+   *  
+   *  @param h the [[OutwardNode]] to bind to
+   *  @param binding [[NodeBinding]] the type of binding
+   */
   protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit
 }
 
@@ -708,11 +725,14 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
     * */
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
 
-  /** @todo */
+  /** "Forward" an output connection through this node so that the node can be removed from the graph.
+    *  
+    *  @return None if no forwarding is needed.
+    */
   protected[diplomacy] def oForward(x: Int): Option[(Int, OutwardNode[DO, UO, BO])] = None
   /** Upstream outward parameters.
     *
-    * Generated from other nodes.
+    * Generated from the other nodes that this is connected to.
     * For specific diagram, see Parameter propagation flow on the top.
     */
   protected[diplomacy] val uoParams: Seq[UO]
@@ -816,9 +836,9 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   /** Return list of nodes involved in flex bindings with this node */
   protected[diplomacy] lazy val flexes: Seq[BaseNode] = oBindings.filter(_._3 == BIND_FLEX).map(_._2) ++ iBindings.filter(_._3 == BIND_FLEX).map(_._2)
 
-  /** Resolves the flex to be either source or sink and returns the offset where the "star" operators begin greedily taking up the remaining connections.
+  /** Resolves the flex to be either source or sink.
     *
-    * @return The offset where star operators become greedy. A value >= 0 if it is sink cardinality, a negative value for source cardinality.
+    * @return A value >= 0 if it is sink cardinality, a negative value for source cardinality. The magnitude of the return value is not relevant.
     */
   protected[diplomacy] lazy val flexOffset: Int = {
 
@@ -827,6 +847,10 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     // The algorithm bottoms out when we either get to a node we have already visited
     // or when we get to a connection that is not a flex and can set the direction
     // for us.
+    // Otherwise, recurse by visiting the `flexes` of each node in the current set
+    // and decide whether they should be added to the set or not.
+    //
+    // Returns the mapping of [[BaseNode]] indexed by their serial numbers.
     def DFS(v: BaseNode, visited: Map[Int, BaseNode]): Map[Int, BaseNode] = {
       if (visited.contains(v.serial) || !v.flexibleArityDirection) {
         visited
@@ -835,12 +859,16 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       }
     }
 
-    // a partial flex set connect to this node, for example
+    // Determine which [[BaseNode]] are involved in resolving the
+    // flex connections to/from this node.
+    // For example, in a system with:
+    // 
     // {{{
     //   a :*=* b :*=* c
     //   d :*=* b
     //   e :*=* f
     // }}}
+    // 
     // `flexSet` for `a`, `b`, `c`, or `d` will be `Set(a, b, c, d)`
     // `flexSet` for `e` or `f` will be `Set(e,f)`
     //
@@ -854,91 +882,118 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
     require (flexSet.size == 1 || allSink == 0 || allSource == 0,
       s"The nodes ${flexSet.map(_.name)} which are inter-connected by :*=* have $allSink :*= operators and $allSource :=* operators connected to them, making it impossible to determine cardinality inference direction.")
+
+    // Return the result of the "votes" for whether the flex operator should resolve to sink or source
     allSink - allSource
   }
 
-  /** 
-    *  
-    * @return a value >= 0 if it is sink cardinality, a negative value for source cardinality.
-
-
-    * @return a positive number if source direction, negative otherwise.
-    */
+  /** @return a value >= 0 if it is sink cardinality, a negative value for source cardinality. */
   protected[diplomacy] def edgeArityDirection(n: BaseNode): Int = {
     if (  flexibleArityDirection)   flexOffset else
     if (n.flexibleArityDirection) n.flexOffset else
     0
   }
 
-  /** @todo */
+  /** For a node which is connected between two nodes, select the one that will influence the direction of the flex resolution. */
   protected[diplomacy] def edgeAritySelect(n: BaseNode, l: => Int, r: => Int): Int = {
     val dir = edgeArityDirection(n)
     if (dir < 0) l else if (dir > 0) r else 1
   }
 
+  /** Ensure that the same node is not visited twice in resolving :*=, etc operators. */
   private var starCycleGuard = false
 
-  // solver of binding.
-  // convert node binding to node port.
-  protected[diplomacy] lazy val (oPortMapping, iPortMapping, oStar, iStar) = {
+  // Resolve all the star operators into concrete indicies.
+  // As connections are being made, some may be "star" connections which need to be resolved
+  // in some way to determine how many actual edges they correspond to.
+  // We also need to build up the ranges of edges which correspond to each binding operator, so that
+  // we can apply the correct edge parameters and later build up correct bundle connections.
+  // 
+  // oPortMapping: Seq[(Int, Int)] where each item is the range of edges corresponding to that oPort (binding operator)
+  // iPortMapping: Seq[(Int, Int)] where each item is the range of edges corresponding to that iPort (binding operator)
+  // oStar: Int
+  // iStar: Int
+  protected[diplomacy] lazy val (oPortMapping: Seq[(Int, Int)], iPortMapping: Seq[(Int, Int)], oStar: Int, iStar: Int) = {
     try {
       if (starCycleGuard) throw StarCycleException()
       starCycleGuard = true
-      /** number of [[BIND_STAR]] in [[OutwardNode]]s connected to this node. */
+      // For a given node N...
+      //   Number of foo :=* N
+      // + Number of bar :=* foo :*=* N
       val oStars = oBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) < 0) }
-      /** number of [[BIND_STAR]] in [[InwardNode]]s connected to this node. */
+      //   Number of N :*= foo
+      // + Number of N :*=* foo :*= bar
       val iStars = iBindings.count { case (_,n,b,_,_) => b == BIND_STAR || (b == BIND_FLEX && edgeArityDirection(n) > 0) }
-      /** number of known node in [[OutwardNode]]s connected to this node. */
+      //   1         for foo := N
+      // + bar.iStar for bar :*= foo :*=* N
+      // + foo.iStar for foo :*= N
+      // + 0         for foo :=* N 
       val oKnown = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, 0, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => 0 }}.sum
-      /** number of known node in [[InwardNode]]s connected to this node. */
+      //   1         for N := foo
+      // + bar.oStar for N :*=* foo :=* bar
+      // + foo.oStar for N :=* foo
+      // + 0         for N :*= foo
       val iKnown = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, n.oStar, 0)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => 0 }}.sum
+      // resolve star depends on the node subclass to implement the algorithm for this.
+      // istar is the value to return for this node N for any N :*= foo or N :*=* foo :*= bar
+      // ostar is the value to return for this node N for any foo :=* N or bar :=* foo :*=* N 
       val (iStar, oStar) = resolveStar(iKnown, oKnown, iStars, oStars)
-      /** cumulative list of resolved outward nodes number. */
+      // cumulative list of resolved outward binding range starting points
       val oSum = oBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, oStar, n.iStar)
         case BIND_QUERY => n.iStar
         case BIND_STAR  => oStar }}.scanLeft(0)(_+_)
-      /** cumulative list of resolved inward nodes number. */
+      // cumulative list of resolved inward binding range starting points
       val iSum = iBindings.map { case (_, n, b, _, _) => b match {
         case BIND_ONCE  => 1
         case BIND_FLEX  => edgeAritySelect(n, n.oStar, iStar)
         case BIND_QUERY => n.oStar
         case BIND_STAR  => iStar }}.scanLeft(0)(_+_)
-      /** @todo [[oTotal]] and [[iTotal]] is not used. */
+      // Total number of output edges
       val oTotal = oSum.lastOption.getOrElse(0)
+      // Total number of input edges
       val iTotal = iSum.lastOption.getOrElse(0)
+      // Create ranges for each binding based on the running sums and return
+      // those along with resolved values for the star operations.
       (oSum.init zip oSum.tail, iSum.init zip iSum.tail, oStar, iStar)
     } catch {
       case c: StarCycleException => throw c.copy(loop = context +: c.loop)
     }
   }
-  /** Sequence of inward ports after resolved star of node binding.
+
+  /** Sequence of inward ports.
+    *  
+    *  This should be called after all star bindings are resolved.
     *
-    * `j` port index of this node in in the other side of node `n`.
+    *  Each element is:
+    * `j` port index of this binding in the Node's oPortMapping on the other side of the binding
     * `n` instance of inward node.
-    * `p` parameter of inward node.
-    * `s` source info.
+    * `p` Parameters
+    * `s` source info where this connetion was made in the source code
     */
   protected[diplomacy] lazy val oDirectPorts: Seq[(Int, InwardNode[DO, UO, BO], Parameters, SourceInfo)] = oBindings.flatMap { case (i, n, _, p, s) =>
+    // for each binding operator in this node, look at what it connects to
     val (start, end) = n.iPortMapping(i)
     (start until end) map { j => (j, n, p, s) }
   }
 
-  /** Sequence of outward ports after resolved star of node binding.
+  /** Sequence of outward ports.
     *
-    * `j` port index of this node in in the other side of node `n`.
+    *  This should be called after all star bindings are resolved.
+    *
+    * `j` port index of this binding in the Node's oPortMapping on the other side of the binding.
     * `n` instance of outward node.
-    * `p` parameter of outward node.
-    * `s` source info.
+    * `p` Parameters
+    * `s` source info where this connection was made in the source code
     */
   protected[diplomacy] lazy val iDirectPorts: Seq[(Int, OutwardNode[DI, UI, BI], Parameters, SourceInfo)] = iBindings.flatMap { case (i, n, _, p, s) =>
     // query this port index range of this node in the other side of node.
@@ -946,7 +1001,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     (start until end) map { j => (j, n, p, s) }
   }
 
-  // Ephemeral nodes have in_degree = out_degree
+  // Ephemeral nodes ( which have non-None iForward/oForward) have in_degree = out_degree
   // Thus, there must exist an Eulerian path and the below algorithms terminate
   @scala.annotation.tailrec
   private def oTrace(tuple: (Int, InwardNode[DO, UO, BO], Parameters, SourceInfo)): (Int, InwardNode[DO, UO, BO], Parameters, SourceInfo) =
@@ -962,8 +1017,24 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       case Some ((j, m)) => iTrace((j, m, p, s))
     } }
 
+  /** Final output ports after all stars and port forwarding (e.g. [[EphermeralNode]]s) have been resolved.
+    *  
+    *  Each Port is a tuple of :
+    * - numeric index of this binding in the [[InwardNode]] on the other end
+    * - [[InwardNode]] on the other end of this binding
+    * - a [[Parameters]] instance
+    * - [[SourceInfo]] for source-level error reporting
+    */
   lazy val oPorts: Seq[(Int, InwardNode[DO, UO, BO], Parameters, SourceInfo)] = oDirectPorts.map(oTrace)
 
+  /** Final input ports after all stars and port forwarding (e.g. [[EphermeralNode]]s) have been resolved.
+    *  
+    *  Each Port is a tuple of :
+    * - numeric index of this binding in [[OutwardNode]] on the other end
+    * - [[OutwardNode]] on the other end of this binding
+    * - a [[Parameters]] instance
+    * - [[SourceInfo]] for source-level error reporting
+    */
   lazy val iPorts: Seq[(Int, OutwardNode[DI, UI, BI], Parameters, SourceInfo)] = iDirectPorts.map(iTrace)
 
   private var oParamsCycleGuard = false
@@ -1000,7 +1071,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   /** Inward edge Parameters. */
   protected[diplomacy] lazy val edgesIn: Seq[EI] = (iPorts zip uiParams).map { case ((o, n, p, s), i) => inner.edgeI(n.doParams(o), i, p, s) }
 
-  /** The [[Edges]] instance of [[edgesIn]] and [[edgesOut]]
+  /** A tuple of the input edge parameters and output edge parameters for the edges bound to this node.
     *
     * If you need to access to the edges of a foreign Node, use this method (in/out create bundles)
     */
@@ -1013,13 +1084,13 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   // is a Chisel/firrtl bug or whether this should be supported,
   // but as of today it does not work to do so.
 
-  /** Chisel Data of outward ports. */
+  /**Create actual [[Wire]]s corresponding to the [[Bundle]]s parameterized by the outward edges of this Node. */
   protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
 
-  /** Chisel Data of inward ports. */
+  /**Create actual [[Wire]]s corresponding to the [[Bundle]]s parameterized by the inward edges of this Node. */
   protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
 
-  /** Gather Edge and Bundle of outward ports. */
+  /** Create the [[Dangle]]s which describe the connections from this node output to other nodes inputs */
   protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(serial, i),
@@ -1029,7 +1100,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       data   = bundleOut(i))
   }
 
-  /** Gather Edge and Bundle of inward ports. */
+  /** Create the [[Dangle]]s which describe the connections from this node input from other nodes outpts */
   protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(n.serial, j),
@@ -1041,21 +1112,32 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   private var bundlesSafeNow = false
 
-  // Accessors to the result of negotiation to be used in [[LazyModuleImp]].
-  /** Gather Bundle and Edge of outward ports. */
+  /** Gather Bundle and edge parameters of outward ports.
+    *  
+    *  Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code
+    */
   def out: Seq[(BO, EO)] = {
     require(bundlesSafeNow, s"$name.out should only be called from the context of its module implementation")
     bundleOut zip edgesOut
   }
 
-  /** Gather Bundle and Edge of inward ports. */
+  /** Gather Bundle and edge parameters of inward ports.
+    *
+    *  Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code
+    */
   def in: Seq[(BI, EI)] = {
     require(bundlesSafeNow, s"$name.in should only be called from the context of its module implementation")
     bundleIn zip edgesIn
   }
 
-  // Used by LazyModules.module.instantiate
+  /* If this node does not need monitoring, set this value to true. */
   protected val identity = false
+
+  /** Actually instantiate this node during [[LazyModuleImp]] evaluation.
+    *  Mark that it's safe to use the [[Bundle]] wires,
+    *  instantiate monitors on all input ports if appropriate,
+    *  and return all the dangles of this node.
+    */
   protected[diplomacy] def instantiate(): Seq[Dangle] = {
     bundlesSafeNow = true
     if (!identity) {
@@ -1065,6 +1147,10 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     danglesOut ++ danglesIn
   }
 
+  /* Complete instantiation. It is no longer safe to access the [[Bundle]]
+   * wires as the [[LazyModuleImp]] has been completely evaluated
+   *  to create a [[Module]].
+   */
   protected[diplomacy] def finishInstantiate(): Unit = {
     bundlesSafeNow = false
   }
@@ -1084,15 +1170,16 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     x.iPush(o, y, binding)
   }
 
-  // meta-data for printing the node graph
+  /* meta-data for printing the node graph */
   def inputs: Seq[(OutwardNode[DI, UI, BI], RenderedEdge)] = (iPorts zip edgesIn) map { case ((_, n, p, _), e) =>
     val re = inner.render(e)
     (n, re.copy(flipped = re.flipped != p(RenderFlipped)))
   }
+  /** meta-data for printing the node graph */
   def outputs: Seq[(InwardNode[DO, UO, BO], RenderedEdge)] = oPorts map { case (i, n, _, _) => (n, n.inputs(i)._2) }
 }
 
-/** A MixedNode that may be extended with custom behavior. */
+/** A [[MixedNode]] that may be extended with custom behavior. */
 abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
   outer: OutwardNodeImp[DO, UO, EO, BO])(
@@ -1107,7 +1194,7 @@ abstract class MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
 /** A [[NodeImp]] that may be extended with custom behavior.
   *
-  * Different from a [[MixedNode]] in that the inner and outer NodeImps are the same.
+  * Different from a [[MixedNode]] in that the inner and outer [[NodeImp]]s are the same.
   */
 abstract class CustomNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
@@ -1177,7 +1264,7 @@ class MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
 /** A node type which has a fixed ratio between the number of input edges and output edges.
   *
-  * The NodeImp on either side is the same (this is not  MixedNode).
+  * The [[NodeImp]] on either side is the same.
   *
   * One example usage would be for putting down a series of  2:1 arbiters.
   *
@@ -1196,12 +1283,13 @@ class JunctionNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   implicit valName: ValName)
     extends MixedJunctionNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
 
-/** [[MixedAdapterNode]] is used to transform between different diplomacy protocols ([[NodeImp]]).
+/** [[MixedAdapterNode]] is used to transform between different diplomacy protocols ([[NodeImp]]), without changing the number of edges passing through it.
   *
-  * For example, an [[MixedAdapterNode]] is needed for a TL to AXI bridge (interface).
+  * For example, a [[MixedAdapterNode]] is needed for a TL to AXI bridge (interface).
   * {{{
   *   case class TLToAXI4Node(stripBits: Int = 0)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)
   * }}}
+  *
   * @param dFn convert downward parameter from input to output
   * @param uFn convert upward parameter from output to input
   */
@@ -1247,7 +1335,7 @@ class AdapterNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
 
 /** A node which does not modify the parameters nor the protocol for edges that pass through it.
   *
-  * During hardware generation, identityNodes automatically connect their inputs to outputs
+  * During hardware generation, identityNodes automatically connect their inputs to outputs.
   */
 class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
@@ -1272,14 +1360,14 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
   override protected[diplomacy] def instantiate(): Seq[Dangle] = Nil
 }
 
-/** [[MixedNexusNode]] is used when the number of nodes connecting from either side is unknown (e.g. a Crossbar).
+/** [[MixedNexusNode]] is used when the number of nodes connecting from either side is unknown (e.g. a Crossbar which also is a protocol adapter).
   *
-  * [[NodeImp]] is different between [[inner]] and [[outer]],
+  * The [[NodeImp]] is different between [[inner]] and [[outer]],
   *
   * @param dFn                 function for mapping the parameters flowing downward into new outward flowing down parameters.
   * @param uFn                 function for mapping the parameters flowing upward into new inward flowing up parameters.
-  * @param inputRequiresOutput @todo
-  * @param outputRequiresInput @todo
+  * @param inputRequiresOutput true if it is required that if there are input connections, there are output connections (this node can't just be a sink).
+  * @param outputRequiresInput true if it is required that if there are output connections, there are input connections (this node can't just be a source).
   */
 class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
@@ -1303,7 +1391,7 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = { if (n > 0) { val a = uFn(p); Seq.fill(n)(a) } else Nil }
 }
 
-/** [[NexusNode]] is a [[MixedNexusNode]], which `inner` and `outer` has same [[NodeImp]]. */
+/** [[NexusNode]] is a [[MixedNexusNode]], in which `inner` and `outer` have the same [[NodeImp]]. */
 class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   dFn: Seq[D] => D,
   uFn: Seq[U] => U,
@@ -1314,7 +1402,7 @@ class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
 
 /** A node which represents a node in the graph which only has outward edges and no inward edges.
   *
-  * A [[SourceNode]] cannot appear left of a `:=`， `:*=`, `:*=*`
+  * A [[SourceNode]] cannot appear left of a `:=`, `:*=`, `:=*, or `:*=*`
   * There are no Mixed SourceNodes.
   */
 class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
@@ -1343,7 +1431,7 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
 
 /** A node which represents a node in the graph which has only inward edges, no outward edges.
   *
-  * A [[SinkNode]] cannot appear cannot appear right of a `:=`， `:*=`,  `:=*`, `:*=*`
+  * A [[SinkNode]] cannot appear cannot appear right of a `:=`, `:*=`, `:=*`, or `:*=*`
   *
   * There are no Mixed SinkNodes.
   */
