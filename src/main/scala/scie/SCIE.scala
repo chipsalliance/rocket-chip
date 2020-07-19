@@ -179,7 +179,7 @@ class SCIEPipelined(xLen: Int) extends BlackBox(Map("XLEN" -> xLen)) with HasBla
       |    else
       |    begin
       |      /* If Funct3[0] = 1, the output is their sum. */
-      |      result = 0;
+      |      result = {XLEN{1'b0}};
       |      for (i = 0; i < XLEN/8; i = i + 1)
       |      begin
       |        result = result + {{(XLEN-8){1'b0}}, absolute_differences[8*i +: 8]};
