@@ -100,7 +100,7 @@ case class TransferSizes(min: Int, max: Int)
 
   // Not a union, because the result may contain sizes contained by neither term
   // NOT TO BE CONFUSED WITH COVERPOINTS
-  def cover(x: TransferSizes) = {
+  def mincover(x: TransferSizes) = {
     if (none) {
       x
     } else if (x.none) {
