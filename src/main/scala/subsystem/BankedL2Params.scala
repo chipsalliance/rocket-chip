@@ -8,6 +8,7 @@ import freechips.rocketchip.devices.tilelink.BuiltInDevices
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 import CoherenceManagerWrapper._
 
@@ -37,7 +38,8 @@ case class CoherenceManagerWrapperParams(
     blockBytes: Int,
     beatBytes: Int,
     nBanks: Int,
-    name: String)
+    name: String,
+    clockSinkWhere: Option[ClockSinkLocation] = None)
   (val coherenceManager: CoherenceManagerInstantiationFn)
   extends HasTLBusParams 
   with TLBusWrapperInstantiationLike
@@ -45,9 +47,11 @@ case class CoherenceManagerWrapperParams(
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
     val cmWrapper = LazyModule(new CoherenceManagerWrapper(this, context))
+    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
     cmWrapper.suggestName(loc.name + "_wrapper")
     cmWrapper.halt.foreach { context.anyLocationMap += loc.halt(_) }
     context.tlBusWrapperLocationMap += (loc -> cmWrapper)
+    context.anyLocationMap += (clockSinkLocation -> cmWrapper.clockSinkNode)
     cmWrapper
   }
 }

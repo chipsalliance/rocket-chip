@@ -333,7 +333,8 @@ case class AddressAdjusterWrapperParams(
   forceLocal: Seq[AddressSet] = Nil,
   localBaseAddressDefault: Option[BigInt] = None,
   policy: TLFIFOFixer.Policy = TLFIFOFixer.allVolatile,
-  ordered: Boolean = true
+  ordered: Boolean = true,
+  clockSinkWhere: Option[ClockSinkLocation] = None
 )
   extends HasTLBusParams
   with TLBusWrapperInstantiationLike
@@ -341,8 +342,10 @@ case class AddressAdjusterWrapperParams(
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
     val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, loc.name))
+    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
     aaWrapper.suggestName(loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> aaWrapper)
+    context.anyLocationMap += (clockSinkLocation -> aaWrapper.clockSinkNode)
     aaWrapper
   }
 }
