@@ -557,11 +557,10 @@ class TLSlavePortParameters private(
   def mayDenyGet  = slaves.exists(_.mayDenyGet)
   def mayDenyPut  = slaves.exists(_.mayDenyPut)
 
-  // Diplomatically determined operation sizes supported by all outward Slaves
-  // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
+  // Diplomatically determined operation sizes emitted by all outward Slaves
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val allEmitClaims = slaves.map(_.emits).reduce( _ intersect _)
-  val allEmitClaimsAcquireT   = allEmitClaims.acquireT
-  val allEmitClaimsAcquireB   = allEmitClaims.acquireB
+  val allEmitClaimsAcquireT   = allEmitClaims.probe
   val allEmitClaimsArithmetic = allEmitClaims.arithmetic
   val allEmitClaimsLogical    = allEmitClaims.logical
   val allEmitClaimsGet        = allEmitClaims.get
@@ -569,10 +568,10 @@ class TLSlavePortParameters private(
   val allEmitClaimsPutPartial = allEmitClaims.putPartial
   val allEmitClaimsHint       = allEmitClaims.hint
 
-  // Operation Emited by at least one outward Slaves
+  // Operation Emitted by at least one outward Slaves
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val anyEmitClaims = slaves.map(_.emits).reduce(_ cover _)
-  val anyEmitClaimsAcquireT   = !anyEmitClaims.acquireT.none
-  val anyEmitClaimsAcquireB   = !anyEmitClaims.acquireB.none
+  val anyEmitClaimsAcquireT   = !anyEmitClaims.probe.none
   val anyEmitClaimsArithmetic = !anyEmitClaims.arithmetic.none
   val anyEmitClaimsLogical    = !anyEmitClaims.logical.none
   val anyEmitClaimsGet        = !anyEmitClaims.get.none
@@ -581,7 +580,7 @@ class TLSlavePortParameters private(
   val anyEmitClaimsHint       = !anyEmitClaims.hint.none
 
   // Diplomatically determined operation sizes supported by all outward Slaves
-  // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val allSupports = slaves.map(_.supports).reduce( _ intersect _)
   val allSupportAcquireT   = allSupports.acquireT
   val allSupportAcquireB   = allSupports.acquireB
@@ -593,6 +592,7 @@ class TLSlavePortParameters private(
   val allSupportHint       = allSupports.hint
 
   // Operation supported by at least one outward Slaves
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val anySupports = slaves.map(_.supports).reduce(_ cover _)
   val anySupportAcquireT   = !anySupports.acquireT.none
   val anySupportAcquireB   = !anySupports.acquireB.none
@@ -1142,7 +1142,32 @@ class TLMasterPortParameters private(
     }
   }
 
-  // Operation sizes supported by all inward Masters
+  // Diplomatically determined operation sizes emitted by all inward Masters
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val allEmitClaims = masters.map(_.emits).reduce( _ intersect _)
+  val allEmitClaimsAcquireT   = allEmitClaims.acquireT
+  val allEmitClaimsAcquireB   = allEmitClaims.acquireB
+  val allEmitClaimsArithmetic = allEmitClaims.arithmetic
+  val allEmitClaimsLogical    = allEmitClaims.logical
+  val allEmitClaimsGet        = allEmitClaims.get
+  val allEmitClaimsPutFull    = allEmitClaims.putFull
+  val allEmitClaimsPutPartial = allEmitClaims.putPartial
+  val allEmitClaimsHint       = allEmitClaims.hint
+
+  // Diplomatically determined operation sizes Emitted by at least one inward Masters
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val anyEmitClaims = masters.map(_.emits).reduce(_ cover _)
+  val anyEmitClaimsAcquireT   = !anyEmitClaims.acquireT.none
+  val anyEmitClaimsAcquireB   = !anyEmitClaims.acquireB.none
+  val anyEmitClaimsArithmetic = !anyEmitClaims.arithmetic.none
+  val anyEmitClaimsLogical    = !anyEmitClaims.logical.none
+  val anyEmitClaimsGet        = !anyEmitClaims.get.none
+  val anyEmitClaimsPutFull    = !anyEmitClaims.putFull.none
+  val anyEmitClaimsPutPartial = !anyEmitClaims.putPartial.none
+  val anyEmitClaimsHint       = !anyEmitClaims.hint.none
+
+  // Diplomatically determined operation sizes supported by all inward Masters
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val allSupportProbe      = masters.map(_.supportsProbe)     .reduce(_ intersect _)
   val allSupportArithmetic = masters.map(_.supportsArithmetic).reduce(_ intersect _)
   val allSupportLogical    = masters.map(_.supportsLogical)   .reduce(_ intersect _)
@@ -1151,7 +1176,8 @@ class TLMasterPortParameters private(
   val allSupportPutPartial = masters.map(_.supportsPutPartial).reduce(_ intersect _)
   val allSupportHint       = masters.map(_.supportsHint)      .reduce(_ intersect _)
 
-  // Operation is supported by at least one master
+  // Diplomatically determined operation sizes supported by at least one master
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val anySupportProbe      = masters.map(!_.supportsProbe.none)     .reduce(_ || _)
   val anySupportArithmetic = masters.map(!_.supportsArithmetic.none).reduce(_ || _)
   val anySupportLogical    = masters.map(!_.supportsLogical.none)   .reduce(_ || _)
@@ -1412,6 +1438,12 @@ case class TLEdgeParameters(
 
   // Sanity check the link...
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
+
+  def anyDiplomaticClaimsMasterToSlaveAcquireT = master.anyEmitClaimsAcquireT || slave.anySupportAcquireT
+  def anyDiplomaticClaimsMasterToSlaveAcquireB = master.anyEmitClaimsAcquireB || slave.anySupportAcquireB
+  def anyDiplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaimsArithmetic || slave.anySupportArithmetic
+  def anyDiplomaticClaimsMasterToSlaveLogical = master.anyEmitClaimsLogical || slave.anySupportLogical
+  def anyDiplomaticClaimsMasterToSlaveGet = master.anyEmitClaimsGet || slave.anySupportGet
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
