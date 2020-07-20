@@ -76,7 +76,9 @@ lazy val usePluginSettings = Seq(
 )
 
 lazy val chisel = (project in file("chisel3")).
-  settings(commonSettings)
+  settings(commonSettings).
+  settings(usePluginSettings).
+  dependsOn(plugin)
 
 def dependOnChisel(prj: Project) = {
   if (sys.props.contains("ROCKET_USE_MAVEN")) {
@@ -89,7 +91,7 @@ def dependOnChisel(prj: Project) = {
 }
 
 lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
-  .settings(commonSettings, usePluginSettings)
+  .settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val hardfloat  = dependOnChisel(project)
   .settings(commonSettings, usePluginSettings)
@@ -97,7 +99,9 @@ lazy val hardfloat  = dependOnChisel(project)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val rocketchip = dependOnChisel(project in file("."))
-  .settings(commonSettings, chipSettings, usePluginSettings)
+  .settings(commonSettings, chipSettings)
+  .settings(usePluginSettings)
+  .dependsOn(plugin)
   .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
   .dependsOn(hardfloat % "compile-internal;test-internal")
   .dependsOn(`rocket-macros` % "compile-internal;test-internal")
