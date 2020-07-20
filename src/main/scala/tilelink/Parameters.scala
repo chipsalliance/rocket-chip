@@ -306,7 +306,7 @@ class TLSlaveParameters private(
   def v2copy(
     nodePath:      Seq[BaseNode]                = nodePath,
     resources:     Seq[Resource]                = resources,
-    setName:       Option[String]               = setName,
+    name:          Option[String]               = name,
     address:       Seq[AddressSet]              = address,
     regionType:    RegionType.T                 = regionType,
     executable:    Boolean                      = executable,
@@ -320,7 +320,7 @@ class TLSlaveParameters private(
     new TLSlaveParameters(
       nodePath      = nodePath,
       resources     = resources,
-      setName       = setName,
+      setName       = name,
       address       = address,
       regionType    = regionType,
       executable    = executable,
@@ -420,7 +420,7 @@ object TLSlaveParameters {
     address:       Seq[AddressSet],
     nodePath:      Seq[BaseNode]                = Seq(),
     resources:     Seq[Resource]                = Seq(),
-    setName:       Option[String]               = None,
+    name:       Option[String]                  = None,
     regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
     executable:    Boolean                      = false,
     fifoId:        Option[Int]                  = None,
@@ -433,7 +433,7 @@ object TLSlaveParameters {
     new TLSlaveParameters(
     nodePath      = nodePath,
     resources     = resources,
-    setName       = setName,
+    setName       = name,
     address       = address,
     regionType    = regionType,
     executable    = executable,
