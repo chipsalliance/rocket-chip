@@ -47,11 +47,14 @@ case class CoherenceManagerWrapperParams(
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
     val cmWrapper = LazyModule(new CoherenceManagerWrapper(this, context))
-    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
+
     cmWrapper.suggestName(loc.name + "_wrapper")
     cmWrapper.halt.foreach { context.anyLocationMap += loc.halt(_) }
     context.tlBusWrapperLocationMap += (loc -> cmWrapper)
-    context.anyLocationMap += (clockSinkLocation -> cmWrapper.clockSinkNode)
+
+    clockSinkWhere.map { loc => context.anyLocationMap += (loc -> cmWrapper.clockSinkNode) }
+      .getOrElse { context.defaultClockLocationMap += (new ClockSinkLocation(s"${loc.name}_clocksink") -> cmWrapper.clockSinkNode) }
+
     cmWrapper
   }
 }

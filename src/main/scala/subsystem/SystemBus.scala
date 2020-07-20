@@ -25,10 +25,13 @@ case class SystemBusParams(
 {
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): SystemBus = {
     val sbus = LazyModule(new SystemBus(this, loc.name))
-    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
+
     sbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> sbus)
-    context.anyLocationMap += (clockSinkLocation -> sbus.clockSinkNode)
+
+    clockSinkWhere.map { loc => context.anyLocationMap += (loc -> sbus.clockSinkNode) }
+      .getOrElse { context.defaultClockLocationMap += (new ClockSinkLocation(s"${loc.name}_clocksink") -> sbus.clockSinkNode) }
+
     sbus
   }
 }

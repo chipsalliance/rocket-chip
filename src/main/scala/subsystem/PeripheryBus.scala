@@ -31,11 +31,13 @@ case class PeripheryBusParams(
 {
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
     val pbus = LazyModule(new PeripheryBus(this, loc.name))
-    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
 
     pbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> pbus)
-    context.anyLocationMap += (clockSinkLocation -> pbus.clockSinkNode)
+
+    clockSinkWhere.map { loc => context.anyLocationMap += (loc -> pbus.clockSinkNode) }
+      .getOrElse { context.defaultClockLocationMap += (new ClockSinkLocation(s"${loc.name}_clocksink") -> pbus.clockSinkNode) }
+
     pbus
   }
 }

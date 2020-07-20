@@ -31,6 +31,7 @@ trait HasPRCILocations extends HasLogicalHierarchy { this: LazyModule =>
   implicit val asyncClockGroupsNode: ClockGroupEphemeralNode
   val ibus: InterruptBusWrapper
   val anyLocationMap = LocationMap.empty[Any]
+  val defaultClockLocationMap = LocationMap.empty[ClockSinkNode]
 }
 
 /** Layers of hierarchy with this trait contain attachment points for TileLink interfaces */

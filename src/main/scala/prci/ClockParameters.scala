@@ -21,37 +21,21 @@ case class ClockTopology(val connections: Seq[(Location[ClockSinkNode], Location
 trait HasConfigurableClockTopology { this: Attachable =>
   def location: HierarchicalLocation
 
-  p(ClockTopologyLocated(location)) match {
-    case Some(clockMappings) => {
-      clockMappings.foreach { case(sinkLoc, sourceLoc) =>
-        val clockSink = anyLocationMap.required[ClockSinkNode](sinkLoc)
-        val clockSource = anyLocationMap.required[FixedClockBroadcastNode](sourceLoc)
-        clockSink := clockSource
-      }
-    }
-    case None => {
-      // If no explicit mapping is specified, create a default source node at this location
-      // and drive all sinks from the default source
-      require(anyLocationMap.keys.toSeq.collect{ case loc: ClockSourceLocation => loc }.isEmpty,
-        s"${location}'s contains clock sources, but no mapping has been specified")
+  p(ClockTopologyLocated(location)).foreach(_.foreach { case(sinkLoc, sourceLoc) =>
+    val clockSink = anyLocationMap.required[ClockSinkNode](sinkLoc)
+    val clockSource = anyLocationMap.required[FixedClockBroadcastNode](sourceLoc)
+    clockSink := clockSource
+  })
 
-      val clockSource = ClockSourceNode(freqMHz = 500)
-      val defaultSource = FixedClockBroadcast(Some(ClockParameters(freqMHz = 500))) := clockSource
+  // Create a default source node at this location
+  // and drive all sinks in the defaultClockLocationMap from the default source
+  val clockSource = ClockSourceNode(freqMHz = 500)
+  val defaultSource = FixedClockBroadcast(Some(ClockParameters(freqMHz = 500))) := clockSource
+  val clockSinks = defaultClockLocationMap.values.toSeq
+  clockSinks.foreach { sink => 
+    println(s"Assigning defauilt clock to ${sink}")
+    sink := defaultSource }
 
-      val clockSinks = anyLocationMap.values.toSeq.collect { case sink: ClockSinkNode => sink}
-      clockSinks.foreach { sink =>
-        sink := defaultSource
-      }
-
-      /*
-      InModuleBody {
-        val (clockBundle, _) = clockSource.out.head
-        clockBundle.clock := clock
-        clockBundle.clock := reset
-      }
-      */
-    }
-  }
 }
 
 // All Clock parameters specify only the PLL values required at power-on

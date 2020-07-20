@@ -342,10 +342,13 @@ case class AddressAdjusterWrapperParams(
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
     val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, loc.name))
-    val clockSinkLocation = clockSinkWhere.getOrElse(new ClockSinkLocation(s"${loc.name}_clocksink"))
+
     aaWrapper.suggestName(loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> aaWrapper)
-    context.anyLocationMap += (clockSinkLocation -> aaWrapper.clockSinkNode)
+
+    clockSinkWhere.map { loc => context.anyLocationMap += (loc -> aaWrapper.clockSinkNode) }
+      .getOrElse { context.defaultClockLocationMap += (new ClockSinkLocation(s"${loc.name}_clocksink") -> aaWrapper.clockSinkNode) }
+
     aaWrapper
   }
 }
