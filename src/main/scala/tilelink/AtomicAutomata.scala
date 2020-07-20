@@ -3,10 +3,13 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
+import Chisel.experimental.treedump
+import chisel3.experimental.dump
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
+
+import scala.math.{max, min}
 
 // Ensures that all downstream RW managers support Atomic operationss.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
@@ -73,6 +76,8 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       if (camSize > 0) {
         val initval = Wire(new TLAtomicAutomata.CAM_S(params))
         initval.state := FREE
+        @treedump
+        @dump
         val cam_s = RegInit(Vec.fill(camSize)(initval))
         val cam_a = Reg(Vec(camSize, new TLAtomicAutomata.CAM_A(params)))
         val cam_d = Reg(Vec(camSize, new TLAtomicAutomata.CAM_D(params)))
