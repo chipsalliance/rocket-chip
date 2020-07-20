@@ -13,6 +13,7 @@ case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHB
   dFn = { case mp =>
     TLMasterPortParameters.v2(
       masters = mp.masters.map { m =>
+        // This value should be constrained by a data width parameter that flows from masters to slaves
         // AHB fixed length transfer size maximum is 16384 = 1024 * 16 bits, hsize is capped at 111 = 1024 bit transfer size and hburst is capped at 111 = 16 beat burst
           TLMasterParameters.v2(
             name     = m.name,
