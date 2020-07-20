@@ -1439,11 +1439,14 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
-  def anyDiplomaticClaimsMasterToSlaveAcquireT = master.anyEmitClaimsAcquireT || slave.anySupportAcquireT
-  def anyDiplomaticClaimsMasterToSlaveAcquireB = master.anyEmitClaimsAcquireB || slave.anySupportAcquireB
+  def anyDiplomaticClaimsMasterToSlaveAcquireT   = master.anyEmitClaimsAcquireT   || slave.anySupportAcquireT
+  def anyDiplomaticClaimsMasterToSlaveAcquireB   = master.anyEmitClaimsAcquireB   || slave.anySupportAcquireB
   def anyDiplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaimsArithmetic || slave.anySupportArithmetic
-  def anyDiplomaticClaimsMasterToSlaveLogical = master.anyEmitClaimsLogical || slave.anySupportLogical
-  def anyDiplomaticClaimsMasterToSlaveGet = master.anyEmitClaimsGet || slave.anySupportGet
+  def anyDiplomaticClaimsMasterToSlaveLogical    = master.anyEmitClaimsLogical    || slave.anySupportLogical
+  def anyDiplomaticClaimsMasterToSlaveGet        = master.anyEmitClaimsGet        || slave.anySupportGet
+  def anyDiplomaticClaimsMasterToSlavePutFull    = master.anyEmitClaimsPutFull    || slave.anySupportPutFull
+  def anyDiplomaticClaimsMasterToSlavePutPartial = master.anyEmitClaimsPutPartial || slave.anySupportPutPartial
+  def anyDiplomaticClaimsMasterToSlaveHint       = master.anyEmitClaimsHint       || slave.anySupportHint
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
