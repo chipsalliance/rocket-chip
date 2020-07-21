@@ -4,8 +4,6 @@ package freechips.rocketchip.prci
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.{HeterogeneousBag}
 import scala.math.max
 import scala.collection.immutable.ListMap
 
@@ -23,7 +21,8 @@ case class ClockParameters(
 
 case class ClockSourceParameters(
   jitterPS: Option[Double] = None, // if known at chisel elaboration
-  give:     Option[ClockParameters] = None)
+  give:     Option[ClockParameters] = None,
+  name:     Option[String] = None)
 
 case class ClockSinkParameters(
   phaseDeg:      Double = 0,
@@ -31,7 +30,8 @@ case class ClockSinkParameters(
   phaseErrorDeg: Double = 5,
   freqErrorPPM:  Double = 10000,
   jitterPS:      Double = 200,
-  take:          Option[ClockParameters] = None) 
+  take:          Option[ClockParameters] = None,
+  name:          Option[String] = None)
 {
   require (phaseErrorDeg >= 0)
   require (freqErrorPPM >= 0)
@@ -74,36 +74,8 @@ case class ClockGroupEdgeParameters(
   val sourceParameters = ClockSourceParameters()
   val members: ListMap[String, ClockEdgeParameters] = ListMap(
     sink.members.zipWithIndex.map { case (s, i) =>
-      s"${sink.name}_${i}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
+      s"${sink.name}_${s.name.getOrElse(i)}" -> ClockEdgeParameters(sourceParameters, s, params, sourceInfo)
   }:_*)
 
   val bundle = ClockGroupBundleParameters(members.map{ case (k, v) => k -> v.bundle})
-}
-
-// Used to create simple clock group drivers that just use the Chisel implicit clock
-case class ClockGroupDriverParameters(
-  num: Int = 1,
-  driveFn: ClockGroupDriver.DriveFn = ClockGroupDriver.driveFromImplicitClock
-) {
-  def drive(node: ClockGroupEphemeralNode)(implicit p: Parameters, vn: ValName): ModuleValue[HeterogeneousBag[ClockGroupBundle]] = {
-    driveFn(node, num, p, vn)
-  }
-}
-
-object ClockGroupDriver {
-  type DriveFn = (ClockGroupEphemeralNode, Int, Parameters, ValName) => ModuleValue[HeterogeneousBag[ClockGroupBundle]]
-
-  def driveFromImplicitClock: DriveFn = { (groups, num, p, vn) =>
-    implicit val pp = p
-    val dummyClockGroupSourceNode: ClockGroupSourceNode = SimpleClockGroupSource(num)
-    groups :*= dummyClockGroupSourceNode
-    InModuleBody { HeterogeneousBag[ClockGroupBundle](Nil) }
-  }
-
-  def driveFromIOs: DriveFn = { (groups, num, p, vn) =>
-    implicit val pp = p
-    val ioClockGroupSourceNode = ClockGroupSourceNode(List.fill(num) { ClockGroupSourceParameters() })
-    groups :*= ioClockGroupSourceNode
-    InModuleBody { ioClockGroupSourceNode.makeIOs()(vn) }
-  }
 }

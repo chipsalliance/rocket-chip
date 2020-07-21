@@ -325,18 +325,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     * microarchitecture specific, so this may need to be overridden
     * in subclasses of this class.
     */
-  protected def makeMasterBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
-
-  /** External code looking to connect the ports where this tile masters an interconnect
-    * (while also crossing clock domains) can call this.
-    */
-  def crossMasterPort(): TLOutwardNode = {
-    val tlMasterXing = this.crossOut(crossing match {
-      case RationalCrossing(_) => this { makeMasterBoundaryBuffers } :=* masterNode
-      case _ => masterNode
-    })
-    tlMasterXing(crossing)
-  }
+  def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
 
   /** Helper function to insert additional buffers on slave ports at the boundary of the tile.
     *
@@ -344,24 +333,7 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
     * microarchitecture specific, so this may need to be overridden
     * in subclasses of this class.
     */
-  protected def makeSlaveBoundaryBuffers(implicit p: Parameters) = TLBuffer(BufferParams.none)
-
-  /** External code looking to connect the ports where this tile is slaved to an interconnect
-    * (while also crossing clock domains) can call this.
-    */
-  def crossSlavePort(): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
-    val tlSlaveXing = this.crossIn(crossing match {
-      case RationalCrossing(_) => slaveNode :*= this { makeSlaveBoundaryBuffers }
-      case _ => slaveNode
-    })
-    tlSlaveXing(crossing)
-  } } }
-
-  /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
-  def crossIntIn(): IntInwardNode = crossIntIn(intInwardNode)
-
-  /** External code looking to connect and clock-cross the interrupts raised by devices inside this tile can call this. */
-  def crossIntOut(): IntOutwardNode = crossIntOut(intOutwardNode)
+ def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
 
   /** Use for ObjectModel representation of this tile. Subclasses might override this. */
   val logicalTreeNode: LogicalTreeNode = new GenericLogicalTreeNode
