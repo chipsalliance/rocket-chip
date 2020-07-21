@@ -5,7 +5,7 @@ package freechips.rocketchip.tile
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci.ClockSinkDomain
+import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink._
 
 /** A wrapper containing all logic necessary to safely place a tile
@@ -17,9 +17,13 @@ import freechips.rocketchip.tilelink._
   * and any other IOs related to PRCI control.
   */
 abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
-    extends ClockSinkDomain(take = None, name = Some(s"core_$id"))
+    extends ClockDomain
 {
   val tile: T
+
+  val clockNode = ClockIdentityNode()
+  val clockSinkNode = ClockSinkNode(Seq(ClockSinkParameters(take = None, name = Some(s"core_$id"))))
+  def clockBundle = clockSinkNode.in.head._1
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossing: ClockCrossingType):  IntInwardNode = {

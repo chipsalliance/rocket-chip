@@ -332,19 +332,21 @@ trait CanAttachTile {
   def connectPRC(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetClockDriverFrom = context.locateTLBusWrapper(crossingParams.master.where)
-    domain.clockNode :=
-      crossingParams.injectClockNode(context) :=
-      (crossingParams.crossingType match {
-        case s: SynchronousCrossing =>
-          if (crossingParams.forceSeparateClockReset) tlBusToGetClockDriverFrom.clockNode
-          else tlBusToGetClockDriverFrom.fixedClockNode
-        case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
-        case _: AsynchronousCrossing => {
-          val tileClockGroup = ClockGroup()
-          tileClockGroup := context.asyncClockGroupsNode
-          tileClockGroup
-        }
-      })
+    val clockSource = (crossingParams.crossingType match {
+      case s: SynchronousCrossing =>
+        if (crossingParams.forceSeparateClockReset) tlBusToGetClockDriverFrom.clockNode
+        else tlBusToGetClockDriverFrom.fixedClockNode
+      case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
+      case _: AsynchronousCrossing => {
+        val tileClockGroup = ClockGroup()
+        tileClockGroup := context.asyncClockGroupsNode
+        tileClockGroup
+      }
+    })
+
+    domain {
+      domain.clockSinkNode := crossingParams.injectClockNode(context) := domain.clockNode
+    } := clockSource
   }
 }
 
