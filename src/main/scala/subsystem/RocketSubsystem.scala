@@ -17,11 +17,12 @@ case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
   master: TileMasterPortParams = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams(),
-  mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS
+  mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
+  stretchResetCycles: Option[Int] = None
 ) extends TileCrossingParamsLike {
   def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode = {
-    if (p(SubsystemResetSchemeKey) != ResetSynchronous) {
-      val rs = LazyModule(new ResetStretcher(16))
+    if (stretchResetCycles.isDefined) {
+      val rs = LazyModule(new ResetStretcher(stretchResetCycles.get))
       rs.node
     } else {
       ClockTempNode()
