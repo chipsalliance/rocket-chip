@@ -31,15 +31,15 @@ case class TLMasterToSlaveTransferSizes(
     putFull    = putFull   .intersect(rhs.putFull),
     putPartial = putPartial.intersect(rhs.putPartial),
     hint       = hint      .intersect(rhs.hint))
-  def cover(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
-    acquireT   = acquireT  .cover(rhs.acquireT),
-    acquireB   = acquireB  .cover(rhs.acquireB),
-    arithmetic = arithmetic.cover(rhs.arithmetic),
-    logical    = logical   .cover(rhs.logical),
-    get        = get       .cover(rhs.get),
-    putFull    = putFull   .cover(rhs.putFull),
-    putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint      .cover(rhs.hint))
+  def mincover(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
+    acquireT   = acquireT  .mincover(rhs.acquireT),
+    acquireB   = acquireB  .mincover(rhs.acquireB),
+    arithmetic = arithmetic.mincover(rhs.arithmetic),
+    logical    = logical   .mincover(rhs.logical),
+    get        = get       .mincover(rhs.get),
+    putFull    = putFull   .mincover(rhs.putFull),
+    putPartial = putPartial.mincover(rhs.putPartial),
+    hint       = hint      .mincover(rhs.hint))
   // Reduce rendering to a simple yes/no per field
   override def toString = {
     def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
@@ -101,14 +101,14 @@ case class TLSlaveToMasterTransferSizes(
     putPartial = putPartial.intersect(rhs.putPartial),
     hint       = hint      .intersect(rhs.hint)
   )
-  def cover(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
-    probe      = probe     .cover(rhs.probe),
-    arithmetic = arithmetic.cover(rhs.arithmetic),
-    logical    = logical   .cover(rhs.logical),
-    get        = get       .cover(rhs.get),
-    putFull    = putFull   .cover(rhs.putFull),
-    putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint      .cover(rhs.hint)
+  def mincover(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
+    probe      = probe     .mincover(rhs.probe),
+    arithmetic = arithmetic.mincover(rhs.arithmetic),
+    logical    = logical   .mincover(rhs.logical),
+    get        = get       .mincover(rhs.get),
+    putFull    = putFull   .mincover(rhs.putFull),
+    putPartial = putPartial.mincover(rhs.putPartial),
+    hint       = hint      .mincover(rhs.hint)
   )
   // Reduce rendering to a simple yes/no per field
   override def toString = {
@@ -592,8 +592,7 @@ class TLSlavePortParameters private(
   val allSupportHint       = allSupports.hint
 
   // Operation supported by at least one outward Slaves
-  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val anySupports = slaves.map(_.supports).reduce(_ cover _)
+  val anySupports = slaves.map(_.supports).reduce(_ mincover _)
   val anySupportAcquireT   = !anySupports.acquireT.none
   val anySupportAcquireB   = !anySupports.acquireB.none
   val anySupportArithmetic = !anySupports.arithmetic.none
