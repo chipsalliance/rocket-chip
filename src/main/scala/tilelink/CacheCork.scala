@@ -32,7 +32,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
         out <> in
       } else {
         val clients = edgeIn.client.clients
-        val caches = clients.filter(_.supportsProbe)
+        val caches = clients.filter(_.supports.probe)
         require (clients.size == 1 || caches.size == 0 || unsafe, s"Only one client can safely use a TLCacheCork; ${clients.map(_.name)}")
         require (caches.size <= 1 || unsafe, s"Only one caching client allowed; ${clients.map(_.name)}")
         edgeOut.manager.managers.foreach { case m =>

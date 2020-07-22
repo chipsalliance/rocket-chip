@@ -17,13 +17,13 @@ class TLFilter(
       val out = cfilter(c)
       out.map { o => // Confirm the filter only REMOVES capability
         require (c.sourceId.contains(o.sourceId))
-        require (c.supportsProbe.contains(o.supportsProbe))
-        require (c.supportsArithmetic.contains(o.supportsArithmetic))
-        require (c.supportsLogical.contains(o.supportsLogical))
-        require (c.supportsGet.contains(o.supportsGet))
-        require (c.supportsPutFull.contains(o.supportsPutFull))
-        require (c.supportsPutPartial.contains(o.supportsPutPartial))
-        require (c.supportsHint.contains(o.supportsHint))
+        require (c.supports.probe.contains(o.supports.probe))
+        require (c.supports.arithmetic.contains(o.supports.arithmetic))
+        require (c.supports.logical.contains(o.supports.logical))
+        require (c.supports.get.contains(o.supports.get))
+        require (c.supports.putFull.contains(o.supports.putFull))
+        require (c.supports.putPartial.contains(o.supports.putPartial))
+        require (c.supports.hint.contains(o.supports.hint))
         require (!c.requestFifo || o.requestFifo)
       }
       out
@@ -146,11 +146,11 @@ object TLFilter
   }
   // hide all caching clients
   def cHideCaching: ClientFilter = { c =>
-    if (c.supportsProbe) None else Some(c)
+    if (c.supports.probe) None else Some(c)
   }
   // onyl caching clients are visible
   def cSelectCaching: ClientFilter = { c =>
-    if (c.supportsProbe) Some(c) else None
+    if (c.supports.probe) Some(c) else None
   }
 
   // default application applies neither type of filter unless overridden

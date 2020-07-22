@@ -33,7 +33,7 @@ class TLtoAXI4IdMap(tl: TLMasterPortParameters, axi4: AXI4MasterPortParameters)
   private val sorted = tl.clients.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
 
   val mapping: Seq[TLToAXI4IdMapEntry] = (sorted zip axi4.masters) map { case (c, m) =>
-    TLToAXI4IdMapEntry(m.id, c.sourceId, c.name, c.supportsProbe, c.requestFifo)
+    TLToAXI4IdMapEntry(m.id, c.sourceId, c.name, c.supports.probe, c.requestFifo)
   }
 }
 
@@ -278,10 +278,10 @@ object TLToAXI4
   }
 
   def sortByType(a: TLMasterParameters, b: TLMasterParameters): Boolean = {
-    if ( a.supportsProbe && !b.supportsProbe) return false
-    if (!a.supportsProbe &&  b.supportsProbe) return true
-    if ( a.requestFifo   && !b.requestFifo  ) return false
-    if (!a.requestFifo   &&  b.requestFifo  ) return true
+    if ( a.supports.probe && !b.supports.probe) return false
+    if (!a.supports.probe &&  b.supports.probe) return true
+    if ( a.requestFifo    && !b.requestFifo   ) return false
+    if (!a.requestFifo    &&  b.requestFifo   ) return true
     return false
   }
 }
