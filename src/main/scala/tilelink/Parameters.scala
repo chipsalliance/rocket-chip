@@ -306,7 +306,7 @@ class TLSlaveParameters private(
   def v2copy(
     nodePath:      Seq[BaseNode]                = nodePath,
     resources:     Seq[Resource]                = resources,
-    name:          Option[String]               = name,
+    name:          Option[String]               = setName,
     address:       Seq[AddressSet]              = address,
     regionType:    RegionType.T                 = regionType,
     executable:    Boolean                      = executable,
