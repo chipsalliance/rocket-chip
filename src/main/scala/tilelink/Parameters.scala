@@ -882,24 +882,24 @@ class TLMasterParameters private(
 
   require (!sourceId.isEmpty)
   require (!visibility.isEmpty)
-  require (supportsPutFull.contains(supportsPutPartial))
+  require (supports.putFull.contains(supports.putPartial))
   // We only support these operations if we support Probe (ie: we're a cache)
-  require (supportsProbe.contains(supportsArithmetic))
-  require (supportsProbe.contains(supportsLogical))
-  require (supportsProbe.contains(supportsGet))
-  require (supportsProbe.contains(supportsPutFull))
-  require (supportsProbe.contains(supportsPutPartial))
-  require (supportsProbe.contains(supportsHint))
+  require (supports.probe.contains(supports.arithmetic))
+  require (supports.probe.contains(supports.logical))
+  require (supports.probe.contains(supports.get))
+  require (supports.probe.contains(supports.putFull))
+  require (supports.probe.contains(supports.putPartial))
+  require (supports.probe.contains(supports.hint))
 
   visibility.combinations(2).foreach { case Seq(x,y) => require (!x.overlaps(y), s"$x and $y overlap.") }
 
   val maxTransfer = List(
-    supportsProbe.max,
-    supportsArithmetic.max,
-    supportsLogical.max,
-    supportsGet.max,
-    supportsPutFull.max,
-    supportsPutPartial.max).max
+    supports.probe.max,
+    supports.arithmetic.max,
+    supports.logical.max,
+    supports.get.max,
+    supports.putFull.max,
+    supports.putPartial.max).max
 
   def infoString = {
     s"""Master Name = ${name}
@@ -1168,23 +1168,23 @@ class TLMasterPortParameters private(
 
   // Diplomatically determined operation sizes supported by all inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val allSupportProbe      = masters.map(_.supportsProbe)     .reduce(_ intersect _)
-  val allSupportArithmetic = masters.map(_.supportsArithmetic).reduce(_ intersect _)
-  val allSupportLogical    = masters.map(_.supportsLogical)   .reduce(_ intersect _)
-  val allSupportGet        = masters.map(_.supportsGet)       .reduce(_ intersect _)
-  val allSupportPutFull    = masters.map(_.supportsPutFull)   .reduce(_ intersect _)
-  val allSupportPutPartial = masters.map(_.supportsPutPartial).reduce(_ intersect _)
-  val allSupportHint       = masters.map(_.supportsHint)      .reduce(_ intersect _)
+  val allSupportProbe      = masters.map(_.supports.probe)     .reduce(_ intersect _)
+  val allSupportArithmetic = masters.map(_.supports.arithmetic).reduce(_ intersect _)
+  val allSupportLogical    = masters.map(_.supports.logical)   .reduce(_ intersect _)
+  val allSupportGet        = masters.map(_.supports.get)       .reduce(_ intersect _)
+  val allSupportPutFull    = masters.map(_.supports.putFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = masters.map(_.supports.putPartial).reduce(_ intersect _)
+  val allSupportHint       = masters.map(_.supports.hint)      .reduce(_ intersect _)
 
   // Diplomatically determined operation sizes supported by at least one master
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val anySupportProbe      = masters.map(!_.supportsProbe.none)     .reduce(_ || _)
-  val anySupportArithmetic = masters.map(!_.supportsArithmetic.none).reduce(_ || _)
-  val anySupportLogical    = masters.map(!_.supportsLogical.none)   .reduce(_ || _)
-  val anySupportGet        = masters.map(!_.supportsGet.none)       .reduce(_ || _)
-  val anySupportPutFull    = masters.map(!_.supportsPutFull.none)   .reduce(_ || _)
-  val anySupportPutPartial = masters.map(!_.supportsPutPartial.none).reduce(_ || _)
-  val anySupportHint       = masters.map(!_.supportsHint.none)      .reduce(_ || _)
+  val anySupportProbe      = masters.map(!_.supports.probe.none)     .reduce(_ || _)
+  val anySupportArithmetic = masters.map(!_.supports.arithmetic.none).reduce(_ || _)
+  val anySupportLogical    = masters.map(!_.supports.logical.none)   .reduce(_ || _)
+  val anySupportGet        = masters.map(!_.supports.get.none)       .reduce(_ || _)
+  val anySupportPutFull    = masters.map(!_.supports.putFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = masters.map(!_.supports.putPartial.none).reduce(_ || _)
+  val anySupportHint       = masters.map(!_.supports.hint.none)      .reduce(_ || _)
 
   // These return Option[TLMasterParameters] for your convenience
   def find(id: Int) = masters.find(_.sourceId.contains(id))
@@ -1563,7 +1563,7 @@ class TLSourceIdMap(tl: TLMasterPortParameters) extends IdMap[TLSourceIdMapEntry
   private val sorted = tl.masters.sortBy(_.sourceId)
 
   val mapping: Seq[TLSourceIdMapEntry] = sorted.map { case c =>
-    TLSourceIdMapEntry(c.sourceId, c.name, c.supportsProbe, c.requestFifo)
+    TLSourceIdMapEntry(c.sourceId, c.name, c.supports.probe, c.requestFifo)
   }
 }
 

@@ -90,7 +90,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       require (params.lineBytes >= edgeOut.manager.beatBytes)
       // For the probe walker, we need to identify all the caches
-      val caches = clients.filter(_.supportsProbe).map(_.sourceId)
+      val caches = clients.filter(_.supports.probe).map(_.sourceId)
       val cache_targets = caches.map(c => c.start.U)
 
       // Create the probe filter
