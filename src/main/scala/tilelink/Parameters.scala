@@ -420,7 +420,7 @@ object TLSlaveParameters {
     address:       Seq[AddressSet],
     nodePath:      Seq[BaseNode]                = Seq(),
     resources:     Seq[Resource]                = Seq(),
-    name:       Option[String]                  = None,
+    name:          Option[String]               = None,
     regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
     executable:    Boolean                      = false,
     fifoId:        Option[Int]                  = None,
