@@ -25,6 +25,7 @@ case class OMICache(
   dataMemorySizeBytes: Int,
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
+  nTLBSets: Int,
   nTLBEntries: Int,
   maxTimSize: Int,
   memories: Seq[OMSRAM],
@@ -40,6 +41,7 @@ case class OMDCache(
   dataMemorySizeBytes: Int,
   dataECC: Option[OMECC],
   tagECC: Option[OMECC],
+  nTLBSets: Int,
   nTLBEntries: Int,
   memories: Seq[OMSRAM],
   _types: Seq[String] = Seq("OMDCache", "OMCache", "OMDevice", "OMComponent", "OMCompoundType")
