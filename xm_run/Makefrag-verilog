@@ -1,0 +1,74 @@
+#--------------------------------------------------------------------
+# Verilog Generation
+#--------------------------------------------------------------------
+firrtl = $(generated_dir)/$(long_name).fir
+verilog = \
+  $(generated_dir)/$(long_name).v \
+  $(generated_dir)/$(long_name).behav_srams.v \
+
+# If I don't mark these as .SECONDARY then make will delete these intermediate
+# files if I do Ctrl + C.
+
+.SECONDARY: $(firrtl) $(verilog)
+
+$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+	mkdir -p $(dir $@)
+	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG) $(CHISEL_OPTIONS)"
+
+
+$(generated_dir)/%.v $(generated_dir)/%.conf: $(generated_dir)/%.fir $(FIRRTL_JAR)
+	mkdir -p $(dir $@)
+	$(FIRRTL) -i $< \
+    -o $(generated_dir)/$*.v \
+    -X verilog \
+    --infer-rw $(MODEL) \
+    --repl-seq-mem -c:$(MODEL):-o:$(generated_dir)/$*.conf \
+    -faf $(generated_dir)/$*.anno.json \
+    -td $(generated_dir)/$(long_name)/ \
+    -fct $(subst $(SPACE),$(COMMA),$(FIRRTL_TRANSFORMS)) \
+     $(FIRRTL_OPTIONS) \
+
+$(generated_dir)/$(long_name).behav_srams.v : $(generated_dir)/$(long_name).conf $(mem_gen)
+	cd $(generated_dir) && \
+	rm -f $@ && \
+	$(mem_gen) $(generated_dir)/$(long_name).conf >> $@.tmp && \
+	mv -f $@.tmp $@
+
+#--------------------------------------------------------------------
+# Run
+#--------------------------------------------------------------------
+
+
+exec_xrun = -R -64 -svseed random 
+exec_xrun_debug = -R -64 -svseed random -gui -indago
+
+run:	
+	mkdir -p $(output_dir) 
+	xrun \
+	+payload=$(test_name) \
+	+permissive $(exec_xrun) -log SIM_LOGS/xrun_$(notdir $(test_name)).log +permissive-off \
+	+verbose \
+	+max-cycles=$(timeout_cycles) >& $(output_dir)/$(notdir $(test_name)).out
+
+run_debug:	
+	mkdir -p $(output_dir)
+	xrun \
+	+payload=$(test_name) \
+	+permissive $(exec_xrun_debug) +permissive-off \
+	+verbose \
+	+max-cycles=$(timeout_cycles) 	
+	
+	
+$(output_dir)/%.out: $(output_dir)/% xrun-$(PROJECT)-$(CONFIG_STR)
+	xrun +payload=$< +permissive $(exec_xrun) -log SIM_LOGS/xrun_$(notdir $(<)).log +permissive-off +verbose +max-cycles=$(timeout_cycles) >& $@
+
+
+
+run_all: run-asm-tests run-bmark-tests 
+	 
+	
+.PHONY: run-asm-tests run-bmark-tests
+
+
+
+junk += $(output_dir) // refer Makefile where $junk is used in clean option.

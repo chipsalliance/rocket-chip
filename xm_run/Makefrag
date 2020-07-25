@@ -1,0 +1,99 @@
+#--------------------------------------------------------------------
+# Sources
+#--------------------------------------------------------------------
+
+# Verilog sources
+
+bb_vsrcs = \
+    $(vsrc)/plusarg_reader.v \
+    $(vsrc)/ClockDivider2.v \
+    $(vsrc)/ClockDivider3.v \
+    $(vsrc)/AsyncResetReg.v \
+    $(vsrc)/EICG_wrapper.v \
+
+sim_vsrcs = \
+    $(vsrc)/SimDTM.v \
+    $(vsrc)/SimJTAG.v \
+    $(bb_vsrcs) \
+    $(generated_dir)/$(long_name).v \
+    $(generated_dir)/$(long_name).behav_srams.v \
+    $(vsrc)/TestDriver.v  \
+
+# C sources
+
+sim_csrcs = \
+    $(csrc)/SimDTM.cc \
+    $(csrc)/SimJTAG.cc \
+    $(csrc)/remote_bitbang.cc
+
+#--------------------------------------------------------------------
+# Build Verilog
+#--------------------------------------------------------------------
+
+verilog: $(sim_vsrcs)		
+
+.PHONY: verilog
+
+
+#--------------------------------------------------------------------
+# Build rules
+#--------------------------------------------------------------------
+
+XRUN =  xrun -clean -64 -sv \
+	-elaborate -mess -timescale 1ns/10ps -log ELAB_LOGS/xmelab.log \
+	+incdir+$(generated_dir) \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/SimDTM.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/SimJTAG.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/plusarg_reader.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/ClockDivider2.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/ClockDivider3.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/AsyncResetReg.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/EICG_wrapper.v \
+	$(ROCKET_HOME)/generated-src/freechips.rocketchip.system.DefaultConfig.behav_srams.v \
+	$(ROCKET_HOME)/generated-src/freechips.rocketchip.system.DefaultConfig.v \
+	$(RTL_HOME)/rocket-chip/src/main/resources/vsrc/TestDriver.v \
+	-Wcxx,-std=c++11 \
+	-noedg \
+	+lint=all,noVCDE,noONGS,noUI \
+        +rad \
+	+vpi \
+        -g \
+        +vc+list \
+	+v2k \
+	-Wld,-Xlinker,-rpath,-Xlinker,$(RISCV)/lib \
+	$(RTL_HOME)/riscv/toolchain/lib/libfesvr.a \
+	-I$(RTL_HOME)/riscv/toolchain/bin \
+	-I$(RTL_HOME)/riscv/toolchain/include \
+	-I$(RTL_HOME)/riscv/toolchain/lib \
+	$(RTL_HOME)/rocket-chip/src/main/resources/csrc/remote_bitbang.cc \
+	$(RTL_HOME)/rocket-chip/src/main/resources/csrc/SimDTM.cc \
+	$(RTL_HOME)/rocket-chip/src/main/resources/csrc/SimJTAG.cc \
+	+define+CLOCK_PERIOD=1.0 \
+	+define+PRINTF_COND=TestDriver.printf_cond \
+	+define+STOP_COND=!TestDriver.reset \
+	+define+RANDOMIZE_MEM_INIT \
+	+define+RANDOMIZE_REG_INIT \
+	+define+RANDOMIZE_GARBAGE_ASSIGN \
+	+define+RANDOMIZE_INVALID_ASSIGN \
+	+define+RANDOMIZE_DELAY=2 \
+	+define+MODEL=$(MODEL) \
+	+libext+.v \
+	
+
+#--------------------------------------------------------------------
+# Build the simulator
+#--------------------------------------------------------------------
+
+xrun = $(sim_dir)/xrun-$(PROJECT)-$(CONFIG_STR)
+# $(info $(xrun))
+$(xrun) : $(sim_vsrcs) $(sim_csrcs)
+	  cd $(sim_dir) && \
+	  rm -rf csrc && \
+	  $(XRUN)  \
+
+xrun_debug = $(sim_dir)/xrun-$(PROJECT)-$(CONFIG_STR)-debug
+$(xrun_debug) : $(sim_vsrcs) $(sim_csrcs)
+	  cd $(sim_dir) && \
+	  rm -rf csrc && \
+	  $(XRUN)  \
+	  -lwdgen -access +rwc \
