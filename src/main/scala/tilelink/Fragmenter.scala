@@ -60,14 +60,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
         requestFifo = true,
         emits       = TLMasterToSlaveTransferSizes(
-          acquireT    = c.masters.map(_.emits.acquireT)  .reduce(_ cover _),
-          acquireB    = c.masters.map(_.emits.acquireB)  .reduce(_ cover _),
-          arithmetic  = c.masters.map(_.emits.arithmetic).reduce(_ cover _),
-          logical     = c.masters.map(_.emits.logical)   .reduce(_ cover _),
-          get         = c.masters.map(_.emits.get)       .reduce(_ cover _),
-          putFull     = c.masters.map(_.emits.putFull)   .reduce(_ cover _),
-          putPartial  = c.masters.map(_.emits.putPartial).reduce(_ cover _),
-          hint        = c.masters.map(_.emits.hint)      .reduce(_ cover _)
+          acquireT    = shrinkTransfer(c.masters.map(_.emits.acquireT)  .reduce(_ mincover _)),
+          acquireB    = shrinkTransfer(c.masters.map(_.emits.acquireB)  .reduce(_ mincover _)),
+          arithmetic  = shrinkTransfer(c.masters.map(_.emits.arithmetic).reduce(_ mincover _)),
+          logical     = shrinkTransfer(c.masters.map(_.emits.logical)   .reduce(_ mincover _)),
+          get         = shrinkTransfer(c.masters.map(_.emits.get)       .reduce(_ mincover _)),
+          putFull     = shrinkTransfer(c.masters.map(_.emits.putFull)   .reduce(_ mincover _)),
+          putPartial  = shrinkTransfer(c.masters.map(_.emits.putPartial).reduce(_ mincover _)),
+          hint        = shrinkTransfer(c.masters.map(_.emits.hint)      .reduce(_ mincover _))
         )
       ))
     )},

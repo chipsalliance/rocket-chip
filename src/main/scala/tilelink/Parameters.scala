@@ -31,15 +31,15 @@ case class TLMasterToSlaveTransferSizes(
     putFull    = putFull   .intersect(rhs.putFull),
     putPartial = putPartial.intersect(rhs.putPartial),
     hint       = hint      .intersect(rhs.hint))
-  def cover(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
-    acquireT   = acquireT  .cover(rhs.acquireT),
-    acquireB   = acquireB  .cover(rhs.acquireB),
-    arithmetic = arithmetic.cover(rhs.arithmetic),
-    logical    = logical   .cover(rhs.logical),
-    get        = get       .cover(rhs.get),
-    putFull    = putFull   .cover(rhs.putFull),
-    putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint      .cover(rhs.hint))
+  def mincover(rhs: TLMasterToSlaveTransferSizes) = TLMasterToSlaveTransferSizes(
+    acquireT   = acquireT  .mincover(rhs.acquireT),
+    acquireB   = acquireB  .mincover(rhs.acquireB),
+    arithmetic = arithmetic.mincover(rhs.arithmetic),
+    logical    = logical   .mincover(rhs.logical),
+    get        = get       .mincover(rhs.get),
+    putFull    = putFull   .mincover(rhs.putFull),
+    putPartial = putPartial.mincover(rhs.putPartial),
+    hint       = hint      .mincover(rhs.hint))
   // Reduce rendering to a simple yes/no per field
   override def toString = {
     def str(x: TransferSizes, flag: String) = if (x.none) "" else flag
@@ -101,14 +101,14 @@ case class TLSlaveToMasterTransferSizes(
     putPartial = putPartial.intersect(rhs.putPartial),
     hint       = hint      .intersect(rhs.hint)
   )
-  def cover(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
-    probe      = probe     .cover(rhs.probe),
-    arithmetic = arithmetic.cover(rhs.arithmetic),
-    logical    = logical   .cover(rhs.logical),
-    get        = get       .cover(rhs.get),
-    putFull    = putFull   .cover(rhs.putFull),
-    putPartial = putPartial.cover(rhs.putPartial),
-    hint       = hint      .cover(rhs.hint)
+  def mincover(rhs: TLSlaveToMasterTransferSizes) = TLSlaveToMasterTransferSizes(
+    probe      = probe     .mincover(rhs.probe),
+    arithmetic = arithmetic.mincover(rhs.arithmetic),
+    logical    = logical   .mincover(rhs.logical),
+    get        = get       .mincover(rhs.get),
+    putFull    = putFull   .mincover(rhs.putFull),
+    putPartial = putPartial.mincover(rhs.putPartial),
+    hint       = hint      .mincover(rhs.hint)
   )
   // Reduce rendering to a simple yes/no per field
   override def toString = {
@@ -306,7 +306,7 @@ class TLSlaveParameters private(
   def v2copy(
     nodePath:      Seq[BaseNode]                = nodePath,
     resources:     Seq[Resource]                = resources,
-    setName:       Option[String]               = setName,
+    name:          Option[String]               = setName,
     address:       Seq[AddressSet]              = address,
     regionType:    RegionType.T                 = regionType,
     executable:    Boolean                      = executable,
@@ -320,7 +320,7 @@ class TLSlaveParameters private(
     new TLSlaveParameters(
       nodePath      = nodePath,
       resources     = resources,
-      setName       = setName,
+      setName       = name,
       address       = address,
       regionType    = regionType,
       executable    = executable,
@@ -420,7 +420,7 @@ object TLSlaveParameters {
     address:       Seq[AddressSet],
     nodePath:      Seq[BaseNode]                = Seq(),
     resources:     Seq[Resource]                = Seq(),
-    setName:       Option[String]               = None,
+    name:          Option[String]               = None,
     regionType:    RegionType.T                 = RegionType.GET_EFFECTS,
     executable:    Boolean                      = false,
     fifoId:        Option[Int]                  = None,
@@ -433,7 +433,7 @@ object TLSlaveParameters {
     new TLSlaveParameters(
     nodePath      = nodePath,
     resources     = resources,
-    setName       = setName,
+    setName       = name,
     address       = address,
     regionType    = regionType,
     executable    = executable,
@@ -570,7 +570,7 @@ class TLSlavePortParameters private(
   val allSupportHint       = allSupports.hint
 
   // Operation supported by at least one outward Slaves
-  val anySupports = slaves.map(_.supports).reduce(_ cover _)
+  val anySupports = slaves.map(_.supports).reduce(_ mincover _)
   val anySupportAcquireT   = !anySupports.acquireT.none
   val anySupportAcquireB   = !anySupports.acquireB.none
   val anySupportArithmetic = !anySupports.arithmetic.none

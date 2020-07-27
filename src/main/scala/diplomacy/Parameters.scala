@@ -100,7 +100,7 @@ case class TransferSizes(min: Int, max: Int)
 
   // Not a union, because the result may contain sizes contained by neither term
   // NOT TO BE CONFUSED WITH COVERPOINTS
-  def cover(x: TransferSizes) = {
+  def mincover(x: TransferSizes) = {
     if (none) {
       x
     } else if (x.none) {
@@ -117,7 +117,7 @@ object TransferSizes {
   def apply(x: Int) = new TransferSizes(x)
   val none = new TransferSizes(0)
 
-  def cover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ cover _)
+  def mincover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ mincover _)
   def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
   implicit def asBool(x: TransferSizes) = !x.none
