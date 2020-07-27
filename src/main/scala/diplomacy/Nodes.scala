@@ -417,11 +417,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   private var bundlesSafeNow = false
   // Accessors to the result of negotiation to be used in LazyModuleImp:
   def out: Seq[(BO, EO)] = {
-    require(bundlesSafeNow, s"${name}.out should only be called from the context of its module implementation")
+    require(bundlesSafeNow, s"${name}.out should only be called from the context of its LazyModule(${scope.get.name}) implementation, currently (${chisel3.Module.currentModule.get.name})")
     bundleOut zip edgesOut
   }
   def in: Seq[(BI, EI)] = {
-    require(bundlesSafeNow, s"${name}.in should only be called from the context of its module implementation")
+    require(bundlesSafeNow, s"${name}.in should only be called from the context of its LazyModule(${scope.get.name}) implementation, currently (${chisel3.Module.currentModule.get.name})")
     bundleIn zip edgesIn
   }
 
