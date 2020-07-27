@@ -268,8 +268,8 @@ class VType(implicit p: Parameters) extends CoreBundle {
   val reserved = UInt((xLen - 9).W)
   val vma = Bool()
   val vta = Bool()
-  val vlmul_sign = Bool()
   val vsew = UInt(3.W)
+  val vlmul_sign = Bool()
   val vlmul_mag = UInt(2.W)
 
   def vlmul_signed: SInt = Cat(vlmul_sign, vlmul_mag).asSInt
