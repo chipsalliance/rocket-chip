@@ -886,7 +886,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   val inward = this
   val outward = this
 
-  /** For a given node, converts `OutwardNode.accPO` and `InwardNode.accPI` to `MixedNode.oPortMapping` and `MixedNode.iPortMapping`.
+  /** For a given node, converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]].
     *
     * Given counts of known inward and outward binding and inward and outward star bindings, return the resolved inward stars and outward stars.
     *
