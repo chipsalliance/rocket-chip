@@ -1438,14 +1438,14 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
-  def anyDiplomaticClaimsMasterToSlaveAcquireT   = master.anyEmitClaimsAcquireT   || slave.anySupportAcquireT
-  def anyDiplomaticClaimsMasterToSlaveAcquireB   = master.anyEmitClaimsAcquireB   || slave.anySupportAcquireB
-  def anyDiplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaimsArithmetic || slave.anySupportArithmetic
-  def anyDiplomaticClaimsMasterToSlaveLogical    = master.anyEmitClaimsLogical    || slave.anySupportLogical
-  def anyDiplomaticClaimsMasterToSlaveGet        = master.anyEmitClaimsGet        || slave.anySupportGet
-  def anyDiplomaticClaimsMasterToSlavePutFull    = master.anyEmitClaimsPutFull    || slave.anySupportPutFull
-  def anyDiplomaticClaimsMasterToSlavePutPartial = master.anyEmitClaimsPutPartial || slave.anySupportPutPartial
-  def anyDiplomaticClaimsMasterToSlaveHint       = master.anyEmitClaimsHint       || slave.anySupportHint
+  def diplomaticClaimsMasterToSlaveAcquireT   = master.anyEmitClaimsAcquireT   && slave.anySupportAcquireT
+  def diplomaticClaimsMasterToSlaveAcquireB   = master.anyEmitClaimsAcquireB   && slave.anySupportAcquireB
+  def diplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaimsArithmetic && slave.anySupportArithmetic
+  def diplomaticClaimsMasterToSlaveLogical    = master.anyEmitClaimsLogical    && slave.anySupportLogical
+  def diplomaticClaimsMasterToSlaveGet        = master.anyEmitClaimsGet        && slave.anySupportGet
+  def diplomaticClaimsMasterToSlavePutFull    = master.anyEmitClaimsPutFull    && slave.anySupportPutFull
+  def diplomaticClaimsMasterToSlavePutPartial = master.anyEmitClaimsPutPartial && slave.anySupportPutPartial
+  def diplomaticClaimsMasterToSlaveHint       = master.anyEmitClaimsHint       && slave.anySupportHint
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
