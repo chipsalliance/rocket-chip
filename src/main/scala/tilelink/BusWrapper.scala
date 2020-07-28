@@ -356,6 +356,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
 trait HasTLXbarPhy { this: TLBusWrapper =>
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
 
+  override def shouldBeInlined = xbar.node.identity
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
@@ -393,6 +394,7 @@ class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)
     addressPrefixNexusNode
   }
   val builtInDevices = BuiltInDevices.none
+  override def shouldBeInlined = address_adjuster.map(_.node.identity).getOrElse(true)
 }
 
 case class TLJBarWrapperParams(
@@ -418,4 +420,5 @@ class TLJBarWrapper(params: TLJBarWrapperParams, name: String)(implicit p: Param
   def busView: TLEdge = jbar.node.edges.in.head
   val prefixNode = None
   val builtInDevices = BuiltInDevices.none
+  override def shouldBeInlined = jbar.node.identity
 }
