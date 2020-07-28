@@ -76,8 +76,9 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] def instantiate(): Seq[Dangle]
   protected[diplomacy] def finishInstantiate(): Unit
 
-  def name = scope.map(_.name).getOrElse("TOP") + "." + valName.name
-  def omitGraphML = outputs.isEmpty && inputs.isEmpty
+  def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
+  def identity: Boolean = false
+  def omitGraphML: Boolean = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
 
   def parents: Seq[LazyModule] = scope.map(lm => lm +: lm.parents).getOrElse(Nil)
@@ -420,7 +421,6 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   // Used by LazyModules.module.instantiate
-  protected val identity = false
   protected[diplomacy] def instantiate() = {
     bundlesSafeNow = true
     if (!identity) {
@@ -578,7 +578,7 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
   override def description = "identity"
-  protected override val identity = true
+  override def identity = true
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
     (out zip in) map { case ((o, _), (i, _)) => o <> i }
@@ -591,6 +591,7 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
   override def description = "ephemeral"
+  override def identity = true
   override def omitGraphML = true
   override def oForward(x: Int) = Some(iDirectPorts(x) match { case (i, n, _, _) => (i, n) })
   override def iForward(x: Int) = Some(oDirectPorts(x) match { case (i, n, _, _) => (i, n) })

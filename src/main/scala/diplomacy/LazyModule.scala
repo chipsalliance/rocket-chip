@@ -5,6 +5,8 @@ package freechips.rocketchip.diplomacy
 import Chisel.{defaultCompileOptions => _, _}
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{MultiIOModule, RawModule, Reset, withClockAndReset}
+import chisel3.experimental.{ChiselAnnotation}
+import firrtl.passes.InlineAnnotation
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 
@@ -99,6 +101,9 @@ abstract class LazyModule()(implicit val p: Parameters) {
     * generation.
     */
   def omitGraphML: Boolean = nodes.forall(_.omitGraphML) && children.forall(_.omitGraphML)
+
+  /** Whether this [[LazyModule]]'s module should be marked for in-lining */
+  def shouldBeInlined: Boolean = nodes.forall(_.identity) && children.forall(_.shouldBeInlined)
 
   /** GraphML representation for this instance.
     *
@@ -314,15 +319,20 @@ sealed trait LazyModuleImpLike extends RawModule {
     (auto, dangles)
   }
 
-  /** Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]]
+  /** Finalize the instantiation of this module.
     *
-    * Note: There are 2 different `finishInstantiate` methods:
-    * [[LazyModuleImp.finishInstantiate]] and [[BaseNode.finishInstantiate]],
-    * the former is a wrapper to the latter.
+    * Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]].
+    * Annotate this module to tell FIRRTL if it should be inlined.
     */
   protected[diplomacy] def finishInstantiate() {
     wrapper.nodes.reverse.foreach {
       _.finishInstantiate()
+    }
+
+    if (wrapper.shouldBeInlined) {
+      chisel3.experimental.annotate(new ChiselAnnotation {
+        def toFirrtl = InlineAnnotation(toNamed)
+      })
     }
   }
 }
