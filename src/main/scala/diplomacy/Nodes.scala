@@ -627,6 +627,9 @@ class NexusNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   outputRequiresInput: Boolean = true)(
   implicit valName: ValName)
     extends MixedNexusNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn, inputRequiresOutput, outputRequiresInput)
+{
+  override def identity = (outputs.isEmpty && inputs.isEmpty) || (outputs.size == 1 && inputs.size == 1)
+}
 
 // There are no Mixed SourceNodes
 class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq[D])(implicit valName: ValName)
