@@ -533,6 +533,9 @@ class JunctionNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(
   uFn: Seq[U] => Seq[U])(
   implicit valName: ValName)
     extends MixedJunctionNode[D, U, EI, B, D, U, EO, B](imp, imp)(dFn, uFn)
+{
+  override def identity = (outputs.isEmpty && inputs.isEmpty) || (uRatio == 1 && dRatio == 1)
+}
 
 class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   inner: InwardNodeImp [DI, UI, EI, BI],
