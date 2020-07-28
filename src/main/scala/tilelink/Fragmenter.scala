@@ -39,11 +39,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     require (x.max >= minSize, s"TLFragmenter (with parent $parent) max transfer size $op(${x.max}) must be >= min transfer size (${minSize})")
     TransferSizes(x.min, maxSize)
   }
-  def shrinkTransfer(x: TransferSizes) =
-    if (!alwaysMin) x else
-    if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
-    TransferSizes.none
-  def mapManager(m: TLSlaveParameters) = m.v1copy(
+
+  private def noChangeRequired = minSize == maxSize
+  private def shrinkTransfer(x: TransferSizes) =
+    if (!alwaysMin) x
+    else if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max))
+    else TransferSizes.none
+
+  private def mapManager(m: TLSlaveParameters) = m.v1copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = shrinkTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet, "Get"),
@@ -51,10 +54,10 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     supportsPutPartial = expandTransfer(m.supportsPutPartial, "PutParital"),
     supportsHint       = expandTransfer(m.supportsHint, "Hint"))
 
-  val node = TLAdapterNode(
+  val node = new TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => c.v2copy(
+    clientFn  = { c => (if (noChangeRequired) c else c.v2copy(
       masters = Seq(TLMasterParameters.v2(
         name        = "TLFragmenter",
         sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
@@ -70,12 +73,15 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
           hint        = shrinkTransfer(c.masters.map(_.emits.hint)      .reduce(_ mincover _))
         )
       ))
-    )},
-    managerFn = { m => m.v2copy(slaves = m.slaves.map(mapManager)) })
+    ))},
+    managerFn = { m => if (noChangeRequired) m else m.v2copy(slaves = m.slaves.map(mapManager)) }
+  ) {
+    override def identity = noChangeRequired
+  }
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      if (minSize == maxSize) {
+      if (noChangeRequired) {
         out <> in
       } else {
         // All managers must share a common FIFO domain (responses might end up interleaved)
