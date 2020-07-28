@@ -53,6 +53,7 @@ case class OMVectorExtension(
   vLen: Int,
   sLen: Int,
   eLen: Int,
+  vstartALU: Boolean, // whether non-memory/non-vsetvl instructions permit vstart != 0
   name: String = "V Standard Extension for Vector Operations",
   _types: Seq[String] = Seq("OMVectorExtension")
 )
