@@ -122,13 +122,13 @@ trait FormatEdge {
 
 trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
   def edges: Edges[I,O]
-  override def formatNode = {
+  override def formatNode = if (!identity) {
     edges.out.map(currEdge =>
       "On Output Edge:\n\n" + currEdge.formatEdge).mkString +
     "\n---------------------------------------------\n\n" +
     edges.in.map(currEdge =>
       "On Input Edge:\n\n" + currEdge.formatEdge).mkString
-  }
+  } else ""
 }
 
 trait NoHandle
