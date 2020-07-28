@@ -10,6 +10,9 @@ case class ClockGroupNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(
     dFn = { _ => ClockSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq) })
+{
+  override def identity = outputs.size == 1
+}
 
 class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 {
