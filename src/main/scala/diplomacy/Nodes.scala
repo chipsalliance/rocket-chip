@@ -586,7 +586,7 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
   override def description = "identity"
-  override def identity = true
+  override final def identity = true
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
     (out zip in) map { case ((o, _), (i, _)) => o <> i }
@@ -599,7 +599,7 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
   override def description = "ephemeral"
-  override def identity = true
+  override final def identity = true
   override def omitGraphML = true
   override def oForward(x: Int) = Some(iDirectPorts(x) match { case (i, n, _, _) => (i, n) })
   override def iForward(x: Int) = Some(oDirectPorts(x) match { case (i, n, _, _) => (i, n) })
