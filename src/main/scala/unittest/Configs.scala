@@ -34,7 +34,8 @@ class WithAMBAUnitTests extends Config((site, here, up) => {
       Module(new AXI4FullFuzzRAMTest(        txns=3*txns, timeout=timeout)),
       Module(new AXI4BridgeTest(             txns=3*txns, timeout=timeout)),
       Module(new AXI4XbarTest(               txns=1*txns, timeout=timeout)),
-      Module(new AXI4RAMAsyncCrossingTest(   txns=3*txns, timeout=timeout))) }
+      Module(new AXI4RAMAsyncCrossingTest(   txns=3*txns, timeout=timeout)),
+      Module(new AXI4RAMCreditedCrossingTest(txns=3*txns, timeout=timeout))) }
 })
 
 class WithTLSimpleUnitTests extends Config((site, here, up) => {
@@ -53,6 +54,7 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLRR1Test(                txns= 3*txns, timeout=timeout)),
       Module(new TLRAMRationalCrossingTest(txns= 3*txns, timeout=timeout)),
       Module(new TLRAMAsyncCrossingTest(   txns= 5*txns, timeout=timeout)),
+      Module(new TLRAMCreditedCrossingTest(txns= 5*txns, timeout=timeout)),
       Module(new TLRAMAtomicAutomataTest(  txns=10*txns, timeout=timeout)),
       Module(new TLRAMECCTest(8, 4,        txns=15*txns, timeout=timeout)),
       Module(new TLRAMECCTest(4, 1,        txns=15*txns, timeout=timeout)),
