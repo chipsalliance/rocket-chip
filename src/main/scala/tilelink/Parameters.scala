@@ -560,24 +560,10 @@ class TLSlavePortParameters private(
   // Diplomatically determined operation sizes emitted by all outward Slaves
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val allEmitClaims = slaves.map(_.emits).reduce( _ intersect _)
-  val allEmitClaimsAcquireT   = allEmitClaims.probe
-  val allEmitClaimsArithmetic = allEmitClaims.arithmetic
-  val allEmitClaimsLogical    = allEmitClaims.logical
-  val allEmitClaimsGet        = allEmitClaims.get
-  val allEmitClaimsPutFull    = allEmitClaims.putFull
-  val allEmitClaimsPutPartial = allEmitClaims.putPartial
-  val allEmitClaimsHint       = allEmitClaims.hint
 
   // Operation Emitted by at least one outward Slaves
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val anyEmitClaims = slaves.map(_.emits).reduce(_ cover _)
-  val anyEmitClaimsAcquireT   = !anyEmitClaims.probe.none
-  val anyEmitClaimsArithmetic = !anyEmitClaims.arithmetic.none
-  val anyEmitClaimsLogical    = !anyEmitClaims.logical.none
-  val anyEmitClaimsGet        = !anyEmitClaims.get.none
-  val anyEmitClaimsPutFull    = !anyEmitClaims.putFull.none
-  val anyEmitClaimsPutPartial = !anyEmitClaims.putPartial.none
-  val anyEmitClaimsHint       = !anyEmitClaims.hint.none
 
   // Diplomatically determined operation sizes supported by all outward Slaves
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
@@ -1144,26 +1130,10 @@ class TLMasterPortParameters private(
   // Diplomatically determined operation sizes emitted by all inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val allEmitClaims = masters.map(_.emits).reduce( _ intersect _)
-  val allEmitClaimsAcquireT   = allEmitClaims.acquireT
-  val allEmitClaimsAcquireB   = allEmitClaims.acquireB
-  val allEmitClaimsArithmetic = allEmitClaims.arithmetic
-  val allEmitClaimsLogical    = allEmitClaims.logical
-  val allEmitClaimsGet        = allEmitClaims.get
-  val allEmitClaimsPutFull    = allEmitClaims.putFull
-  val allEmitClaimsPutPartial = allEmitClaims.putPartial
-  val allEmitClaimsHint       = allEmitClaims.hint
 
   // Diplomatically determined operation sizes Emitted by at least one inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
   val anyEmitClaims = masters.map(_.emits).reduce(_ cover _)
-  val anyEmitClaimsAcquireT   = !anyEmitClaims.acquireT.none
-  val anyEmitClaimsAcquireB   = !anyEmitClaims.acquireB.none
-  val anyEmitClaimsArithmetic = !anyEmitClaims.arithmetic.none
-  val anyEmitClaimsLogical    = !anyEmitClaims.logical.none
-  val anyEmitClaimsGet        = !anyEmitClaims.get.none
-  val anyEmitClaimsPutFull    = !anyEmitClaims.putFull.none
-  val anyEmitClaimsPutPartial = !anyEmitClaims.putPartial.none
-  val anyEmitClaimsHint       = !anyEmitClaims.hint.none
 
   // Diplomatically determined operation sizes supported by all inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
@@ -1438,14 +1408,14 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
-  def diplomaticClaimsMasterToSlaveAcquireT   = master.anyEmitClaimsAcquireT   && slave.anySupportAcquireT
-  def diplomaticClaimsMasterToSlaveAcquireB   = master.anyEmitClaimsAcquireB   && slave.anySupportAcquireB
-  def diplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaimsArithmetic && slave.anySupportArithmetic
-  def diplomaticClaimsMasterToSlaveLogical    = master.anyEmitClaimsLogical    && slave.anySupportLogical
-  def diplomaticClaimsMasterToSlaveGet        = master.anyEmitClaimsGet        && slave.anySupportGet
-  def diplomaticClaimsMasterToSlavePutFull    = master.anyEmitClaimsPutFull    && slave.anySupportPutFull
-  def diplomaticClaimsMasterToSlavePutPartial = master.anyEmitClaimsPutPartial && slave.anySupportPutPartial
-  def diplomaticClaimsMasterToSlaveHint       = master.anyEmitClaimsHint       && slave.anySupportHint
+  def diplomaticClaimsMasterToSlaveAcquireT   = master.anyEmitClaims.AcquireT   && slave.anySupportAcquireT
+  def diplomaticClaimsMasterToSlaveAcquireB   = master.anyEmitClaims.AcquireB   && slave.anySupportAcquireB
+  def diplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaims.Arithmetic && slave.anySupportArithmetic
+  def diplomaticClaimsMasterToSlaveLogical    = master.anyEmitClaims.Logical    && slave.anySupportLogical
+  def diplomaticClaimsMasterToSlaveGet        = master.anyEmitClaims.Get        && slave.anySupportGet
+  def diplomaticClaimsMasterToSlavePutFull    = master.anyEmitClaims.PutFull    && slave.anySupportPutFull
+  def diplomaticClaimsMasterToSlavePutPartial = master.anyEmitClaims.PutPartial && slave.anySupportPutPartial
+  def diplomaticClaimsMasterToSlaveHint       = master.anyEmitClaims.Hint       && slave.anySupportHint
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
