@@ -567,26 +567,27 @@ class TLSlavePortParameters private(
 
   // Diplomatically determined operation sizes supported by all outward Slaves
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val allSupports = slaves.map(_.supports).reduce( _ intersect _)
-  val allSupportAcquireT   = allSupports.acquireT
-  val allSupportAcquireB   = allSupports.acquireB
-  val allSupportArithmetic = allSupports.arithmetic
-  val allSupportLogical    = allSupports.logical
-  val allSupportGet        = allSupports.get
-  val allSupportPutFull    = allSupports.putFull
-  val allSupportPutPartial = allSupports.putPartial
-  val allSupportHint       = allSupports.hint
+  val allSupportClaims = slaves.map(_.supports).reduce( _ intersect _)
+  val allSupportAcquireT   = allSupportClaims.acquireT
+  val allSupportAcquireB   = allSupportClaims.acquireB
+  val allSupportArithmetic = allSupportClaims.arithmetic
+  val allSupportLogical    = allSupportClaims.logical
+  val allSupportGet        = allSupportClaims.get
+  val allSupportPutFull    = allSupportClaims.putFull
+  val allSupportPutPartial = allSupportClaims.putPartial
+  val allSupportHint       = allSupportClaims.hint
 
   // Operation supported by at least one outward Slaves
-  val anySupports = slaves.map(_.supports).reduce(_ mincover _)
-  val anySupportAcquireT   = !anySupports.acquireT.none
-  val anySupportAcquireB   = !anySupports.acquireB.none
-  val anySupportArithmetic = !anySupports.arithmetic.none
-  val anySupportLogical    = !anySupports.logical.none
-  val anySupportGet        = !anySupports.get.none
-  val anySupportPutFull    = !anySupports.putFull.none
-  val anySupportPutPartial = !anySupports.putPartial.none
-  val anySupportHint       = !anySupports.hint.none
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val anySupportClaims = slaves.map(_.supports).reduce(_ mincover _)
+  val anySupportAcquireT   = !anySupportClaims.acquireT.none
+  val anySupportAcquireB   = !anySupportClaims.acquireB.none
+  val anySupportArithmetic = !anySupportClaims.arithmetic.none
+  val anySupportLogical    = !anySupportClaims.logical.none
+  val anySupportGet        = !anySupportClaims.get.none
+  val anySupportPutFull    = !anySupportClaims.putFull.none
+  val anySupportPutPartial = !anySupportClaims.putPartial.none
+  val anySupportHint       = !anySupportClaims.hint.none
 
   // Supporting Acquire means being routable for GrantAck
   require ((endSinkId == 0) == !anySupportAcquireB)
@@ -1408,14 +1409,7 @@ case class TLEdgeParameters(
   // Sanity check the link...
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
-  def diplomaticClaimsMasterToSlaveAcquireT   = master.anyEmitClaims.acquireT   && slave.anySupportAcquireT
-  def diplomaticClaimsMasterToSlaveAcquireB   = master.anyEmitClaims.acquireB   && slave.anySupportAcquireB
-  def diplomaticClaimsMasterToSlaveArithmetic = master.anyEmitClaims.arithmetic && slave.anySupportArithmetic
-  def diplomaticClaimsMasterToSlaveLogical    = master.anyEmitClaims.logical    && slave.anySupportLogical
-  def diplomaticClaimsMasterToSlaveGet        = master.anyEmitClaims.get        && slave.anySupportGet
-  def diplomaticClaimsMasterToSlavePutFull    = master.anyEmitClaims.putFull    && slave.anySupportPutFull
-  def diplomaticClaimsMasterToSlavePutPartial = master.anyEmitClaims.putPartial && slave.anySupportPutPartial
-  def diplomaticClaimsMasterToSlaveHint       = master.anyEmitClaims.hint       && slave.anySupportHint
+  def diplomaticClaimsMasterToSlave = master.anyEmitClaims.intersect(slave.anySupportClaims)
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
