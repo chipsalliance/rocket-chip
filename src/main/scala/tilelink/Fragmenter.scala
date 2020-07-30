@@ -76,7 +76,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     ))},
     managerFn = { m => if (noChangeRequired) m else m.v2copy(slaves = m.slaves.map(mapManager)) }
   ) {
-    override def identity = noChangeRequired
+    override def circuitIdentity = noChangeRequired
   }
 
   lazy val module = new LazyModuleImp(this) {

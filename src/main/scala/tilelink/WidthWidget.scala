@@ -16,7 +16,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
   val node = new TLAdapterNode(
     clientFn  = { case c => c },
     managerFn = { case m => m.v1copy(beatBytes = innerBeatBytes) }){
-    override def identity = edges.out.map(_.manager).forall(noChangeRequired)
+    override def circuitIdentity = edges.out.map(_.manager).forall(noChangeRequired)
   }
 
   lazy val module = new LazyModuleImp(this) {

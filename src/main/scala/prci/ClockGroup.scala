@@ -11,7 +11,7 @@ case class ClockGroupNode(groupName: String)(implicit valName: ValName)
     dFn = { _ => ClockSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq) })
 {
-  override def identity = outputs.size == 1
+  override def circuitIdentity = outputs.size == 1
 }
 
 class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
@@ -38,6 +38,9 @@ case class ClockGroupAggregateNode(groupName: String)(implicit valName: ValName)
   extends NexusNode(ClockGroupImp)(
     dFn = { _ => ClockGroupSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq.flatMap(_.members))})
+{
+  override def circuitIdentity = outputs.size == 1
+}
 
 class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends LazyModule
 {

@@ -28,7 +28,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
     }},
     managerFn = { mp => mp.v1copy(managers = mp.managers.map(m => m.v1copy(fifoId = if (maxInFlight==1) Some(0) else m.fifoId)))
     }) {
-    override def identity = edges.in.map(_.client).forall(noShrinkRequired)
+    override def circuitIdentity = edges.in.map(_.client).forall(noShrinkRequired)
 })
 
   lazy val module = new LazyModuleImp(this) {

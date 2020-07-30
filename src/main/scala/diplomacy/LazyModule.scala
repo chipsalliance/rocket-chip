@@ -102,8 +102,12 @@ abstract class LazyModule()(implicit val p: Parameters) {
     */
   def omitGraphML: Boolean = nodes.forall(_.omitGraphML) && children.forall(_.omitGraphML)
 
-  /** Whether this [[LazyModule]]'s module should be marked for in-lining */
-  def shouldBeInlined: Boolean = nodes.forall(_.identity) && children.forall(_.shouldBeInlined)
+  /** Whether this [[LazyModule]]'s module should be marked for in-lining by FIRRTL.
+    *
+    *  The default heuristic is to inline any parents whose children have been inlined
+    *  and whose nodes all produce identity circuits.
+    */
+  def shouldBeInlined: Boolean = nodes.forall(_.circuitIdentity) && children.forall(_.shouldBeInlined)
 
   /** GraphML representation for this instance.
     *
@@ -144,7 +148,7 @@ abstract class LazyModule()(implicit val p: Parameters) {
     buf ++= s"""$pad  <graph id=\"$index::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""$pad    <node id=\"$index::${n.index}\">\n"""
-      buf ++= s"""$pad      <data key=\"n\"><y:ShapeNode><y:Shape type="ellipse"/><y:Fill color="#FFCC00" transparent=\"${n.identity}\"/></y:ShapeNode></data>\n"""
+      buf ++= s"""$pad      <data key=\"n\"><y:ShapeNode><y:Shape type="ellipse"/><y:Fill color="#FFCC00" transparent=\"${n.circuitIdentity}\"/></y:ShapeNode></data>\n"""
       buf ++= s"""$pad      <data key=\"d\">${n.formatNode}, \n${n.nodedebugstring}</data>\n"""
       buf ++= s"""$pad    </node>\n"""
     }

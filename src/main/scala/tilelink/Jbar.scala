@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 
 class TLJbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
-  val node : TLJunctionNode = TLJunctionNode(
+  val node: TLJunctionNode = new TLJunctionNode(
     clientFn  = { seq =>
       Seq.fill(node.dRatio)(seq(0).v1copy(
         minLatency = seq.map(_.minLatency).min,
@@ -33,7 +33,9 @@ class TLJbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
           )}
         }
       ))
-    })
+    }) {
+      override def circuitIdentity = uRatio == 1 && dRatio == 1
+    }
 
   lazy val module = new LazyModuleImp(this) {
     node.inoutGrouped.foreach { case (in, out) => TLXbar.circuit(policy, in, out) }
