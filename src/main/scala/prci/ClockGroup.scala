@@ -91,12 +91,14 @@ case class FixedClockBroadcastNode(fixedClockOpt: Option[ClockParameters])(impli
 
 class FixedClockBroadcast(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters) extends LazyModule
 {
-  val node = FixedClockBroadcastNode(fixedClockOpt)
+  val node = new FixedClockBroadcastNode(fixedClockOpt) {
+    override def circuitIdentity = outputs.size == 1
+  }
 
   lazy val module = new LazyRawModuleImp(this) {
     val (in, _) = node.in(0)
     val (out, _) = node.out.unzip
-    require (node.in.size == 1)
+    require (node.in.size == 1, "FixedClockBroadcast can only broadcast a single clock")
     out.foreach { _ := in }
   }
 }
