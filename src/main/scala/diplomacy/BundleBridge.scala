@@ -118,7 +118,8 @@ class BundleBridgeNexus[T <: Data](
   inputFn: Seq[T] => T,
   outputFn: (T, Int) => Seq[T],
   default: Option[() => T] = None,
-  inputRequiresOutput: Boolean = false
+  inputRequiresOutput: Boolean = false,
+  override val shouldBeInlined: Boolean = true
 ) (implicit p: Parameters) extends LazyModule
 {
   val node = BundleBridgeNexusNode[T](default, inputRequiresOutput)
