@@ -86,7 +86,7 @@ class RocketLogicalTreeNode(
     Seq(OMRocketCore(
       isa = OMISA.rocketISA(tile, XLen, PgLevels),
       mulDiv =  coreParams.mulDiv.map{ md => OMMulDiv.makeOMI(md, XLen)},
-      fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen)},
+      fpu = coreParams.fpu.map{f => OMFPU(fLen = f.fLen, minFLen = 32)},
       performanceMonitor = PerformanceMonitor.perfmon(coreParams),
       pmp = OMPMP.pmp(coreParams),
       documentationName = rocketParams.name.getOrElse("rocket"),
