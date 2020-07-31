@@ -44,9 +44,9 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
     val txns = 100 * site(TestDurationMultiplier)
     val timeout = 50000 * site(TestDurationMultiplier)
     Seq(
-      Module(new TLRAMSimpleTest(1,        txns=15*txns, timeout=timeout)),
-      Module(new TLRAMSimpleTest(4,        txns=15*txns, timeout=timeout)),
-      Module(new TLRAMSimpleTest(16,       txns=15*txns, timeout=timeout)),
+      Module(new TLRAMSimpleTest(1,  true, txns=15*txns, timeout=timeout)),
+      Module(new TLRAMSimpleTest(4,  false,txns=15*txns, timeout=timeout)),
+      Module(new TLRAMSimpleTest(16, true, txns=15*txns, timeout=timeout)),
       Module(new TLRAMZeroDelayTest(4,     txns=15*txns, timeout=timeout)),
       Module(new TLRAMHintHandlerTest(     txns=15*txns, timeout=timeout)),
       Module(new TLFuzzRAMTest(            txns= 3*txns, timeout=timeout)),
@@ -56,9 +56,12 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLRAMAsyncCrossingTest(   txns= 5*txns, timeout=timeout)),
       Module(new TLRAMCreditedCrossingTest(txns= 5*txns, timeout=timeout)),
       Module(new TLRAMAtomicAutomataTest(  txns=10*txns, timeout=timeout)),
-      Module(new TLRAMECCTest(8, 4,        txns=15*txns, timeout=timeout)),
-      Module(new TLRAMECCTest(4, 1,        txns=15*txns, timeout=timeout)),
-      Module(new TLRAMECCTest(1, 1,        txns=15*txns, timeout=timeout)) ) }
+      Module(new TLRAMECCTest(8, 4, true,  txns=15*txns, timeout=timeout)),
+      Module(new TLRAMECCTest(4, 1, true,  txns=15*txns, timeout=timeout)),
+      Module(new TLRAMECCTest(1, 1, true,  txns=15*txns, timeout=timeout)),
+      Module(new TLRAMECCTest(8, 4, false, txns=15*txns, timeout=timeout)),
+      Module(new TLRAMECCTest(4, 1, false, txns=15*txns, timeout=timeout)),
+      Module(new TLRAMECCTest(1, 1, false, txns=15*txns, timeout=timeout)) ) }
 })
 
 class WithTLWidthUnitTests extends Config((site, here, up) => {
