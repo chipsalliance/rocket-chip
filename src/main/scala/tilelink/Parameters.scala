@@ -563,7 +563,7 @@ class TLSlavePortParameters private(
 
   // Operation Emitted by at least one outward Slaves
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val anyEmitClaims = slaves.map(_.emits).reduce(_ cover _)
+  val anyEmitClaims = slaves.map(_.emits).reduce(_ mincover _)
 
   // Diplomatically determined operation sizes supported by all outward Slaves
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
@@ -1134,7 +1134,7 @@ class TLMasterPortParameters private(
 
   // Diplomatically determined operation sizes Emitted by at least one inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val anyEmitClaims = masters.map(_.emits).reduce(_ cover _)
+  val anyEmitClaims = masters.map(_.emits).reduce(_ mincover _)
 
   // Diplomatically determined operation sizes supported by all inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
