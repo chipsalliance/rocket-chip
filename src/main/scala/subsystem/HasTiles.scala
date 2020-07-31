@@ -138,15 +138,16 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
     *   The output values are [[dontTouch]]'d to prevent constant propagation from pulling the values into
     *   the tiles if they are constant, which would ruin deduplication of tiles that are otherwise homogeneous.
     */
-  val tileHartIdNexusNode = BundleBridgeNexus[UInt](
+  val tileHartIdNexusNode = LazyModule(new BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) _,
     outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
-      val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W))
+      val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W)) // dontTouch to keep constant prop from breaking tile dedup
       if (p(InsertTimingClosureRegistersOnHartIds)) BundleBridgeNexus.safeRegNext(y) else y
     },
     default = Some(() => 0.U(p(MaxHartIdBits).W)),
-    inputRequiresOutput = true // guard against this being driven but then ignored in tileHartIdIONodes below
-  )
+    inputRequiresOutput = true, // guard against this being driven but then ignored in tileHartIdIONodes below
+    shouldBeInlined = false // can't inline something whose output we are are dontTouching
+  )).node
   // TODO: Replace the DebugModuleHartSelFuncs config key with logic to consume the dynamic hart IDs
 
   /** tileResetVectorNode is used to collect publishers and subscribers of tile reset vector addresses. */

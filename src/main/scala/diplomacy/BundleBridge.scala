@@ -177,9 +177,10 @@ object BundleBridgeNexus {
     inputFn: Seq[T] => T = orReduction[T](false) _,
     outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
     default: Option[() => T] = None,
-    inputRequiresOutput: Boolean = false
+    inputRequiresOutput: Boolean = false,
+    shouldBeInlined: Boolean = true
   )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
-    val nexus = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput))
+    val nexus = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput, shouldBeInlined))
     nexus.node
   }
 }
@@ -189,13 +190,15 @@ object BundleBroadcast {
     name: Option[String] = None,
     registered: Boolean = false,
     default: Option[() => T] = None,
-    inputRequiresOutput: Boolean = false // when false, connecting a source does not mandate connecting a sink
+    inputRequiresOutput: Boolean = false, // when false, connecting a source does not mandate connecting a sink
+    shouldBeInlined: Boolean = true
   )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
     val broadcast = LazyModule(new BundleBridgeNexus[T](
       inputFn = BundleBridgeNexus.requireOne[T](registered) _,
       outputFn = BundleBridgeNexus.fillN[T](registered) _,
       default = default,
-      inputRequiresOutput = inputRequiresOutput))
+      inputRequiresOutput = inputRequiresOutput,
+      shouldBeInlined = shouldBeInlined))
     name.foreach(broadcast.suggestName(_))
     broadcast.node
   }
