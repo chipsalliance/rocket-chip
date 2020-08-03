@@ -272,6 +272,25 @@ class TLEdge(
   def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire())
   def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
 
+  // Does the request need T permissions to be executed?
+  def needT(a: TLBundleA): Bool = {
+    val acq_needT = MuxLookup(a.param, Wire(Bool()), Array(
+      TLPermissions.NtoB -> false.B,
+      TLPermissions.NtoT -> true.B,
+      TLPermissions.BtoT -> true.B))
+    MuxLookup(a.opcode, Wire(Bool()), Array(
+      TLMessages.PutFullData    -> true.B,
+      TLMessages.PutPartialData -> true.B,
+      TLMessages.ArithmeticData -> true.B,
+      TLMessages.LogicalData    -> true.B,
+      TLMessages.Get            -> false.B,
+      TLMessages.Hint           -> MuxLookup(a.param, Wire(Bool()), Array(
+        TLHints.PREFETCH_READ   -> false.B,
+        TLHints.PREFETCH_WRITE  -> true.B)),
+      TLMessages.AcquireBlock   -> acq_needT,
+      TLMessages.AcquirePerm    -> acq_needT))
+  }
+
   // This is a very expensive circuit; use only if you really mean it!
   def inFlight(x: TLBundle): (UInt, UInt) = {
     val flight = RegInit(UInt(0, width = log2Ceil(3*client.endSourceId+1)))

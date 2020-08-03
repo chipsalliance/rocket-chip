@@ -17,7 +17,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
-  case MaxHartIdBits => log2Up(site(RocketTilesKey).size)
+  case MaxHartIdBits => log2Up(site(TilesLocated(InSubsystem)).map(_.tileParams.hartId).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
     beatBytes = site(XLen)/8,
@@ -37,10 +37,13 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
-  case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
+  case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
+  case SubsystemExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
+  case TilesLocated(InSubsystem) => 
+    LegacyTileFieldHelper(site(RocketTilesKey), site(RocketCrossingKey), RocketTileAttachParams.apply _)
 })
 
 /* Composable partial function Configs to set individual parameters */
@@ -75,8 +78,10 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
       l2 = site(BankedL2Key)))
 })
 
-class WithNBigCores(n: Int) extends Config((site, here, up) => {
+class WithNBigCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
         mulUnroll = 8,
@@ -89,12 +94,14 @@ class WithNBigCores(n: Int) extends Config((site, here, up) => {
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => big.copy(hartId = i))
+    List.tabulate(n)(i => big.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
-class WithNMedCores(n: Int) extends Config((site, here, up) => {
+class WithNMedCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val med = RocketTileParams(
       core = RocketCoreParams(fpu = None),
       btb = None,
@@ -111,12 +118,14 @@ class WithNMedCores(n: Int) extends Config((site, here, up) => {
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => med.copy(hartId = i))
+    List.tabulate(n)(i => med.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
-class WithNSmallCores(n: Int) extends Config((site, here, up) => {
+class WithNSmallCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
   case RocketTilesKey => {
+    val prev = up(RocketTilesKey, site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
@@ -133,7 +142,7 @@ class WithNSmallCores(n: Int) extends Config((site, here, up) => {
         nWays = 1,
         nTLBEntries = 4,
         blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => small.copy(hartId = i))
+    List.tabulate(n)(i => small.copy(hartId = i + idOffset)) ++ prev
   }
 })
 
@@ -299,7 +308,7 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMParams => up(BootROMParams, site).copy(contentFileName = bootROMFile)
+  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
@@ -410,3 +419,17 @@ class WithScratchpadsOnly extends Config((site, here, up) => {
         scratch = Some(0x80000000L))))
   }
 })
+
+/** Boilerplate code for translating between the old XTilesParamsKey/XTilesCrossingKey pattern and new TilesLocated pattern */
+object LegacyTileFieldHelper {
+  def apply[TPT <: InstantiableTileParams[_], TCT <: TileCrossingParamsLike, TAP <: CanAttachTile](
+    tileParams: Seq[TPT],
+    tcp: Seq[TCT],
+    apply: (TPT, TCT, LookupByHartIdImpl) => TAP): Seq[TAP] =
+  {
+    val crossingParams = heterogeneousOrGlobalSetting(tcp, tileParams.size)
+    tileParams.zip(crossingParams).map { case (t, c) =>
+      apply(t, c, PriorityMuxHartIdFromSeq(tileParams))
+    }
+  }
+}

@@ -18,8 +18,10 @@ case object CacheBlockBytes extends Field[Int](64)
 case object BroadcastKey extends Field(BroadcastParams())
 
 case class BroadcastParams(
-  nTrackers:  Int     = 4,
-  bufferless: Boolean = false)
+  nTrackers:      Int     = 4,
+  bufferless:     Boolean = false,
+  controlAddress: Option[BigInt] = None,
+  filterFactory:  TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)
 
 /** L2 memory subsystem configuration */
 case object BankedL2Key extends Field(BankedL2Params())
@@ -67,14 +69,30 @@ class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: Ha
 object CoherenceManagerWrapper {
   type CoherenceManagerInstantiationFn = HasTileLinkLocations => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode])
 
-  val broadcastManager: CoherenceManagerInstantiationFn = { context =>
+  def broadcastManagerFn(
+    name: String,
+    location: HierarchicalLocation,
+    controlPortsSlaveWhere: TLBusWrapperLocation
+  ): CoherenceManagerInstantiationFn = { context =>
     implicit val p = context.p
-    val BroadcastParams(nTrackers, bufferless) = p(BroadcastKey)
-    val bh = LazyModule(new TLBroadcast(p(CacheBlockBytes), nTrackers, bufferless))
-    val ss = TLSourceShrinker(nTrackers)
-    ss :*= bh.node
-    (bh.node, ss, None)
+    val cbus = context.locateTLBusWrapper(controlPortsSlaveWhere)
+
+    val BroadcastParams(nTrackers, bufferless, controlAddress, filterFactory) = p(BroadcastKey)
+    val bh = LazyModule(new TLBroadcast(TLBroadcastParams(
+      lineBytes     = p(CacheBlockBytes),
+      numTrackers   = nTrackers,
+      bufferless    = bufferless,
+      control       = controlAddress.map(x => TLBroadcastControlParams(AddressSet(x, 0xfff), cbus.beatBytes)),
+      filterFactory = filterFactory)))
+    bh.suggestName(name)
+
+    bh.controlNode.foreach { _ := cbus.coupleTo(s"${name}_ctrl") { TLBuffer(1) := TLFragmenter(cbus) := _ } }
+    bh.intNode.foreach { context.ibus.fromSync := _ }
+
+    (bh.node, bh.node, None)
   }
+
+  val broadcastManager = broadcastManagerFn("broadcast", InSystem, CBUS)
 
   val incoherentManager: CoherenceManagerInstantiationFn = { _ =>
     val node = TLNameNode("no_coherence_manager")

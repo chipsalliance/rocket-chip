@@ -37,6 +37,16 @@ case class ClockIdentityNode()(implicit valName: ValName) extends IdentityNode(C
 
 case class ClockEphemeralNode()(implicit valName: ValName) extends EphemeralNode(ClockImp)()
 
+object ClockNameNode {
+  def apply(name: ValName) = ClockIdentityNode()(name)
+  def apply(name: Option[String]): ClockIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
+  def apply(name: String): ClockIdentityNode = apply(Some(name))
+}
+
+object ClockTempNode {
+  def apply(): ClockEphemeralNode = ClockEphemeralNode()(ValName("temp"))
+}
+
 object ClockSinkNode
 {
   def apply(

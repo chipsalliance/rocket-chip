@@ -1,0 +1,16 @@
+autoconf
+automake
+autotools-dev
+bison
+build-essential
+device-tree-compiler
+flex
+g++-4.8
+gawk
+gcc-4.8
+gperf
+libgmp-dev
+libmpc-dev
+libmpfr-dev
+libusb-1.0-0-dev
+texinfo

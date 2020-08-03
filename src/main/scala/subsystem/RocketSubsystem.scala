@@ -10,101 +10,47 @@ import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugM
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.diplomaticobjectmodel.model._
+import freechips.rocketchip.prci.{ClockAdapterNode, ClockNode, ClockTempNode, ResetStretcher}
 import freechips.rocketchip.tile._
-
-case object HartPrefixKey extends Field[Boolean](false)
-
-// TODO: how specific are these to RocketTiles?
-case class TileMasterPortParams(
-  buffers: Int = 0,
-  cork: Option[Boolean] = None,
-  where: TLBusWrapperLocation = SBUS)
-
-case class TileSlavePortParams(
-  buffers: Int = 0,
-  blockerCtrlAddr: Option[BigInt] = None,
-  where: TLBusWrapperLocation = CBUS)
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
   master: TileMasterPortParams = TileMasterPortParams(),
-  slave: TileSlavePortParams = TileSlavePortParams())
+  slave: TileSlavePortParams = TileSlavePortParams(),
+  mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
+  stretchResetCycles: Option[Int] = None
+) extends TileCrossingParamsLike {
+  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode = {
+    if (stretchResetCycles.isDefined) {
+      val rs = LazyModule(new ResetStretcher(stretchResetCycles.get))
+      rs.node
+    } else {
+      ClockTempNode()
+    }
+  }
+  def forceSeparateClockReset: Boolean = false
+}
+
+case class RocketTileAttachParams(
+  tileParams: RocketTileParams,
+  crossingParams: RocketCrossingParams,
+  lookup: LookupByHartIdImpl
+) extends CanAttachTile { type TileType = RocketTile }
 
 case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
 case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
 
-trait HasRocketTiles extends HasTiles
-    with CanHavePeripheryPLIC
-    with CanHavePeripheryCLINT
-    with HasPeripheryDebug { this: BaseSubsystem =>
-  val module: HasRocketTilesModuleImp
-
-  protected val rocketTileParams = p(RocketTilesKey)
-  private val crossings = perTileOrGlobalSetting(p(RocketCrossingKey), rocketTileParams.size)
-
-  // Make a tile and wire its nodes into the system,
-  // according to the specified type of clock crossing.
-  // Note that we also inject new nodes into the tile itself,
-  // also based on the crossing type.
-  val rocketTiles = rocketTileParams.zip(crossings).map { case (tp, crossing) =>
-    val rocket = LazyModule(new RocketTile(tp, crossing, PriorityMuxHartIdFromSeq(rocketTileParams), logicalTreeNode))
-
-    connectMasterPortsToSBus(rocket, crossing)
-    connectSlavePortsToCBus(rocket, crossing)
-    connectInterrupts(rocket, debugOpt, clintOpt, plicOpt)
-
-    rocket
-  }
-
-  rocketTiles.map {
-    r =>
-      def treeNode: RocketTileLogicalTreeNode = new RocketTileLogicalTreeNode(r.rocketLogicalTree.getOMInterruptTargets)
-      LogicalModuleTree.add(logicalTreeNode, r.rocketLogicalTree)
-  }
+trait HasRocketTiles extends HasTiles { this: BaseSubsystem =>
+  val rocketTiles = tiles.collect { case r: RocketTile => r }
 
   def coreMonitorBundles = (rocketTiles map { t =>
     t.module.core.rocketImpl.coreMonitorBundle
   }).toList
 }
 
-trait HasRocketTilesModuleImp extends HasTilesModuleImp
-    with HasPeripheryDebugModuleImp {
-  val outer: HasRocketTiles
-}
-
-// Field for specifying MaskROM addition to subsystem
-case object PeripheryMaskROMKey extends Field[Seq[MaskROMParams]](Nil)
-
-class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
-    with HasRocketTiles {
-  val tiles = rocketTiles
-        
-  // add Mask ROM devices
-  val maskROMs = p(PeripheryMaskROMKey).map { MaskROM.attach(_, cbus) }
-
-  val hartPrefixNode = if (p(HartPrefixKey)) {
-    Some(BundleBroadcast[UInt](registered = true))
-  } else {
-    None
-  }
-
-  val hartPrefixes = hartPrefixNode.map { hpn => Seq.fill(tiles.size) {
-   val hps = BundleBridgeSink[UInt]()
-   hps := hpn
-   hps
-  } }.getOrElse(Nil)
-
+class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem with HasRocketTiles {
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
-    with HasResetVectorWire
-    with HasRocketTilesModuleImp {
-
-  for (i <- 0 until outer.tiles.size) {
-    val wire = tile_inputs(i)
-    val prefix = outer.hartPrefixes.lift(i).map(_.bundle).getOrElse(UInt(0))
-    wire.hartid := prefix | UInt(outer.hartIdList(i))
-    wire.reset_vector := global_reset_vector
-  }
-}
+    with HasTilesModuleImp

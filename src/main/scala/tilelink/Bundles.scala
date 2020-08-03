@@ -306,3 +306,12 @@ class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
   val d = RationalIO(new TLBundleD(params)).flip
   val e = RationalIO(new TLBundleE(params))
 }
+
+class TLCreditedBundle(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val a = CreditedIO(new TLBundleA(params))
+  val b = CreditedIO(new TLBundleB(params)).flip
+  val c = CreditedIO(new TLBundleC(params))
+  val d = CreditedIO(new TLBundleD(params)).flip
+  val e = CreditedIO(new TLBundleE(params))
+}

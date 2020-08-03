@@ -23,14 +23,20 @@ abstract class ClockDomain(implicit p: Parameters) extends LazyModule
   }
 }
 
-class ClockSinkDomain(take: Option[ClockParameters] = None)(implicit p: Parameters) extends ClockDomain
+class ClockSinkDomain(
+  take: Option[ClockParameters] = None,
+  name: Option[String] = None)
+  (implicit p: Parameters) extends ClockDomain
 {
-  val clockNode = ClockSinkNode(Seq(ClockSinkParameters(take = take)))
+  val clockNode = ClockSinkNode(Seq(ClockSinkParameters(take = take, name = name)))
   def clockBundle = clockNode.in.head._1
 }
 
-class ClockSourceDomain(give: Option[ClockParameters] = None)(implicit p: Parameters) extends ClockDomain
+class ClockSourceDomain(
+  give: Option[ClockParameters] = None,
+  name: Option[String] = None)
+  (implicit p: Parameters) extends ClockDomain
 {
-  val clockNode = ClockSourceNode(Seq(ClockSourceParameters(give = give)))
+  val clockNode = ClockSourceNode(Seq(ClockSourceParameters(give = give, name = name)))
   def clockBundle = clockNode.out.head._1
 }

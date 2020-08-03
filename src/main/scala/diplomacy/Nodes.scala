@@ -86,11 +86,14 @@ abstract class BaseNode(implicit val valName: ValName)
     parents.map(_.name).mkString("/") + "' at " +
     scope.map(_.line).getOrElse("<undef>") + ")"
 
+  /** Determines the name to be used in elements of auto-punched bundles
+    * by taking the name of the node as determined from valName,
+    * converting camel case into snake case, and stripping "Node" or "NodeOpt" suffixes.
+    */
   def wirePrefix = {
     val camelCase = "([a-z])([A-Z])".r
     val decamel = camelCase.replaceAllIn(valName.name, _ match { case camelCase(l, h) => l + "_" + h })
-    val trimNode = "_?node$".r
-    val name = trimNode.replaceFirstIn(decamel.toLowerCase, "")
+    val name = decamel.toLowerCase.stripSuffix("_opt").stripSuffix("node").stripSuffix("_")
     if (name.isEmpty) "" else name + "_"
   }
 

@@ -54,22 +54,24 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
   val node = TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => c.v1copy(
-      clients = Seq(TLMasterParameters.v1(
+    clientFn  = { c => c.v2copy(
+      masters = Seq(TLMasterParameters.v2(
         name        = "TLFragmenter",
         sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
-        requestFifo = true))),
-        // This master can only produce:
-        // emitsAcquireT = c.clients.map(_.knownToEmit.get.emitsAcquireT).reduce(_ smallestintervalcover _),
-        // emitsAcquireB = c.clients.map(_.knownToEmit.get.emitsAcquireB).reduce(_ smallestintervalcover _),
-        // emitsArithmetic = c.clients.map(_.knownToEmit.get.emitsArithmetic).reduce(_ smallestintervalcover _),
-        // emitsLogical = c.clients.map(_.knownToEmit.get.emitsLogical).reduce(_ smallestintervalcover _),
-        // emitsGet = c.clients.map(_.knownToEmit.get.emitsGet).reduce(_ smallestintervalcover _),
-        // emitsPutFull = c.clients.map(_.knownToEmit.get.emitsPutFull).reduce(_ smallestintervalcover _),
-        // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
-        // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
-    },
-    managerFn = { m => m.v1copy(managers = m.managers.map(mapManager)) })
+        requestFifo = true,
+        emits       = TLMasterToSlaveTransferSizes(
+          acquireT    = shrinkTransfer(c.masters.map(_.emits.acquireT)  .reduce(_ mincover _)),
+          acquireB    = shrinkTransfer(c.masters.map(_.emits.acquireB)  .reduce(_ mincover _)),
+          arithmetic  = shrinkTransfer(c.masters.map(_.emits.arithmetic).reduce(_ mincover _)),
+          logical     = shrinkTransfer(c.masters.map(_.emits.logical)   .reduce(_ mincover _)),
+          get         = shrinkTransfer(c.masters.map(_.emits.get)       .reduce(_ mincover _)),
+          putFull     = shrinkTransfer(c.masters.map(_.emits.putFull)   .reduce(_ mincover _)),
+          putPartial  = shrinkTransfer(c.masters.map(_.emits.putPartial).reduce(_ mincover _)),
+          hint        = shrinkTransfer(c.masters.map(_.emits.hint)      .reduce(_ mincover _))
+        )
+      ))
+    )},
+    managerFn = { m => m.v2copy(slaves = m.slaves.map(mapManager)) })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>

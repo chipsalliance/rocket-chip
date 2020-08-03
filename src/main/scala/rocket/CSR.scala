@@ -168,7 +168,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val priv = UInt(width = 3)
   val exception = Bool()
   val interrupt = Bool()
-  val cause = UInt(width = log2Ceil(1 + CSR.busErrorIntCause))
+  val cause = UInt(width = xLen)
   val tval = UInt(width = coreMaxAddrBits max iLen)
 }
 
@@ -268,8 +268,8 @@ class VType(implicit p: Parameters) extends CoreBundle {
   val reserved = UInt((xLen - 9).W)
   val vma = Bool()
   val vta = Bool()
-  val vlmul_sign = Bool()
   val vsew = UInt(3.W)
+  val vlmul_sign = Bool()
   val vlmul_mag = UInt(2.W)
 
   def vlmul_signed: SInt = Cat(vlmul_sign, vlmul_mag).asSInt
@@ -308,6 +308,7 @@ class CSRFile(
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))
   reset_mstatus.mpp := PRV.M
   reset_mstatus.prv := PRV.M
+  reset_mstatus.xs := (if (usingRoCC) UInt(3) else UInt(0))
   val reg_mstatus = Reg(init=reset_mstatus)
 
   val new_prv = Wire(init = reg_mstatus.prv)
@@ -636,7 +637,7 @@ class CSRFile(
   val cause =
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, io.cause))
-  val cause_lsbs = cause(io.trace.head.cause.getWidth-1, 0)
+  val cause_lsbs = cause(log2Ceil(1 + CSR.busErrorIntCause)-1, 0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
@@ -833,7 +834,6 @@ class CSRFile(
 
       if (usingSupervisor || usingFPU) reg_mstatus.fs := formFS(new_mstatus.fs)
       reg_mstatus.vs := formVS(new_mstatus.vs)
-      if (usingRoCC) reg_mstatus.xs := Fill(2, new_mstatus.xs.orR)
     }
     when (decoded_addr(CSRs.misa)) {
       val mask = UInt(isaStringToMask(isaMaskString), xLen)
@@ -906,7 +906,6 @@ class CSRFile(
           reg_mstatus.mxr := new_sstatus.mxr
           reg_mstatus.sum := new_sstatus.sum
         }
-        if (usingRoCC) reg_mstatus.xs := Fill(2, new_sstatus.xs.orR)
       }
       when (decoded_addr(CSRs.sip)) {
         val new_sip = new MIP().fromBits((read_mip & ~read_mideleg) | (wdata & read_mideleg))

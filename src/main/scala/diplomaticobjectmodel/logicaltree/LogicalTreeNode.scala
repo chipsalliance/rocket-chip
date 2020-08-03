@@ -36,7 +36,7 @@ object LogicalModuleTree {
 
   def rootLogicalTreeNode: LogicalTreeNode = {
     val roots = tree.collect { case (k, _) if !tree.exists(_._2.contains(k)) => k }
-    assert(roots.size == 1, "Logical Tree contains more than one root.")
+    require(roots.size == 1, s"Logical Tree contains more than one root:\n$roots")
     roots.head
   }
 

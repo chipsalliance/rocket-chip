@@ -48,6 +48,13 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   fixedClockNode := clockGroup.node // first member of group is always domain's own clock
   clockSinkNode := fixedClockNode
 
+  InModuleBody {
+    // make sure the above connections work properly because mismatched-by-name signals will just be ignored.
+    (clockGroup.node.edges.in zip clockGroupAggregator.node.edges.out).zipWithIndex map { case ((in: ClockGroupEdgeParameters , out: ClockGroupEdgeParameters), i) =>
+      require(in.members.keys == out.members.keys, s"clockGroup := clockGroupAggregator not working as you expect for index ${i}, becuase clockGroup has ${in.members.keys} and clockGroupAggregator has ${out.members.keys}")
+    }
+  }
+
   def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
   def blockBytes = params.blockBytes
@@ -62,10 +69,12 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def inwardNode: TLInwardNode
   def outwardNode: TLOutwardNode
   def busView: TLEdge
-  val prefixNode: Option[BundleBridgeSink[UInt]]
+  def prefixNode: Option[BundleBridgeNode[UInt]]
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
+
+  protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
   def to[T](name: String)(body: => T): T = {
     this { LazyScope(s"coupler_to_${name}") { body } }
@@ -76,10 +85,10 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   }
 
   def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
-    to(name) { gen(outwardNode) }
+    to(name) { gen(TLNameNode("tl") :*=* outwardNode) }
 
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
-    from(name) { gen(inwardNode) }
+    from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
   def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
     bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
@@ -379,7 +388,10 @@ class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)
   val inwardNode: TLInwardNode = address_adjuster.map(_.node :*=* TLFIFOFixer(params.policy) :*=* viewNode).getOrElse(viewNode)
   def outwardNode: TLOutwardNode = address_adjuster.map(_.node).getOrElse(viewNode)
   def busView: TLEdge = viewNode.edges.in.head
-  val prefixNode = address_adjuster.map(_.prefix)
+  val prefixNode = address_adjuster.map { a =>
+    a.prefix := addressPrefixNexusNode
+    addressPrefixNexusNode
+  }
   val builtInDevices = BuiltInDevices.none
 }
 

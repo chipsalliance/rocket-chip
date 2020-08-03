@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.{BaseSubsystem, HasResetVectorWire}
+import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation, CBUS}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -16,9 +16,8 @@ import java.nio.file.{Files, Paths}
 case class BootROMParams(
   address: BigInt = 0x10000,
   size: Int = 0x10000,
-  hang: BigInt = 0x10040,
+  hang: BigInt = 0x10040, // The hang parameter is used as the power-on reset vector
   contentFileName: String)
-case object BootROMParams extends Field[BootROMParams]
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
   resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem"))(implicit p: Parameters) extends LazyModule
@@ -58,25 +57,36 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
   }
 }
 
-/** Adds a boot ROM that contains the DTB describing the system's subsystem. */
-trait HasPeripheryBootROM { this: BaseSubsystem =>
-  val dtb: DTB
-  private val params = p(BootROMParams)
-  private lazy val contents = {
-    val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
-    val rom = ByteBuffer.wrap(romdata)
-    rom.array() ++ dtb.contents
+case class BootROMLocated(loc: HierarchicalLocation) extends Field[Option[BootROMParams]](None)
+
+object BootROM {
+  /** BootROM.attach not only instantiates a TLROM and attaches it to the tilelink interconnect
+    *    at a configurable location, but also drives the tiles' reset vectors to point
+    *    at its 'hang' address parameter value.
+    */
+  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)
+            (implicit p: Parameters): TLROM = {
+    val cbus = subsystem.locateTLBusWrapper(where)
+    val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
+    lazy val contents = {
+      val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
+      val rom = ByteBuffer.wrap(romdata)
+      rom.array() ++ subsystem.dtb.contents
+    }
+
+    val bootrom = subsystem {
+      LazyModule(new TLROM(params.address, params.size, contents, true, cbus.beatBytes))
+    }
+
+    bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus) := _ }
+    // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
+    subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
+    InModuleBody {
+      val reset_vector_source = bootROMResetVectorSourceNode.bundle
+      require(reset_vector_source.getWidth >= params.hang.bitLength,
+        s"BootROM defined with a reset vector (${params.hang})too large for physical address space (${reset_vector_source.getWidth})")
+      bootROMResetVectorSourceNode.bundle := params.hang.U
+    }
+    bootrom
   }
-  def resetVector: BigInt = params.hang
-
-  val bootrom = LazyModule(new TLROM(params.address, params.size, contents, true, cbus.beatBytes))
-
-  bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus) := _ }
-}
-
-/** Subsystem will power-on running at 0x10040 (BootROM) */
-trait HasPeripheryBootROMModuleImp extends LazyModuleImp
-    with HasResetVectorWire {
-  val outer: HasPeripheryBootROM
-  global_reset_vector := outer.resetVector.U
 }

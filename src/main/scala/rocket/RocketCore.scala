@@ -687,6 +687,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.hartid := io.hartid
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
+  io.fpu.time := csr.io.time(31,0)
+  io.fpu.hartid := io.hartid
   csr.io.rocc_interrupt := io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   val tval_valid = wb_xcpt && wb_cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
@@ -937,6 +939,27 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
          coreMonitorBundle.inst, coreMonitorBundle.inst)
     }
   }
+
+  // CoreMonitorBundle for late latency writes
+  val xrfWriteBundle = Wire(new CoreMonitorBundle(xLen))
+
+  xrfWriteBundle.clock := clock
+  xrfWriteBundle.reset := reset
+  xrfWriteBundle.hartid := io.hartid
+  xrfWriteBundle.timer := csr.io.time(31,0)
+  xrfWriteBundle.valid := false.B
+  xrfWriteBundle.pc := 0.U
+  xrfWriteBundle.wrdst := rf_waddr
+  xrfWriteBundle.wrenx := rf_wen && !(csr.io.trace(0).valid && wb_wen && (wb_waddr === rf_waddr))
+  xrfWriteBundle.wrenf := false.B
+  xrfWriteBundle.wrdata := rf_wdata
+  xrfWriteBundle.rd0src := 0.U
+  xrfWriteBundle.rd0val := 0.U
+  xrfWriteBundle.rd1src := 0.U
+  xrfWriteBundle.rd1val := 0.U
+  xrfWriteBundle.inst := 0.U
+  xrfWriteBundle.excpt := false.B
+  xrfWriteBundle.priv_mode := csr.io.trace(0).priv
 
   PlusArg.timeout(
     name = "max_core_cycles",

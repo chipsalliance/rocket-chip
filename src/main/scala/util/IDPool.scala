@@ -15,7 +15,7 @@ class IDPool(numIds: Int) extends Module {
   })
 
   // True indicates that the id is available
-  val bitmap = RegInit(~0.U(numIds.W))
+  val bitmap = RegInit(-1.S(numIds.W).asUInt)
   val select = RegInit(0.U(idWidth.W))
   val valid  = RegInit(true.B)
 

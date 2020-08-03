@@ -5,7 +5,9 @@ package freechips.rocketchip.diplomacy
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{DataMirror,IO}
+import chisel3.experimental.DataMirror.internal.chiselTypeClone
 import freechips.rocketchip.config.{Parameters,Field}
+import freechips.rocketchip.util.DataToAugmentedData
 
 case class BundleBridgeParams[T <: Data](genOpt: Option[() => T])
 
@@ -42,16 +44,40 @@ case class BundleBridgeSink[T <: Data](genOpt: Option[() => T] = None)
 {
   def bundle: T = in(0)._1
 
-  def makeIO()(implicit valName: ValName): T = makeIOs()(valName).head
-  def makeIO(name: String): T = makeIOs()(ValName(name)).head
+  private def inferOutput = bundle.getElements.forall { elt =>
+    DataMirror.directionOf(elt) == ActualDirection.Unspecified
+  }
+
+  def makeIO()(implicit valName: ValName): T = {
+    val io: T = IO(if (inferOutput) Output(chiselTypeOf(bundle)) else chiselTypeClone(bundle))
+    io.suggestName(valName.name)
+    io <> bundle
+    io
+  }
+  def makeIO(name: String): T = makeIO()(ValName(name))
+}
+
+object BundleBridgeSink {
+  def apply[T <: Data]()(implicit valName: ValName): BundleBridgeSink[T] = {
+    BundleBridgeSink(None)
+  }
 }
 
 case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implicit valName: ValName) extends SourceNode(new BundleBridgeImp[T])(Seq(BundleBridgeParams(genOpt)))
 {
   def bundle: T = out(0)._1
 
-  def makeIO()(implicit valName: ValName): T = makeIOs()(valName).head
-  def makeIO(name: String): T = makeIOs()(ValName(name)).head
+  private def inferInput = bundle.getElements.forall { elt =>
+    DataMirror.directionOf(elt) == ActualDirection.Unspecified
+  }
+
+  def makeIO()(implicit valName: ValName): T = {
+    val io: T = IO(if (inferInput) Input(chiselTypeOf(bundle)) else Flipped(chiselTypeClone(bundle)))
+    io.suggestName(valName.name)
+    bundle <> io
+    io
+  }
+  def makeIO(name: String): T = makeIO()(ValName(name))
 
   private var doneSink = false
   def makeSink()(implicit p: Parameters) = {
@@ -63,7 +89,10 @@ case class BundleBridgeSource[T <: Data](genOpt: Option[() => T] = None)(implici
   }
 }
 
-case object BundleBridgeSource {
+object BundleBridgeSource {
+  def apply[T <: Data]()(implicit valName: ValName): BundleBridgeSource[T] = {
+    BundleBridgeSource(None)
+  }
   def apply[T <: Data](gen: () => T)(implicit valName: ValName): BundleBridgeSource[T] = {
     BundleBridgeSource(Some(gen))
   }
@@ -72,41 +101,42 @@ case object BundleBridgeSource {
 case class BundleBridgeIdentityNode[T <: Data]()(implicit valName: ValName) extends IdentityNode(new BundleBridgeImp[T])()
 case class BundleBridgeEphemeralNode[T <: Data]()(implicit valName: ValName) extends EphemeralNode(new BundleBridgeImp[T])()
 
-case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None)
+object BundleBridgeNameNode {
+  def apply[T <: Data](name: String) = BundleBridgeIdentityNode[T]()(ValName(name))
+}
+
+case class BundleBridgeNexusNode[T <: Data](default: Option[() => T] = None,
+                                            inputRequiresOutput: Boolean = false) // when false, connecting a source does not mandate connecting a sink
                                            (implicit valName: ValName)
   extends NexusNode(new BundleBridgeImp[T])(
     dFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
-    uFn = seq => seq.headOption.getOrElse(BundleBridgeParams(default)),
-    inputRequiresOutput = false, // enables publishers with no subscribers
+    uFn = seq => seq.headOption.getOrElse(BundleBridgeParams(None)),
+    inputRequiresOutput = inputRequiresOutput,
     outputRequiresInput = !default.isDefined)
 
 class BundleBridgeNexus[T <: Data](
   inputFn: Seq[T] => T,
   outputFn: (T, Int) => Seq[T],
-  default: Option[() => T] = None
+  default: Option[() => T] = None,
+  inputRequiresOutput: Boolean = false
 ) (implicit p: Parameters) extends LazyModule
 {
-  val node = BundleBridgeNexusNode[T](default)
+  val node = BundleBridgeNexusNode[T](default, inputRequiresOutput)
 
   lazy val module = new LazyModuleImp(this) {
     val defaultWireOpt = default.map(_())
-    val inputs: Seq[T] = defaultWireOpt.toList ++ node.in.map(_._1)
-    require(inputs.size >= 1 || node.out.size == 0, s"${node.context} requires at least one input or default.")
+    val inputs: Seq[T] = node.in.map(_._1)
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),
       s"${node.context} requires all inputs have equivalent Chisel Data types, but got\n$i\nvs\n${inputs.head}")
     }
-    def getElements(x: Data): Seq[Element] = x match {
-      case e: Element => Seq(e)
-      case a: Aggregate => a.getElements.flatMap(getElements)
-    }
-    inputs.flatMap(getElements).foreach { elt => DataMirror.directionOf(elt) match {
+    inputs.flatMap(_.getElements).foreach { elt => DataMirror.directionOf(elt) match {
       case ActualDirection.Output => ()
       case ActualDirection.Unspecified => ()
       case _ => require(false, s"${node.context} can only be used with Output-directed Bundles")
     } }
 
     val outputs: Seq[T] = if (node.out.size > 0) {
-      val broadcast: T = inputFn(inputs)
+      val broadcast: T = if (inputs.size >= 1) inputFn(inputs) else defaultWireOpt.get
       outputFn(broadcast, node.out.size)
     } else { Nil }
 
@@ -122,39 +152,50 @@ class BundleBridgeNexus[T <: Data](
 }
 
 object BundleBridgeNexus {
+  def safeRegNext[T <: Data](x: T): T = {
+    val reg = Reg(chiselTypeOf(x))
+    reg := x
+    reg
+  }
+
   def requireOne[T <: Data](registered: Boolean)(seq: Seq[T]): T = {
     require(seq.size == 1, "BundleBroadcast default requires one input")
-    if (registered) RegNext(seq.head) else seq.head
+    if (registered) safeRegNext(seq.head) else seq.head
   }
 
   def orReduction[T <: Data](registered: Boolean)(seq: Seq[T]): T = {
     val x = seq.reduce((a,b) => (a.asUInt | b.asUInt).asTypeOf(seq.head))
-    if (registered) RegNext(x) else x
+    if (registered) safeRegNext(x) else x
   }
 
   def fillN[T <: Data](registered: Boolean)(x: T, n: Int): Seq[T] = Seq.fill(n) {
-    if (registered) RegNext(x) else x
+    if (registered) safeRegNext(x) else x
   }
 
   def apply[T <: Data](
     inputFn: Seq[T] => T = orReduction[T](false) _,
     outputFn: (T, Int) => Seq[T] = fillN[T](false) _,
-    default: Option[() => T] = None
-  )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
-    val broadcast = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default))
-    broadcast.node
+    default: Option[() => T] = None,
+    inputRequiresOutput: Boolean = false
+  )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
+    val nexus = LazyModule(new BundleBridgeNexus[T](inputFn, outputFn, default, inputRequiresOutput))
+    nexus.node
   }
 }
 
 object BundleBroadcast {
   def apply[T <: Data](
     name: Option[String] = None,
-    registered: Boolean = false
-  )(implicit p: Parameters, valName: ValName): BundleBridgeNexusNode[T] = {
-    val finalName = name.map(ValName(_)).getOrElse(valName)
-    BundleBridgeNexus.apply[T](
+    registered: Boolean = false,
+    default: Option[() => T] = None,
+    inputRequiresOutput: Boolean = false // when false, connecting a source does not mandate connecting a sink
+  )(implicit p: Parameters): BundleBridgeNexusNode[T] = {
+    val broadcast = LazyModule(new BundleBridgeNexus[T](
       inputFn = BundleBridgeNexus.requireOne[T](registered) _,
-      outputFn = BundleBridgeNexus.fillN[T](registered) _)(
-      p, finalName)
+      outputFn = BundleBridgeNexus.fillN[T](registered) _,
+      default = default,
+      inputRequiresOutput = inputRequiresOutput))
+    name.foreach(broadcast.suggestName(_))
+    broadcast.node
   }
 }

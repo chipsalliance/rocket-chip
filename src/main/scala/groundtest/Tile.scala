@@ -17,8 +17,6 @@ trait GroundTestTileParams extends TileParams {
   val memStart: BigInt
   val maxRequests: Int
   val numGens: Int
-
-  def build(i: Int, p: Parameters): GroundTestTile
   
   val icache = Some(ICacheParams())
   val btb = None
@@ -28,29 +26,32 @@ trait GroundTestTileParams extends TileParams {
   val dataScratchpadBytes = 0
 }
 
-case object GroundTestTilesKey extends Field[Seq[GroundTestTileParams]]
-
-abstract class GroundTestTile private (params: GroundTestTileParams, x: ClockCrossingType, q: Parameters)
-    extends BaseTile(params, x, HartsWontDeduplicate(params), q)
+abstract class GroundTestTile(
+  params: GroundTestTileParams,
+  crossing: ClockCrossingType,
+  lookup: LookupByHartIdImpl,
+  q: Parameters
+) extends BaseTile(params, crossing, lookup, q)
+  with SinksExternalInterrupts
+  with SourcesExternalNotifications
 {
-  def this(params: GroundTestTileParams)(implicit p: Parameters) = this(params, SynchronousCrossing(), p)
-  val intInwardNode: IntInwardNode = IntIdentityNode()
+  val cpuDevice: SimpleDevice = new SimpleDevice("groundtest", Nil)
   val intOutwardNode: IntOutwardNode = IntIdentityNode()
   val slaveNode: TLInwardNode = TLIdentityNode()
-  val ceaseNode: IntOutwardNode = IntIdentityNode()
-  val haltNode: IntOutwardNode = IntIdentityNode()
-  val wfiNode: IntOutwardNode = IntIdentityNode()
+  val statusNode = BundleBridgeSource(() => new GroundTestStatus)
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(
-    if (dc.nMSHRs == 0) new DCache(hartId, crossing)
-    else new NonBlockingDCache(hartId))
-  }
+    if (dc.nMSHRs == 0) new DCache(staticIdForMetadataUseOnly, crossing)
+    else new NonBlockingDCache(staticIdForMetadataUseOnly)
+  )}
+
+  dcacheOpt.foreach { _.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode } }
 
   override lazy val module = new GroundTestTileModuleImp(this)
 }
 
 class GroundTestTileModuleImp(outer: GroundTestTile) extends BaseTileModuleImp(outer) {
-  val status = IO(new GroundTestStatus)
+  val status = outer.statusNode.bundle
   val halt_and_catch_fire = None
 
   outer.dcacheOpt foreach { dcache =>

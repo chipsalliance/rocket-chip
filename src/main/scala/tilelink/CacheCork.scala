@@ -22,7 +22,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
         endSinkId = if (mp.managers.exists(_.regionType == RegionType.UNCACHED)) sinkIds else 0,
         managers = mp.managers.map { m => m.v1copy(
           supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
-          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.supportsAcquireT,
+          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull.intersect(m.supportsGet) else m.supportsAcquireT,
           alwaysGrantsT    = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.alwaysGrantsT)})})
 
   lazy val module = new LazyModuleImp(this) {
@@ -32,7 +32,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
         out <> in
       } else {
         val clients = edgeIn.client.clients
-        val caches = clients.filter(_.supportsProbe)
+        val caches = clients.filter(_.supports.probe)
         require (clients.size == 1 || caches.size == 0 || unsafe, s"Only one client can safely use a TLCacheCork; ${clients.map(_.name)}")
         require (caches.size <= 1 || unsafe, s"Only one caching client allowed; ${clients.map(_.name)}")
         edgeOut.manager.managers.foreach { case m =>
