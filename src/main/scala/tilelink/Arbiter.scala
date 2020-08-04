@@ -16,6 +16,8 @@ object TLArbiter
 
   val lowestIndexFirst: Policy = (width, valids, select) => ~(leftOR(valids) << 1)(width-1, 0)
 
+  val highestIndexFirst: Policy = (width, valids, select) => ~((rightOR(valids) >> 1).pad(width))
+
   val roundRobin: Policy = (width, valids, select) => if (width == 1) 1.U(1.W) else {
     val valid = valids(width-1, 0)
     assert (valid === valids)
@@ -43,6 +45,14 @@ object TLArbiter
 
   def lowest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*) {
     applyCancel(lowestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
+  }
+
+  def highest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*) {
+    apply(highestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
+  }
+
+  def highest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*) {
+    applyCancel(highestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
   def robin[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*) {
