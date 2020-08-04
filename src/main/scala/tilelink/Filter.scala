@@ -12,7 +12,7 @@ class TLFilter(
   cfilter: TLFilter.ClientFilter  = TLFilter.cIdentity
   )(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAdapterNode(
+  val node = new TLAdapterNode(
     clientFn  = { cp => cp.v1copy(clients = cp.clients.flatMap { c =>
       val out = cfilter(c)
       out.map { o => // Confirm the filter only REMOVES capability
@@ -49,7 +49,10 @@ class TLFilter(
       }
       mp.v1copy(managers = managers,
               endSinkId = if (managers.exists(_.supportsAcquireB)) mp.endSinkId else 0)
-    })
+    }
+  ) {
+    override def circuitIdentity = true
+  }
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
