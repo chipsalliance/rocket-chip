@@ -15,7 +15,7 @@ class CoreMonitorBundle(val xLen: Int) extends Bundle with Clocked {
   val valid = Bool()
   val pc = UInt(width = xLen.W)
   val wrdst = UInt(width = 5.W)
-  val wrdata = UInt(width = xLen.W)
+  val wrdata = UInt(width = 64.W)
   val wrenx = Bool()
   val wrenf = Bool()
   @deprecated("replace wren with wrenx or wrenf to specify integer or floating point","Rocket Chip 2020.05")
