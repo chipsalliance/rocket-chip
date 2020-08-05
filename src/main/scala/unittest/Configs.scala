@@ -52,6 +52,8 @@ class WithTLSimpleUnitTests extends Config((site, here, up) => {
       Module(new TLFuzzRAMTest(            txns= 3*txns, timeout=timeout)),
       Module(new TLRR0Test(                txns= 3*txns, timeout=timeout)),
       Module(new TLRR1Test(                txns= 3*txns, timeout=timeout)),
+      Module(new TLArbiterLowestTest(      txns= 3*txns, timeout=timeout)),
+      Module(new TLArbiterHighestTest(     txns= 3*txns, timeout=timeout)),
       Module(new TLRAMRationalCrossingTest(txns= 3*txns, timeout=timeout)),
       Module(new TLRAMAsyncCrossingTest(   txns= 5*txns, timeout=timeout)),
       Module(new TLRAMCreditedCrossingTest(txns= 5*txns, timeout=timeout)),
