@@ -133,9 +133,10 @@ object TLArbiter
 /** Synthesizeable unit tests */
 import freechips.rocketchip.unittest._
 
-class TestRobin(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val sources = Wire(Vec(6, DecoupledIO(UInt(3.W))))
-  val sink = Wire(DecoupledIO(UInt(3.W)))
+abstract class ArbiterTest(policy: TLArbiter.Policy, txns: Int, timeout: Int)(implicit p: Parameters) extends UnitTest(timeout) {
+  val numSources = 6
+  val sources = Wire(Vec(numSources, DecoupledIO(UInt(3.W)))).suggestName("sources")
+  val sink = Wire(DecoupledIO(UInt(3.W))).suggestName("sink")
   val count = RegInit(0.U(8.W))
 
   val lfsr = LFSR(16, true.B)
@@ -151,10 +152,34 @@ class TestRobin(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) 
   sources(5).valid := valid
   sink.ready := ready
 
-  TLArbiter(TLArbiter.roundRobin)(sink, sources.zipWithIndex.map { case (z, i) => (i.U, z) }:_*)
-  when (sink.fire()) { printf("TestRobin: %d\n", sink.bits) }
-  when (!sink.fire()) { printf("TestRobin: idle (%d %d)\n", valid, ready) }
+  TLArbiter(policy)(sink, sources.zipWithIndex.map { case (z, i) => (i.U, z) }:_*)
 
   count := count + 1.U
   io.finished := count >= txns.U
+}
+
+/** This test only offers visual inspection of output, no automated checking. */
+class TLArbiterRobinTest(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) extends ArbiterTest(TLArbiter.roundRobin, txns, timeout) {
+  when (sink.fire()) { printf("TestRobin: %d\n", sink.bits) }
+  when (!sink.fire()) { printf("TestRobin: idle (%d %d)\n", valid, ready) }
+}
+
+class TLArbiterLowestTest(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) extends ArbiterTest(TLArbiter.lowestIndexFirst, txns, timeout) {
+  def assertLowest(id: Int): Unit = {
+    when (sources(id).valid) {
+      assert((numSources-1 until id by -1).map(!sources(_).fire).foldLeft(true.B)(_&&_), s"$id was valid but a higher valid source was granted ready.")
+    }
+  }
+
+  when (sink.fire()) { (0 until numSources).foreach(assertLowest(_)) }
+}
+
+class TLArbiterHighestTest(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) extends ArbiterTest(TLArbiter.highestIndexFirst, txns, timeout) {
+  def assertHighest(id: Int): Unit = {
+    when (sources(id).valid) {
+      assert((0 until id).map(!sources(_).fire).foldLeft(true.B)(_&&_), s"$id was valid but a lower valid source was granted ready.")
+    }
+  }
+
+  when (sink.fire()) { (0 until numSources).foreach(assertHighest(_)) }
 }
