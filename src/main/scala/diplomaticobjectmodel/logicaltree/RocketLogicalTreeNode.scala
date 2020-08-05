@@ -95,6 +95,8 @@ class RocketLogicalTreeNode(
       interruptLatency = 4,
       nLocalInterrupts = coreParams.nLocalInterrupts,
       nBreakpoints = coreParams.nBreakpoints,
+      mcontextWidth = coreParams.mcontextWidth,
+      scontextWidth = coreParams.scontextWidth,
       branchPredictor = rocketParams.btb.map(OMBTB.makeOMI),
       dcache = Some(omDCache),
       icache = Some(omICache),

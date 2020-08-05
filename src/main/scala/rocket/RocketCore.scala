@@ -29,6 +29,8 @@ case class RocketCoreParams(
   nLocalInterrupts: Int = 0,
   nBreakpoints: Int = 1,
   useBPWatch: Boolean = false,
+  mcontextWidth: Int = 0,
+  scontextWidth: Int = 0,
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
   haveBasicCounters: Boolean = true,
@@ -319,6 +321,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.bp := csr.io.bp
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
+  bpu.io.mcontext := csr.io.mcontext
+  bpu.io.scontext := csr.io.scontext
 
   val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
   val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
