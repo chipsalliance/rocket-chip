@@ -68,7 +68,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
     //switch this flag to turn on diplomacy in error messages
-    def diplomacyInfo = if (true) "" else "\nThe diplomacy information for the edge is as follows:\n" + edge.formatEdge + "\n"
+    def diplomacyInfo = if (false) "" else "\nThe diplomacy information for the edge is as follows:\n" + edge.formatEdge + "\n"
     monAssert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
