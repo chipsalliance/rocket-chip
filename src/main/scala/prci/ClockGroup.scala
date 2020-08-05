@@ -10,6 +10,9 @@ case class ClockGroupNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(
     dFn = { _ => ClockSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq) })
+{
+  override def circuitIdentity = outputs.size == 1
+}
 
 class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 {
@@ -35,6 +38,9 @@ case class ClockGroupAggregateNode(groupName: String)(implicit valName: ValName)
   extends NexusNode(ClockGroupImp)(
     dFn = { _ => ClockGroupSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq.flatMap(_.members))})
+{
+  override def circuitIdentity = outputs.size == 1
+}
 
 class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends LazyModule
 {
@@ -85,12 +91,14 @@ case class FixedClockBroadcastNode(fixedClockOpt: Option[ClockParameters])(impli
 
 class FixedClockBroadcast(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters) extends LazyModule
 {
-  val node = FixedClockBroadcastNode(fixedClockOpt)
+  val node = new FixedClockBroadcastNode(fixedClockOpt) {
+    override def circuitIdentity = outputs.size == 1
+  }
 
   lazy val module = new LazyRawModuleImp(this) {
     val (in, _) = node.in(0)
     val (out, _) = node.out.unzip
-    require (node.in.size == 1)
+    require (node.in.size == 1, "FixedClockBroadcast can only broadcast a single clock")
     out.foreach { _ := in }
   }
 }

@@ -10,14 +10,16 @@ import freechips.rocketchip.util._
 import scala.math.{min,max}
 
 class AHBFanout()(implicit p: Parameters) extends LazyModule {
-  val node = AHBFanoutNode(
+  val node = new AHBFanoutNode(
     masterFn = { case Seq(m) => m },
     slaveFn  = { seq =>
       seq(0).copy(
         slaves = seq.flatMap(_.slaves),
         requestKeys    = seq.flatMap(_.requestKeys).distinct,
-        responseFields = BundleField.union(seq.flatMap(_.responseFields)))
-    })
+        responseFields = BundleField.union(seq.flatMap(_.responseFields))) }
+  ){
+    override def circuitIdentity = outputs == 1 && inputs == 1
+  }
 
   lazy val module = new LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
