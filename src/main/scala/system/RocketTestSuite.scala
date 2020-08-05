@@ -13,10 +13,6 @@ abstract class RocketTestSuite {
   def kind: String
   def postScript = s"""
 
-$$(addprefix $$(output_dir)/, $$(addsuffix .hex, $$($makeTargetName))): $$(output_dir)/%.hex: $dir/%.hex
-\tmkdir -p $$(output_dir)
-\tln -fs $$< $$@
-
 $$(addprefix $$(output_dir)/, $$($makeTargetName)): $$(output_dir)/%: $dir/%
 \tmkdir -p $$(output_dir)
 \tln -fs $$< $$@
