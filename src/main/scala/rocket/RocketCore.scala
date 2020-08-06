@@ -871,7 +871,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
-  val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
+  val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 
   coreMonitorBundle.clock := clock
   coreMonitorBundle.reset := reset
@@ -934,7 +934,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
   // CoreMonitorBundle for late latency writes
-  val xrfWriteBundle = Wire(new CoreMonitorBundle(xLen))
+  val xrfWriteBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 
   xrfWriteBundle.clock := clock
   xrfWriteBundle.reset := reset
