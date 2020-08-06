@@ -31,9 +31,30 @@ class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
   def enabled(mstatus: MStatus) = !mstatus.debug && Cat(m, h, s, u)(mstatus.prv)
 }
 
+class TExtra(implicit p: Parameters) extends CoreBundle()(p) {
+  def mvalueBits: Int = if (xLen == 32) coreParams.mcontextWidth min  6 else coreParams.mcontextWidth min 13
+  def svalueBits: Int = if (xLen == 32) coreParams.scontextWidth min 16 else coreParams.scontextWidth min 34
+  def mselectPos: Int = if (xLen == 32) 25 else 50
+  def mvaluePos : Int = mselectPos + 1
+  def sselectPos: Int = 0
+  def svaluePos : Int = 2
+
+  val mvalue  = UInt(mvalueBits.W)
+  val mselect = Bool()
+  val pad2    = UInt((mselectPos - svalueBits - 2).W)
+  val svalue  = UInt(svalueBits.W)
+  val pad1    = UInt(1.W)
+  val sselect = Bool()
+}
+
 class BP(implicit p: Parameters) extends CoreBundle()(p) {
   val control = new BPControl
   val address = UInt(vaddrBits.W)
+  val textra  = new TExtra
+
+  def contextMatch(mcontext: UInt, scontext: UInt) =
+    (if (coreParams.mcontextWidth > 0) (!textra.mselect || (mcontext(textra.mvalueBits-1,0) === textra.mvalue)) else true.B) &&
+    (if (coreParams.scontextWidth > 0) (!textra.sselect || (scontext(textra.svalueBits-1,0) === textra.svalue)) else true.B)
 
   def mask(dummy: Int = 0) =
     (0 until control.maskMax-1).scanLeft(control.tmatch(0))((m, i) => m && address(i)).asUInt
@@ -62,6 +83,8 @@ class BreakpointUnit(n: Int)(implicit val p: Parameters) extends Module with Has
     val bp = Input(Vec(n, new BP))
     val pc = Input(UInt(vaddrBits.W))
     val ea = Input(UInt(vaddrBits.W))
+    val mcontext = Input(UInt(coreParams.mcontextWidth.W))
+    val scontext = Input(UInt(coreParams.scontextWidth.W))
     val xcpt_if  = Output(Bool())
     val xcpt_ld  = Output(Bool())
     val xcpt_st  = Output(Bool())
@@ -80,9 +103,10 @@ class BreakpointUnit(n: Int)(implicit val p: Parameters) extends Module with Has
 
   (io.bpwatch zip io.bp).foldLeft((true.B, true.B, true.B)) { case ((ri, wi, xi), (bpw, bp)) =>
     val en = bp.control.enabled(io.status)
-    val r = en && bp.control.r && bp.addressMatch(io.ea)
-    val w = en && bp.control.w && bp.addressMatch(io.ea)
-    val x = en && bp.control.x && bp.addressMatch(io.pc)
+    val cx = bp.contextMatch(io.mcontext, io.scontext)
+    val r = en && bp.control.r && bp.addressMatch(io.ea) && cx
+    val w = en && bp.control.w && bp.addressMatch(io.ea) && cx
+    val x = en && bp.control.x && bp.addressMatch(io.pc) && cx
     val end = !bp.control.chain
     val action = bp.control.action
 

@@ -228,6 +228,8 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
+  val mcontext = Output(UInt(coreParams.mcontextWidth.W))
+  val scontext = Output(UInt(coreParams.scontextWidth.W))
 
   val vector = usingVector.option(new Bundle {
     val vconfig = new VConfig().asOutput
@@ -363,6 +365,9 @@ class CSRFile(
   val reg_dscratch = Reg(UInt(width = xLen))
   val reg_singleStepped = Reg(Bool())
 
+  val reg_mcontext = (coreParams.mcontextWidth > 0).option(RegInit(0.U(coreParams.mcontextWidth.W)))
+  val reg_scontext = (coreParams.scontextWidth > 0).option(RegInit(0.U(coreParams.scontextWidth.W)))
+
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
   val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
   val reg_pmp = Reg(Vec(nPMPs, new PMPReg))
@@ -439,6 +444,8 @@ class CSRFile(
   io.interrupt := (anyInterrupt && !io.singleStep || reg_singleStepped) && !(reg_debug || io.status.cease)
   io.interrupt_cause := interruptCause
   io.bp := reg_bp take nBreakpoints
+  io.mcontext := reg_mcontext.getOrElse(0.U)
+  io.scontext := reg_scontext.getOrElse(0.U)
   io.pmp := reg_pmp.map(PMP(_))
 
   val isaMaskString =
@@ -463,6 +470,7 @@ class CSRFile(
     CSRs.tselect -> reg_tselect,
     CSRs.tdata1 -> reg_bp(reg_tselect).control.asUInt,
     CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
+    CSRs.tdata3 -> reg_bp(reg_tselect).textra.asUInt,
     CSRs.misa -> reg_misa,
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> read_mtvec,
@@ -478,6 +486,10 @@ class CSRFile(
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
     CSRs.dscratch -> reg_dscratch.asUInt)
+
+  val context_csrs = LinkedHashMap[Int,Bits]() ++
+    reg_mcontext.map(r => CSRs.mcontext -> r) ++
+    reg_scontext.map(r => CSRs.scontext -> r)
 
   val read_fcsr = Cat(reg_frm, reg_fflags)
   val fp_csrs = LinkedHashMap[Int,Bits]() ++
@@ -496,6 +508,7 @@ class CSRFile(
     CSRs.vlenb -> (vLen / 8).U)
 
   read_mapping ++= debug_csrs
+  read_mapping ++= context_csrs
   read_mapping ++= fp_csrs
   read_mapping ++= vector_csrs
 
@@ -940,6 +953,16 @@ class CSRFile(
       for ((bp, i) <- reg_bp.zipWithIndex) {
         when (i === reg_tselect && (!bp.control.dmode || reg_debug)) {
           when (decoded_addr(CSRs.tdata2)) { bp.address := wdata }
+          when (decoded_addr(CSRs.tdata3)) {
+            if (coreParams.mcontextWidth > 0) {
+              bp.textra.mselect := wdata(bp.textra.mselectPos)
+              bp.textra.mvalue  := wdata >> bp.textra.mvaluePos
+            }
+            if (coreParams.scontextWidth > 0) {
+              bp.textra.sselect := wdata(bp.textra.sselectPos)
+              bp.textra.svalue  := wdata >> bp.textra.svaluePos
+            }
+          }
           when (decoded_addr(CSRs.tdata1)) {
             bp.control := wdata.asTypeOf(bp.control)
 
@@ -956,6 +979,8 @@ class CSRFile(
         }
       }
     }
+    reg_mcontext.foreach { r => when (decoded_addr(CSRs.mcontext)) { r := wdata }}
+    reg_scontext.foreach { r => when (decoded_addr(CSRs.scontext)) { r := wdata }}
     if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
       require(xLen % pmp.cfg.getWidth == 0)
       when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.cfgLocked) {
@@ -1035,6 +1060,10 @@ class CSRFile(
       bpc.w := false
       bpc.x := false
     }
+  }
+  for (bpx <- reg_bp map {_.textra}) {
+    if (coreParams.mcontextWidth == 0) bpx.mselect := false.B
+    if (coreParams.scontextWidth == 0) bpx.sselect := false.B
   }
   for (bp <- reg_bp drop nBreakpoints)
     bp := new BP().fromBits(0)
