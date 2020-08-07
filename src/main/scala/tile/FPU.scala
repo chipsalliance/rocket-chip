@@ -732,7 +732,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
   // CoreMonitorBundle to monitor fp register file writes
-  val frfWriteBundle = Seq.fill(2)(WireInit(new CoreMonitorBundle(xLen), DontCare))
+  val frfWriteBundle = Seq.fill(2)(WireInit(new CoreMonitorBundle(xLen, fLen), DontCare))
   frfWriteBundle.foreach { i =>
     i.clock := clock
     i.reset := reset
