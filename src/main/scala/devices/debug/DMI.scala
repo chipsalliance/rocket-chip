@@ -83,8 +83,7 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
     name = "debug",
     emits = TLMasterToSlaveTransferSizes(
       get = TransferSizes(4,4),
-      putFull = TransferSizes(4,4),
-      putPartial = TransferSizes(4,4)))))))
+      putFull = TransferSizes(4,4)))))))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
