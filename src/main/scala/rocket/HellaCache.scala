@@ -20,7 +20,7 @@ case class DCacheParams(
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
-    nTLB4KSectors: Int = 4,
+    nTLBBasePageSectors: Int = 4,
     nTLBSuperpages: Int = 4,
     tagECC: Option[String] = None,
     dataECC: Option[String] = None,
