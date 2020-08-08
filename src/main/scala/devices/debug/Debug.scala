@@ -754,10 +754,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Register & Wire Declarations (which need to be pre-declared)
     //--------------------------------------------------------------
 
-    //val haltedBitRegs    = Reg(Vec(nComponents, Bool()))
-    //val resumeReqRegs    = Reg(Vec(nComponents, Bool()))
-    //val haveResetBitRegs = Reg(Vec(nComponents, Bool()))
-    //val resumeAcks       = Wire(Vec(nComponents, Bool()))
     val haltedBitRegs    = Reg(UInt(nComponents.W))
     val resumeReqRegs    = Reg(UInt(nComponents.W))
     val haveResetBitRegs = Reg(UInt(nComponents.W))
@@ -898,17 +894,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       DMSTATUSRdData.confstrptrvalid := false.B
       DMSTATUSRdData.impebreak := (cfg.hasImplicitEbreak).B
     }
-/*
-    for (component <- 0 until nComponents ) {
-      when (~io.dmactive || ~dmAuthenticated) {
-        haveResetBitRegs(component) := false.B
-      }.elsewhen (hartIsInResetSync(component)) {
-        haveResetBitRegs(component) := true.B
-      }.elsewhen (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset && hamaskWrSel(component)) {
-        haveResetBitRegs(component) := false.B
-      }
-    }
-*/
 
     when(~io.dmactive || ~dmAuthenticated) {
       haveResetBitRegs := 0.U
@@ -1066,7 +1051,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     for (ii <- 0 until numHaltedStatus) {
       when (dmAuthenticated) {
-        //haltedStatus(ii) := Cat(haltedBitRegs.slice(ii * 32, (ii + 1) * 32).reverse)
         haltedStatus(ii) := haltedBitRegs >> (ii*32)
       }.otherwise {
         haltedStatus(ii) := 0.U
@@ -1206,42 +1190,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // These bits are implementation-specific bits set
     // by harts executing code.
     //--------------------------------------------------------------
-/*
-    for (component <- 0 until nComponents) {
-      when (~io.dmactive || ~dmAuthenticated) {
-        //haltedBitRegs(component) := false.B
-        //resumeReqRegs(component) := false.B
-      }.otherwise {
-        // Hart Halt Notification Logic
-        when (hartIsInResetSync(component)) {
-          //haltedBitRegs(component) := false.B
-          //resumeReqRegs(component) := false.B
-        }.elsewhen (hartHaltedWrEn) {
-          when (hartSelFuncs.hartIdToHartSel(hartHaltedId) === component.U) {
-            //haltedBitRegs(component) := true.B
-          }
-        }.elsewhen (hartResumingWrEn) {
-          when (hartSelFuncs.hartIdToHartSel(hartResumingId) === component.U) {
-            //haltedBitRegs(component) := false.B
-          }
-        }
 
-        // Hart Resume Req Logic
-        // If you request a hart to resume at the same moment
-        // it actually does resume, then the request wins.
-        // So don't try to write resumereq more than once
-        when (hartResumingWrEn) {
-          when (hartSelFuncs.hartIdToHartSel(hartResumingId) === component.U) {
-            //resumeReqRegs(component) := false.B
-          }
-        }
-        when (resumereq && hamaskWrSel(component)) {
-          //resumeReqRegs(component) := true.B
-        }
-      }
-      resumeAcks(component) := ~resumeReqRegs(component) && ~(resumereq && hamaskWrSel(component))
-    }
-*/
     when (~io.dmactive || ~dmAuthenticated) {
         haltedBitRegs := 0.U
         resumeReqRegs := 0.U
@@ -1251,7 +1200,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         val hartResumingIdIndex = UIntToOH(hartSelFuncs.hartIdToHartSel(hartResumingId))
         val hartselIndex        = UIntToOH(io.innerCtrl.bits.hartsel)
         when (hartIsInResetSync.reduce(_ | _)) {
-          //Possible Bool - UInt issue
           haltedBitRegs := haltedBitRegs & ~(hartIsInResetSync.asUInt)
           resumeReqRegs := resumeReqRegs & ~(hartIsInResetSync.asUInt)
         }.elsewhen (hartHaltedWrEn) {
