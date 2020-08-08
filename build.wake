@@ -144,8 +144,8 @@ global def runRocketChipGenerator options =
   def filterFiles regex = filter (matches regex _.getPathName) allOutputs
   def getFile regex = filterFiles regex | head | getOrElse (makeBadPath (makeError "File not found"))
   def getFileOpt regex = match (filterFiles regex)
-    Nil        = None
-    head, tail = Some head
+    Nil     = None
+    head, _ = Some head
 
   def allOutputs = generatorJob.getJobOutputs
   def baseFileName = match options.getRocketChipGeneratorOptionsBaseFileName

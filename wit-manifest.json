@@ -30,7 +30,7 @@
         "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
     },
     {
-        "commit": "771f11581b86079bf3411f85ce77495e7444c08e",
+        "commit": "e5d463cd9d131033396a9d8921440abb55f114cd",
         "name": "api-scala-sifive",
         "source": "git@github.com:sifive/api-scala-sifive.git"
     }
