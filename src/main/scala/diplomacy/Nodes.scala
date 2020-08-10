@@ -361,7 +361,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       if (oParamsCycleGuard) throw DownwardCycleException()
       oParamsCycleGuard = true
       val o = mapParamsD(oPorts.size, diParams)
-      require (o.size == oPorts.size, s"Diplomacy error: $context has ${o.size} != ${oPorts.size} down/up outer parameters")
+      require (o.size == oPorts.size,
+        s"""Diplomacy error: $context has ${o.size} != ${oPorts.size} down/up outer parameters:
+           |down-out parameters: [${o.mkString(",")}]
+           |oPorts: [${oPorts.map(_._2.name).mkString(",")}]
+           |""".stripMargin)
       o.map(outer.mixO(_, this))
     } catch {
       case c: DownwardCycleException => throw c.copy(loop = context +: c.loop)
@@ -375,7 +379,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       if (iParamsCycleGuard) throw UpwardCycleException()
       iParamsCycleGuard = true
       val i = mapParamsU(iPorts.size, uoParams)
-      require (i.size == iPorts.size, s"Diplomacy error: $context has ${i.size} != ${iPorts.size} up/down inner parameters")
+      require (i.size == iPorts.size,
+        s"""Diplomacy error: $context has ${i.size} != ${iPorts.size} down/up outer parameters:
+           |up-in parameters: [${i.mkString(",")}]
+           |iPorts: [${iPorts.map(_._2.name).mkString(",")}]
+           |""".stripMargin)
       i.map(inner.mixI(_, this))
     } catch {
       case c: UpwardCycleException => throw c.copy(loop = context +: c.loop)
