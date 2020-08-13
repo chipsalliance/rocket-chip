@@ -411,7 +411,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
            |At the following node, the number of outward ports should equal the number of produced outward parameters.
            |$context
            |$connectedPortsInfo
-           |Downstream inward parameters: [${diParams.mkString(",")}]
+           |Downstreamed inward parameters: [${diParams.mkString(",")}]
            |Produced outward parameters: [${o.mkString(",")}]
            |""".stripMargin)
       o.map(outer.mixO(_, this))
@@ -432,7 +432,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
            |At the following node, the number of inward ports should equal the number of produced inward parameters.
            |$context
            |$connectedPortsInfo
-           |Upstream outward parameters: [${uoParams.mkString(",")}]
+           |Upstreamed outward parameters: [${uoParams.mkString(",")}]
            |Produced inward parameters: [${i.mkString(",")}]
            |""".stripMargin)
       i.map(inner.mixI(_, this))
