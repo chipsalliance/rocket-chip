@@ -107,8 +107,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   arb.io.out.ready := state === s_ready
 
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
+  val l2_refill_wire = Wire(Bool())
 
-  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
+  val clock_en = state =/= s_ready || l2_refill_wire || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   io.dpath.clock_enabled := usingVM && clock_en
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
@@ -187,6 +188,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   val l2_refill = RegNext(false.B)
+  l2_refill_wire := l2_refill
   io.dpath.perf.l2miss := false
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
