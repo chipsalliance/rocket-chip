@@ -7,7 +7,7 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTreeNode, LogicalModuleTree, LogicalTreeNode, RocketLogicalTreeNode}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTreeNode, LogicalModuleTree, LogicalTreeNode, RocketLogicalTreeNode, UTLBLogicalTreeNode}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -121,6 +121,11 @@ class RocketTile private(
   val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(dcache, dtim_adapter.map(_.device), rocketParams.dcache.get)
   LogicalModuleTree.add(logicalTreeNode, iCacheLogicalTreeNode)
   LogicalModuleTree.add(logicalTreeNode, dCacheLogicalTreeNode)
+
+  if (rocketParams.core.useVM) {
+    val utlbLogicalTreeNode = new UTLBLogicalTreeNode(rocketParams.core, utlbOMSRAMs)
+    LogicalModuleTree.add(logicalTreeNode, utlbLogicalTreeNode)
+  }
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
