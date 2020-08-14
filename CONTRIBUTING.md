@@ -34,7 +34,7 @@ Most projects will be bumped by developers as needed; however,
 sometimes users may wish to speed up the bumping process.
 For more stable projects like Chisel 3 and FIRRTL,
 please only bump to stable branches as defined by the specific subproject.
-As of March 2020 these branches are `3.2.x` in Chisel 3 and `1.2.x` in FIRRTL.
+As of August 2020 these branches are `3.3.x` in Chisel 3 and `1.3.x` in FIRRTL.
 
 ### How to bump
 
