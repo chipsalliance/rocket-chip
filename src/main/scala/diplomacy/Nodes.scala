@@ -151,7 +151,7 @@ abstract class SimpleNodeImp[D, U, E, B <: Data]
   extends NodeImp[D, U, E, E, B]
 {
   /** Creates the edge parameters out of the downward flowing and upward flowing parameters for edges that connect to this node..
-    * 
+    *
     * @param pd downwards flowing parameters along this edge
     * @param pu upwards flowing parameters of this edge
     * @param p [[Parameter]]s which can be used during negotiation
@@ -160,29 +160,29 @@ abstract class SimpleNodeImp[D, U, E, B <: Data]
     */
   def edge(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo): E
   /** Create an edge coming out of this node from this node.
-    * 
+    *
     * By default just calls [[edge]].
     */
   def edgeO(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo): E = edge(pd, pu, p, sourceInfo)
   /** Create an input edge into this node.
-    * 
+    *
     *  By default just calls [[edge]].
     */
   def edgeI(pd: D, pu: U, p: Parameters, sourceInfo: SourceInfo): E = edge(pd, pu, p, sourceInfo)
 
   /** Generate the Bundle from the negotiated Edge parameters.
-    * 
+    *
     * @param e the negotiated Edge parameters
     * @return the corresponding Bundle of this node
     */
   def bundle(e: E): B
   /** Generate an output Bundle from the negotiated Edge parameters.
-    * 
+    *
     *  By default just calls [[bundle]].
     */
   def bundleO(e: E): B = bundle(e)
   /** Generate an input Bundle from the negotiated Edge parameters.
-    * 
+    *
     *  By default just calls [[bundle]].
     */
   def bundleI(e: E): B = bundle(e)
@@ -257,7 +257,7 @@ abstract class BaseNode(implicit val valName: ValName)
   }
 
   /** Determines the name to be used in elements of auto-punched bundles.
-    * 
+    *
     * It takes the name of the node as determined from valName,
     * converts camel case into snake case, and strips "Node" or "NodeOpt" suffixes.
     */
@@ -279,13 +279,13 @@ abstract class BaseNode(implicit val valName: ValName)
   def outputs: Seq[(BaseNode, RenderedEdge)]
 
   /** @return whether this node can handle [[BIND_FLEX]] type connections on either side.
-    *  
+    *
     *  For example, a node `b` will have `flexibleArityDirection` be `true` if both are legal:
-    *  
+    *
     *    `a :*=* b :*= c`, which resolves to `a :*= b :*= c`
-    *    OR 
+    *    OR
     *    ` a :=* b :*=* c`, which resolves to `a :=* b :=* c`
-    *  
+    *
     *  If this is false, the node can only support `:*=*` if it connects to a node with
     *  `flexibleArityDirection` = true
     */
@@ -304,7 +304,7 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] val sourceCard: Int
 
   /** The "flex" cardinality.
-    * 
+    *
     * How many times is this node used in a way that could be either source or sink, depending on final
     * directional determination.
     */
@@ -328,7 +328,7 @@ trait FormatEdge {
 }
 
 /** Trait that enables iterating over a [[BaseNode]]'s edges to produce a formatted string representation.
-  *  
+  *
   * In practice this is generally GraphML metadata.
   */
 trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
@@ -589,7 +589,7 @@ case object BIND_ONCE  extends NodeBinding {
 }
 
 /** Connects N (N >= 0) edges.
-  * 
+  *
   * The other side of the edge determines cardinality.
   */
 case object BIND_QUERY extends NodeBinding {
@@ -604,7 +604,7 @@ case object BIND_STAR  extends NodeBinding {
 }
 
 /** Connect N (N >= 0) connections.
-  * 
+  *
   *  The number of edges N will be determined by either the right or left side, once the direction (STAR or QUERY) is determined by the other connections as well.
   */
 case object BIND_FLEX  extends NodeBinding {
@@ -669,7 +669,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode
   protected[diplomacy] val iPortMapping: Seq[(Int, Int)]
 
   /** "Forward" an input connection through this node so that the node can be removed from the graph.
-    *  
+    *
     *  @return None if no forwarding is needing.
     */
   protected[diplomacy] def iForward(x: Int): Option[(Int, InwardNode[DI, UI, BI])] = None
@@ -758,7 +758,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
   protected[diplomacy] val oPortMapping: Seq[(Int, Int)]
 
   /** "Forward" an output connection through this node so that the node can be removed from the graph.
-    *  
+    *
     *  @return None if no forwarding is needed.
     */
   protected[diplomacy] def oForward(x: Int): Option[(Int, OutwardNode[DO, UO, BO])] = None
@@ -886,6 +886,26 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   // generate a [[NodeHandle]] with inward and outward node are both this node.
   val inward = this
   val outward = this
+
+  /** debug info of nodes binding. */
+  def bindingInfo: String =
+    s"""$iBindingInfo
+       |$oBindingInfo
+       |""".stripMargin
+
+  /** debug info of ports connecting. */
+  def connectedPortsInfo: String =
+    s"""${oPorts.size} outward ports connected: [${oPorts.map(_._2.name).mkString(",")}]
+       |${iPorts.size} inward ports connected: [${iPorts.map(_._2.name).mkString(",")}]
+       |""".stripMargin
+
+  /** debug info of parameters propagations. */
+  def parametersInfo: String =
+    s"""${doParams.size} downstream outward parameters: [${doParams.mkString(",")}]
+       |${uoParams.size} upstream outward parameters: [${uoParams.mkString(",")}]
+       |${diParams.size} downstream inward parameters: [${diParams.mkString(",")}]
+       |${uiParams.size} upstream inward parameters: [${uiParams.mkString(",")}]
+       |""".stripMargin
 
   /** For a given node, converts [[OutwardNode.accPO]] and [[InwardNode.accPI]] to [[MixedNode.oPortMapping]] and [[MixedNode.iPortMapping]].
     *
@@ -1059,7 +1079,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   /** Sequence of inward ports.
-    *  
+    *
     *  This should be called after all star bindings are resolved.
     *
     *  Each element is:
@@ -1106,7 +1126,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     } }
 
   /** Final output ports after all stars and port forwarding (e.g. [[EphemeralNode]]s) have been resolved.
-    *  
+    *
     *  Each Port is a tuple of :
     * - numeric index of this binding in the [[InwardNode]] on the other end
     * - [[InwardNode]] on the other end of this binding
@@ -1116,7 +1136,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   lazy val oPorts: Seq[(Int, InwardNode[DO, UO, BO], Parameters, SourceInfo)] = oDirectPorts.map(oTrace)
 
   /** Final input ports after all stars and port forwarding (e.g. [[EphemeralNode]]s) have been resolved.
-    *  
+    *
     *  Each Port is a tuple of :
     * - numeric index of this binding in [[OutwardNode]] on the other end
     * - [[OutwardNode]] on the other end of this binding
@@ -1215,7 +1235,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   private var bundlesSafeNow = false
 
   /** Gather Bundle and edge parameters of outward ports.
-    *  
+    *
     *  Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code
     */
   def out: Seq[(BO, EO)] = {
