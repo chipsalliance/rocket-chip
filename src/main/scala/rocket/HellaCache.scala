@@ -192,7 +192,7 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
     name          = s"Core ${staticIdForMetadataUseOnly} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
     emits = TLMasterToSlaveTransferSizes(
-      acquire = TransferSizes(cfg.blockBytes, cfg.blockBytes)
+      acquireB = TransferSizes(cfg.blockBytes, cfg.blockBytes)
     ),
     supports = TLSlaveToMasterTransferSizes(
       probe = TransferSizes(cfg.blockBytes, cfg.blockBytes)
