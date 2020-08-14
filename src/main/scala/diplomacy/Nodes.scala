@@ -15,7 +15,9 @@ import scala.collection.mutable.ListBuffer
  */
 case object MonitorsEnabled extends Field[Boolean](true)
 
-/** When rendering the edge in graphical format (e.g. GraphML), flip the direction. */
+/** When rendering the edge in graphical format (e.g. GraphML), flip the direction.
+  * yEd tries to put the source node vertically above the sink node. RenderFlipped inverts this.
+  * */
 case object RenderFlipped extends Field[Boolean](false)
 
 /** [[RenderedEdge]] can set the color and label of the visualization of the DAG. */
@@ -148,7 +150,7 @@ abstract class NodeImp[D, U, EO, EI, B <: Data]
 abstract class SimpleNodeImp[D, U, E, B <: Data]
   extends NodeImp[D, U, E, E, B]
 {
-  /** Create an edge that that passes through this node.
+  /** Creates the edge parameters out of the downward flowing and upward flowing parameters for edges that connect to this node..
     * 
     * @param pd downwards flowing parameters along this edge
     * @param pu upwards flowing parameters of this edge
@@ -187,12 +189,11 @@ abstract class SimpleNodeImp[D, U, E, B <: Data]
 }
 
 /** [[BaseNode]] is the abstract base class of diplomacy node system.
-  * 
-  *  While [[*NodeImp]] associates the different types in a diplomatic
-  *  system, the [[BaseNode]] uses the parameter types to build
-  *  actual nodes and connect them with edges in the graph through binding
-  *  operations.
-  *  [[BaseNode]]s are expected to be instantiated only within [[LazyModule]]s.
+  *  all Subclasses of [[BaseNode]]s are expected to be instantiated only within [[LazyModule]]s.
+  *
+  *  Sometimes one wants to view the entire diplomacy graph in a way
+  *  where you do not care about the specific types of the edges.
+  *  [[BaseNodes]] are type-erased and provide this view.
   */
 
 abstract class BaseNode(implicit val valName: ValName)
@@ -589,14 +590,14 @@ case object BIND_ONCE  extends NodeBinding {
 
 /** Connects N (N >= 0) edges.
   * 
-  *  The number of edges N is determined by the left side via other connections.
+  * The other side of the edge determines cardinality.
   */
 case object BIND_QUERY extends NodeBinding {
   override def toString: String = "query"
 }
 
 /** Connect N (N >= 0) edges.
-  *  The number of edges N is determined by the right side via other connections.
+  * Our side of the edge determines cardinality.
   */
 case object BIND_STAR  extends NodeBinding {
   override def toString: String = "star"
@@ -1488,7 +1489,10 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   }
 }
 
-/** EphemeralNodes are used for temporary connections, but disappear from the final node graph. */
+/** EphemeralNodes are used for temporary nodes, but disappear from the final node graph.
+  * An ephemeral node provides a mechanism to directly connect two nodes to each other where neither node knows about the other,
+  * but both know about an ephemeral node they can use to facilitate the connection.
+  * */
 class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(implicit valName: ValName)
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
