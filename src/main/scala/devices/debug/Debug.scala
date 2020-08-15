@@ -894,13 +894,16 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       DMSTATUSRdData.confstrptrvalid := false.B
       DMSTATUSRdData.impebreak := (cfg.hasImplicitEbreak).B
     }
-
+    
     when(~io.dmactive || ~dmAuthenticated) {
-      haveResetBitRegs := 0.U
-    }.elsewhen (hartIsInResetSync.reduce(_ | _)) {
-      haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt
-    }.elsewhen (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
-      haveResetBitRegs := haveResetBitRegs & (~(hamaskWrSel.asUInt))
+    	haveResetBitRegs := 0.U
+    }.otherwise {
+
+    	haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt
+
+    	when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
+    		haveResetBitRegs := haveResetBitRegs & (~(hamaskWrSel.asUInt))
+    	}
     }
 
     //----DMCS2 (Halt Groups)
@@ -1196,13 +1199,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         resumeReqRegs := 0.U
       }.otherwise {
 
+        haltedBitRegs := haltedBitRegs & ~(hartIsInResetSync.asUInt)
+        resumeReqRegs := resumeReqRegs & ~(hartIsInResetSync.asUInt)
+
         val hartHaltedIdIndex   = UIntToOH(hartSelFuncs.hartIdToHartSel(hartHaltedId))
         val hartResumingIdIndex = UIntToOH(hartSelFuncs.hartIdToHartSel(hartResumingId))
         val hartselIndex        = UIntToOH(io.innerCtrl.bits.hartsel)
-        when (hartIsInResetSync.reduce(_ | _)) {
-          haltedBitRegs := haltedBitRegs & ~(hartIsInResetSync.asUInt)
-          resumeReqRegs := resumeReqRegs & ~(hartIsInResetSync.asUInt)
-        }.elsewhen (hartHaltedWrEn) {
+        when (hartHaltedWrEn) {
           haltedBitRegs := haltedBitRegs | hartHaltedIdIndex
         }.elsewhen (hartResumingWrEn) {
           haltedBitRegs := haltedBitRegs & ~(hartResumingIdIndex)
