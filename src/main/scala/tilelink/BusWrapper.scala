@@ -77,11 +77,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
   def to[T](name: String)(body: => T): T = {
-    this { LazyScope(s"coupler_to_${name}") { body } }
+    this { LazyScope(s"coupler_to_${name}", "TLInterconnectCoupler") { body } }
   }
 
   def from[T](name: String)(body: => T): T = {
-    this { LazyScope(s"coupler_from_${name}") { body } }
+    this { LazyScope(s"coupler_from_${name}", "TLInterconnectCoupler") { body } }
   }
 
   def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
@@ -356,6 +356,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
 trait HasTLXbarPhy { this: TLBusWrapper =>
   private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
 
+  override def shouldBeInlined = xbar.node.circuitIdentity
   def inwardNode: TLInwardNode = xbar.node
   def outwardNode: TLOutwardNode = xbar.node
   def busView: TLEdge = xbar.node.edges.in.head
@@ -393,6 +394,7 @@ class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)
     addressPrefixNexusNode
   }
   val builtInDevices = BuiltInDevices.none
+  override def shouldBeInlined = !params.replication.isDefined
 }
 
 case class TLJBarWrapperParams(
@@ -418,4 +420,5 @@ class TLJBarWrapper(params: TLJBarWrapperParams, name: String)(implicit p: Param
   def busView: TLEdge = jbar.node.edges.in.head
   val prefixNode = None
   val builtInDevices = BuiltInDevices.none
+  override def shouldBeInlined = jbar.node.circuitIdentity
 }

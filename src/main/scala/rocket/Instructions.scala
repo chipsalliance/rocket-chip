@@ -1023,6 +1023,9 @@ object CSRs {
   val tdata1 = 0x7a1
   val tdata2 = 0x7a2
   val tdata3 = 0x7a3
+  val scontext = 0x5a8
+  val hcontext = 0x6a8
+  val mcontext = 0x7a8
   val dcsr = 0x7b0
   val dpc = 0x7b1
   val dscratch = 0x7b2
@@ -1279,6 +1282,9 @@ object CSRs {
     res += tdata1
     res += tdata2
     res += tdata3
+    res += scontext
+    res += hcontext
+    res += mcontext
     res += dcsr
     res += dpc
     res += dscratch

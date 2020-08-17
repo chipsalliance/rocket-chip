@@ -76,9 +76,15 @@ abstract class BaseNode(implicit val valName: ValName)
   protected[diplomacy] def instantiate(): Seq[Dangle]
   protected[diplomacy] def finishInstantiate(): Unit
 
-  def name = scope.map(_.name).getOrElse("TOP") + "." + valName.name
-  def omitGraphML = outputs.isEmpty && inputs.isEmpty
+  def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
+  def omitGraphML: Boolean = outputs.isEmpty && inputs.isEmpty
   lazy val nodedebugstring: String = ""
+
+  /** Mark whether this node represents a circuit "identity" that outputs its inputs unchanged.
+    *
+    * This information may be used to elide monitors or inline the parent module.
+    */
+  def circuitIdentity: Boolean = false
 
   def parents: Seq[LazyModule] = scope.map(lm => lm +: lm.parents).getOrElse(Nil)
   def context: String =
@@ -121,7 +127,7 @@ trait FormatEdge {
 
 trait FormatNode[I <: FormatEdge, O <: FormatEdge] extends BaseNode {
   def edges: Edges[I,O]
-  override def formatNode = {
+  override def formatNode = if (circuitIdentity) "" else {
     edges.out.map(currEdge =>
       "On Output Edge:\n\n" + currEdge.formatEdge).mkString +
     "\n---------------------------------------------\n\n" +
@@ -419,11 +425,9 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     bundleIn zip edgesIn
   }
 
-  // Used by LazyModules.module.instantiate
-  protected val identity = false
   protected[diplomacy] def instantiate() = {
     bundlesSafeNow = true
-    if (!identity) {
+    if (!circuitIdentity) {
       (iPorts zip in) foreach {
         case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
     } }
@@ -578,7 +582,7 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
   override def description = "identity"
-  protected override val identity = true
+  override final def circuitIdentity = true
   override protected[diplomacy] def instantiate() = {
     val dangles = super.instantiate()
     (out zip in) map { case ((o, _), (i, _)) => o <> i }
@@ -591,6 +595,7 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
   extends AdapterNode(imp)({ s => s }, { s => s })
 {
   override def description = "ephemeral"
+  override final def circuitIdentity = true
   override def omitGraphML = true
   override def oForward(x: Int) = Some(iDirectPorts(x) match { case (i, n, _, _) => (i, n) })
   override def iForward(x: Int) = Some(oDirectPorts(x) match { case (i, n, _, _) => (i, n) })

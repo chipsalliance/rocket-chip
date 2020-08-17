@@ -32,7 +32,7 @@ private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false,
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLNexusNode(
+  val node = new TLNexusNode(
     clientFn  = { seq =>
       seq(0).v1copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
@@ -62,7 +62,10 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
           )}
         }
       )
-    })
+    }
+  ){
+    override def circuitIdentity = outputs == 1 && inputs == 1
+  }
 
   lazy val module = new LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
@@ -77,7 +80,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 
 class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLNexusNode_ACancel(
+  val node = new TLNexusNode_ACancel(
     clientFn  = { seq =>
       seq(0).v1copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
@@ -108,6 +111,9 @@ class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p
         }
       )
     })
+  {
+    override def circuitIdentity = outputs == 1 && inputs == 1
+  }
 
   lazy val module = new LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {

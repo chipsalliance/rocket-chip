@@ -17,7 +17,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
   private val client = TLMasterParameters.v1(
     name     = "TLSourceShrinker",
     sourceId = IdRange(0, maxInFlight))
-  val node = TLAdapterNode(
+  val node = (new TLAdapterNode(
     clientFn  = { cp => if (noShrinkRequired(cp)) { cp } else {
       // We erase all client information since we crush the source Ids
       TLMasterPortParameters.v1(
@@ -25,11 +25,14 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         echoFields = cp.echoFields,
         requestFields = cp.requestFields,
         responseKeys = cp.responseKeys)
-    } },
-    managerFn = { mp => mp.v1copy(managers = mp.managers.map(m => m.v1copy(fifoId = if (maxInFlight==1) Some(0) else m.fifoId)))  })
+    }},
+    managerFn = { mp => mp.v1copy(managers = mp.managers.map(m => m.v1copy(fifoId = if (maxInFlight==1) Some(0) else m.fifoId)))
+    }) {
+    override def circuitIdentity = edges.in.map(_.client).forall(noShrinkRequired)
+})
 
   lazy val module = new LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    node.in.zip(node.out).foreach { case ((in, edgeIn), (out, edgeOut)) =>
       // Acquires cannot pass this adapter; it makes Probes impossible
       require (!edgeIn.client.anySupportProbe || 
                !edgeOut.manager.anySupportAcquireB)

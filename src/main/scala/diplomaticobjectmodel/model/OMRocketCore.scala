@@ -23,6 +23,8 @@ case class OMRocketCore(
   interruptLatency: Int,
   nLocalInterrupts: Int,
   nBreakpoints: Int,
+  mcontextWidth: Int,
+  scontextWidth: Int,
   branchPredictor: Option[OMRocketBranchPredictor],
   dcache: Option[OMDCache],
   icache: Option[OMICache],

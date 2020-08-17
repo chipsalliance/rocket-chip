@@ -25,7 +25,7 @@ object BuiltInDevices {
   def attach(
     params: HasBuiltInDeviceParams with HasTLBusParams,
     outwardNode: TLOutwardNode)(implicit p: Parameters) = new BuiltInDevices {
-    val errorOpt = params.errorDevice.map { dnp => LazyScope("wrapped_error_device") {
+    val errorOpt = params.errorDevice.map { dnp => LazyScope("wrapped_error_device", "ErrorDeviceWrapper") {
       val error = LazyModule(new TLError(
         params = dnp,
         beatBytes = params.beatBytes))
@@ -34,7 +34,7 @@ object BuiltInDevices {
       error
     }}
 
-    val zeroOpt = params.zeroDevice.map { addr => LazyScope("wrapped_zero_device") {
+    val zeroOpt = params.zeroDevice.map { addr => LazyScope("wrapped_zero_device", "ZeroDeviceWrapper") {
       val zero = LazyModule(new TLZero(
         address = addr,
         beatBytes = params.beatBytes))

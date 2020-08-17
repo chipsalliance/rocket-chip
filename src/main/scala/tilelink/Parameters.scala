@@ -557,28 +557,37 @@ class TLSlavePortParameters private(
   def mayDenyGet  = slaves.exists(_.mayDenyGet)
   def mayDenyPut  = slaves.exists(_.mayDenyPut)
 
+  // Diplomatically determined operation sizes emitted by all outward Slaves
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val allEmitClaims = slaves.map(_.emits).reduce( _ intersect _)
+
+  // Operation Emitted by at least one outward Slaves
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val anyEmitClaims = slaves.map(_.emits).reduce(_ mincover _)
+
   // Diplomatically determined operation sizes supported by all outward Slaves
-  // as opposed to supportsSafe/supportsFast which generate circuitry to check which specific addresses
-  val allSupports = slaves.map(_.supports).reduce( _ intersect _)
-  val allSupportAcquireT   = allSupports.acquireT
-  val allSupportAcquireB   = allSupports.acquireB
-  val allSupportArithmetic = allSupports.arithmetic
-  val allSupportLogical    = allSupports.logical
-  val allSupportGet        = allSupports.get
-  val allSupportPutFull    = allSupports.putFull
-  val allSupportPutPartial = allSupports.putPartial
-  val allSupportHint       = allSupports.hint
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val allSupportClaims = slaves.map(_.supports).reduce( _ intersect _)
+  val allSupportAcquireT   = allSupportClaims.acquireT
+  val allSupportAcquireB   = allSupportClaims.acquireB
+  val allSupportArithmetic = allSupportClaims.arithmetic
+  val allSupportLogical    = allSupportClaims.logical
+  val allSupportGet        = allSupportClaims.get
+  val allSupportPutFull    = allSupportClaims.putFull
+  val allSupportPutPartial = allSupportClaims.putPartial
+  val allSupportHint       = allSupportClaims.hint
 
   // Operation supported by at least one outward Slaves
-  val anySupports = slaves.map(_.supports).reduce(_ mincover _)
-  val anySupportAcquireT   = !anySupports.acquireT.none
-  val anySupportAcquireB   = !anySupports.acquireB.none
-  val anySupportArithmetic = !anySupports.arithmetic.none
-  val anySupportLogical    = !anySupports.logical.none
-  val anySupportGet        = !anySupports.get.none
-  val anySupportPutFull    = !anySupports.putFull.none
-  val anySupportPutPartial = !anySupports.putPartial.none
-  val anySupportHint       = !anySupports.hint.none
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val anySupportClaims = slaves.map(_.supports).reduce(_ mincover _)
+  val anySupportAcquireT   = !anySupportClaims.acquireT.none
+  val anySupportAcquireB   = !anySupportClaims.acquireB.none
+  val anySupportArithmetic = !anySupportClaims.arithmetic.none
+  val anySupportLogical    = !anySupportClaims.logical.none
+  val anySupportGet        = !anySupportClaims.get.none
+  val anySupportPutFull    = !anySupportClaims.putFull.none
+  val anySupportPutPartial = !anySupportClaims.putPartial.none
+  val anySupportHint       = !anySupportClaims.hint.none
 
   // Supporting Acquire means being routable for GrantAck
   require ((endSinkId == 0) == !anySupportAcquireB)
@@ -1119,23 +1128,33 @@ class TLMasterPortParameters private(
     }
   }
 
-  // Operation sizes supported by all inward Masters
-  val allSupportProbe      = masters.map(_.supports.probe)     .reduce(_ intersect _)
-  val allSupportArithmetic = masters.map(_.supports.arithmetic).reduce(_ intersect _)
-  val allSupportLogical    = masters.map(_.supports.logical)   .reduce(_ intersect _)
-  val allSupportGet        = masters.map(_.supports.get)       .reduce(_ intersect _)
-  val allSupportPutFull    = masters.map(_.supports.putFull)   .reduce(_ intersect _)
-  val allSupportPutPartial = masters.map(_.supports.putPartial).reduce(_ intersect _)
-  val allSupportHint       = masters.map(_.supports.hint)      .reduce(_ intersect _)
+  // Diplomatically determined operation sizes emitted by all inward Masters
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val allEmitClaims = masters.map(_.emits).reduce( _ intersect _)
 
-  // Operation is supported by at least one master
-  val anySupportProbe      = masters.map(!_.supports.probe.none)     .reduce(_ || _)
-  val anySupportArithmetic = masters.map(!_.supports.arithmetic.none).reduce(_ || _)
-  val anySupportLogical    = masters.map(!_.supports.logical.none)   .reduce(_ || _)
-  val anySupportGet        = masters.map(!_.supports.get.none)       .reduce(_ || _)
-  val anySupportPutFull    = masters.map(!_.supports.putFull.none)   .reduce(_ || _)
-  val anySupportPutPartial = masters.map(!_.supports.putPartial.none).reduce(_ || _)
-  val anySupportHint       = masters.map(!_.supports.hint.none)      .reduce(_ || _)
+  // Diplomatically determined operation sizes Emitted by at least one inward Masters
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val anyEmitClaims = masters.map(_.emits).reduce(_ mincover _)
+
+  // Diplomatically determined operation sizes supported by all inward Masters
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val allSupportProbe      = masters.map(_.supportsProbe)     .reduce(_ intersect _)
+  val allSupportArithmetic = masters.map(_.supportsArithmetic).reduce(_ intersect _)
+  val allSupportLogical    = masters.map(_.supportsLogical)   .reduce(_ intersect _)
+  val allSupportGet        = masters.map(_.supportsGet)       .reduce(_ intersect _)
+  val allSupportPutFull    = masters.map(_.supportsPutFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = masters.map(_.supportsPutPartial).reduce(_ intersect _)
+  val allSupportHint       = masters.map(_.supportsHint)      .reduce(_ intersect _)
+
+  // Diplomatically determined operation sizes supported by at least one master
+  // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
+  val anySupportProbe      = masters.map(!_.supportsProbe.none)     .reduce(_ || _)
+  val anySupportArithmetic = masters.map(!_.supportsArithmetic.none).reduce(_ || _)
+  val anySupportLogical    = masters.map(!_.supportsLogical.none)   .reduce(_ || _)
+  val anySupportGet        = masters.map(!_.supportsGet.none)       .reduce(_ || _)
+  val anySupportPutFull    = masters.map(!_.supportsPutFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = masters.map(!_.supportsPutPartial.none).reduce(_ || _)
+  val anySupportHint       = masters.map(!_.supportsHint.none)      .reduce(_ || _)
 
   // These return Option[TLMasterParameters] for your convenience
   def find(id: Int) = masters.find(_.sourceId.contains(id))
@@ -1389,6 +1408,8 @@ case class TLEdgeParameters(
 
   // Sanity check the link...
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
+
+  def diplomaticClaimsMasterToSlave = master.anyEmitClaims.intersect(slave.anySupportClaims)
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:

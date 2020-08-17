@@ -18,7 +18,7 @@ class AXI4Xbar(
   require (maxFlightPerId >= 1)
   require (awQueueDepth >= 1)
 
-  val node = AXI4NexusNode(
+  val node = new AXI4NexusNode(
     masterFn  = { seq =>
       seq(0).copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
@@ -40,7 +40,10 @@ class AXI4Xbar(
           port.slaves
         }
       )
-    })
+    }
+  ){
+    override def circuitIdentity = outputs == 1 && inputs == 1
+  }
 
   lazy val module = new LazyModuleImp(this) {
     val (io_in, edgesIn) = node.in.unzip

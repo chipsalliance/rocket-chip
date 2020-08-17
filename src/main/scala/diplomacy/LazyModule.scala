@@ -5,6 +5,8 @@ package freechips.rocketchip.diplomacy
 import Chisel.{defaultCompileOptions => _, _}
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{MultiIOModule, RawModule, Reset, withClockAndReset}
+import chisel3.experimental.{ChiselAnnotation}
+import firrtl.passes.InlineAnnotation
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 
@@ -100,6 +102,13 @@ abstract class LazyModule()(implicit val p: Parameters) {
     */
   def omitGraphML: Boolean = nodes.forall(_.omitGraphML) && children.forall(_.omitGraphML)
 
+  /** Whether this [[LazyModule]]'s module should be marked for in-lining by FIRRTL.
+    *
+    *  The default heuristic is to inline any parents whose children have been inlined
+    *  and whose nodes all produce identity circuits.
+    */
+  def shouldBeInlined: Boolean = nodes.forall(_.circuitIdentity) && children.forall(_.shouldBeInlined)
+
   /** GraphML representation for this instance.
     *
     * This is a representation of the Nodes, Edges, LazyModule hierarchy,
@@ -134,12 +143,12 @@ abstract class LazyModule()(implicit val p: Parameters) {
     */
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""$pad<node id=\"$index\">\n"""
-    buf ++= s"""$pad  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">$instanceName</y:NodeLabel></y:ShapeNode></data>\n"""
+    buf ++= s"""$pad  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">$instanceName</y:NodeLabel><y:BorderStyle type=\"${if (shouldBeInlined) "dotted" else "line"}\"/></y:ShapeNode></data>\n"""
     buf ++= s"""$pad  <data key=\"d\">$moduleName ($pathName)</data>\n"""
     buf ++= s"""$pad  <graph id=\"$index::\" edgedefault=\"directed\">\n"""
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""$pad    <node id=\"$index::${n.index}\">\n"""
-      buf ++= s"""$pad      <data key=\"e\"><y:ShapeNode><y:Shape type="Ellipse"/></y:ShapeNode></data>\n"""
+      buf ++= s"""$pad      <data key=\"n\"><y:ShapeNode><y:Shape type="ellipse"/><y:Fill color="#FFCC00" transparent=\"${n.circuitIdentity}\"/></y:ShapeNode></data>\n"""
       buf ++= s"""$pad      <data key=\"d\">${n.formatNode}, \n${n.nodedebugstring}</data>\n"""
       buf ++= s"""$pad    </node>\n"""
     }
@@ -314,15 +323,20 @@ sealed trait LazyModuleImpLike extends RawModule {
     (auto, dangles)
   }
 
-  /** Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]]
+  /** Finalize the instantiation of this module.
     *
-    * Note: There are 2 different `finishInstantiate` methods:
-    * [[LazyModuleImp.finishInstantiate]] and [[BaseNode.finishInstantiate]],
-    * the former is a wrapper to the latter.
+    * Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]].
+    * Annotate this module to tell FIRRTL if it should be inlined.
     */
   protected[diplomacy] def finishInstantiate() {
     wrapper.nodes.reverse.foreach {
       _.finishInstantiate()
+    }
+
+    if (wrapper.shouldBeInlined) {
+      chisel3.experimental.annotate(new ChiselAnnotation {
+        def toFirrtl = InlineAnnotation(toNamed)
+      })
     }
   }
 }
@@ -393,26 +407,59 @@ trait LazyScope {
   * It will instantiate a [[SimpleLazyModule]] to manage evaluation of `body` and evaluate `body` code snippets in this scope.
   */
 object LazyScope {
-  /** Create a [[LazyScope]].
+  /** Create a [[LazyScope]] with an implicit instance name.
     *
-    * @param body    code need to be evaluated.
+    * @param body    code executed within the generated [[SimpleLazyModule]].
     * @param valName instance name of generated [[SimpleLazyModule]].
     * @param p       [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
-    val scope = LazyModule(new SimpleLazyModule with LazyScope)
+    apply(valName.toString, "SimpleLazyModule", None)(body)(p)
+  }
+
+  /** Create a [[LazyScope]] with an explicitly defined instance name.
+    *
+    * @param name      instance name of generated [[SimpleLazyModule]].
+    * @param body      code executed within the generated `SimpleLazyModule`
+    * @param p         [[Parameters]] propagated to [[SimpleLazyModule]].
+    */
+  def apply[T](name: String)(body: => T)(implicit p: Parameters): T = {
+    apply(name, "SimpleLazyModule", None)(body)(p)
+  }
+
+  /** Create a [[LazyScope]] with an explicit instance and class name, and control inlining.
+    *
+    * @param name instance name of generated [[SimpleLazyModule]].
+    * @param desiredModuleName class name of generated [[SimpleLazyModule]].
+    * @param overrideInlining tell FIRRTL that this [[SimpleLazyModule]]'s module should be inlined.
+    * @param body code executed within the generated `SimpleLazyModule`
+    * @param p [[Parameters]] propagated to [[SimpleLazyModule]].
+    */
+  def apply[T](
+    name: String,
+    desiredModuleName: String,
+    overrideInlining: Option[Boolean] = None)
+    (body: => T)
+    (implicit p: Parameters): T =
+  {
+    val scope = LazyModule(new SimpleLazyModule with LazyScope {
+      override lazy val desiredName = desiredModuleName
+      override def shouldBeInlined = overrideInlining.getOrElse(super.shouldBeInlined)
+    }).suggestName(name)
     scope {
       body
     }
   }
 
-  /** Create a [[LazyScope]] with a self defined name.
+  /** Create a [[LazyScope]] to temporarily group children for some reason, but tell Firrtl to inline it.
     *
-    * @param name set valName of [[SimpleLazyModule]] created by this.
-    * @param body code to be evaluated within the created `SimpleLazyModule`
+    * For example, we might want to control a set of children's clocks but then not keep the parent wrapper.
+    *
+    * @param body      code executed within the generated `SimpleLazyModule`
+    * @param p         [[Parameters]] propagated to [[SimpleLazyModule]].
     */
-  def apply[T](name: String)(body: => T)(implicit p: Parameters): T = {
-    apply(body)(ValName(name), p)
+  def inline[T](body: => T)(implicit p: Parameters): T = {
+    apply("noname", "ShouldBeInlined", Some(false))(body)(p)
   }
 }
 
