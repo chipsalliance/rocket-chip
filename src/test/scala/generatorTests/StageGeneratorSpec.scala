@@ -9,7 +9,7 @@ import chisel3._
 import firrtl.options.TargetDirAnnotation
 import freechips.rocketchip.stage.{ConfigsAnnotation, TopModuleAnnotation}
 import freechips.rocketchip.system.{RocketChipStage, TestHarness}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /** run via SBT with
  *    > testOnly generatorTests.StageGeneratorSpec
@@ -17,7 +17,7 @@ import org.scalatest.FlatSpec
  *  Output can be viewed in the testbuild directory. The wire named "hello" should show up in the generated
  *  *.anno.json file.
  */
-class StageGeneratorSpec extends FlatSpec {
+class StageGeneratorSpec extends AnyFlatSpec {
 
   val dummyAspect = InjectingAspect(
     {dut: TestHarness => Seq(dut.dut)},
