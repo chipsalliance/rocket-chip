@@ -10,3 +10,4 @@ docs-target/
 .addons-dont-touch
 /lib/
 /test_lib/
+rocketchip.jar

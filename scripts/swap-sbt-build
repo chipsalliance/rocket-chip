@@ -1,0 +1,15 @@
+#! /usr/bin/env bash
+# Switches between SBT building chisel3 and firrtl from source vs. published dependencies
+
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+root_dir="$(dirname "$script_dir")"
+sbt_opts="$root_dir/.sbtopts"
+
+if [ -f $sbt_opts ]; then
+  echo ".sbtopts exists so chisel3 and firrtl are currently built from source, swapping to build from published artifacts..."
+  rm -f $sbt_opts
+else
+  echo ".sbtopts does not exist so chisel3 and firrtl are currently built from published artifacts, swapping to build from source..."
+  echo "-Dsbt.sourcemode=true"  > $sbt_opts
+  echo "-Dsbt.workspace=\$PWD" >> $sbt_opts
+fi
