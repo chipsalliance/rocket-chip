@@ -11,8 +11,8 @@ import freechips.rocketchip.util.{ClockDivider3, Pow2ClockDivider}
 */
 class ClockDivider(div: Int)(implicit p: Parameters) extends LazyModule {
   val node = ClockAdapterNode(
-    sourceFn = { case src => src.copy(give = src.give.map(x => x.copy(freqMHz = x.freqMHz / 2))) },
-    sinkFn   = { case snk => snk.copy(take = snk.take.map(x => x.copy(freqMHz = x.freqMHz * 2))) })
+    sourceFn = { case src => src.copy(give = src.give.map(x => x.copy(freqMHz = x.freqMHz / div))) },
+    sinkFn   = { case snk => snk.copy(take = snk.take.map(x => x.copy(freqMHz = x.freqMHz * div))) })
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out).foreach { case ((in, _), (out, _)) =>
