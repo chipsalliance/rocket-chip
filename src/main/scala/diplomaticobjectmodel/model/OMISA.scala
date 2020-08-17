@@ -106,6 +106,7 @@ object OMISA {
       c = coreParams.useCompressed.option(isaExtSpec(C, " 2.0")),
       u = (coreParams.hasSupervisorMode || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.hasSupervisorMode.option(isaExtSpec(S, "1.10")),
+      b = coreParams.useBitManip.option(isaExtSpec(B, "0.92")),
       addressTranslationModes = Seq(addressTranslationModes),
       customExtensions = customExtensions
     )
