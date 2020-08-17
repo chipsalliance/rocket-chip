@@ -67,7 +67,7 @@ object ALUKey extends Field[Parameters=>HasALUIO](
 
 class ALU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
 
-  //require(!usingBitManip, "ALU doesn't support the B extension")
+  require(!usingBitManip, "ALU doesn't support the B extension")
   import ALU._
   import Instructions._
   // ADD, SUB
