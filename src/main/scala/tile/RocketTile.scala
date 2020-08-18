@@ -4,6 +4,7 @@
 package freechips.rocketchip.tile
 
 import Chisel._
+import chisel3.withReset
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -136,17 +137,19 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   val core = Module(new Rocket(outer)(outer.p))
 
-  // Report unrecoverable error conditions; for now the only cause is cache ECC errors
-  outer.reportHalt(List(outer.dcache.module.io.errors))
+  withReset(outer.rawReset) {   // use unmodified reset for notification ports
+    // Report unrecoverable error conditions; for now the only cause is cache ECC errors
+    outer.reportHalt(List(outer.dcache.module.io.errors))
 
-  // Report when the tile has ceased to retire instructions; for now the only cause is clock gating
-  outer.reportCease(outer.rocketParams.core.clockGate.option(
-    !outer.dcache.module.io.cpu.clock_enabled &&
-    !outer.frontend.module.io.cpu.clock_enabled &&
-    !ptw.io.dpath.clock_enabled &&
-    core.io.cease))
+    // Report when the tile has ceased to retire instructions; for now the only cause is clock gating
+    outer.reportCease(outer.rocketParams.core.clockGate.option(
+      !outer.dcache.module.io.cpu.clock_enabled &&
+      !outer.frontend.module.io.cpu.clock_enabled &&
+      !ptw.io.dpath.clock_enabled &&
+      core.io.cease))
 
-  outer.reportWFI(Some(core.io.wfi))
+    outer.reportWFI(Some(core.io.wfi))
+  }
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
 

@@ -11,6 +11,7 @@ import freechips.rocketchip.diplomaticobjectmodel.{HasLogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{GenericLogicalTreeNode, LogicalTreeNode}
 
 import freechips.rocketchip.interrupts._
+import freechips.rocketchip.prci.{ClockSinkNode, ClockSinkParameters}
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -281,6 +282,10 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   /** Node for external consumers to source watchpoints to control trace. */
   val bpwatchNode: BundleBridgeOutwardNode[Vec[BPWatch]] =
     BundleBridgeNameNode("bpwatch") :*= bpwatchNexusNode := bpwatchSourceNode
+
+  /** Node to receive raw core_clock and core_reset */
+  val externalClockSinkNode = ClockSinkNode(Seq(ClockSinkParameters()))
+  def rawReset = externalClockSinkNode.in.head._1.reset
 
   /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
   def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
