@@ -899,11 +899,11 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     	haveResetBitRegs := 0.U
     }.otherwise {
 
-    	haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt
-
-    	when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
-    		haveResetBitRegs := haveResetBitRegs & (~(hamaskWrSel.asUInt))
-    	}
+      when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
+        haveResetBitRegs := (haveResetBitRegs & (~(hamaskWrSel.asUInt))) | hartIsInResetSync.asUInt 
+      }.otherwise {
+        haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt 
+      }
     }
 
     //----DMCS2 (Halt Groups)
