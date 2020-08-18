@@ -896,14 +896,13 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
     
     when(~io.dmactive || ~dmAuthenticated) {
-    	haveResetBitRegs := 0.U
+      haveResetBitRegs := 0.U
     }.otherwise {
-
-    	haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt
-
-    	when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
-    		haveResetBitRegs := haveResetBitRegs & (~(hamaskWrSel.asUInt))
-    	}
+        when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
+          haveResetBitRegs := haveResetBitRegs & (~(hamaskWrSel.asUInt)) | hartIsInResetSync.asUInt
+        }.otherwise {
+          haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt
+        }
     }
 
     //----DMCS2 (Halt Groups)
@@ -1199,23 +1198,24 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         resumeReqRegs := 0.U
       }.otherwise {
 
-        haltedBitRegs := haltedBitRegs & ~(hartIsInResetSync.asUInt)
         resumeReqRegs := resumeReqRegs & ~(hartIsInResetSync.asUInt)
 
         val hartHaltedIdIndex   = UIntToOH(hartSelFuncs.hartIdToHartSel(hartHaltedId))
         val hartResumingIdIndex = UIntToOH(hartSelFuncs.hartIdToHartSel(hartResumingId))
         val hartselIndex        = UIntToOH(io.innerCtrl.bits.hartsel)
         when (hartHaltedWrEn) {
-          haltedBitRegs := haltedBitRegs | hartHaltedIdIndex
+          haltedBitRegs := (haltedBitRegs | hartHaltedIdIndex) & ~(hartIsInResetSync.asUInt)
         }.elsewhen (hartResumingWrEn) {
-          haltedBitRegs := haltedBitRegs & ~(hartResumingIdIndex)
+          haltedBitRegs := (haltedBitRegs & ~(hartResumingIdIndex)) & ~(hartIsInResetSync.asUInt)
+        }.otherwise {
+          haltedBitRegs := haltedBitRegs & ~(hartIsInResetSync.asUInt)
         }
 
         when (hartResumingWrEn) {
-          resumeReqRegs := resumeReqRegs & ~(hartResumingIdIndex)
+          resumeReqRegs := (resumeReqRegs & ~(hartResumingIdIndex)) & ~(hartIsInResetSync.asUInt)
         }
         when (resumereq) {
-          resumeReqRegs := resumeReqRegs | hamaskWrSel.asUInt
+          resumeReqRegs := (resumeReqRegs | hamaskWrSel.asUInt) & ~(hartIsInResetSync.asUInt)
         }
 
       }
