@@ -87,10 +87,12 @@ abstract class BaseNode(implicit val valName: ValName)
   def circuitIdentity: Boolean = false
 
   def parents: Seq[LazyModule] = scope.map(lm => lm +: lm.parents).getOrElse(Nil)
-  def context: String =
-    s"$name (A $description node with parent '" +
-    parents.map(_.name).mkString("/") + "' at " +
-    scope.map(_.line).getOrElse("<undef>") + ")"
+  def context: String = {
+    s"""$description $name node:
+       |parents: ${parents.map(_.name).mkString("/")}
+       |locator: ${scope.map(_.line).getOrElse("<undef>")}
+       |""".stripMargin
+  }
 
   /** Determines the name to be used in elements of auto-punched bundles
     * by taking the name of the node as determined from valName,
@@ -189,20 +191,35 @@ trait InwardNodeHandle[DI, UI, EI, BI <: Data] extends NoHandle
 }
 
 sealed trait NodeBinding
-case object BIND_ONCE  extends NodeBinding
-case object BIND_QUERY extends NodeBinding
-case object BIND_STAR  extends NodeBinding
-case object BIND_FLEX  extends NodeBinding
+case object BIND_ONCE  extends NodeBinding {
+  override def toString: String = "once"
+}
+case object BIND_QUERY extends NodeBinding {
+  override def toString: String = "query"
+}
+case object BIND_STAR  extends NodeBinding {
+  override def toString: String = "star"
+}
+case object BIND_FLEX  extends NodeBinding {
+  override def toString: String = "flex"
+}
 
 trait InwardNode[DI, UI, BI <: Data] extends BaseNode
 {
   private val accPI = ListBuffer[(Int, OutwardNode[DI, UI, BI], NodeBinding, Parameters, SourceInfo)]()
   private var iRealized = false
 
+  def iBindingInfo: String = s"""${iBindings.size} inward nodes bound: [${iBindings.map(n => s"${n._3}-${n._2.name}").mkString(",")}]"""
+
   protected[diplomacy] def iPushed = accPI.size
   protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
-    require (!iRealized, s"${context} was incorrectly connected as a sink after its .module was used" + info)
+    require (!iRealized,
+      s"""Diplomacy has detected a problem in your code:
+         |The following node was incorrectly connected as a sink to ${node.name} after its .module was evaluated at $info.
+         |$context
+         |$iBindingInfo
+         |""".stripMargin)
     accPI += ((index, node, binding, p, sourceInfo))
   }
 
@@ -228,10 +245,17 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode
   private val accPO = ListBuffer[(Int, InwardNode [DO, UO, BO], NodeBinding, Parameters, SourceInfo)]()
   private var oRealized = false
 
+  def oBindingInfo: String = s"""${oBindings.size} outward nodes bound: [${oBindings.map(n => s"${n._3}-${n._2.name}").mkString(",")}]"""
+
   protected[diplomacy] def oPushed = accPO.size
   protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
     val info = sourceLine(sourceInfo, " at ", "")
-    require (!oRealized, s"${context} was incorrectly connected as a source after its .module was used" + info)
+    require (!oRealized,
+      s"""Diplomacy has detected a problem in your code:
+         |The following node was incorrectly connected as a source to ${node.name} after its .module was evaluated at $info.
+         |$context
+         |$oBindingInfo
+         |""".stripMargin)
     accPO += ((index, node, binding, p, sourceInfo))
   }
 
@@ -258,6 +282,27 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 {
   val inward = this
   val outward = this
+
+  /** debug info of nodes binding. */
+  def bindingInfo: String =
+    s"""$iBindingInfo
+       |$oBindingInfo
+       |""".stripMargin
+
+  /** debug info of ports connecting. */
+  def connectedPortsInfo: String =
+    s"""${oPorts.size} outward ports connected: [${oPorts.map(_._2.name).mkString(",")}]
+       |${iPorts.size} inward ports connected: [${iPorts.map(_._2.name).mkString(",")}]
+       |""".stripMargin
+
+  /** debug info of parameters propagations. */
+  def parametersInfo: String =
+    s"""${doParams.size} downstream outward parameters: [${doParams.mkString(",")}]
+       |${uoParams.size} upstream outward parameters: [${uoParams.mkString(",")}]
+       |${diParams.size} downstream inward parameters: [${diParams.mkString(",")}]
+       |${uiParams.size} upstream inward parameters: [${uiParams.mkString(",")}]
+       |""".stripMargin
+
 
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStar: Int, oStar: Int): (Int, Int)
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO]
@@ -361,7 +406,14 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       if (oParamsCycleGuard) throw DownwardCycleException()
       oParamsCycleGuard = true
       val o = mapParamsD(oPorts.size, diParams)
-      require (o.size == oPorts.size, s"Diplomacy error: $context has ${o.size} != ${oPorts.size} down/up outer parameters")
+      require (o.size == oPorts.size,
+        s"""Diplomacy has detected a problem with your graph:
+           |At the following node, the number of outward ports should equal the number of produced outward parameters.
+           |$context
+           |$connectedPortsInfo
+           |Downstreamed inward parameters: [${diParams.mkString(",")}]
+           |Produced outward parameters: [${o.mkString(",")}]
+           |""".stripMargin)
       o.map(outer.mixO(_, this))
     } catch {
       case c: DownwardCycleException => throw c.copy(loop = context +: c.loop)
@@ -375,7 +427,14 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       if (iParamsCycleGuard) throw UpwardCycleException()
       iParamsCycleGuard = true
       val i = mapParamsU(iPorts.size, uoParams)
-      require (i.size == iPorts.size, s"Diplomacy error: $context has ${i.size} != ${iPorts.size} up/down inner parameters")
+      require (i.size == iPorts.size,
+        s"""Diplomacy has detected a problem with your graph:
+           |At the following node, the number of inward ports should equal the number of produced inward parameters.
+           |$context
+           |$connectedPortsInfo
+           |Upstreamed outward parameters: [${uoParams.mkString(",")}]
+           |Produced inward parameters: [${i.mkString(",")}]
+           |""".stripMargin)
       i.map(inner.mixI(_, this))
     } catch {
       case c: UpwardCycleException => throw c.copy(loop = context +: c.loop)
@@ -417,11 +476,11 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   private var bundlesSafeNow = false
   // Accessors to the result of negotiation to be used in LazyModuleImp:
   def out: Seq[(BO, EO)] = {
-    require(bundlesSafeNow, s"${name}.out should only be called from the context of its module implementation")
+    require(bundlesSafeNow, s"$name.out should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
     bundleOut zip edgesOut
   }
   def in: Seq[(BI, EI)] = {
-    require(bundlesSafeNow, s"${name}.in should only be called from the context of its module implementation")
+    require(bundlesSafeNow, s"$name.in should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
     bundleIn zip edgesIn
   }
 
@@ -516,7 +575,12 @@ class MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   override def description = "junction"
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iKnown == 0 || oKnown == 0, s"$context appears left of a :=* or a := AND right of a :*= or :=. Only one side may drive multiplicity.")
+    require (iKnown == 0 || oKnown == 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node appears left of a :=* or a := and right of a :*= or :=. Only one side may drive multiplicity.
+         |$context
+         |$bindingInfo
+         |""".stripMargin)
     multiplicity = iKnown max oKnown
    (multiplicity, multiplicity)
   }
@@ -549,24 +613,57 @@ class MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   override def description = "adapter"
   protected[diplomacy] override def flexibleArityDirection = true
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (oStars + iStars <= 1, s"$context appears left of a :*= $iStars times and right of a :=* $oStars times; at most once is allowed")
+    require (oStars + iStars <= 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node appears left of a :*= $iStars times and right of a :=* $oStars times, at most once is allowed.
+         |$context
+         |$bindingInfo
+         |""".stripMargin)
     if (oStars > 0) {
-      require (iKnown >= oKnown, s"$context has $oKnown outputs and $iKnown inputs; cannot assign ${iKnown-oKnown} edges to resolve :=*")
+      require (iKnown >= oKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |After being connected right of :=*, the following node appears left of a := $iKnown times and right of a := $oKnown times.
+           |${iKnown - oKnown} additional right of := bindings are required to resolve :=* successfully.
+           |$context
+           |$bindingInfo
+           |""".stripMargin)
       (0, iKnown - oKnown)
     } else if (iStars > 0) {
-      require (oKnown >= iKnown, s"$context has $oKnown outputs and $iKnown inputs; cannot assign ${oKnown-iKnown} edges to resolve :*=")
+      require (oKnown >= iKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |After being connected left of :*=, the following node appears left of a := $iKnown times and right of a := $oKnown times.
+           |${oKnown - iKnown} additional left := bindings are required to resolve :*= successfully.
+           |$context
+           |$bindingInfo
+           |""".stripMargin)
       (oKnown - iKnown, 0)
     } else {
-      require (oKnown == iKnown, s"$context has $oKnown outputs and $iKnown inputs; these do not match")
+      require (oKnown == iKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |The following node appears left of a := $iKnown times and right of a := $oKnown times.
+           |Either the number of bindings on both sides of the node match, or connect this node by left-hand side of :*= or right-hand side of :=*
+           |$context
+           |$bindingInfo
+           |""".stripMargin)
       (0, 0)
     }
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = {
-    require(n == p.size, s"$context has ${p.size} inputs and ${n} outputs; they must match")
+    require(n == p.size,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node has ${p.size} inputs and $n outputs, they must match.
+         |$context
+         |$bindingInfo
+         |""".stripMargin)
     p.map(dFn)
   }
   protected[diplomacy] def mapParamsU(n: Int, p: Seq[UO]): Seq[UI] = {
-    require(n == p.size, s"$context has ${n} inputs and ${p.size} outputs; they must match")
+    require(n == p.size,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node has $n inputs and ${p.size} outputs, they must match
+         |$context
+         |$bindingInfo
+         |""".stripMargin)
     p.map(uFn)
   }
 }
@@ -616,8 +713,24 @@ class MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   override def description = "nexus"
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
     // a nexus treats :=* as a weak pointer
-    require (!outputRequiresInput || oKnown == 0 || iStars + iKnown != 0, s"$context has $oKnown required outputs and no possible inputs")
-    require (!inputRequiresOutput || iKnown == 0 || oStars + oKnown != 0, s"$context has $iKnown required inputs and no possible outputs")
+    def resolveStarInfo: String =
+      s"""$context
+         |$bindingInfo
+         |number of known := bindings to inward nodes: $iKnown
+         |number of known := bindings to outward nodes: $oKnown
+         |number of binding queries from inward nodes: $iStars
+         |number of binding queries from outward nodes: $oStars
+         |""".stripMargin
+    require(!outputRequiresInput || oKnown == 0 || iStars + iKnown != 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node has $oKnown outward connections and no inward connections. At least one inward connection was required.
+         |$resolveStarInfo
+         |""".stripMargin)
+    require(!inputRequiresOutput || iKnown == 0 || oStars + oKnown != 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node node has $iKnown inward connections and no outward connections. At least one outward connection was required.
+         |$resolveStarInfo
+         |""".stripMargin)
     if (iKnown == 0 && oKnown == 0) (0, 0) else (1, 1)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[DI]): Seq[DO] = { if (n > 0) { val a = dFn(p); Seq.fill(n)(a) } else Nil }
@@ -638,11 +751,45 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
 {
   override def description = "source"
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (oStars <= 1, s"$context appears right of a :=* ${oStars} times; at most once is allowed")
-    require (iStars == 0, s"$context cannot appear left of a :*=")
-    require (iKnown == 0, s"$context cannot appear left of a :=")
-    require (po.size == oKnown || oStars == 1, s"$context has only ${oKnown} outputs connected out of ${po.size}")
-    require (po.size >= oKnown, s"$context has ${oKnown} outputs out of ${po.size}; cannot assign ${po.size - oKnown} edges to resolve :=*")
+    def resolveStarInfo: String =
+      s"""$context
+         |$bindingInfo
+         |number of known := bindings to inward nodes: $iKnown
+         |number of known := bindings to outward nodes: $oKnown
+         |number of binding queries from inward nodes: $iStars
+         |number of binding queries from outward nodes: $oStars
+         |${po.size} outward parameters: [${po.map(_.toString).mkString(",")}]
+         |""".stripMargin
+    require(oStars <= 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node appears right of a :=* $oStars times; at most once is allowed.
+         |$resolveStarInfo
+         |""".stripMargin)
+    require(iStars == 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node cannot appear left of a :*=
+         |$resolveStarInfo
+         |""".stripMargin)
+    require(iKnown == 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node cannot appear left of a :=
+         |$resolveStarInfo
+         |""".stripMargin)
+    if (oStars == 0)
+      require(po.size == oKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |The following node has $oKnown outward bindings connected to it, but ${po.size} sources were specified to the node constructor.
+           |Either the number of outward := bindings should be exactly equal to the number of sources, or connect this node on the right-hand side of a :=*
+           |$resolveStarInfo
+           |""".stripMargin)
+    else
+      require(po.size >= oKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |The following node has $oKnown outward bindings connected to it, but ${po.size} sources were specified to the node constructor.
+           |To resolve :=*, size of outward parameters can not be less than bindings.
+           |$resolveStarInfo
+           |""".stripMargin
+      )
     (0, po.size - oKnown)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = po
@@ -663,11 +810,45 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
 {
   override def description = "sink"
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iStars <= 1, s"$context appears left of a :*= ${iStars} times; at most once is allowed")
-    require (oStars == 0, s"$context cannot appear right of a :=*")
-    require (oKnown == 0, s"$context cannot appear right of a :=")
-    require (pi.size == iKnown || iStars == 1, s"$context has only ${iKnown} inputs connected out of ${pi.size}")
-    require (pi.size >= iKnown, s"$context has ${iKnown} inputs out of ${pi.size}; cannot assign ${pi.size - iKnown} edges to resolve :*=")
+    def resolveStarInfo: String =
+      s"""$context
+         |$bindingInfo
+         |number of known := bindings to inward nodes: $iKnown
+         |number of known := bindings to outward nodes: $oKnown
+         |number of binding queries from inward nodes: $iStars
+         |number of binding queries from outward nodes: $oStars
+         |${pi.size} inward parameters: [${pi.map(_.toString).mkString(",")}]
+         |""".stripMargin
+    require (iStars <= 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node appears left of a :*= $iStars times; at most once is allowed.
+         |$resolveStarInfo
+         |""".stripMargin)
+    require (oStars == 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node cannot appear right of a :=*
+         |$resolveStarInfo
+         |""".stripMargin)
+    require (oKnown == 0,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node cannot appear right of a :=
+         |$resolveStarInfo
+         |""".stripMargin)
+    if (iStars == 0)
+      require(pi.size == iKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |The following node has $iKnown inward bindings connected to it, but ${pi.size} sinks were specified to the node constructor.
+           |Either the number of inward := bindings should be exactly equal to the number of sink, or connect this node on the left-hand side of a :*=
+           |$resolveStarInfo
+           |""".stripMargin)
+    else
+      require(pi.size >= iKnown,
+        s"""Diplomacy has detected a problem with your graph:
+           |The following node has $iKnown inward bindings connected to it, but ${pi.size} sinks were specified to the node constructor.
+           |To resolve :*=, size of inward parameters can not be less than bindings.
+           |$resolveStarInfo
+           |""".stripMargin
+      )
     (pi.size - iKnown, 0)
   }
   protected[diplomacy] def mapParamsD(n: Int, p: Seq[D]): Seq[D] = Seq()
@@ -693,10 +874,40 @@ class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[di
 
   override def description = "test"
   protected[diplomacy] def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (oStars <= 1, s"$context appears right of a :=* $oStars times; at most once is allowed")
-    require (iStars <= 1, s"$context appears left of a :*= $iStars times; at most once is allowed")
-    require (node.inward .uiParams.size == iKnown || iStars == 1, s"$context has only $iKnown inputs connected out of ${node.inward.uiParams.size}")
-    require (node.outward.doParams.size == oKnown || oStars == 1, s"$context has only $oKnown outputs connected out of ${node.outward.doParams.size}")
+    def resolveStarInfo: String =
+      s"""$context
+         |$bindingInfo
+         |number of known := bindings to inward nodes: $iKnown
+         |number of known := bindings to outward nodes: $oKnown
+         |number of binding queries from inward nodes: $iStars
+         |number of binding queries from outward nodes: $oStars
+         |downstream inward parameters: ${node.inward.diParams}
+         |upstream inward parameters: ${node.inward.uiParams}
+         |upstream outward parameters: ${node.outward.uoParams}
+         |downstream outward parameters: ${node.outward.doParams}
+         |node.inward.uiParams.size
+         |""".stripMargin
+
+    require(oStars <= 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node appears right of a :=* $oStars times; at most once is allowed.
+         |$resolveStarInfo
+         |""".stripMargin)
+    require(iStars <= 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node appears left of a :*= $iStars times; at most once is allowed.
+         |$resolveStarInfo
+         |""".stripMargin)
+    require(node.inward .uiParams.size == iKnown || iStars == 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node has only $iKnown inputs, which should be ${node.inward.uiParams.size}, or connect this node on the left-hand side of :*=
+         |$resolveStarInfo
+         |""".stripMargin)
+    require(node.outward.doParams.size == oKnown || oStars == 1,
+      s"""Diplomacy has detected a problem with your graph:
+         |The following node has only $oKnown outputs, which should be ${node.outward.doParams.size}, or connect this node on the right-hand side of :=*
+         |$resolveStarInfo
+         |""".stripMargin)
     (node.inward.uiParams.size - iKnown, node.outward.doParams.size - oKnown)
   }
 

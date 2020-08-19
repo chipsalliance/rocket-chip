@@ -32,6 +32,7 @@ case class OMRocketCore(
   hasClockGate: Boolean,
   hasSCIE: Boolean,
   vmPresent: Boolean,
+  utlb: Option[OMUTLB],
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore
 

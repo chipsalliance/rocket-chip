@@ -14,6 +14,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -99,6 +100,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val dpath = new DatapathPTWIO
   }
 
+  val omSRAMs = collection.mutable.ListBuffer[OMSRAM]()
+
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
 
@@ -107,8 +110,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   arb.io.out.ready := state === s_ready
 
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
+  val l2_refill_wire = Wire(Bool())
 
-  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
+  val clock_en = state =/= s_ready || l2_refill_wire || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   io.dpath.clock_enabled := usingVM && clock_en
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
@@ -187,6 +191,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   val l2_refill = RegNext(false.B)
+  l2_refill_wire := l2_refill
   io.dpath.perf.l2miss := false
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
@@ -238,6 +243,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     ccover(s2_hit, "L2_TLB_HIT", "L2 TLB hit")
 
+    omSRAMs += omSRAM
     (s2_hit, s2_rdata.error, s2_pte, Some(ram))
   }
 
@@ -385,6 +391,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 /** Mix-ins for constructing tiles that might have a PTW */
 trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
+  val utlbOMSRAMs = collection.mutable.ListBuffer[OMSRAM]()
   var nPTWPorts = 1
   nDCachePorts += usingPTW.toInt
 }
@@ -393,6 +400,8 @@ trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
   val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
-  if (outer.usingPTW)
+  if (outer.usingPTW) {
     dcachePorts += ptw.io.mem
+    outer.utlbOMSRAMs ++= ptw.omSRAMs
+  }
 }

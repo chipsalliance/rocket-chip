@@ -297,6 +297,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
 
   val dmiNode = TLRegisterNode (
     address = AddressSet.misaligned(DMI_DMCONTROL   << 2, 4) ++
+              AddressSet.misaligned(DMI_HARTINFO    << 2, 4) ++
               AddressSet.misaligned(DMI_HAWINDOWSEL << 2, 4) ++
               AddressSet.misaligned(DMI_HAWINDOW    << 2, 4),
     device = device,
@@ -364,6 +365,16 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     // Put this last to override its own effects.
     when (dmactiveWrEn) {
       DMCONTROLNxt.dmactive := DMCONTROLWrData.dmactive
+    }
+
+    //----HARTINFO
+
+    val HARTINFORdData = WireInit(0.U.asTypeOf(new HARTINFOFields()))
+    when (dmAuthenticated) {
+      HARTINFORdData.dataaccess  := true.B
+      HARTINFORdData.datasize    := cfg.nAbstractDataWords.U
+      HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
+      HARTINFORdData.nscratch    := cfg.nScratch.U
     }
 
     //--------------------------------------------------------------
@@ -503,17 +514,26 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
         RegFieldDesc("haltreq",         "halt request", reset=Some(0)))
     ))
 
+    val hartinfoRegFields = RegFieldGroup("dmi_hartinfo", Some("hart information"), Seq(
+      RegField.r(12, HARTINFORdData.dataaddr,   RegFieldDesc("dataaddr",   "data address",                reset=Some(DsbRegAddrs.DATA))),
+      RegField.r(4,  HARTINFORdData.datasize,   RegFieldDesc("datasize",   "number of DATA registers",    reset=Some(cfg.nAbstractDataWords))),
+      RegField.r(1,  HARTINFORdData.dataaccess, RegFieldDesc("dataaccess", "data access type",            reset=Some(1))),
+      RegField(3),
+      RegField.r(4,  HARTINFORdData.nscratch,   RegFieldDesc("nscratch",   "number of scratch registers", reset=Some(cfg.nScratch)))
+    ))
 
     //--------------------------------------------------------------
     // DMI register decoder for Outer
     //--------------------------------------------------------------
       // regmap addresses are byte offsets from lowest address
     def DMI_DMCONTROL_OFFSET   = 0
+    def DMI_HARTINFO_OFFSET    = ((DMI_HARTINFO - DMI_DMCONTROL) << 2)
     def DMI_HAWINDOWSEL_OFFSET = ((DMI_HAWINDOWSEL - DMI_DMCONTROL) << 2)
     def DMI_HAWINDOW_OFFSET    = ((DMI_HAWINDOW - DMI_DMCONTROL) << 2)
 
     val omRegMap = dmiNode.regmap(
       DMI_DMCONTROL_OFFSET   -> dmControlRegFields,
+      DMI_HARTINFO_OFFSET    -> hartinfoRegFields,
       DMI_HAWINDOWSEL_OFFSET -> (if (supportHartArray && (nComponents > 32)) Seq(
         WNotifyVal(log2Up(nComponents)-5, HAWINDOWSELReg.hawindowsel, HAWINDOWSELWrData.hawindowsel, HAWINDOWSELWrEn,
         RegFieldDesc("hawindowsel", "hart array window select", reset=Some(0)))) else Nil),
@@ -680,9 +700,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
 
   val dmiNode = TLRegisterNode(
-       // Address is range 0 to 0x1FF except DMCONTROL, HAWINDOWSEL, HAWINDOW which are handled by Outer
+       // Address is range 0 to 0x1FF except DMCONTROL, HARTINFO, HAWINDOWSEL, HAWINDOW which are handled by Outer
     address = AddressSet.misaligned(0, DMI_DMCONTROL << 2) ++
-              AddressSet.misaligned((DMI_DMCONTROL + 1) << 2, ((DMI_HAWINDOWSEL << 2) - ((DMI_DMCONTROL + 1) << 2))) ++
+              AddressSet.misaligned((DMI_DMCONTROL + 1) << 2, ((DMI_HARTINFO << 2) - ((DMI_DMCONTROL + 1) << 2))) ++
+              AddressSet.misaligned((DMI_HARTINFO + 1) << 2, ((DMI_HAWINDOWSEL << 2) - ((DMI_HARTINFO + 1) << 2))) ++
               AddressSet.misaligned((DMI_HAWINDOW + 1) << 2, (dmTopAddr - ((DMI_HAWINDOW + 1) << 2))),
     device = device,
     beatBytes = 4,
@@ -1037,16 +1058,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     io.hgDebugInt := hgDebugInt | hrDebugInt
 
 
-    //----HARTINFO
-
-    val HARTINFORdData = WireInit(0.U.asTypeOf(new HARTINFOFields()))
-    when (dmAuthenticated) {
-      HARTINFORdData.dataaccess  := true.B
-      HARTINFORdData.datasize    := cfg.nAbstractDataWords.U
-      HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
-      HARTINFORdData.nscratch    := cfg.nScratch.U
-    }
-
     //----HALTSUM*
     val numHaltedStatus = ((nComponents - 1) / 32) + 1
     val haltedStatus   = Wire(Vec(numHaltedStatus, Bits(32.W)))
@@ -1271,14 +1282,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       else RegField(4)
     ))
 
-    val hartinfoRegFields = RegFieldGroup("dmi_hartinfo", Some("hart information"), Seq(
-      RegField.r(12, HARTINFORdData.dataaddr,   RegFieldDesc("dataaddr",   "data address",                reset=Some(DsbRegAddrs.DATA))),
-      RegField.r(4,  HARTINFORdData.datasize,   RegFieldDesc("datasize",   "number of DATA registers",    reset=Some(cfg.nAbstractDataWords))),
-      RegField.r(1,  HARTINFORdData.dataaccess, RegFieldDesc("dataaccess", "data access type",            reset=Some(1))),
-      RegField(3),
-      RegField.r(4,  HARTINFORdData.nscratch,   RegFieldDesc("nscratch",   "number of scratch registers", reset=Some(cfg.nScratch)))
-    ))
-
     val abstractcsRegFields = RegFieldGroup("dmi_abstractcs", Some("abstract command control/status"), Seq(
       RegField.r(4, ABSTRACTCSRdData.datacount, RegFieldDesc("datacount", "number of DATA registers", reset=Some(cfg.nAbstractDataWords))),
       RegField(4),
@@ -1302,7 +1305,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       (DMI_DMSTATUS    << 2) -> dmstatusRegFields,
       //TODO (DMI_CFGSTRADDR0 << 2) -> cfgStrAddrFields,
       (DMI_DMCS2       << 2) -> (if (nHaltGroups > 0) dmcs2RegFields else Nil),
-      (DMI_HARTINFO    << 2) -> hartinfoRegFields,
       (DMI_HALTSUM0    << 2) -> RegFieldGroup("dmi_haltsum0", Some("Halt Summary 0"),
          Seq(RegField.r(32, HALTSUM0RdData.asUInt(), RegFieldDesc("dmi_haltsum0", "halt summary 0")))),
       (DMI_HALTSUM1    << 2) -> RegFieldGroup("dmi_haltsum1", Some("Halt Summary 1"),

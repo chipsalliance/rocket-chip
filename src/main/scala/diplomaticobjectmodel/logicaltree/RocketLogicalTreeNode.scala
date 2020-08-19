@@ -6,7 +6,7 @@ import freechips.rocketchip.diplomacy.{ResourceBindings, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.rocket.{DCacheParams, HellaCache, ICache, ICacheParams}
-import freechips.rocketchip.tile.{RocketTile, XLen}
+import freechips.rocketchip.tile.{CoreParams, RocketTile, XLen}
 
 
 /**
@@ -37,7 +37,6 @@ class DCacheLogicalTreeNode(dcache: HellaCache, deviceOpt: Option[SimpleDevice],
   }
 }
 
-
 class ICacheLogicalTreeNode(icache: ICache, deviceOpt: Option[SimpleDevice], params: ICacheParams) extends LogicalTreeNode(() => deviceOpt) {
   override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
     Seq(
@@ -53,6 +52,17 @@ class ICacheLogicalTreeNode(icache: ICache, deviceOpt: Option[SimpleDevice], par
         nTLBEntries = params.nTLBEntries,
         maxTimSize = params.nSets * (params.nWays-1) * params.blockBytes,
         memories = icache.module.data_arrays.map(_._2),
+      )
+    )
+  }
+}
+
+class UTLBLogicalTreeNode(coreParams: CoreParams, memories: Seq[OMSRAM]) extends LogicalTreeNode(() => None) {
+  override def getOMComponents(resourceBindings: ResourceBindings, children: Seq[OMComponent] = Nil): Seq[OMComponent] = {
+    Seq(
+      OMUTLB(
+        utlbEntries = coreParams.nL2TLBEntries,
+        memories = memories,
       )
     )
   }
@@ -81,6 +91,9 @@ class RocketLogicalTreeNode(
     // Expect that one of the components passed in is the ICache.
     val omICache = components.collectFirst { case x: OMICache => x }.get
 
+    // Expect that one of the components passed in is the UTLB.
+    val omUTLB = components.collectFirst { case x: OMUTLB => x }
+
     val omBusError = components.collectFirst { case x: OMBusError => x }
 
     Seq(OMRocketCore(
@@ -103,7 +116,8 @@ class RocketLogicalTreeNode(
       busErrorUnit = omBusError,
       hasClockGate = coreParams.clockGate,
       hasSCIE = coreParams.useSCIE,
-      vmPresent = coreParams.useVM
+      vmPresent = coreParams.useVM,
+      utlb = omUTLB
     ))
   }
 }
