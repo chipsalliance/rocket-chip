@@ -1074,7 +1074,7 @@ class CSRFile(
 
   for (((t, insn), i) <- (io.trace zip io.inst).zipWithIndex) {
     t.exception := io.retire >= i && exception
-    t.valid := io.retire > i || t.exception
+    t.valid := (io.retire > i || t.exception) && !reset
     t.insn := insn
     t.iaddr := io.pc
     t.priv := Cat(reg_debug, reg_mstatus.prv)
