@@ -37,6 +37,7 @@ extern remote_bitbang_t * jtag;
 static uint64_t trace_count = 0;
 bool verbose;
 bool done_reset;
+unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
 
 void handle_sigterm(int sig)
 {
@@ -51,6 +52,10 @@ double sc_time_stamp()
 extern "C" int vpi_get_vlog_info(void* arg)
 {
   return 0;
+}
+
+void show_seed(void * ptr) {
+  fprintf(stderr, "The random seed used was: %u\n", random_seed);
 }
 
 static void usage(const char * program_name)
@@ -109,7 +114,6 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
 
 int main(int argc, char** argv)
 {
-  unsigned random_seed = (unsigned)time(NULL) ^ (unsigned)getpid();
   uint64_t max_cycles = -1;
   int ret = 0;
   bool print_cycles = false;
@@ -248,6 +252,8 @@ done_processing:
 
   if (verbose)
     fprintf(stderr, "using random seed %u\n", random_seed);
+
+  Verilated::addExitCb(show_seed, nullptr);
 
   srand(random_seed);
   srand48(random_seed);
