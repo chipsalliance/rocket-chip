@@ -23,6 +23,8 @@ case class ICacheParams(
     nWays: Int = 4,
     rowBits: Int = 128,
     nTLBEntries: Int = 32,
+    nTLBBasePageSectors: Int = 4,
+    nTLBSuperpages: Int = 4,
     cacheIdBits: Int = 0,
     tagECC: Option[String] = None,
     dataECC: Option[String] = None,
