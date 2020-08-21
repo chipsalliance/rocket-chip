@@ -54,7 +54,7 @@ the negotiation work to ensure parameter agreement between the nodes it connects
 
 Let's pass around our parameters like so:
 
-![adder diplomatic nodes](diagrams/adder_modules.pdf)
+![adder diplomatic nodes](diagrams/adder_nodes.pdf)
 
 Because the graph diplomacy creates is **acyclic**, it is directional. The
 direction towards the sinks is **downward**, and the direction towards the
