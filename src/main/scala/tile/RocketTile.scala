@@ -137,6 +137,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   val core = Module(new Rocket(outer)(outer.p))
 
+  val traceValidEnable = Wire(Bool())
   withReset(outer.rawReset) {   // use unmodified reset for notification ports
     // Report unrecoverable error conditions; for now the only cause is cache ECC errors
     outer.reportHalt(List(outer.dcache.module.io.errors))
@@ -149,6 +150,10 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
       core.io.cease))
 
     outer.reportWFI(Some(core.io.wfi))
+
+    val outOfReset = RegInit(0.U(2.W))
+    when (!traceValidEnable) { outOfReset := outOfReset + 1.U }
+    traceValidEnable := outOfReset.andR      // force trace.valid to 0 during and just after async reset without adding any loads to core.reset
   }
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
@@ -161,6 +166,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
+  outer.traceSourceNode.bundle.zip(core.io.trace).foreach { case(tb, t) => tb.valid := t.valid && traceValidEnable }
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
   core.io.hartid := outer.hartIdSinkNode.bundle
