@@ -83,11 +83,12 @@ into our out of the node.
 
 Our **edge parameter** (`E`) describes the data type that needs to be passed along
 the edges in our graph; in our case we only need to keep track of one `Int` that
-describes our width.
+describes our width, which will live inside our `EdgeParam` class.
 
 We also specify a **bundle parameter** (`B`), which is the type of data that will
 resolve into parameterized hardware ports between our modules. For us, this is
-a Chisel `UInt` with the width described by our edge parameter.
+a Chisel `UInt` with the width described by our edge parameter (see the `bundle`
+function).
 
 ```scala mdoc
 // PARAMETER TYPES:                       D              U            E          B
@@ -117,7 +118,7 @@ Let's start off with creating a node for our driver. We will make it a
 `SourceNode` with the node implementation shown in the previous section, since
 `SourceNode`s have only outward pointing edges.
 
-For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]`, represents
+For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]` represents
 the outputs of this node. We are using a `Seq` here because each node will send
 two identical outputs: one to the adder, and the other to the monitor. These
 properties are `require`d by the node.
@@ -164,10 +165,8 @@ it is needed.
 
 Parameter negotiation in Diplomacy is done lazily, after the Diplomacy graph
 is created. Because of this, the concrete hardware that we want to parameterize
-must also be generated lazily.
-
-Diplomacy provides the `LazyModule` construct for writing lazily-evaluated
-hardware modules.
+must also be generated lazily. Diplomacy provides the `LazyModule` construct for
+writing lazily-evaluated hardware modules.
 
 Let's use `LazyModule` to define our `Adder`. Notice that the creation of the
 Diplomacy graph itself (in this case, the node), is non-lazy. The desired
