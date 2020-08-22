@@ -8,8 +8,7 @@ import freechips.rocketchip.config.Parameters
 import scala.language.implicitConversions
 
 
-/**
-  * Diplomacy is a set of abstractions for describing directed, acyclic graphs
+/** Diplomacy is a set of abstractions for describing directed, acyclic graphs
   * where parameters will be negotiated between nodes. These abstractions are
   * expressed in the form of abstract classes, traits, and type parameters, which
   * comprises nearly all of the types defined in this package.
@@ -32,7 +31,7 @@ import scala.language.implicitConversions
   *  
   *  There are several types of parameters involved in diplomacy code.
   *  
-  *  - Upwards-flowing/Downwards-flowing Parameters: These parameter types flow along edges and can be considered as the
+  *  - Upward-flowing/Downward-flowing Parameters: These parameter types flow along edges and can be considered as the
   *    pre-negotiated, unresolved parameters.
   *  - Edge Parameters: These parameters are the result of the diplomatic negotiation and that is resolved for each edge.
   *    They are metadata, or an abstract concept of the connection represented by their edge, and contain any sort.
@@ -84,9 +83,6 @@ import scala.language.implicitConversions
   *   E: Edge -- resolved (negotiated) parameters describing conceptual information on graph edges.
   *   B: Bundle should extends from [[chisel3.Data]].
   *
-  *
-  * == Anatomy of a diplomacy Node== 
-  *  
   *  {{{
   *
   *
@@ -106,7 +102,7 @@ import scala.language.implicitConversions
   *                │  │                            .  ↓  *  InwardNode (InwardNodeImp)│  │
   *                │  │                         (mixI)↓  *                            │  │
   *                │  │                            .  ↓  *                            │  │
-  *                │  │  Upwards-flowing inwards   .  ↓  * Downwards-Flowing inwards  │  │
+  *                │  │  Upward-flowing inwards    .  ↓  * Downward-Flowing inwards   │  │
   *                │  │  parameters of type UI     .  ↓  * parameters of type DI      │  │
   *                │  └────────────────────────────.──↓──*────────────────────────────┘  │
   *                │                               .  ↓  *                               │
@@ -114,13 +110,13 @@ import scala.language.implicitConversions
   *                │                     (mapParamsU)    (mapParamsD)                    │
   *                │                               ^  O  +                               │
   *                │                               :  ↓  +                               │
-  *                │  ┌────────────────────────────.--↓--*────────────────────────────┐  │
+  *                │  ┌────────────────────────────:──↓──+────────────────────────────┐  │
   *                │  │                            :  ↓  + OutwardNode(OutwardNodeImp)│  │
   *                │  │                            :  ↓ (mixO)                        │  │
   *                │  │                            :  ↓  +                            │  │
-  *                │  │  Upwards-flowing outwards  :  ↓  + Downwards-Flowing outwards │  │
+  *                │  │  Upward-flowing outwards   :  ↓  + Downward-Flowing outward   │  │
   *                │  │    parameters of type UO   :  ↓  + parameters of type DO      │  │
-  *                │  └────────────────────────────.--↓--*────────────────────────────┘  │
+  *                │  └────────────────────────────:──↓──+────────────────────────────┘  │
   *                │                               :  ↓  +                               │
   *                │                               :  ↓  +                               │
   *                └───────────────────────────────.──↓──*───────────────────────────────┘
@@ -159,26 +155,26 @@ import scala.language.implicitConversions
   *    allows inward edges. This should be preserved even when chaining
   *    operations, and it should ideally be enforced at compile time.
   *
-  * [[Handle]]s are a way of satisfying all of these properties. A Handle represents
+  * [[NodeHandle]] are a way of satisfying all of these properties. A Handle represents
   * the aggregation of a chain of Nodes, and it preserves information about
   * the connectability of the innermost and the outermost sides of the chain.
   *
-  * If `b` supports inward edges, then `a := b` returns a [[Handle]] that supports inward
+  * If `b` supports inward edges, then `a := b` returns a [[NodeHandle]] that supports inward
   * edges that go into `b`. If `a` supports outward edges, then `a := b` returns a
-  * [[Handle]] that supports outward edges coming out of `a`.
+  * [[NodeHandle]] that supports outward edges coming out of `a`.
   *
-  *  ==Node Terms==
+  * ==Node Terms==
   *
-  *  These are some conventionally used terms for diplomatic Nodes,
-  *  which describe different common subtypes that certain protocol implementation might utilize:
-  *    - Mixed: implies that the inward and outward NodeImp are not the same (some sort of protocol conversion is occurring between the two implementations).
-  *    - Adapter: the number of inward and outward edges must be the same.
-  *    - Nexus: the number of nodes connecting from either side are unknown until the graph is constructed and can differ from one another.
-  *    - Identity: modifies neither the parameters nor the protocol-specific circuitry for the edges that pass through it.
-  *    - Source: cannot have inward edges.
-  *    - Sink: cannot have outward edges.
-  *    - Junction: the number of inward and outward edges must have a fixed ratio to one another
-  *    - Ephemeral: a temporary placeholder used for connectivity operations
+  * These are some conventionally used terms for diplomatic Nodes,
+  * which describe different common subtypes that certain protocol implementation might utilize:
+  *   - Mixed: implies that the inward and outward NodeImp are not the same (some sort of protocol conversion is occurring between the two implementations).
+  *   - Adapter: the number of inward and outward edges must be the same.
+  *   - Nexus: the number of nodes connecting from either side are unknown until the graph is constructed and can differ from one another.
+  *   - Identity: modifies neither the parameters nor the protocol-specific circuitry for the edges that pass through it.
+  *   - Source: cannot have inward edges.
+  *   - Sink: cannot have outward edges.
+  *   - Junction: the number of inward and outward edges must have a fixed ratio to one another
+  *   - Ephemeral: a temporary placeholder used for connectivity operations
   */
 package object diplomacy
 {
