@@ -248,7 +248,8 @@ trait CanAttachTile {
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(implicit p: Parameters): TilePRCIDomain[TileType] = {
-    val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](tileParams.hartId) { self =>
+    val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(s"${tileParams.name.getOrElse("core")}_${tileParams.hartId}"))
+    val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams) { self =>
       val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, lookup)) }
     })
     tile_prci_domain
