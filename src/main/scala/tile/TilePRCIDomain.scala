@@ -19,14 +19,14 @@ import freechips.rocketchip.util.{BlockDuringReset}
   * hierarchical P&R boundary buffers, core-local interrupt handling,
   * and any other IOs related to PRCI control.
   */
-abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
+abstract class TilePRCIDomain[T <: BaseTile](clockSinkParams: ClockSinkParameters)(implicit p: Parameters)
     extends ClockDomain
 {
   val tile: T
 
   val tapClockNode = ClockIdentityNode()
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
-  val tile_reset_domain = LazyModule(new ClockSinkDomain(take = None, name = Some(s"core_$id")))
+  val tile_reset_domain = LazyModule(new ClockSinkDomain(clockSinkParams))
   lazy val clockBundle = tapClockNode.in.head._1
 
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
