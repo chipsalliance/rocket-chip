@@ -16,13 +16,13 @@ import freechips.rocketchip.tilelink._
   * hierarchical P&R boundary buffers, core-local interrupt handling,
   * and any other IOs related to PRCI control.
   */
-abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
+abstract class TilePRCIDomain[T <: BaseTile](clockSinkParams: ClockSinkParameters)(implicit p: Parameters)
     extends ClockDomain
 {
   val tile: T
 
   val clockNode = ClockIdentityNode()
-  val clockSinkNode = ClockSinkNode(Seq(ClockSinkParameters(take = None, name = Some(s"core_$id"))))
+  val clockSinkNode = ClockSinkNode(Seq(clockSinkParams))
   def clockBundle = clockSinkNode.in.head._1
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */

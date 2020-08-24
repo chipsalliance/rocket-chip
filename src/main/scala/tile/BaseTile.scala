@@ -14,6 +14,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.prci.{ClockSinkParameters}
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
@@ -28,6 +29,7 @@ trait TileParams {
   val beuAddr: Option[BigInt]
   val blockerCtrlAddr: Option[BigInt]
   val name: Option[String]
+  val clockSinkParams: ClockSinkParameters
 }
 
 abstract class InstantiableTileParams[TileType <: BaseTile] extends TileParams {

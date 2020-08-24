@@ -13,6 +13,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.subsystem.TileCrossingParamsLike
 import freechips.rocketchip.util._
+import freechips.rocketchip.prci.{ClockSinkParameters}
+
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -24,6 +26,7 @@ case class RocketTileParams(
     hartId: Int = 0,
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
+    clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
     boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
