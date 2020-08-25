@@ -124,11 +124,12 @@ Let's start off with creating a node for our driver. We will make it a
 `SourceNode` with the node implementation shown in the previous section, since
 `SourceNode`s only generate downward-flowing parameters along outward edges.
 
-For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]` represents
-the output wires of the module instantiating this node (`AdderDriver`). We are
-using a `Seq` here because each node can send multiple outputs. In our example,
-the `AdderDriverNode` will send two identical outputs: one to the adder, and
-the other to the monitor. These properties are `require`d by the node.
+For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]` represents the
+desired widths for the output wires of the module instantiating this node
+(`AdderDriver`). We are using a `Seq` here because each node can send multiple
+outputs. In our example, the `AdderDriverNode` will send two identical outputs:
+one to the adder, and the other to the monitor. These properties are `require`d
+by the node.
 
 ```scala mdoc
 /** node for [[AdderDriver]] (source) */
