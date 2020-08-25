@@ -51,20 +51,24 @@ wants to send or receive parameter information must have **one or more nodes**.
 
 Between each pair of nodes, there may be **one or more edges**. The edge does
 the negotiation work to ensure parameter agreement between the nodes it connects.
+Edges are directed, and if we draw an edge's direction with an arrow we can then
+define the tail of the arrow as the **source** of the edge and the head of the
+arrow as the **sink** of the edge.
 
 Let's pass around our parameters like so:
 
 ![adder diplomatic nodes](diagrams/adder_nodes.pdf)
 
-Because the graph diplomacy creates is **acyclic**, it is directional. The
-direction towards the sinks is **downward**, and the direction towards the
-sources is **upward**.
+Diplomacy expects the user to define a graph of directed edges between nodes,
+and this graph must be **acyclic**. This type of graph is called a "directed,
+acyclic multigraph." The direction towards the sinks is **downward**, and the
+direction towards the sources is **upward**.
 
 #### Parameters
 
 In our example, we want all of our circuitry to agree upon a Scala `Int` to use
 as a wire width. For clarity, we will define distinct case classes for our
-parameters, although they all contain the same type.
+parameters, although they all contain the same type of information.
 
 ```scala mdoc
 case class UpwardParam(width: Int)
@@ -82,8 +86,9 @@ passes the same bundles along an edge, regardless of whether the edge points
 into our out of the node.
 
 Our **edge parameter** (`E`) describes the data type that needs to be passed along
-the edges in our graph; in our case we only need to keep track of one `Int` that
-describes our width, which will live inside our `EdgeParam` class.
+the edges in our graph. In our case, we only need to keep track of one `Int` that
+describes our describes the final, negotiated width used to actually create our
+hardware wires. This will live inside our `EdgeParam` class.
 
 We also specify a **bundle parameter** (`B`), which is the type of data that will
 resolve into parameterized hardware ports between our modules. For us, this is
@@ -103,25 +108,27 @@ object AdderNodeImp extends SimpleNodeImp[DownwardParam, UpwardParam, EdgeParam,
 
 Notice that the `edge` function does the actual negotiation between nodes. In our
 case, it compares the parameters traveling both upwards and downwards, and chooses
-the one with the smaller width to pass along.
+the one with the smaller width as the final result to make visible from each node.
 
-The `render` function is required by `NodeImp`s and holds metadata for graph
-generation.
+The `render` function is required by `NodeImp`s and holds metadata for rendering
+a view of the negotiated information in some graphical format.
 
 #### Nodes
 
 Nodes can receive or generate parameters. A module parameterized through
 Diplomacy must have one or more nodes in order to receive or send parameters.
-Here, we will create our nodes for the modules we would like to parameterize.
+Here, we will create some different types of nodes for use in the modules we
+would like to parameterize.
 
 Let's start off with creating a node for our driver. We will make it a
 `SourceNode` with the node implementation shown in the previous section, since
-`SourceNode`s have only outward pointing edges.
+`SourceNode`s only generate downward-flowing parameters along outward edges.
 
 For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]` represents
-the outputs of this node. We are using a `Seq` here because each node will send
-two identical outputs: one to the adder, and the other to the monitor. These
-properties are `require`d by the node.
+the output wires of the module instantiating this node (`AdderDriver`). We are
+using a `Seq` here because each node can send multiple outputs. In our example,
+the `AdderDriverNode` will send two identical outputs: one to the adder, and
+the other to the monitor. These properties are `require`d by the node.
 
 ```scala mdoc
 /** node for [[AdderDriver]] (source) */
@@ -132,9 +139,9 @@ class AdderDriverNode(widths: Seq[DownwardParam])(implicit valName: ValName)
 }
 ```
 
-Our monitor node follows the same pattern, this time extending `SinkNode`, a type
-of node that only has inward edges. The parameter it takes in is `width` of type
-`UpwardParam`.
+Our monitor node follows the same pattern, this time extending `SinkNode`, a
+type of node that only generates upward-flowing parameters along inward edges.
+The parameter it takes in is `width` of type `UpwardParam`.
 
 ```scala mdoc
 /** node for [[AdderMonitor]] (sink) */
@@ -169,8 +176,8 @@ must also be generated lazily. Diplomacy provides the `LazyModule` construct for
 writing lazily-evaluated hardware modules.
 
 Let's use `LazyModule` to define our `Adder`. Notice that the creation of the
-Diplomacy graph itself (in this case, the node), is non-lazy. The desired
-hardware for the module must be written inside `LazyModuleImp`.
+components used to define Diplomacy graph (in this case, the node), is non-lazy.
+The desired hardware for the module must be written inside `LazyModuleImp`.
 
 For this example, we expect one driver that should be driving two addends of an
 equal bit width into the adder, meaning we expect all of our downward flowing
@@ -194,6 +201,7 @@ class Adder(implicit p: Parameters) extends LazyModule {
     }
   )
   lazy val module = new LazyModuleImp(this) {
+    require(node.in.size == 2)
     node.out.head._1 := node.in.head._1 + node.in.tail.head._1
   }
 
@@ -270,7 +278,7 @@ class AdderTestHarness()(implicit p: Parameters) extends LazyModule {
   val driver = LazyModule(new AdderDriver(8))    // passing in downward-traveling width to Diplomacy
   val checker = LazyModule(new AdderMonitor(4))  // passing in upward-traveling width
 
-  // node connections
+  // create edges via binding operators between nodes, in order to define a complete graph
   adder.node := driver.nodeA
   adder.node := driver.nodeB
 
@@ -288,26 +296,22 @@ class AdderTestHarness()(implicit p: Parameters) extends LazyModule {
 }
 ```
 
-We have used the most typical node binding here, but other types of bindings
-can be found in [Nodes.scala](https://github.com/chipsalliance/rocket-chip/blob/master/src/main/scala/diplomacy/Nodes.scala).
+We have used the most typical node binding operator (`:=`) here, but other types
+of bindings can be found in [Nodes.scala](https://github.com/chipsalliance/rocket-chip/blob/master/src/main/scala/diplomacy/Nodes.scala).
 
 ### The Generated Verilog
 
-Now we are ready to generate the Verilog for our circuit. The `DummyConfig` is
-empty, since we don't need any parameters specified through a `Config`.
+Now we are ready to generate the Verilog for our circuit.
 
 ```scala mdoc:silent
-/** empty config */
-class DummyConfig extends Config((_,_,_) => { case _ if false => "" })
-
 val verilog = (new ChiselStage).emitVerilog(
-  LazyModule(new AdderTestHarness()(new DummyConfig)).module
+  LazyModule(new AdderTestHarness()(Parameters.empty)).module
 )
 ```
 
 Below is the generated Verilog for our modules! Note the parameterized ports
-in `Adder`, `AdderDriver`, and `AdderChecker` all get the lower width (8).
-The LFSR is also parameterized to 8 bits.
+in `Adder`, `AdderDriver`, and `AdderChecker` all get the lower width (4).
+The LFSR is also parameterized to 4 bits.
 
 ```scala mdoc:passthrough
 println(s"```verilog\n$verilog```")
