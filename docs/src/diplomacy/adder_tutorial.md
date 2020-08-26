@@ -120,9 +120,17 @@ Diplomacy must have one or more nodes in order to receive or send parameters.
 Here, we will create some different types of nodes for use in the modules we
 would like to parameterize.
 
+In this section, in addition to **upward** (toward a source) and **downward**
+(toward a sink) directionality, we will also discuss **inward** and **outward**
+directionality. Again, let's picture a directed edge as an arrow. For a node,
+edges that are pointing into the node are **inward edges** _respective to that
+particular node_, and edges who are pointing away from the node are **outward**.
+
+![adder diplomatic nodes](diagrams/edge_inout.pdf)
+
 Let's start off with creating a node for our driver. We will make it a
 `SourceNode` with the node implementation shown in the previous section, since
-`SourceNode`s only generate downward-flowing parameters along outward edges.
+`SourceNode`s only generate downward-flowing parameters along **outward edges**.
 
 For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]` represents the
 desired widths for the output wires of the module instantiating this node
@@ -141,7 +149,7 @@ class AdderDriverNode(widths: Seq[DownwardParam])(implicit valName: ValName)
 ```
 
 Our monitor node follows the same pattern, this time extending `SinkNode`, a
-type of node that only generates upward-flowing parameters along inward edges.
+type of node that only generates upward-flowing parameters along **inward edges**.
 The parameter it takes in is `width` of type `UpwardParam`.
 
 ```scala mdoc
@@ -154,8 +162,10 @@ Our adder node will take inputs from two `AdderDriverNode`s (the two addends)
 and pass one output (the sum) into the monitor. Because the number of inputs and
 outputs differ, we will make this node extend a `NexusNode`.
 
-`dFn` maps **incoming downward** parameters into **outgoing downward** parameters.
-Similarly, `uFn` maps **incoming upward** parameters into **outgoing upward** ones.
+`dFn` maps **downward** parameters along **inward edges** into **downward**
+parameters along **outward edges**. Similarly, `uFn` maps **upward**
+parameters along **inward edges** into **upward** parameters along **outward
+edges**.
 
 ```scala mdoc
 /** node for [[Adder]] (nexus) */
