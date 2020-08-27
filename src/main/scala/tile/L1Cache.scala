@@ -13,7 +13,7 @@ trait L1CacheParams {
   def nWays:         Int
   def rowBits:       Int
   def nTLBSets:      Int
-  def nTLBEntries:   Int
+  def nTLBWays:   Int
   def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
@@ -33,7 +33,7 @@ trait HasL1CacheParameters extends HasTileParameters {
   def rowBytes = rowBits/8
   def rowOffBits = log2Up(rowBytes)
   def nTLBSets = cacheParams.nTLBSets
-  def nTLBEntries = cacheParams.nTLBEntries
+  def nTLBWays = cacheParams.nTLBWays
 
   def cacheDataBits = tlBundleParams.dataBits
   def cacheDataBytes = cacheDataBits / 8
