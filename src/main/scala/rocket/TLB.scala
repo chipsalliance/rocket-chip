@@ -146,7 +146,7 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
 
 case class TLBConfig(
     nSets: Int,
-    nEntries: Int,
+    nWays: Int,
     nSectors: Int = 4,
     nSuperpageEntries: Int = 4)
 
@@ -162,7 +162,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
   val memIdx = vpn.extract(cfg.nSectors.log2 + cfg.nSets.log2 - 1, cfg.nSectors.log2)
-  val sectored_entries = Reg(Vec(cfg.nSets, Vec(cfg.nEntries / cfg.nSectors, new TLBEntry(cfg.nSectors, false, false))))
+  val sectored_entries = Reg(Vec(cfg.nSets, Vec(cfg.nWays / cfg.nSectors, new TLBEntry(cfg.nSectors, false, false))))
   val superpage_entries = Reg(Vec(cfg.nSuperpageEntries, new TLBEntry(1, true, true)))
   val special_entry = (!pageGranularityPMPs).option(Reg(new TLBEntry(1, true, false)))
   def ordinary_entries = sectored_entries(memIdx) ++ superpage_entries
@@ -324,7 +324,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val tlb_hit = real_hits.orR
   val tlb_miss = vm_enabled && !bad_va && !tlb_hit
 
-  val sectored_plru = new SetAssocLRU(cfg.nSets, cfg.nEntries, "plru")
+  val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries(0).size, "plru")
   val superpage_plru = new PseudoLRU(superpage_entries.size)
   when (io.req.valid && vm_enabled) {
     when (sector_hits.orR) { sectored_plru.access(memIdx, OHToUInt(sector_hits)) }

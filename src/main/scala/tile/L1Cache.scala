@@ -13,7 +13,7 @@ trait L1CacheParams {
   def nWays:         Int
   def rowBits:       Int
   def nTLBSets:      Int
-  def nTLBWays:   Int
+  def nTLBWays:      Int
   def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
