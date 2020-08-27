@@ -30,7 +30,8 @@ class DCacheLogicalTreeNode(dcache: HellaCache, deviceOpt: Option[SimpleDevice],
         dataMemorySizeBytes = params.nSets * params.nWays * params.blockBytes,
         dataECC = params.dataECC.map(OMECC.fromString),
         tagECC = params.tagECC.map(OMECC.fromString),
-        nTLBEntries = params.nTLBEntries,
+        nTLBSets = params.nTLBSets,
+        nTLBWays = params.nTLBWays,
         memories = dcache.getOMSRAMs(),
       )
     )
@@ -49,7 +50,8 @@ class ICacheLogicalTreeNode(icache: ICache, deviceOpt: Option[SimpleDevice], par
         dataMemorySizeBytes = params.nSets * params.nWays * params.blockBytes,
         dataECC = params.dataECC.map(OMECC.fromString),
         tagECC = params.tagECC.map(OMECC.fromString),
-        nTLBEntries = params.nTLBEntries,
+        nTLBSets = params.nTLBSets,
+        nTLBWays = params.nTLBWays,
         maxTimSize = params.nSets * (params.nWays-1) * params.blockBytes,
         memories = icache.module.data_arrays.map(_._2),
       )
