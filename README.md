@@ -460,7 +460,7 @@ Then you can build as usual with `CONFIG=<MyConfigPackage>.MyConfig`.
 
 The objective of this section is to use GNU debugger to debug RISC-V programs running on the emulator in the same fashion as in [Spike](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
 
-For that we need to add a Remote Bit-Bang client to the emulator. We can do so by extending our Config with JtagDTMSystem, which will add a DebugTransportModuleJTAG to the DUT and connect a SimJTAG module in the Test Harness. This will allow OpenOCD to interface with the emulator, and GDB can interface with OpenOCD. In the following example we added this Config extension to the Config.scala:
+For that we need to add a Remote Bit-Bang client to the emulator. We can do so by extending our Config with JtagDTMSystem, which will add a DebugTransportModuleJTAG to the DUT and connect a SimJTAG module in the Test Harness. This will allow OpenOCD to interface with the emulator, and GDB can interface with OpenOCD. In the following example we add this Config alteration to `src/main/scala/system/Configs.scala`:
 
     class DefaultConfigRBB extends Config(
     new WithJtagDTMSystem ++ new WithNBigCores(1) ++ new BaseConfig)
