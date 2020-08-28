@@ -158,7 +158,7 @@ outputs differ, we will make this node extend a `NexusNode`.
 
 `dFn` maps **downward** parameters along **inward edges** into **downward**
 parameters along **outward edges**. Similarly, `uFn` maps **upward**
-parameters along **inward edges** into **upward** parameters along **outward
+parameters along **outward edges** into **upward** parameters along **inward
 edges**.
 
 ```scala mdoc
