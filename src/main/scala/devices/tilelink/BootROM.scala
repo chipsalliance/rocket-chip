@@ -74,7 +74,7 @@ object BootROM {
       rom.array() ++ subsystem.dtb.contents
     }
 
-    val bootrom = subsystem {
+    val bootrom = cbus {
       LazyModule(new TLROM(params.address, params.size, contents, true, cbus.beatBytes))
     }
 

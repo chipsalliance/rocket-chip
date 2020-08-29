@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT, CLINTAttachKey, PLICAttachKey}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
@@ -117,7 +117,7 @@ trait HasTileInterruptSources
 }
 
 /** These are sources of "constants" that are driven into the tile.
-  * 
+  *
   * While they are not expected to change dyanmically while the tile is executing code,
   * they may be either tied to a contant value or programmed during boot or reset.
   * They need to be instantiated before tiles are attached within the subsystem containing them.
@@ -283,21 +283,25 @@ trait CanAttachTile {
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
     //    so might need to be synchronized depending on the Tile's crossing type.
 
-    //    From CLINT: "msip" and "mtip"
-    domain.crossIntIn(crossingParams.crossingType) :=
-      context.clintOpt.map { _.intnode }
-        .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+    context.locateTLBusWrapper(p(CLINTAttachKey).slaveWhere) {
+      // From CLINT: "msip" and "mtip"
+      domain.crossIntIn(crossingParams.crossingType) :=
+        context.clintOpt.map { _.intnode }
+          .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+    }
 
-    //    From PLIC: "meip"
-    domain.crossIntIn(crossingParams.crossingType) :=
-      context.plicOpt .map { _.intnode }
-        .getOrElse { context.meipNode.get }
-
-    //    From PLIC: "seip" (only if supervisor mode is enabled)
-    if (domain.tile.tileParams.core.hasSupervisorMode) {
+    context.locateTLBusWrapper(p(PLICAttachKey).slaveWhere) {
+      // From PLIC: "meip"
       domain.crossIntIn(crossingParams.crossingType) :=
         context.plicOpt .map { _.intnode }
+          .getOrElse { context.meipNode.get }
+
+      // From PLIC: "seip" (only if supervisor mode is enabled)
+      if (domain.tile.tileParams.core.hasSupervisorMode) {
+        domain.crossIntIn(crossingParams.crossingType) :=
+        context.plicOpt .map { _.intnode }
           .getOrElse { NullIntSource() }
+      }
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.

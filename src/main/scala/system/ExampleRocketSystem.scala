@@ -15,6 +15,7 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     with CanHaveMasterAXI4MemPort
     with CanHaveMasterAXI4MMIOPort
     with CanHaveSlaveAXI4Port
+    with HasRTC
 {
   // optionally add ROM devices
   // Note that setting BootROMLocated will override the reset_vector for all tiles
@@ -25,6 +26,5 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
 }
 
 class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends RocketSubsystemModuleImp(_outer)
-    with HasRTCModuleImp
     with HasExtInterruptsModuleImp
     with DontTouch

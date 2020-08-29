@@ -106,7 +106,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val clintOpt = p(CLINTKey).map { params =>
     val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
-    val clint = LazyModule(new CLINT(params, cbus.beatBytes))
+    val clint = tlbus { LazyModule(new CLINT(params, cbus.beatBytes)) }
     LogicalModuleTree.add(logicalTreeNode, clint.logicalTreeNode)
     clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
     clint
