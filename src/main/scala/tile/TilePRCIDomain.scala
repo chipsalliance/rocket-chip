@@ -34,7 +34,7 @@ abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
   /** External code looking to connect and clock-cross the interrupts raised by devices inside this tile can call this. */
   def crossIntOut(crossing: ClockCrossingType): IntOutwardNode = {
     val intOutXing = this.crossOut(tile.intOutwardNode)
-    intOutXing(crossing)
+    intOutXing(crossing, tile.intOutwardNodeAlreadyRegistered)
   }
 
   /** External code looking to connect the ports where this tile is slaved to an interconnect

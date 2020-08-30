@@ -51,6 +51,7 @@ class RocketTile private(
     this(params, crossing.crossingType, lookup, p)
 
   val intOutwardNode = IntIdentityNode()
+  override def intOutwardNodeAlreadyRegistered: Boolean = true
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
@@ -63,9 +64,14 @@ class RocketTile private(
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), logicalTreeNode))
-    intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
+  }
+
+  val beuIntNode = bus_error_unit.map { beu =>
+    val node = IntAdapterNode()
+    intOutwardNode := node := beu.intNode
+    node
   }
 
   val tile_master_blocker =
@@ -162,6 +168,11 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     core.io.interrupts.buserror.get := beu.module.io.interrupt
     beu.module.io.errors.dcache := outer.dcache.module.io.errors
     beu.module.io.errors.icache := outer.frontend.module.io.errors
+
+    // register beu interrupt with rawReset async reset flop
+    val (int_in, _) = outer.beuIntNode.get.in(0)
+    val (int_out, _) = outer.beuIntNode.get.out(0)
+    int_out(0) := withReset(outer.rawReset.asAsyncReset)(RegNext(int_in(0), false.B))
   }
 
   // Pass through various external constants and reports that were bundle-bridged into the tile
