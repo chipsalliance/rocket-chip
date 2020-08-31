@@ -31,8 +31,9 @@ to test it, we would like a **top-level test bench**, two **drivers**, and a sim
 
 Let's say we would also like to parameterize the widths of these modules' ports.
 For the sake of demonstration, when negotiating parameters, our protocol will
-use the smaller of the two widths, which is the opposite of what typical Chisel
-width inference would do.
+expect both our drivers to provide addends of the same widths. It will use the
+smaller of the two widths from the drivers versus the monitor, which is the opposite
+behavior of typical Chisel width inference.
 
 ```scala mdoc:invisible
 import chipsalliance.rocketchip.config.{Config, Parameters}
@@ -132,14 +133,15 @@ Let's start off with creating a node for our driver. We will make it a
 `SourceNode` with the node implementation shown in the previous section, since
 `SourceNode`s only generate downward-flowing parameters along **outward edges**.
 
-For our `AdderDriverNode`, `width` of type `DownwardParam` represents the
-desired width for the output wire of the module instantiating this node
-(`AdderDriver`).
+For our `AdderDriverNode`, `widths` of type `Seq[DownwardParam]` represents the
+desired widths for the output wires of the module instantiating this node
+(`AdderDriver`). We are using a `Seq` here because each node can drive multiple
+outputs. In our case, each node will be connected to both the adder and the monitor.
 
 ```scala mdoc
 /** node for [[AdderDriver]] (source) */
-class AdderDriverNode(width: DownwardParam)(implicit valName: ValName)
-  extends SourceNode(AdderNodeImp)(Seq(width))
+class AdderDriverNode(widths: Seq[DownwardParam])(implicit valName: ValName)
+  extends SourceNode(AdderNodeImp)(widths)
 ```
 
 Our monitor node follows the same pattern, this time extending `SinkNode`, a
@@ -184,9 +186,9 @@ Let's use `LazyModule` to define our `Adder`. Notice that the creation of the
 components used to define Diplomacy graph (in this case, the node), is non-lazy.
 The desired hardware for the module must be written inside `LazyModuleImp`.
 
-For this example, we expect two drivers, each driving an addend of equal bit
-widths into the adder, meaning we expect all of our downward flowing parameters
-to be equivalent. We also expect a sole monitor, so all of our upward flowing
+For this example, we expect our drivers to drive addends of equal bit widths
+into the adder, meaning we expect all of our downward flowing parameters to be
+equivalent. We also expect a single monitor, so all of our upward flowing
 parameters should also be equivalent. Thus, we can require these properties in
 our `AdderNode` and simply pass on downward the first `DownwardParam` we see.
 Following the same logic, we can pass upward the first `UpwardParam` we see.
@@ -196,38 +198,43 @@ Following the same logic, we can pass upward the first `UpwardParam` we see.
 class Adder(implicit p: Parameters) extends LazyModule {
   val node = new AdderNode (
     { case dps: Seq[DownwardParam] =>
-      require(dps.forall(dp => dp.width == dps.head.width))
+      require(dps.forall(dp => dp.width == dps.head.width), "inward, downward adder widths must be equivalent")
       dps.head
     },
     { case ups: Seq[UpwardParam] =>
-      require(ups.forall(up => up.width == ups.head.width))
+      require(ups.forall(up => up.width == ups.head.width), "outward, upward adder widths must be equivalent")
       ups.head
     }
   )
   lazy val module = new LazyModuleImp(this) {
-    require(node.in.size == 2)
-    node.out.head._1 := node.in.head._1 + node.in.tail.head._1
+    require(node.in.size >= 2)
+    node.out.head._1 := node.in.unzip._1.reduce(_ + _)
   }
 
   override lazy val desiredName = "Adder"
 }
 ```
 
-Our `AdderDriver` randomly generates an addend of `width` bits each cycle, and
+Our `AdderDriver` randomly generates an addend of `finalWidth` bits each cycle, and
 passes it to `numOutputs` sources.
 
 ```scala mdoc
 /** driver (source)
   * drives one random number on multiple outputs */
-class AdderDriver(width: Int, numOutputs: Int = 2)(implicit p: Parameters) extends LazyModule {
-  val nodeSeq = Seq.fill(numOutputs)(new AdderDriverNode(DownwardParam(width)))
+class AdderDriver(width: Int, numOutputs: Int)(implicit p: Parameters) extends LazyModule {
+  val node = new AdderDriverNode(Seq.fill(numOutputs)(DownwardParam(width)))
 
   lazy val module = new LazyModuleImp(this) {
+    // check that node parameters converge after negotiation
+    val negotiatedWidths = node.edges.out.map(_.width)
+    require(negotiatedWidths.forall(_ == negotiatedWidths.head), "outputs must all have agreed on same width")
+    val finalWidth = negotiatedWidths.head
+
     // generate random addend (notice the use of the negotiated width)
-    val randomAddend = FibonacciLFSR.maxPeriod(nodeSeq.head.out.head._2.width)
+    val randomAddend = FibonacciLFSR.maxPeriod(finalWidth)
 
     // drive signals
-    nodeSeq.foreach { node => node.out.head._1 := randomAddend }
+    node.out.foreach { case (addend, _) => addend := randomAddend }
   }
 
   override lazy val desiredName = "AdderDriver"
@@ -241,8 +248,8 @@ signals an error if the `Adder` returns an incorrect result. It has two
 
 ```scala mdoc
 /** monitor (sink) */
-class AdderMonitor(width: Int)(implicit p: Parameters) extends LazyModule {
-  val nodeSeq = Seq.fill(2) { new AdderMonitorNode(UpwardParam(width)) }
+class AdderMonitor(width: Int, numOperands: Int)(implicit p: Parameters) extends LazyModule {
+  val nodeSeq = Seq.fill(numOperands) { new AdderMonitorNode(UpwardParam(width)) }
   val nodeSum = new AdderMonitorNode(UpwardParam(width))
 
   lazy val module = new LazyModuleImp(this) {
@@ -250,11 +257,11 @@ class AdderMonitor(width: Int)(implicit p: Parameters) extends LazyModule {
       val error = Output(Bool())
     })
 
-    // print output
-    printf(p"${nodeSeq(0).in.head._1} + ${nodeSeq(1).in.head._1} = ${nodeSum.in.head._1}")
+    // print operation
+    printf(nodeSeq.map(node => p"${node.in.head._1}").reduce(_ + p" + " + _) + p" = ${nodeSum.in.head._1}")
 
     // basic correctness checking
-    io.error := nodeSum.in.head._1 =/= nodeSeq(0).in.head._1 + nodeSeq(1).in.head._1
+    io.error := nodeSum.in.head._1 =/= nodeSeq.map(_.in.head._1).reduce(_ + _)
   }
 
   override lazy val desiredName = "AdderMonitor"
@@ -274,18 +281,21 @@ sources are on the right.
 ```scala mdoc
 /** top-level connector */
 class AdderTestHarness()(implicit p: Parameters) extends LazyModule {
+  val numOperands = 2
   val adder = LazyModule(new Adder)
-  val drivers = Seq.fill(2) { LazyModule(new AdderDriver(width = 8)) } // 8 will be a downward-traveling width
-  val checker = LazyModule(new AdderMonitor(width = 4))                // 4 will be an upward-traveling width
+  // 8 will be the downward-traveling widths from our drivers
+  val drivers = Seq.fill(numOperands) { LazyModule(new AdderDriver(width = 8, numOutputs = 2)) }
+  // 4 will be the upward-traveling width from our monitor
+  val monitor = LazyModule(new AdderMonitor(width = 4, numOperands = numOperands))
 
   // create edges via binding operators between nodes in order to define a complete graph
-  drivers.foreach{ driver => adder.node := driver.nodeSeq(0) }
+  drivers.foreach{ driver => adder.node := driver.node }
 
-  drivers.zip(checker.nodeSeq).foreach { case (driver, checkerNode) => checkerNode := driver.nodeSeq(1) }
-  checker.nodeSum := adder.node
+  drivers.zip(monitor.nodeSeq).foreach { case (driver, monitorNode) => monitorNode := driver.node }
+  monitor.nodeSum := adder.node
 
   lazy val module = new LazyModuleImp(this) {
-    when(checker.module.io.error) {
+    when(monitor.module.io.error) {
       printf("something went wrong")
     }
   }
