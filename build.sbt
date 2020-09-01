@@ -111,3 +111,19 @@ lazy val chipSettings = Seq(
   }
 )
 
+// mdoc documentation target
+lazy val docs = project
+  .in(file("docs-target"))
+  .dependsOn(rocketchip)
+  .enablePlugins(MdocPlugin)
+  .settings(commonSettings)
+  .settings(
+      scalacOptions += "-language:reflectiveCalls",
+      mdocIn := file("docs/src"),
+      mdocOut := file("docs/generated"),
+      mdocExtraArguments := Seq("--cwd", "docs"),
+      mdocVariables := Map(
+        // build dir for mdoc programs to dump temp files
+        "BUILD_DIR" -> "docs-target"
+      )
+  )
