@@ -216,7 +216,7 @@ class AXI4IdMap(axi4: AXI4MasterPortParameters) extends IdMap[AXI4IdMapEntry] {
   }
 }
 
-case class AXI4IdMapEntry(axi4Id: IdRange, name: String, maxTransactionsInFlight: Option[Int]) extends IdMapEntry {
+case class AXI4IdMapEntry(axi4Id: IdRange, name: String, maxTransactionsInFlight: Option[Int] = None) extends IdMapEntry {
   val from = axi4Id
   val to = axi4Id
   val isCache = false
