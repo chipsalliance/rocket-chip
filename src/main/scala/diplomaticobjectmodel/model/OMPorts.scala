@@ -94,10 +94,11 @@ class OMIDMapEntry(val name: String,
                    val to: OMIDRange,
                    val isCache: Boolean,
                    val requestFifo: Boolean,
+                   val maxTransactionsInFlight: Option[Int],
                    val _types: Seq[String] = Seq("OMIDMapEntry", "OMCompoundType"))
 object OMIDMapEntry {
   def apply[T <: IdMapEntry](i: T): OMIDMapEntry = {
-    new OMIDMapEntry(i.name, OMIDRange(i.from), OMIDRange(i.to), i.isCache, i.requestFifo)
+    new OMIDMapEntry(i.name, OMIDRange(i.from), OMIDRange(i.to), i.isCache, i.requestFifo, i.maxTransactionsInFlight)
   }
 }
 

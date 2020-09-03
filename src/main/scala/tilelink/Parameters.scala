@@ -1565,4 +1565,5 @@ case class TLSourceIdMapEntry(tlId: IdRange, name: String, isCache: Boolean, req
 {
   val from = tlId
   val to = tlId
+  val maxTransactionsInFlight = Some(tlId.size)
 }
