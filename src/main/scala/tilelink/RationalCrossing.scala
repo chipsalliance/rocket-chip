@@ -20,7 +20,7 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
+      val bce = edgeIn.diplomaticClaimsMasterToSlave.acquireB && edgeIn.diplomaticClaimsSlaveToMaster.Probe
       val direction = edgeOut.manager.direction
 
       out.a <> ToRational(in.a, direction)
