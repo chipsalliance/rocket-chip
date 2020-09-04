@@ -1409,6 +1409,7 @@ case class TLEdgeParameters(
   require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
 
   def diplomaticClaimsMasterToSlave = master.anyEmitClaims.intersect(slave.anySupportClaims)
+  def diplomaticClaimsSlaveToMaster = master.anySupportClaims.intersect(slave.anyEmitClaims)
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
