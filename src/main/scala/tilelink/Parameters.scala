@@ -1127,13 +1127,15 @@ class TLMasterPortParameters private(
     }
   }
 
-  // Diplomatically determined operation sizes emitted by all inward Masters
+  // Diplomatically determined operation sizes emitted/supported by all inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val allEmitClaims = masters.map(_.emits).reduce( _ intersect _)
+  val allEmitClaims    = masters.map(_.emits)   .reduce( _ intersect _)
+  val allSupportClaims = masters.map(_.supports).reduce( _ intersect _)
 
-  // Diplomatically determined operation sizes Emitted by at least one inward Masters
+  // Diplomatically determined operation sizes Emitted/Supported by at least one inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
-  val anyEmitClaims = masters.map(_.emits).reduce(_ mincover _)
+  val anyEmitClaims    = masters.map(_.emits)   .reduce(_ mincover _)
+  val anySupportClaims = masters.map(_.supports).reduce(_ mincover _)
 
   // Diplomatically determined operation sizes supported by all inward Masters
   // as opposed to expectsVipChecker which generate circuitry to check which specific addresses
