@@ -34,7 +34,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 {
   val node = new TLNexusNode(
     clientFn  = { seq =>
-      seq(0).v1copy(
+      seq.head.v1copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
         requestFields = BundleField.union(seq.flatMap(_.requestFields)),
         responseKeys  = seq.flatMap(_.responseKeys).distinct,
@@ -48,13 +48,13 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     },
     managerFn = { seq =>
       val fifoIdFactory = TLXbar.relabeler()
-      seq(0).v1copy(
+      seq.head.v1copy(
         responseFields = BundleField.union(seq.flatMap(_.responseFields)),
         requestKeys = seq.flatMap(_.requestKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
         endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
         managers = seq.flatMap { port =>
-          require (port.beatBytes == seq(0).beatBytes,
+          require (port.beatBytes == seq.head.beatBytes,
             s"Xbar ($name with parent $parent) data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
           val fifoIdMapper = fifoIdFactory()
           port.managers map { manager => manager.v1copy(
@@ -64,7 +64,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       )
     }
   ){
-    override def circuitIdentity = outputs == 1 && inputs == 1
+    override def circuitIdentity: Boolean = outputs == 1 && inputs == 1
   }
 
   lazy val module = new LazyModuleImp(this) {
@@ -143,9 +143,12 @@ object TLXbar
     xbar.node
   }
 
+  /** @todo */
   def mapInputIds (ports: Seq[TLMasterPortParameters]) = assignRanges(ports.map(_.endSourceId))
+  /** @todo */
   def mapOutputIds(ports: Seq[TLSlavePortParameters ]) = assignRanges(ports.map(_.endSinkId))
 
+  /** @todo */
   def assignRanges(sizes: Seq[Int]) = {
     val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
     val tuples = pow2Sizes.zipWithIndex.sortBy(_._1) // record old index, then sort by increasing size
@@ -186,36 +189,96 @@ object TLXbar
 object TLXbar_ACancel
 {
   def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]) {
+    def transpose[T](x: Vector[Vector[T]]): Vector[Vector[T]] =
+      if (x.isEmpty) Nil
+      else Vector.tabulate(x.head.size) { i => Vector.tabulate(x.size) { j => x(j)(i) } }
+
+    /* Get [[Data]] and [[Edges]] from nodes directly. */
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 
-    // Not every master need connect to every slave on every channel; determine which connections are necessary
-    val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
-      cp.client.clients.exists { c => mp.manager.managers.exists { m =>
-        c.visibility.exists { ca => m.address.exists { ma =>
-          ca.overlaps(ma)}}}}
-      }.toVector}.toVector
-    val probeIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
-      (edgesOut zip reachableO).map { case (mp, reachable) =>
-        reachable && cp.client.anySupportProbe && mp.manager.managers.exists(_.regionType >= RegionType.TRACKED)
-      }.toVector}.toVector
-    val releaseIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
-      (edgesOut zip reachableO).map { case (mp, reachable) =>
-        reachable && cp.client.anySupportProbe && mp.manager.anySupportAcquireB
-      }.toVector}.toVector
+    /** Not every master need connect to every slave on every channel,
+      * this determine which connections are necessary.
+      * It will generate a 2 dimensional array interconnect matrix.
+      * which represents the connectability of a master port to a slave port.
+      * */
+    val reachableIO: Vector[Vector[Boolean]] = edgesIn.map {
+      /* Each parameters from master. */
+      masterParameters =>
+        edgesOut.map {
+          /* Each parameters from managers(sinks). */
+          slaveParameters =>
+            masterParameters
+              /* Master port parameters. */
+              .master
+              /* All master parameters on the port. */
+              .masters
+              .exists {
+                master =>
+                  slaveParameters
+                    /* Slave port parameters. */
+                    .slave
+                    /* All slave parameters on the port. */
+                    .slaves
+                    .exists {
+                      slave =>
+                        /* fill true in the matrix, if master address sets have overlaps to any address of a slave on a port. */
+                        master.visibility.exists { ca => slave.address.exists { ma => ca.overlaps(ma) }
+                        }
+                    }
+              }
+        }.toVector
+    }.toVector
 
-    val connectAIO = reachableIO
-    val connectBIO = probeIO
-    val connectCIO = releaseIO
-    val connectDIO = reachableIO
-    val connectEIO = releaseIO
+    /** Another interconnect matrix, support slave probe master. */
+    val probeIO: Vector[Vector[Boolean]] =
+    /* Using zip to match each [[edgesIn]], [[edgesOut]] and [[reachableIO]],
+     * [[masterParameters]], [[slaveParameters]] and [[reachable]] represents if this pair is connectable.
+     */
+      (edgesIn zip reachableIO).map {
+        case (masterParameters, reachableO) =>
+          (edgesOut zip reachableO).map {
+            case (slaveParameters, reachable) =>
+              /* Fill true in the matrix, if exist any master support probe, and exist any slave can probe. */
+              reachable && masterParameters.master.anySupportProbe && slaveParameters.slave.slaves.exists(_.regionType >= RegionType.TRACKED)
+          }.toVector
+      }.toVector
 
-    def transpose[T](x: Seq[Seq[T]]) = if (x.isEmpty) Nil else Vector.tabulate(x(0).size) { i => Vector.tabulate(x.size) { j => x(j)(i) } }
-    val connectAOI = transpose(connectAIO)
-    val connectBOI = transpose(connectBIO)
-    val connectCOI = transpose(connectCIO)
-    val connectDOI = transpose(connectDIO)
-    val connectEOI = transpose(connectEIO)
+    /** Another interconnect matrix, support slave probe master. support master release data. */
+    val releaseIO: Vector[Vector[Boolean]] =
+    /* Using zip to match each [[edgesIn]], [[edgesOut]] and [[reachableIO]],
+     * [[masterParameters]], [[slaveParameters]] and [[reachable]] represents if this pair is connectable.
+     */
+      (edgesIn zip reachableIO).map {
+        case (cp, reachableO) =>
+          (edgesOut zip reachableO).map {
+            case (mp, reachable) =>
+              /* Fill true in the matrix, if exist any master support probe, and exist any slave can probe. */
+              reachable && cp.master.anySupportProbe && mp.slave.anySupportAcquireB
+          }.toVector
+      }.toVector
+
+    /* Interconnect matrix of A channel from master to slave. */
+    val connectAIO: Vector[Vector[Boolean]] = reachableIO
+    /* Interconnect matrix of B channel from master to slave. */
+    val connectBIO: Vector[Vector[Boolean]] = probeIO
+    /* Interconnect matrix of C channel from master to slave. */
+    val connectCIO: Vector[Vector[Boolean]] = releaseIO
+    /* Interconnect matrix of D channel from master to slave. */
+    val connectDIO: Vector[Vector[Boolean]] = reachableIO
+    /* Interconnect matrix of E channel from master to slave. */
+    val connectEIO: Vector[Vector[Boolean]] = releaseIO
+
+    /* Interconnect matrix of A channel from slave to master. */
+    val connectAOI: Vector[Vector[Boolean]] = transpose(connectAIO)
+    /* Interconnect matrix of B channel from slave to master. */
+    val connectBOI: Vector[Vector[Boolean]] = transpose(connectBIO)
+    /* Interconnect matrix of C channel from slave to master. */
+    val connectCOI: Vector[Vector[Boolean]] = transpose(connectCIO)
+    /* Interconnect matrix of D channel from slave to master. */
+    val connectDOI: Vector[Vector[Boolean]] = transpose(connectDIO)
+    /* Interconnect matrix of E channel from slave to master. */
+    val connectEOI: Vector[Vector[Boolean]] = transpose(connectEIO)
 
     // Grab the port ID mapping
     val inputIdRanges = TLXbar.mapInputIds(edgesIn.map(_.client))
