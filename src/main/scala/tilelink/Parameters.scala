@@ -541,7 +541,7 @@ class TLSlavePortParameters private(
     channelBytes.a.get
   }
 
-  // TODO this should be deprecated
+  @deprecated("managers has been deprecated, use slaves instead.")
   def managers = slaves
 
   def requireFifo(policy: TLFIFOFixer.Policy = TLFIFOFixer.allFIFO) = {
@@ -1109,6 +1109,7 @@ class TLMasterPortParameters private(
   require (!masters.isEmpty)
   require (minLatency >= 0)
 
+  @deprecated("clients has been deprecated, use masters instead.")
   def clients = masters
 
   // Require disjoint ranges for Ids
@@ -1393,23 +1394,34 @@ object TLBundleParameters
       hasBCE = master.anySupportProbe && slave.anySupportAcquireB)
 }
 
+/** TileLink Edge Parameters:
+  * @param master contains source side parameters of this Edge.
+  * @param slave contains sink side parameters of this Edge.
+  * @param params a copy to CDE config when it is instantiated.
+  */
 case class TLEdgeParameters(
   master: TLMasterPortParameters,
   slave:  TLSlavePortParameters,
   params:  Parameters,
   sourceInfo: SourceInfo) extends FormatEdge
 {
-  // legacy names:
-  def manager = slave
-  def client = master
+  @deprecated("manager has been deprecated, use slave instead.")
+  def manager: TLManagerPortParameters = slave
 
-  val maxTransfer = max(master.maxTransfer, slave.maxTransfer)
-  val maxLgSize = log2Ceil(maxTransfer)
+  @deprecated("client has been deprecated, use master instead.")
+  def client: TLClientPortParameters = master
 
-  // Sanity check the link...
-  require (maxTransfer >= slave.beatBytes, s"Link's max transfer (${maxTransfer}) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
+  /** The max transfer byte size in each transaction of this edge. */
+  val maxTransfer: Int = max(master.maxTransfer, slave.maxTransfer)
 
-  def diplomaticClaimsMasterToSlave = master.anyEmitClaims.intersect(slave.anySupportClaims)
+  /** The max log(size) in each transaction of this edge. */
+  val maxLgSize: Int = log2Ceil(maxTransfer)
+
+  /** sanity check, @todo [[slave.beatBytes]]? */
+  require (maxTransfer >= slave.beatBytes, s"Link's max transfer ($maxTransfer) < ${slave.slaves.map(_.name)}'s beatBytes (${slave.beatBytes})")
+
+  /** @todo all verification part. */
+  def diplomaticClaimsMasterToSlave: TLMasterToSlaveTransferSizes = master.anyEmitClaims.intersect(slave.anySupportClaims)
 
   // For emits, check that the source is allowed to send this transactions
   //These A channel messages from MasterToSlave are:
@@ -1443,7 +1455,8 @@ case class TLEdgeParameters(
   def expectsVipCheckerSlaveToMasterPutPartial (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsPutPartial (sourceId, lgSize) && slave.expectsVipCheckerEmitsPutPartial    (address, lgSize, range)
   def expectsVipCheckerSlaveToMasterHint       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsHint       (sourceId, lgSize) && slave.expectsVipCheckerEmitsHint          (address, lgSize, range)
 
-  val bundle = TLBundleParameters(master, slave)
+  /** Generate parameter for [[TLBundle]]. */
+  val bundle: TLBundleParameters = TLBundleParameters(master, slave)
   def formatEdge = master.infoString + "\n" + slave.infoString
 }
 
