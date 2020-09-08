@@ -210,11 +210,13 @@ class AXI4IdMap(axi4: AXI4MasterPortParameters) extends IdMap[AXI4IdMapEntry] {
   private val sorted = axi4.masters.sortBy(_.id)
 
   val mapping: Seq[AXI4IdMapEntry] = sorted.map { case c =>
-    AXI4IdMapEntry(c.id, c.name)
+    // to conservatively state max number of transactions, assume every id has up to c.maxFlight and reuses ids between AW and AR channels
+    val maxTransactionsInFlight = c.maxFlight.map(_ * c.id.size * 2)
+    AXI4IdMapEntry(c.id, c.name, maxTransactionsInFlight)
   }
 }
 
-case class AXI4IdMapEntry(axi4Id: IdRange, name: String) extends IdMapEntry {
+case class AXI4IdMapEntry(axi4Id: IdRange, name: String, maxTransactionsInFlight: Option[Int] = None) extends IdMapEntry {
   val from = axi4Id
   val to = axi4Id
   val isCache = false
