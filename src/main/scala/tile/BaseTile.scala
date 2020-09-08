@@ -88,8 +88,6 @@ trait HasNonDiplomaticTileParameters {
   //                  Core   PTW                DTIM                    coprocessors           
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + tileParams.core.useVector.toInt
 
-  def intOutwardNodeAlreadyRegistered: Boolean = false
-
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {
     val ie = if (tileParams.core.useRVE) "e" else "i"
