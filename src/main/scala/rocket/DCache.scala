@@ -734,6 +734,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val newCoh = Wire(init = probeNewCoh)
   releaseWay := s2_probe_way
 
+  tl_out_c.bits.user.lift(AMBAProt).foreach { x =>
+    x.fetch       := false.B
+    x.secure      := true.B
+    x.privileged  := true.B
+    x.bufferable  := true.B
+    x.modifiable  := true.B
+    x.readalloc   := true.B
+    x.writealloc  := true.B
+  }
+
   if (!usingDataScratchpad) {
     when (s2_victimize) {
       assert(s2_valid_flush_line || s2_flush_valid || io.cpu.s2_nack)

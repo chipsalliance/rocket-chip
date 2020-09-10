@@ -212,6 +212,8 @@ final class TLBundleC(params: TLBundleParameters)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
   val address = UInt(width = params.addressBits) // to
+  val user    = BundleMap(params.requestFields)
+  val echo    = BundleMap(params.echoFields)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
