@@ -2,11 +2,14 @@
 
 package freechips.rocketchip.tile
 
+import chisel3.Vec
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
+import freechips.rocketchip.rocket.{TracedInstruction}
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util.{BlockDuringReset}
 
 /** A wrapper containing all logic necessary to safely place a tile
   * inside of a particular Power/Reset/Clock/Interrupt domain.
@@ -21,19 +24,29 @@ abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
 {
   val tile: T
 
-  val clockNode = ClockIdentityNode()
-  val clockSinkNode = ClockSinkNode(Seq(ClockSinkParameters(take = None, name = Some(s"core_$id"))))
-  lazy val clockBundle = clockSinkNode.in.head._1
+  val tapClockNode = ClockIdentityNode()
+  val clockNode = FixedClockBroadcast(None) :=* tapClockNode
+  val tile_reset_domain = LazyModule(new ClockSinkDomain(take = None, name = Some(s"core_$id")))
+  lazy val clockBundle = tapClockNode.in.head._1
+
+  /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
+  val traceNexusNode = BundleBridgeNexus(
+    inputFn = (s: Seq[Vec[TracedInstruction]]) => 
+      BlockDuringReset(BundleBridgeNexus.requireOne[Vec[TracedInstruction]](false)(s)))
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
-  def crossIntIn(crossing: ClockCrossingType):  IntInwardNode = {
+  def crossIntIn(crossing: ClockCrossingType):IntInwardNode = {
     val intInXing = this.crossIn(tile.intInwardNode)
     intInXing(crossing)
   }
 
-  /** External code looking to connect and clock-cross the interrupts raised by devices inside this tile can call this. */
-  def crossIntOut(crossing: ClockCrossingType): IntOutwardNode = {
-    val intOutXing = this.crossOut(tile.intOutwardNode)
+  /** External code looking to connect and clock/reset-cross
+    *   - interrupts raised by devices inside this tile
+    *   - notifications raise by the cores and caches
+    * can call this function to instantiate the required crossing hardware.
+    */
+  def crossIntOut(crossing: ClockCrossingType, tileNode: IntOutwardNode): IntOutwardNode = {
+    val intOutXing = this.crossOut(this { IntBlockDuringReset() :=* tileNode })
     intOutXing(crossing)
   }
 
@@ -51,8 +64,9 @@ abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
     * (while also crossing clock domains) can call this.
     */
   def crossMasterPort(crossing: ClockCrossingType): TLOutwardNode = {
-    val tlMasterXing = this.crossOut({
-      this { tile.makeMasterBoundaryBuffers(crossing) } :=* tile.masterNode
+    val tlMasterXing = this.crossOut(this {
+      tile.makeMasterBoundaryBuffers(crossing) :=*
+        DisableMonitors { implicit p => TLBlockDuringReset() :=* tile.masterNode } // dont monitor reset domain crossing
     })
     tlMasterXing(crossing)
   }
