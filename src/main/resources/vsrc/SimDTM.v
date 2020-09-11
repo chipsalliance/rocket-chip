@@ -19,18 +19,18 @@ module SimDTM(
   input clk,
   input reset,
 
-  output        debug_req_valid,
-  input         debug_req_ready,
-  output [ 6:0] debug_req_bits_addr,
-  output [ 1:0] debug_req_bits_op,
-  output [31:0] debug_req_bits_data,
+  output reg        debug_req_valid,
+  input             debug_req_ready,
+  output reg [ 6:0] debug_req_bits_addr,
+  output reg [ 1:0] debug_req_bits_op,
+  output reg [31:0] debug_req_bits_data,
 
-  input         debug_resp_valid,
-  output        debug_resp_ready,
-  input  [ 1:0] debug_resp_bits_resp,
-  input  [31:0] debug_resp_bits_data,
+  input             debug_resp_valid,
+  output reg        debug_resp_ready,
+  input      [ 1:0] debug_resp_bits_resp,
+  input      [31:0] debug_resp_bits_data,
 
-  output [31:0] exit
+  output reg [31:0] exit
 );
 
   bit r_reset;
@@ -40,15 +40,13 @@ module SimDTM(
   reg [31:0] __debug_resp_bits_resp;
   reg [31:0]  __debug_resp_bits_data;
 
-  // Delay sending inputs to DPI to avoid race condition failure in Verilator
-  always @(negedge clk) begin
-    begin
-      __debug_req_ready <= debug_req_ready;
-      __debug_resp_valid <= debug_resp_valid;
-      __debug_resp_bits_resp <= {30'b0, debug_resp_bits_resp};
-      __debug_resp_bits_data <= debug_resp_bits_data;
-    end
-  end
+//  // Delay sending inputs to DPI to avoid race condition failure in Verilator
+//  always @(negedge clk) begin
+  assign  __debug_req_ready = debug_req_ready;
+  assign  __debug_resp_valid = debug_resp_valid;
+  assign  __debug_resp_bits_resp = {30'b0, debug_resp_bits_resp};
+  assign  __debug_resp_bits_data = debug_resp_bits_data;
+//  end
 
   bit __debug_req_valid;
   int __debug_req_bits_addr;
@@ -57,12 +55,14 @@ module SimDTM(
   bit __debug_resp_ready;
   int __exit;
 
-  assign debug_req_valid = __debug_req_valid;
-  assign debug_req_bits_addr = __debug_req_bits_addr[6:0];
-  assign debug_req_bits_op = __debug_req_bits_op[1:0];
-  assign debug_req_bits_data = __debug_req_bits_data[31:0];
-  assign debug_resp_ready = __debug_resp_ready;
-  assign exit = __exit;
+  always @(negedge clk) begin
+    debug_req_valid <= __debug_req_valid;
+    debug_req_bits_addr <= __debug_req_bits_addr[6:0];
+    debug_req_bits_op <= __debug_req_bits_op[1:0];
+    debug_req_bits_data <= __debug_req_bits_data[31:0];
+    debug_resp_ready <= __debug_resp_ready;
+    exit <= __exit;
+  end
 
   always @(posedge clk)
   begin
