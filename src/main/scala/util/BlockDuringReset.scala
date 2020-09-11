@@ -21,8 +21,26 @@ object BlockDuringReset
     res
   }
 
-  def apply(enq: Bool): Bool = {
+  def apply(valid: Bool): Bool = {
     val out_of_reset = RegNext(true.B, false.B)
-    enq && out_of_reset
+    valid && out_of_reset
+  }
+
+  def apply[T <: DataCanBeValid](data: T): T = {
+    val out_of_reset = RegNext(true.B, false.B)
+    val res = Wire(data.cloneType)
+    res := data
+    res.valid := data.valid && out_of_reset
+    res
+  }
+
+  def apply[T <: DataCanBeValid](data: Vec[T]): Vec[T] = {
+    val out_of_reset = RegNext(true.B, false.B)
+    val res = Wire(data.cloneType)
+    res.zip(data)foreach { case (r, d) =>
+      r := d
+      r.valid := d.valid && out_of_reset
+    }
+    res
   }
 }
