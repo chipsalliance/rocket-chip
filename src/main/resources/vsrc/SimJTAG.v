@@ -20,15 +20,15 @@ module SimJTAG #(
                    input         enable,
                    input         init_done,
 
-                   output reg    jtag_TCK,
-                   output reg    jtag_TMS,
-                   output reg    jtag_TDI,
-                   output reg    jtag_TRSTn,
+                   output        jtag_TCK,
+                   output        jtag_TMS,
+                   output        jtag_TDI,
+                   output        jtag_TRSTn,
  
                    input         jtag_TDO_data,
                    input         jtag_TDO_driven,
                           
-                   output reg [31:0] exit
+                   output [31:0] exit
                    );
 
    reg [31:0]                    tickCounterReg;
@@ -40,7 +40,7 @@ module SimJTAG #(
 
    wire [31:0]  random_bits = $random;
    
-   wire          __jtag_TDO = jtag_TDO_driven ? 
+   wire         #0.1 __jtag_TDO = jtag_TDO_driven ? 
                 jtag_TDO_data : random_bits[0];
       
    bit          __jtag_TCK;
@@ -51,15 +51,39 @@ module SimJTAG #(
 
    reg          init_done_sticky;
    
+`ifdef VERILATOR
+   reg          jtag_TCK_reg;
+   reg          jtag_TMS_reg;
+   reg          jtag_TDI_reg;
+   reg          jtag_TRSTn_reg;
+   reg [31:0]   exit_reg;
+
    always @(posedge clock) begin
-     jtag_TCK   <= __jtag_TCK;
-     jtag_TMS   <= __jtag_TMS;
-     jtag_TDI   <= __jtag_TDI;
-     jtag_TRSTn <= __jtag_TRSTn;
-     exit <= __exit;
+     jtag_TCK_reg   <= __jtag_TCK;
+     jtag_TMS_reg   <= __jtag_TMS;
+     jtag_TDI_reg   <= __jtag_TDI;
+     jtag_TRSTn_reg <= __jtag_TRSTn;
+     exit_reg <= __exit;
    end
 
+   assign jtag_TCK   = jtag_TCK_reg;
+   assign jtag_TMS   = jtag_TMS_reg;
+   assign jtag_TDI   = jtag_TDI_reg;
+   assign jtag_TRSTn = jtag_TRSTn_reg;
+   assign exit = __exit;
+
    always @(negedge clock) begin
+`else
+   assign #0.1 jtag_TCK   = __jtag_TCK;
+   assign #0.1 jtag_TMS   = __jtag_TMS;
+   assign #0.1 jtag_TDI   = __jtag_TDI;
+   assign #0.1 jtag_TRSTn = __jtag_TRSTn;
+
+   assign #0.1 exit = __exit;
+
+   always @(posedge clock) begin
+`endif
+
       r_reset <= reset;
       if (reset || r_reset) begin
          __exit = 0;
