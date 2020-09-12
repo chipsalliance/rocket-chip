@@ -47,7 +47,7 @@ module SimDTM(
   bit __debug_resp_ready;
   int __exit;
 
-  always @(negedge clk) begin
+  always @(posedge clk) begin
     debug_req_valid <= __debug_req_valid;
     debug_req_bits_addr <= __debug_req_bits_addr[6:0];
     debug_req_bits_op <= __debug_req_bits_op[1:0];
@@ -56,7 +56,7 @@ module SimDTM(
     exit <= __exit;
   end
 
-  always @(posedge clk)
+  always @(negedge clk)
   begin
     r_reset <= reset;
     if (reset || r_reset)
