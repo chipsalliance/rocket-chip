@@ -35,18 +35,10 @@ module SimDTM(
 
   bit r_reset;
 
-  reg __debug_req_ready;
-  reg __debug_resp_valid;
-  reg [31:0] __debug_resp_bits_resp;
-  reg [31:0]  __debug_resp_bits_data;
-
-//  // Delay sending inputs to DPI to avoid race condition failure in Verilator
-//  always @(negedge clk) begin
-  assign  __debug_req_ready = debug_req_ready;
-  assign  __debug_resp_valid = debug_resp_valid;
-  assign  __debug_resp_bits_resp = {30'b0, debug_resp_bits_resp};
-  assign  __debug_resp_bits_data = debug_resp_bits_data;
-//  end
+  wire __debug_req_ready = debug_req_ready;
+  wire __debug_resp_valid = debug_resp_valid;
+  wire [31:0] __debug_resp_bits_resp = {30'b0, debug_resp_bits_resp};
+  wire [31:0] __debug_resp_bits_data = debug_resp_bits_data;
 
   bit __debug_req_valid;
   int __debug_req_bits_addr;
