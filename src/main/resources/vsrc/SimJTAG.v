@@ -20,15 +20,15 @@ module SimJTAG #(
                    input         enable,
                    input         init_done,
 
-                   output reg    jtag_TCK,
-                   output reg    jtag_TMS,
-                   output reg    jtag_TDI,
-                   output reg    jtag_TRSTn,
+                   output        jtag_TCK,
+                   output        jtag_TMS,
+                   output        jtag_TDI,
+                   output        jtag_TRSTn,
  
                    input         jtag_TDO_data,
                    input         jtag_TDO_driven,
                           
-                   output reg [31:0] exit
+                   output [31:0] exit
                    );
 
    reg [31:0]                    tickCounterReg;
@@ -51,13 +51,12 @@ module SimJTAG #(
 
    reg          init_done_sticky;
    
-   always @(negedge clock) begin
-     jtag_TCK   <= __jtag_TCK;
-     jtag_TMS   <= __jtag_TMS;
-     jtag_TDI   <= __jtag_TDI;
-     jtag_TRSTn <= __jtag_TRSTn;
-     exit <= __exit;
-   end
+   assign #0.1 jtag_TCK   = __jtag_TCK;
+   assign #0.1 jtag_TMS   = __jtag_TMS;
+   assign #0.1 jtag_TDI   = __jtag_TDI;
+   assign #0.1 jtag_TRSTn = __jtag_TRSTn;
+   
+   assign #0.1 exit = __exit;
 
    always @(posedge clock) begin
       r_reset <= reset;
