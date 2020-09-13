@@ -51,7 +51,7 @@ module SimJTAG #(
 
    reg          init_done_sticky;
    
-`ifdef VERILATOR
+`ifdef VERILATORXXX
    reg          jtag_TCK_reg;
    reg          jtag_TMS_reg;
    reg          jtag_TDI_reg;
