@@ -52,6 +52,8 @@ trait TileCrossingParamsLike {
   def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode
   /** Keep the tile clock separate from the interconnect clock (e.g. even if they are synchronous to one another) */
   def forceSeparateClockReset: Boolean
+  /** Stretch the tile reset out for a specified number of cycles */
+  def stretchResetCycles: Option[Int]
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
@@ -249,7 +251,7 @@ trait CanAttachTile {
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(implicit p: Parameters): TilePRCIDomain[TileType] = {
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(s"${tileParams.name.getOrElse("core")}_${tileParams.hartId}"))
-    val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams) { self =>
+    val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
       val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, lookup)) }
     })
     tile_prci_domain
@@ -359,7 +361,7 @@ trait CanAttachTile {
     implicit val p = context.p
     val tlBusToGetClockDriverFrom = context.locateTLBusWrapper(crossingParams.master.where)
     val clockSource = (crossingParams.crossingType match {
-      case s: SynchronousCrossing =>
+      case _: SynchronousCrossing | _: CreditedCrossing =>
         if (crossingParams.forceSeparateClockReset) tlBusToGetClockDriverFrom.clockNode
         else tlBusToGetClockDriverFrom.fixedClockNode
       case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
