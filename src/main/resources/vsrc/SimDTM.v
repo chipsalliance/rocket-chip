@@ -35,10 +35,10 @@ module SimDTM(
 
   bit r_reset;
 
-  wire #0.1 __debug_req_ready = debug_req_ready;
-  wire #0.1 __debug_resp_valid = debug_resp_valid;
-  wire [31:0] #0.1 __debug_resp_bits_resp = {30'b0, debug_resp_bits_resp};
-  wire [31:0] #0.1 __debug_resp_bits_data = debug_resp_bits_data;
+  wire __debug_req_ready = debug_req_ready;
+  wire __debug_resp_valid = debug_resp_valid;
+  wire [31:0] __debug_resp_bits_resp = {30'b0, debug_resp_bits_resp};
+  wire [31:0] __debug_resp_bits_data = debug_resp_bits_data;
 
   bit __debug_req_valid;
   int __debug_req_bits_addr;
@@ -47,7 +47,6 @@ module SimDTM(
   bit __debug_resp_ready;
   int __exit;
 
-`ifdef VERILATOR
   reg        debug_req_valid_reg;
   reg [ 6:0] debug_req_bits_addr_reg;
   reg [ 1:0] debug_req_bits_op_reg;
@@ -72,17 +71,6 @@ module SimDTM(
   assign exit = exit_reg;
 
   always @(negedge clk)
-`else
-  assign #0.1 debug_req_valid = __debug_req_valid;
-  assign #0.1 debug_req_bits_addr = __debug_req_bits_addr[6:0];
-  assign #0.1 debug_req_bits_op = __debug_req_bits_op[1:0];
-  assign #0.1 debug_req_bits_data = __debug_req_bits_data[31:0];
-  assign #0.1 debug_resp_ready = __debug_resp_ready;
-  assign #0.1 exit = __exit;
-
-  always @(posedge clk)
-`endif
-
   begin
     r_reset <= reset;
     if (reset || r_reset)
