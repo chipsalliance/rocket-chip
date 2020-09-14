@@ -47,7 +47,7 @@ module SimDTM(
   bit __debug_resp_ready;
   int __exit;
 
-`ifdef VERILATORxx
+`ifndef VERILATORxx
   reg        debug_req_valid_reg;
   reg [ 6:0] debug_req_bits_addr_reg;
   reg [ 1:0] debug_req_bits_op_reg;
