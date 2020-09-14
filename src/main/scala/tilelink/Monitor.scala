@@ -13,25 +13,25 @@ import freechips.rocketchip.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
 
-abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
+	abstract class TLMonitorBase(args: TLMonitorArgs) extends Module
 {
-  val io = IO(new Bundle {
-    val in = Input(new TLBundle(args.edge.bundle))
-  })
+	val io = IO(new Bundle {
+			val in = Input(new TLBundle(args.edge.bundle))
+			})
 
-  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
-  legalize(io.in, args.edge, reset)
+	def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit
+								    legalize(io.in, args.edge, reset)
 }
 
 object TLMonitor {
-  def apply(enable: Boolean, node: TLNode)(implicit p: Parameters): TLNode = {
-    if (enable) {
-      EnableMonitors { implicit p => node := TLEphemeralNode()(ValName("monitor")) }
-    } else { node }
-  }
+	def apply(enable: Boolean, node: TLNode)(implicit p: Parameters): TLNode = {
+		if (enable) {
+			EnableMonitors { implicit p => node := TLEphemeralNode()(ValName("monitor")) }
+		} else { node }
+	}
 }
 
-@chiselName
+	@chiselName
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
   require (args.edge.params(TLMonitorStrictMode) || (! args.edge.params(TestplanTestType).formal))
@@ -146,7 +146,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.expectsVipCheckerMasterToSlaveHint(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries Hint type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.expectsVipCheckerEmitsHint(bundle.source, bundle.size), "'A' channel carries Hint type which master claims it can't emit" + diplomacyInfo + extra)
+      monAssert (edge.slave.expectsVipCheckerSupportsHint(edge.address(bundle), bundle.size, None), "'A' channel carries Hint type which slave claims it can't support" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel Hint carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       monAssert (TLHints.isHints(bundle.param), "'A' channel Hint carries invalid opcode param" + extra)
