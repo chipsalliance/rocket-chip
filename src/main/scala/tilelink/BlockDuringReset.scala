@@ -11,6 +11,7 @@ import freechips.rocketchip.util.{BlockDuringReset, EnhancedChisel3Assign}
 class TLBlockDuringReset()(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode()
+  override def shouldBeInlined = true
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.a :<> BlockDuringReset(in .a)
