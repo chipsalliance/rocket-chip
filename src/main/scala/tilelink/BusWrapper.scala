@@ -37,8 +37,8 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     with CanAttachTLSlaves
     with CanAttachTLMasters
 {
-  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName)).suggestName(busName + "_clock_groups")
-  private val clockGroup = LazyModule(new ClockGroup(busName))
+  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName){ override def shouldBeInlined = true }).suggestName(busName + "_clock_groups")
+  private val clockGroup = LazyModule(new ClockGroup(busName){ override def shouldBeInlined = true })
   val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
   val clockNode = clockGroup.node
   val fixedClockNode = FixedClockBroadcast(fixedClockOpt) // device clocks attach here

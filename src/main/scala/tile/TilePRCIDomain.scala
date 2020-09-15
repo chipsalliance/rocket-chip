@@ -26,7 +26,7 @@ abstract class TilePRCIDomain[T <: BaseTile](clockSinkParams: ClockSinkParameter
 
   val tapClockNode = ClockIdentityNode()
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
-  val tile_reset_domain = LazyModule(new ClockSinkDomain(clockSinkParams))
+  val tile_reset_domain = LazyModule(new ClockSinkDomain(clockSinkParams) { override def shouldBeInlined = true })
   lazy val clockBundle = tapClockNode.in.head._1
 
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
