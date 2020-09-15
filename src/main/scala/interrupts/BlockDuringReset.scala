@@ -11,7 +11,7 @@ import freechips.rocketchip.util.BlockDuringReset
 class IntBlockDuringReset()(implicit p: Parameters) extends LazyModule
 {
   val intnode = IntAdapterNode()
-
+  override def shouldBeInlined = true
   lazy val module = new LazyModuleImp(this) {
     intnode.in.zip(intnode.out).foreach { case ((in, _), (out, _)) =>
       in.zip(out).foreach { case (i, o) => o := BlockDuringReset(i) }
