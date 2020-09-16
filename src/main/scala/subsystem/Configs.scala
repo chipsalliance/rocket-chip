@@ -234,7 +234,10 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  */
 class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
-    r.copy(master = r.master.copy(cork = Some(true)))
+    r.copy(master = r.master match {
+      case x: TileMasterPortParams => x.copy(cork = Some(true))
+      case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
+    })
   }
   case BankedL2Key => up(BankedL2Key, site).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager
