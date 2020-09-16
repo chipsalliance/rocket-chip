@@ -40,6 +40,10 @@ object IntNameNode {
   def apply(name: String): IntIdentityNode = apply(Some(name))
 }
 
+object IntTempNode {
+  def apply(): IntEphemeralNode = IntEphemeralNode()(ValName("temp"))
+}
+
 case class IntNexusNode(
   sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
   sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
