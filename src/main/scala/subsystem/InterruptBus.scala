@@ -8,20 +8,17 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 
 /** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
-class InterruptBusWrapper(implicit p: Parameters) {
-
-  val int_bus = LazyModule(new IntXbar)    // Interrupt crossbar
-
-  private def synchronize(sync: Int): IntInwardNode = {
-    val asyncXing = LazyModule(new IntXing(sync))
-    int_bus.intnode := asyncXing.intnode
-    asyncXing.intnode
-  }
-
-  def fromAsync: IntInwardNode = synchronize(3)
-  def fromRational: IntInwardNode = synchronize(1)
-  def fromSync: IntInwardNode = int_bus.intnode
-  def toPLIC: IntOutwardNode = int_bus.intnode
+class InterruptBusWrapper(implicit p: Parameters) extends SimpleLazyModule with LazyScope with HasClockDomainCrossing {
+  override def shouldBeInlined = true
+  val int_bus = LazyModule(new IntXbar)
+  private val int_in_xing = this.crossIn(int_bus.intnode)
+  private val int_out_xing = this.crossOut(int_bus.intnode)
+  def from(xing: ClockCrossingType) = int_in_xing(xing)
+  def to(xing: ClockCrossingType) = int_out_xing(xing)
+  def fromAsync: IntInwardNode = from(AsynchronousCrossing(8,3))
+  def fromRational: IntInwardNode = from(RationalCrossing())
+  def fromSync: IntInwardNode = from(SynchronousCrossing())
+  def toPLIC: IntOutwardNode = to(SynchronousCrossing())
 }
 
 /** Specifies the number of external interrupts */
