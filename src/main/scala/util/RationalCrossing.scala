@@ -123,7 +123,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   enq.ready := deq.ready
   enq.sink  := count
   deq.bits  := Mux(equal, enq.bits0, enq.bits1)
-  deq.valid := BlockDuringReset(Mux(equal, enq.valid, count(1) =/= enq.source(0)))
+  deq.valid := Mux(equal, enq.valid, count(1) =/= enq.source(0))
 
   when (deq.fire()) { count := Cat(count(0), !count(1)) }
 
