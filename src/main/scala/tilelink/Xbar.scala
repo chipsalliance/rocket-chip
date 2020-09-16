@@ -64,7 +64,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       )
     }
   ){
-    override def circuitIdentity = outputs == 1 && inputs == 1
+    override def circuitIdentity = outputs.size == 1 && inputs.size == 1
   }
 
   lazy val module = new LazyModuleImp(this) {
