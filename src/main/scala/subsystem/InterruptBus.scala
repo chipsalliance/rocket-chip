@@ -18,7 +18,7 @@ class InterruptBusWrapper(implicit p: Parameters) extends SimpleLazyModule with 
   def fromAsync: IntInwardNode = from(AsynchronousCrossing(8,3))
   def fromRational: IntInwardNode = from(RationalCrossing())
   def fromSync: IntInwardNode = from(SynchronousCrossing())
-  def toPLIC: IntOutwardNode = to(SynchronousCrossing())
+  def toPLIC: IntOutwardNode = to(NoCrossing)
 }
 
 /** Specifies the number of external interrupts */
