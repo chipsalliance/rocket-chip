@@ -23,7 +23,7 @@ abstract class TilePRCIDomain[T <: BaseTile](id: Int)(implicit p: Parameters)
 
   val clockNode = ClockIdentityNode()
   val clockSinkNode = ClockSinkNode(Seq(ClockSinkParameters(take = None, name = Some(s"core_$id"))))
-  def clockBundle = clockSinkNode.in.head._1
+  lazy val clockBundle = clockSinkNode.in.head._1
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossing: ClockCrossingType):  IntInwardNode = {
