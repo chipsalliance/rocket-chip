@@ -3,14 +3,14 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import chisel3.util.{Counter, DecoupledIO}
+import chisel3.util.{Counter, DecoupledIO, RegEnable}
 
 /** Blocks transactions until the cycle after reset. */
 object BlockDuringReset
 {
   private def outOfReset(stretchCycles: Int): Bool = stretchCycles match {
     case 0 => RegNext(true.B, false.B)
-    case i => Counter(true.B, i)._2
+    case i => RegEnable(true.B, false.B, Counter(true.B, i)._2)
   }
 
   def apply[T <: Data](enq: DecoupledIO[T], stretchCycles: Int = 0): DecoupledIO[T] = {
