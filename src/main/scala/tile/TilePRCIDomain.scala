@@ -12,6 +12,33 @@ import freechips.rocketchip.subsystem.{TileCrossingParamsLike}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{BlockDuringReset}
 
+
+class TileResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: ResetCrossingType)
+                     (implicit p: Parameters) extends ClockSinkDomain(clockSinkParams)
+{ 
+  override def shouldBeInlined = true
+
+  def crossTLIn(n: TLInwardNode)(implicit p: Parameters): TLInwardNode = {
+    val tlInXing = this.crossIn(n)
+    tlInXing(resetCrossingType)
+  }
+
+   def crossTLOut(n: TLOutwardNode)(implicit p: Parameters): TLOutwardNode = {
+    val tlOutXing = this.crossOut(n)
+    tlOutXing(resetCrossingType)
+  }
+
+    def crossIntIn(n: IntInwardNode)(implicit p: Parameters): IntInwardNode = {
+    val intInXing = this.crossIn(n)
+    intInXing(resetCrossingType)
+  }
+
+  def crossIntOut(n: IntOutwardNode)(implicit p: Parameters): IntOutwardNode = {
+    val intOutXing = this.crossOut(n)
+    intOutXing(resetCrossingType)
+  }
+}
+
 /** A wrapper containing all logic necessary to safely place a tile
   * inside of a particular Power/Reset/Clock/Interrupt domain.
   *
@@ -27,17 +54,21 @@ abstract class TilePRCIDomain[T <: BaseTile](
     extends ClockDomain
 {
   val tile: T
+  val tile_reset_domain = LazyModule(new TileResetDomain(clockSinkParams, crossingParams.resetCrossingType))
   val tapClockNode = ClockIdentityNode()
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
-  val tile_reset_domain = LazyModule(new ClockSinkDomain(clockSinkParams) { override def shouldBeInlined = true })
   lazy val clockBundle = tapClockNode.in.head._1
 
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
   val traceNexusNode = BundleBridgeNexus(
-    inputFn = (s: Seq[Vec[TracedInstruction]]) => 
-      BlockDuringReset(
-        data = BundleBridgeNexus.requireOne[Vec[TracedInstruction]](false)(s),
-        stretchCycles = crossingParams.stretchResetCycles.getOrElse(0)))
+    inputFn = (s: Seq[Vec[TracedInstruction]]) => {
+      val data = BundleBridgeNexus.requireOne[Vec[TracedInstruction]](false)(s)
+      crossingParams.resetCrossingType match {
+        case _: NoResetCrossing => data
+        case s: StretchedResetCrossing => BlockDuringReset(data, s.cycles)
+      }
+    }
+  )
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossingType: ClockCrossingType): IntInwardNode = {
@@ -54,8 +85,8 @@ abstract class TilePRCIDomain[T <: BaseTile](
     * Takes tileNode as an argument because tiles might have multiple outbound interrupt nodes
     */
   def crossIntOut(crossingType: ClockCrossingType, tileNode: IntOutwardNode): IntOutwardNode = {
-    val intOutResetCrossing = this { IntBlockDuringReset(crossingParams.stretchResetCycles) :=* tileNode }
-    val intOutClockXing = this.crossOut(intOutResetCrossing)
+    val intOutResetXing = this { tile_reset_domain.crossIntOut(tileNode) }
+    val intOutClockXing = this.crossOut(intOutResetXing)
     intOutClockXing(crossingType)
   }
 
@@ -63,12 +94,11 @@ abstract class TilePRCIDomain[T <: BaseTile](
     * (while also crossing clock domains) can call this.
     */
   def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
-    val tlSlaveResetCrossing = this {
-      tile.slaveNode :=
-        TLBlockDuringReset(crossingParams.stretchResetCycles) :=
+    val tlSlaveResetXing = this {
+      tile_reset_domain.crossTLIn(tile.slaveNode) :=
         tile.makeSlaveBoundaryBuffers(crossingType)
     }
-    val tlSlaveClockXing = this.crossIn(tlSlaveResetCrossing)
+    val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
     tlSlaveClockXing(crossingType)
   } } }
 
@@ -76,12 +106,11 @@ abstract class TilePRCIDomain[T <: BaseTile](
     * (while also crossing clock domains) can call this.
     */
   def crossMasterPort(crossingType: ClockCrossingType): TLOutwardNode = {
-    val tlMasterResetCrossing = this { DisableMonitors { implicit p =>
+    val tlMasterResetXing = this { DisableMonitors { implicit p =>
       tile.makeMasterBoundaryBuffers(crossingType) :=*
-        TLBlockDuringReset(crossingParams.stretchResetCycles) } :=*
-        tile.masterNode
-    }
-    val tlMasterClockXing: TLOutwardCrossingHelper = this.crossOut(tlMasterResetCrossing)
+        tile_reset_domain.crossTLOut(tile.masterNode)
+    } }
+    val tlMasterClockXing: TLOutwardCrossingHelper = this.crossOut(tlMasterResetXing)
     tlMasterClockXing(crossingType)
   }
 }
