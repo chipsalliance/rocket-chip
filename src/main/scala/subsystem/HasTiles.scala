@@ -12,7 +12,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockGroup, ClockNode}
+import freechips.rocketchip.prci.{ClockGroup, ClockNode, ResetCrossingType}
 import freechips.rocketchip.util._
 
 /** Entry point for Config-uring the presence of Tiles */
@@ -48,12 +48,10 @@ trait TileCrossingParamsLike {
   def slave: TilePortParamsLike
   /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the tile */
   def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
-  /** Inject a clock/reset management subgraph that effects the tile child only */
-  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode
+  /** Inject a reset management subgraph that effects the tile child reset only */
+  def resetCrossingType: ResetCrossingType
   /** Keep the tile clock separate from the interconnect clock (e.g. even if they are synchronous to one another) */
   def forceSeparateClockReset: Boolean
-  /** Stretch the tile reset out for a specified number of cycles */
-  def stretchResetCycles: Option[Int]
 }
 
 /** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
@@ -373,7 +371,7 @@ trait CanAttachTile {
     })
 
     domain {
-      domain.tile_reset_domain.clockNode := crossingParams.injectClockNode(context) := domain.clockNode
+      domain.tile_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode(context) := domain.clockNode
     } := clockSource
   }
 }
