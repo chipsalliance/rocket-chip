@@ -95,7 +95,7 @@ abstract class TilePRCIDomain[T <: BaseTile](
     */
   def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
     val tlSlaveResetXing = this {
-      tile_reset_domain.crossTLIn(tile.slaveNode) :=
+      tile_reset_domain.crossTLIn(tile.slaveNode) :*=
         tile.makeSlaveBoundaryBuffers(crossingType)
     }
     val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
