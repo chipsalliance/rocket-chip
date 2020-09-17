@@ -34,10 +34,8 @@ class TLBlockDuringReset(stretchResetCycles: Int = 0)
 }
 
 object TLBlockDuringReset {
-  def apply(shouldBlockAndStretch: Option[Int] = Some(0))(implicit p: Parameters): TLNode = {
-    shouldBlockAndStretch.map { c =>
-      val block_during_reset = LazyModule(new TLBlockDuringReset(c))
-      block_during_reset.node
-    } .getOrElse(TLTempNode())
+  def apply(stretchCycles: Int = 0)(implicit p: Parameters): TLNode = {
+    val block_during_reset = LazyModule(new TLBlockDuringReset(stretchCycles))
+    block_during_reset.node
   }
 }

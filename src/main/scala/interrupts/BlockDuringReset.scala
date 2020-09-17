@@ -20,10 +20,8 @@ class IntBlockDuringReset(stretchResetCycles: Int = 0)(implicit p: Parameters) e
 }
 
 object IntBlockDuringReset {
-  def apply(shouldBlockAndStretch: Option[Int] = Some(0))(implicit p: Parameters): IntNode = {
-    shouldBlockAndStretch.map { c =>
-      val block_during_reset = LazyModule(new IntBlockDuringReset(c))
-      block_during_reset.intnode
-    } .getOrElse(IntTempNode())
+  def apply(stretchResetCycles: Int = 0)(implicit p: Parameters): IntNode = {
+    val block_during_reset = LazyModule(new IntBlockDuringReset(stretchResetCycles))
+    block_during_reset.intnode
   }
 }
