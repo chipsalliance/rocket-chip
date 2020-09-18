@@ -48,7 +48,7 @@ case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSyn
   * These aren't actually very configurable, yet.
   */
 trait HasConfigurablePRCILocations { this: HasPRCILocations =>
-  val ibus = new InterruptBusWrapper()
+  val ibus = LazyModule(new InterruptBusWrapper)
   implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)
   val clock_sources: ModuleValue[RecordMap[ClockBundle]] =
     p(SubsystemDriveAsyncClockGroupsKey)
