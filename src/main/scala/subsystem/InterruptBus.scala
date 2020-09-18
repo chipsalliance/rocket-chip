@@ -13,12 +13,12 @@ class InterruptBusWrapper(implicit p: Parameters) extends SimpleLazyModule with 
   val int_bus = LazyModule(new IntXbar)
   private val int_in_xing = this.crossIn(int_bus.intnode)
   private val int_out_xing = this.crossOut(int_bus.intnode)
-  def from(xing: ClockCrossingType) = int_in_xing(xing)
-  def to(xing: ClockCrossingType) = int_out_xing(xing)
-  def fromAsync: IntInwardNode = from(AsynchronousCrossing(8,3))
-  def fromRational: IntInwardNode = from(RationalCrossing())
-  def fromSync: IntInwardNode = from(SynchronousCrossing())
-  def toPLIC: IntOutwardNode = to(NoCrossing)
+  def from(name: Option[String])(xing: ClockCrossingType) = int_in_xing(xing) :=* IntNameNode(name)
+  def to(name: Option[String])(xing: ClockCrossingType) = IntNameNode(name) :*= int_out_xing(xing)
+  def fromAsync: IntInwardNode = from(None)(AsynchronousCrossing(8,3))
+  def fromRational: IntInwardNode = from(None)(RationalCrossing())
+  def fromSync: IntInwardNode = int_bus.intnode
+  def toPLIC: IntOutwardNode = int_bus.intnode
 }
 
 /** Specifies the number of external interrupts */
