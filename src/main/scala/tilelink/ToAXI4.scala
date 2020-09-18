@@ -42,6 +42,7 @@ case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCa
 {
   val from = tlId
   val to = axi4Id
+  val maxTransactionsInFlight = Some(tlId.size)
 }
 
 case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(

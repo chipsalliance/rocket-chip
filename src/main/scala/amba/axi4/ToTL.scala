@@ -16,6 +16,7 @@ case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
   val to = tlId
   val isCache = false
   val requestFifo = false
+  val maxTransactionsInFlight = Some(tlId.size)
 }
 
 case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(

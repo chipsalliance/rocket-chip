@@ -15,7 +15,7 @@ import freechips.rocketchip.tile._
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
-  master: TileMasterPortParams = TileMasterPortParams(),
+  master: TilePortParamsLike = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
   stretchResetCycles: Option[Int] = None

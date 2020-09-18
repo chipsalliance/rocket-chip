@@ -112,8 +112,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     else ClockGate(clock, clock_en_reg, "dcache_clock_gate")
   @chiselName class DCacheModuleImpl extends NoChiselNamePrefix { // entering gated-clock domain
 
-  val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries, cacheParams.nTLBBasePageSectors, cacheParams.nTLBSuperpages)))
-  val pma_checker = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBEntries, cacheParams.nTLBBasePageSectors, cacheParams.nTLBSuperpages)) with InlineInstance)
+  val tlb = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBSets, nTLBWays, cacheParams.nTLBBasePageSectors, cacheParams.nTLBSuperpages)))
+  val pma_checker = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBSets, nTLBWays, cacheParams.nTLBBasePageSectors, cacheParams.nTLBSuperpages)) with InlineInstance)
 
   // tags
   val replacer = cacheParams.replacement
@@ -733,6 +733,16 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out_c.bits := nackResponseMessage
   val newCoh = Wire(init = probeNewCoh)
   releaseWay := s2_probe_way
+
+  tl_out_c.bits.user.lift(AMBAProt).foreach { x =>
+    x.fetch       := false.B
+    x.secure      := true.B
+    x.privileged  := true.B
+    x.bufferable  := true.B
+    x.modifiable  := true.B
+    x.readalloc   := true.B
+    x.writealloc  := true.B
+  }
 
   if (!usingDataScratchpad) {
     when (s2_victimize) {

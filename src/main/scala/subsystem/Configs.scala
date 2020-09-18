@@ -109,14 +109,16 @@ class WithNMedCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => med.copy(hartId = i + idOffset)) ++ prev
   }
@@ -133,14 +135,16 @@ class WithNSmallCores(n: Int, overrideIdOffset: Option[Int] = None) extends Conf
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => small.copy(hartId = i + idOffset)) ++ prev
   }
@@ -158,7 +162,8 @@ class With1TinyCore extends Config((site, here, up) => {
         rowBits = site(SystemBusKey).beatBits,
         nSets = 256, // 16Kb scratchpad
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes),
         scratch = Some(0x80000000L))),
@@ -166,7 +171,8 @@ class With1TinyCore extends Config((site, here, up) => {
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         blockBytes = site(CacheBlockBytes)))))
   case RocketCrossingKey => List(RocketCrossingParams(
     crossingType = SynchronousCrossing(),
@@ -228,7 +234,10 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  */
 class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
-    r.copy(master = r.master.copy(cork = Some(true)))
+    r.copy(master = r.master match {
+      case x: TileMasterPortParams => x.copy(cork = Some(true))
+      case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
+    })
   }
   case BankedL2Key => up(BankedL2Key, site).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager

@@ -117,12 +117,12 @@ trait HasNonDiplomaticTileParameters {
     ).getOrElse(Nil)
 
     val dtlb = tileParams.dcache.filter(_ => tileParams.core.useVM).map(d => Map(
-      "d-tlb-size"           -> d.nTLBEntries.asProperty,
-      "d-tlb-sets"           -> 1.asProperty)).getOrElse(Nil)
+      "d-tlb-size"           -> (d.nTLBWays * d.nTLBSets).asProperty,
+      "d-tlb-sets"           -> d.nTLBSets.asProperty)).getOrElse(Nil)
 
     val itlb = tileParams.icache.filter(_ => tileParams.core.useVM).map(i => Map(
-      "i-tlb-size"           -> i.nTLBEntries.asProperty,
-      "i-tlb-sets"           -> 1.asProperty)).getOrElse(Nil)
+      "i-tlb-size"           -> (i.nTLBWays * i.nTLBSets).asProperty,
+      "i-tlb-sets"           -> i.nTLBSets.asProperty)).getOrElse(Nil)
 
     val mmu = if (!tileParams.core.useVM) Nil else Map(
         "tlb-split" -> Nil,

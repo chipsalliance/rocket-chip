@@ -2,9 +2,11 @@
 global def rocketChipRoot = here
 publish ivyDepLocations = rocketChipRoot, Nil
 
+def hardfloatRoot = findGitRepositoryWithFallback "hardfloat"
+
 global def hardfloatScalaModule =
   makeScalaModuleFromJSON here "hardfloat"
-  | setScalaModuleRootDir "hardfloat"
+  | setScalaModuleRootDir hardfloatRoot
   | setScalaModuleDeps (chisel3ScalaModule, Nil)
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
 

@@ -54,6 +54,12 @@ abstract class SeqReplacementPolicy {
   def way: UInt
 }
 
+abstract class SetAssocReplacementPolicy {
+  def access(set: UInt, touch_way: UInt): Unit
+  def access(sets: Seq[UInt], touch_ways: Seq[Valid[UInt]]): Unit
+  def way(set: UInt): UInt
+}
+
 class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
   val logic = new RandomReplacement(n_ways)
   def access(set: UInt) = { }
@@ -281,6 +287,34 @@ class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
   }
 
   def way = plru_way
+}
+
+
+class SetAssocLRU(n_sets: Int, n_ways: Int, policy: String) extends SetAssocReplacementPolicy {
+  val logic = policy.toLowerCase match {
+    case "plru"  => new PseudoLRU(n_ways)
+    case "lru"   => new TrueLRU(n_ways)
+    case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
+  }
+  val state_vec = Reg(Vec(n_sets, UInt(logic.nBits.W)))
+
+  def access(set: UInt, touch_way: UInt) = {
+    state_vec(set) := logic.get_next_state(state_vec(set), touch_way)
+  }
+
+  def access(sets: Seq[UInt], touch_ways: Seq[Valid[UInt]]) = {
+    require(sets.size == touch_ways.size, "internal consistency check: should be same number of simultaneous updates for sets and touch_ways")
+    for (set <- 0 until n_sets) {
+      val set_touch_ways = (sets zip touch_ways).map { case (touch_set, touch_way) =>
+        Pipe(touch_way.valid && (touch_set === set.U), touch_way.bits, 0)}
+      when (set_touch_ways.map(_.valid).orR) {
+        state_vec(set) := logic.get_next_state(state_vec(set), set_touch_ways)
+      }
+    }
+  }
+
+  def way(set: UInt) = logic.get_replace_way(state_vec(set))
+
 }
 
 /** Synthesizeable unit tests */
