@@ -115,9 +115,9 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
 
 object AXI4Deinterleaver
 {
-  def apply(maxReadBytes: Int)(implicit p: Parameters): AXI4Node =
+  def apply(maxReadBytes: Int, buffer: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node =
   {
-    val axi4deint = LazyModule(new AXI4Deinterleaver(maxReadBytes))
+    val axi4deint = LazyModule(new AXI4Deinterleaver(maxReadBytes, buffer))
     axi4deint.node
   }
 }
