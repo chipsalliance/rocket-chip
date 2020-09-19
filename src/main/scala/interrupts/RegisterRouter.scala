@@ -12,7 +12,7 @@ trait HasInterruptSources { this: RegisterRouter =>
   protected val intnode = IntSourceNode(IntSourcePortSimple(num = nInterrupts, resources = Seq(Resource(device, "int"))))
 
   // Externally, this helper should be used to connect the interrupts to a bus
-  val intXing: IntOutwardCrossingHelper = this.crossOut(intnode)
+  val intXing: IntOutwardClockCrossingHelper = this.crossOut(intnode)
 
   // Internally, this wire should be used to drive interrupt values
   val interrupts: ModuleValue[Vec[Bool]] = InModuleBody { if (intnode.out.isEmpty) Vec(0, Bool()) else intnode.out(0)._1 }
