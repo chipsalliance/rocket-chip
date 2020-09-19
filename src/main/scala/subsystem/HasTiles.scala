@@ -371,7 +371,7 @@ trait CanAttachTile {
     })
 
     domain {
-      domain.tile_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode(context) := domain.clockNode
+      domain.tile_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
     } := clockSource
   }
 }

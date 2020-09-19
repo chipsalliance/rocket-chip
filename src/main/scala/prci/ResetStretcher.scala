@@ -4,26 +4,12 @@ package freechips.rocketchip.prci
 import chisel3._
 import chisel3.util.log2Ceil
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.subsystem.Attachable
+import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
 
-sealed trait ResetCrossingType {
-  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode
-}
-
-case class NoResetCrossing() extends ResetCrossingType {
-  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode = ClockTempNode()
-}
-
-case class StretchedResetCrossing(cycles: Int) extends ResetCrossingType {
-  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode = {
-    val rs = LazyModule(new ResetStretcher(cycles))
-    rs.node
-  }
-}
-
-/* Stretch async reset
-*/
+/** This adapter takes an input reset and stretches it.
+  *
+  * If the reset was asynchronous, it becomes synchronous.
+  */
 class ResetStretcher(cycles: Int)(implicit p: Parameters) extends LazyModule {
   val node = ClockAdapterNode()(ValName("reset_stretcher"))
   require(cycles > 1, s"ResetStretcher only supports cycles > 1 but got ${cycles}")
