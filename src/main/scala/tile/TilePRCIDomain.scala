@@ -8,35 +8,24 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.rocket.{TracedInstruction}
-import freechips.rocketchip.subsystem.{TileCrossingParamsLike}
+import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CrossesToOnlyOneResetDomain}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{BlockDuringReset}
 
 
+/** A wrapper containing all logic within a managed reset domain for a tile.
+  *
+  * This does not add a layer of the module hierarchy.
+  */
 class TileResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: ResetCrossingType)
-                     (implicit p: Parameters) extends ClockSinkDomain(clockSinkParams)
+                     (implicit p: Parameters)
+    extends ResetDomain
+    with CrossesToOnlyOneResetDomain
 { 
+  def crossing = resetCrossingType
+  val clockNode = ClockSinkNode(Seq(clockSinkParams))
+  def clockBundle = clockNode.in.head._1
   override def shouldBeInlined = true
-
-  def crossTLIn(n: TLInwardNode)(implicit p: Parameters): TLInwardNode = {
-    val tlInXing = this.crossIn(n)
-    tlInXing(resetCrossingType)
-  }
-
-   def crossTLOut(n: TLOutwardNode)(implicit p: Parameters): TLOutwardNode = {
-    val tlOutXing = this.crossOut(n)
-    tlOutXing(resetCrossingType)
-  }
-
-    def crossIntIn(n: IntInwardNode)(implicit p: Parameters): IntInwardNode = {
-    val intInXing = this.crossIn(n)
-    intInXing(resetCrossingType)
-  }
-
-  def crossIntOut(n: IntOutwardNode)(implicit p: Parameters): IntOutwardNode = {
-    val intOutXing = this.crossOut(n)
-    intOutXing(resetCrossingType)
-  }
 }
 
 /** A wrapper containing all logic necessary to safely place a tile
@@ -110,7 +99,7 @@ abstract class TilePRCIDomain[T <: BaseTile](
       tile.makeMasterBoundaryBuffers(crossingType) :=*
         tile_reset_domain.crossTLOut(tile.masterNode)
     } }
-    val tlMasterClockXing: TLOutwardCrossingHelper = this.crossOut(tlMasterResetXing)
+    val tlMasterClockXing = this.crossOut(tlMasterResetXing)
     tlMasterClockXing(crossingType)
   }
 }
