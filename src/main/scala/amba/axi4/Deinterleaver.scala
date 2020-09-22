@@ -10,7 +10,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.{leftOR, rightOR, UIntToOH1, OH1ToOH}
 import scala.math.{min,max}
 
-class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyModule
+class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.default)(implicit p: Parameters) extends LazyModule
 {
   require (maxReadBytes >= 1 && isPow2(maxReadBytes))
 
@@ -35,7 +35,7 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
       if (beats <= 1) {
         // Nothing to do if only single-beat R
-        in.r :<> out.r
+        in.r <> buffer.irrevocable(out.r)
       } else {
         // Queues to buffer R responses
         val qs = Seq.tabulate(endId) { i =>
@@ -115,9 +115,9 @@ class AXI4Deinterleaver(maxReadBytes: Int)(implicit p: Parameters) extends LazyM
 
 object AXI4Deinterleaver
 {
-  def apply(maxReadBytes: Int)(implicit p: Parameters): AXI4Node =
+  def apply(maxReadBytes: Int, buffer: BufferParams = BufferParams.default)(implicit p: Parameters): AXI4Node =
   {
-    val axi4deint = LazyModule(new AXI4Deinterleaver(maxReadBytes))
+    val axi4deint = LazyModule(new AXI4Deinterleaver(maxReadBytes, buffer))
     axi4deint.node
   }
 }
