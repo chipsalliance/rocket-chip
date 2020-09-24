@@ -17,7 +17,7 @@ class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with 
 }
 
 class TLRAM(
-    val address: AddressSet,
+    address: AddressSet,
     parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     cacheable: Boolean = true,
     executable: Boolean = true,

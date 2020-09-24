@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.DescribedSRAM
 
 abstract class DiplomaticSRAM(
-    address: AddressSet,
+    val address: AddressSet,
     beatBytes: Int,
     devName: Option[String],
     dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule

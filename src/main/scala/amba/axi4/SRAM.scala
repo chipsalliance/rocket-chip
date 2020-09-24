@@ -114,6 +114,8 @@ class AXI4RAM(
     in.r.bits.echo :<= r_echo
     in.r.bits.last := Bool(true)
   }
+
+  def mem = module.mem
 }
 
 object AXI4RAM

@@ -60,4 +60,6 @@ class APBRAM(
     in.pslverr := RegEnable(!legal, !in.penable) || (Bool(fuzzError) && LFSRNoiseMaker(1)(0))
     in.prdata  := mem.readAndHold(paddr, read).asUInt
   }
+
+  def mem = module.mem
 }
