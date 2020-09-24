@@ -19,6 +19,7 @@ case class DCacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
     rowBits: Int = 64,
+    subWordBits: Option[Int] = None,
     nTLBSets: Int = 1,
     nTLBWays: Int = 32,
     nTLBBasePageSectors: Int = 4,
@@ -58,6 +59,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
 
   def wordBits = coreDataBits
   def wordBytes = coreDataBytes
+  def subWordBits = cacheParams.subWordBits.getOrElse(wordBits)
+  def subWordBytes = subWordBits / 8
   def wordOffBits = log2Up(wordBytes)
   def beatBytes = cacheBlockBytes / cacheDataBeats
   def beatWords = beatBytes / wordBytes

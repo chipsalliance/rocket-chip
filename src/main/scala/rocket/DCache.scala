@@ -35,7 +35,7 @@ class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val addr = Bits(width = untagBits)
   val write = Bool()
   val wdata = UInt(width = encBits * rowBytes / eccBytes)
-  val wordMask = UInt(width = rowBytes / wordBytes)
+  val wordMask = UInt(width = rowBytes / subWordBytes)
   val eccMask = UInt(width = wordBytes / eccBytes)
   val way_en = Bits(width = nWays)
 }
@@ -46,29 +46,30 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     val resp = Vec(nWays, UInt(width = req.bits.wdata.getWidth)).asOutput
   }
 
-  require(rowBytes % wordBytes == 0)
-  val eccMask = if (eccBits == wordBits) Seq(true.B) else io.req.bits.eccMask.asBools
+  require(rowBits % subWordBits == 0, "rowBits must be a multiple of subWordBits")
+  val eccMask = if (eccBits == subWordBits) Seq(true.B) else io.req.bits.eccMask.asBools
   val wMask = if (nWays == 1) eccMask else (0 until nWays).flatMap(i => eccMask.map(_ && io.req.bits.way_en(i)))
-  val wWords = io.req.bits.wdata.grouped(encBits * (wordBits / eccBits))
+  val wWords = io.req.bits.wdata.grouped(encBits * (subWordBits / eccBits))
   val addr = io.req.bits.addr >> rowOffBits
-  val data_arrays = Seq.tabulate(rowBytes / wordBytes) {
+  val data_arrays = Seq.tabulate(rowBits / subWordBits) {
     i =>
       DescribedSRAM(
         name = s"data_arrays_${i}",
         desc = "DCache Data Array",
         size = nSets * cacheBlockBytes / rowBytes,
-        data = Vec(nWays * (wordBits / eccBits), UInt(width = encBits))
+        data = Vec(nWays * (subWordBits / eccBits), UInt(width = encBits))
       )
   }
 
   val rdata = for (((array, omSRAM), i) <- data_arrays zipWithIndex) yield {
     val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
+      val wMaskSlice = (0 until wMask.size).filter(j => i % (wordBits/subWordBits) == (j % (wordBytes/eccBytes)) / (subWordBytes/eccBytes)).map(wMask(_))
       val wData = wWords(i).grouped(encBits)
-      array.write(addr, Vec((0 until nWays).flatMap(i => wData)), wMask)
+      array.write(addr, Vec((0 until nWays).flatMap(i => wData)), wMaskSlice)
     }
     val data = array.read(addr, valid && !io.req.bits.write)
-    data.grouped(wordBits / eccBits).map(_.asUInt).toSeq
+    data.grouped(subWordBits / eccBits).map(_.asUInt).toSeq
   }
   (io.resp zip rdata.transpose).foreach { case (resp, data) => resp := data.asUInt }
 }
@@ -98,7 +99,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val tECC = cacheParams.tagCode
   val dECC = cacheParams.dataCode
-  require(isPow2(eccBytes) && eccBytes <= wordBytes)
+  require(subWordBits % eccBits == 0, "subWordBits must be a multiple of eccBits")
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
   val mmioOffset = outer.firstMMIO
@@ -213,10 +214,21 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(3).bits := dataArb.io.in(1).bits
   dataArb.io.in(3).bits.write := false
   dataArb.io.in(3).bits.addr := io.cpu.req.bits.addr
-  dataArb.io.in(3).bits.wordMask := UIntToOH(io.cpu.req.bits.addr.extract(rowOffBits-1,offsetlsb))
+  dataArb.io.in(3).bits.wordMask := {
+    val mask = (subWordBytes.log2 until rowOffBits).foldLeft(1.U) { case (in, i) =>
+      val upper_mask = Mux(i >= wordBytes.log2 || io.cpu.req.bits.size <= i.U, 0.U,
+        ((BigInt(1) << (1 << (i - subWordBytes.log2)))-1).U)
+      val upper = Mux(io.cpu.req.bits.addr(i), in, 0.U) | upper_mask
+      val lower = Mux(io.cpu.req.bits.addr(i), 0.U, in)
+      upper ## lower
+    }
+    Fill(subWordBytes / eccBytes, mask)
+  }
+  dataArb.io.in(3).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   dataArb.io.in(3).bits.way_en := ~UInt(0, nWays)
   when (!dataArb.io.in(3).ready && s0_read) { io.cpu.req.ready := false }
   val s1_did_read = RegEnable(dataArb.io.in(3).ready && (io.cpu.req.valid && needsRead(io.cpu.req.bits)), s0_clk_en)
+  val s1_read_mask = RegEnable(dataArb.io.in(3).bits.wordMask, s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
   metaArb.io.in(7).bits.idx := io.cpu.req.bits.addr(idxMSB, idxLSB)
@@ -314,15 +326,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_meta_error = (s2_meta_uncorrectable_errors | s2_meta_correctable_errors).orR
   val s2_flush_valid = s2_flush_valid_pre_tag_ecc && !s2_meta_error
   val s2_data = {
-    val wordsPerRow = rowBits / wordBits
+    val wordsPerRow = rowBits / subWordBits
     val en = s1_valid || inWriteback || io.cpu.replay_next
-    val word_en = Mux(inWriteback, Fill(wordsPerRow, 1.U), Mux(!s1_did_read, 0.U, UIntToOH(s1_req.addr.extract((rowBits/8).log2-1, wordBytes.log2), wordsPerRow)))
-    val s1_way_words = s1_all_data_ways.map(_.grouped(dECC.width(eccBits) * (wordBits / eccBits)))
+    val word_en = Mux(inWriteback, Fill(wordsPerRow, 1.U), Mux(s1_did_read, s1_read_mask, 0.U))
+    val s1_way_words = s1_all_data_ways.map(_.grouped(dECC.width(eccBits) * (subWordBits / eccBits)))
     if (cacheParams.pipelineWayMux) {
       val s1_word_en = Mux(io.cpu.replay_next, 0.U, word_en)
       (for (i <- 0 until wordsPerRow) yield {
         val s2_way_en = RegEnable(Mux(s1_word_en(i), s1_data_way, 0.U), en)
-        val s2_way_words = (0 until nWays).map(j => RegEnable(s1_way_words(j)(i), en))
+        val s2_way_words = (0 until nWays).map(j => RegEnable(s1_way_words(j)(i), en && word_en(i)))
         (0 until nWays).map(j => Mux(s2_way_en(j), s2_way_words(j), 0.U)).reduce(_|_)
       }).asUInt
     } else {
@@ -500,7 +512,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
   dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
   dataArb.io.in(0).bits.wdata := encodeData(Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_data)), false.B)
-  dataArb.io.in(0).bits.wordMask := UIntToOH(Mux(pstore2_valid, pstore2_addr, pstore1_addr).extract(rowOffBits-1,offsetlsb))
+  dataArb.io.in(0).bits.wordMask := {
+    val eccMask = dataArb.io.in(0).bits.eccMask.asBools.grouped(subWordBytes/eccBytes).map(_.orR).toSeq.asUInt
+    val wordMask = UIntToOH(Mux(pstore2_valid, pstore2_addr, pstore1_addr).extract(rowOffBits-1, wordBytes.log2))
+    FillInterleaved(wordBytes/subWordBytes, wordMask) & Fill(rowBytes/wordBytes, eccMask)
+  }
   dataArb.io.in(0).bits.eccMask := eccMask(Mux(pstore2_valid, pstore2_storegen_mask, pstore1_mask))
 
   // store->load RAW hazard detection
@@ -671,7 +687,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     dataArb.io.in(1).bits.addr :=  (s2_vaddr >> idxLSB) << idxLSB | d_address_inc
     dataArb.io.in(1).bits.way_en := s2_victim_way
     dataArb.io.in(1).bits.wdata := tl_d_data_encoded
-    dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
+    dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / subWordBytes)
     dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   } else {
     dataArb.io.in(1).bits := dataArb.io.in(0).bits
@@ -814,7 +830,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(2).bits := dataArb.io.in(1).bits
   dataArb.io.in(2).bits.write := false
   dataArb.io.in(2).bits.addr := (probeIdx(probe_bits) << blockOffBits) | (releaseDataBeat(log2Up(refillCycles)-1,0) << rowOffBits)
-  dataArb.io.in(2).bits.wordMask := ~UInt(0, rowBytes / wordBytes)
+  dataArb.io.in(2).bits.wordMask := ~UInt(0, rowBytes / subWordBytes)
+  dataArb.io.in(2).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
   dataArb.io.in(2).bits.way_en := ~UInt(0, nWays)
 
   metaArb.io.in(4).valid := release_state.isOneOf(s_voluntary_write_meta, s_probe_write_meta)
