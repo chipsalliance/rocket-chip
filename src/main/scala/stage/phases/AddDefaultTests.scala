@@ -10,8 +10,8 @@ import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.{Dependency, Phase, PreservesAll, Unserializable}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
-import freechips.rocketchip.subsystem.RocketTilesKey
-import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, RocketTestSuite, TestGeneration}
+import freechips.rocketchip.subsystem.{ExtMem, MasterPortParams, MemoryPortParams, RocketTilesKey}
+import freechips.rocketchip.system.{AssemblyTestSuite, DefaultTestSuites, RegressionTestSuite, RocketTestSuite, TestGeneration}
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.util.HasRocketChipStageUtils
 import freechips.rocketchip.system.DefaultTestSuites._
@@ -96,9 +96,28 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
           tests ++= env.map(if (xlen == 64) rv64uaSansLRSC else rv32uaSansLRSC)
       }
       if (coreParams.useCompressed) tests ++= env.map(if (xlen == 64) rv64uc else rv32uc)
-      val (rvi, rvu) =
-        if (xlen == 64) ((if (vm) rv64i else rv64pi), rv64u)
-        else ((if (vm) rv32i else rv32pi), rv32u)
+      val (_rvi, rvu) = (xlen, vm) match {
+        case (64, true) => (rv64i,  rv64u)
+        case (64, _)    => (rv64pi, rv64u)
+        case (32, true) => (rv32i,  rv32u)
+        case (32, _)    => (rv32pi, rv32u)
+        case (_, _)     =>
+          throw new IllegalArgumentException(s"${this.name} requires xlen to be one of [32, 64], but it was '$xlen'")
+      }
+
+      val rvi = params(ExtMem) match {
+        /* Remove the 'rv(32|64)si-.+-dirty' test if the memory base address is not aligned to an SV39 superpage */
+        case Some(MemoryPortParams(MasterPortParams(base, _, _, _, _, _), _)) if base >> 30 << 30 != base => _rvi.map {
+          case a if a("???").names.contains("dirty") =>
+            val tmp = a("???")
+            logger.warn(
+              s"""|Excluding 'rv${xlen}si-p-dirty' from test suite because memory base addr (0x${base.toString(16)})
+                  |is not aligned to an SV39 superpage (0x${BigInt(2).pow(30).toString(16)}).""".stripMargin)
+            new AssemblyTestSuite(prefix = tmp.makeTargetName.takeWhile(_ != '-'), names = tmp.names - "dirty")(_)
+          case a => a
+        }
+        case _ => _rvi
+      }
 
       tests ++= rvi.map(_ ("p"))
       tests ++= (if (vm) List("v") else List()).flatMap(env => rvu.map(_ (env)))
@@ -117,7 +136,12 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
           .flatten
           .mkString("")
       }
-      val re = s"""^rv$xlen[usm][$extensions].+""".r
+      val testFilter = params(ExtMem) match {
+        /* Do not match *-dirty test if the memory base address is not aligned to an SV39 page */
+        case Some(MemoryPortParams(MasterPortParams(base, _,_,_,_,_),_)) if base >> 30 << 30 != base => "(?!dirty).+"
+        case _                                                                                       => ".+"
+      }
+      val re = s"""^rv$xlen[usm][$extensions]-[vp]-$testFilter""".r
       regressionTests.retain {
         case re() => true
         case _ => false
