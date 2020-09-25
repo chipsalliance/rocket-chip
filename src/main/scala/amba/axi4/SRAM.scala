@@ -36,9 +36,19 @@ class AXI4RAM(
     requestKeys = if (wcorrupt) Seq(AMBACorrupt) else Seq(),
     minLatency = 1)))
 
-  lazy val module = new LazyModuleImp(this) {
+  private val outer = this
+
+  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, edgeIn) = node.in(0)
-    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = BigInt(1) << mask.filter(b=>b).size)
+    val lanes = beatBytes
+    val laneDataBits = 8
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
+      size = BigInt(1) << mask.filter(b=>b).size,
+      lanes = lanes,
+      bits = laneDataBits)
+    val eccCode = None
+    val address = outer.address
+    val laneECCBits = 0
 
     parentLogicalTreeNode.map {
       case parentLTN =>
@@ -114,8 +124,6 @@ class AXI4RAM(
     in.r.bits.echo :<= r_echo
     in.r.bits.last := Bool(true)
   }
-
-  def mem = module.mem
 }
 
 object AXI4RAM

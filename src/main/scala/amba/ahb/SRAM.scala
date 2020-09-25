@@ -32,9 +32,19 @@ class AHBRAM(
     beatBytes  = beatBytes,
     lite = true)))
 
-  lazy val module = new LazyModuleImp(this) {
+  private val outer = this
+
+  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, _) = node.in(0)
-    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = BigInt(1) << mask.filter(b=>b).size)
+    val lanes = beatBytes
+    val laneDataBits = 8
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
+      size = BigInt(1) << mask.filter(b=>b).size,
+      lanes = lanes,
+      bits = laneDataBits)
+    val eccCode = None
+    val address = outer.address
+    val laneECCBits = 0
 
     parentLogicalTreeNode.map {
       case parentLTN =>
@@ -116,6 +126,4 @@ class AHBRAM(
     in.hresp     := Mux(!d_request || d_legal || !in.hreadyout, AHBParameters.RESP_OKAY, AHBParameters.RESP_ERROR)
     in.hrdata    := Mux(in.hreadyout, muxdata.asUInt, UInt(0))
   }
-
-  def mem = module.mem
 }
