@@ -57,26 +57,18 @@ abstract class DiplomaticSRAM(
 trait HasJustOneSeqMem {
 
   /** A reference to the chisel memory mapped to this address
+    *
+    * Each element of the Vec type is a lane
     */
   def mem: SyncReadMem[Vec[UInt]]
 
-  /** The number of lanes the mem has i.e. the length of the mem's Vec type
-    */
-  def lanes: Int
-
-  /** The number of bits use for data in a single lane
+  /** The number of bits used for data in a single lane
     *
     * laneDataBits + laneECCBits should equal the total width of a lane
     */
   def laneDataBits: Int
 
-  /** The number of bits use for ECC in a single lane
-    *
-    * laneDataBits + laneECCBits should equal the total width of a lane
-    */
-  def laneECCBits: Int
-
-  /** The ecc code used by this memory
+    /** The ecc code used by this memory
     */
   def eccCode: Option[Code]
 

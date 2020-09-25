@@ -67,7 +67,6 @@ class TLRAM(
     val eccCode = Some(ecc.code)
     val address = outer.address
     val laneDataBits = eccBytes * 8
-    val laneECCBits = width - laneDataBits
 
     parentLogicalTreeNode.map {
       case parentLTN =>
