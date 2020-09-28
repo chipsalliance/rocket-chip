@@ -45,4 +45,18 @@ object Blockable {
       VecInit(data.map(x => implicitly[Blockable[T]].blockWhile(enable_blocking, x)))
     }
   }
+
+  implicit object BlockableTraceCoreInterface extends Blockable[TraceCoreInterface] {
+    def blockWhile(enable_blocking: Bool, data: TraceCoreInterface): TraceCoreInterface = {
+      val blocked: TraceCoreInterface = Wire(chiselTypeOf(data))
+      blocked := data
+      when (enable_blocking) {
+        blocked.group.foreach { g =>
+          g.iretire := 0.U
+          g.itype := TraceItype.ITNothing
+        }
+      }
+      blocked
+    }
+  }
 }
