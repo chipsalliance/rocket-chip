@@ -340,9 +340,9 @@ trait CanAttachTile {
     context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.tile.haltNode)
     context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.tile.wfiNode)
     context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.tile.ceaseNode)
-    // TODO should context be forced to have a trace sink connected here,
-    //      or the below trace wiring just legacy support that should be deprecated?
-    domain.traceNexusNode := domain.tile.traceNode
+    // TODO should context be forced to have a trace sink connected here?
+    //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
+    domain.crossTracesOut()
   }
 
   /** Connect inputs to the tile that are assumed to be constant during normal operation, and so are not clock-crossed. */

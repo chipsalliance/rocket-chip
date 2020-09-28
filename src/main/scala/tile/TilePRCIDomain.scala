@@ -10,8 +10,7 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.rocket.{TracedInstruction}
 import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CrossesToOnlyOneResetDomain}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{BlockDuringReset}
-
+import freechips.rocketchip.util.{TraceCoreInterface}
 
 /** A wrapper containing all logic within a managed reset domain for a tile.
   *
@@ -48,16 +47,25 @@ abstract class TilePRCIDomain[T <: BaseTile](
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
   lazy val clockBundle = tapClockNode.in.head._1
 
+  private val traceSignalName = "trace"
+  private val traceCoreSignalName = "tracecore"
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNexusNode = BundleBridgeNexus(
-    inputFn = (s: Seq[Vec[TracedInstruction]]) => {
-      val data = BundleBridgeNexus.requireOne[Vec[TracedInstruction]](false)(s)
-      crossingParams.resetCrossingType match {
-        case _: NoResetCrossing => data
-        case s: StretchedResetCrossing => BlockDuringReset(data, s.cycles)
-      }
-    }
-  )
+  val traceNode: BundleBridgeIdentityNode[Vec[TracedInstruction]] = BundleBridgeNameNode(traceSignalName)
+  /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
+  val traceCoreNode: BundleBridgeIdentityNode[TraceCoreInterface] = BundleBridgeNameNode(traceCoreSignalName)
+
+  /** Function to handle all trace crossings when tile is instantiated inside domains */
+  def crossTracesOut(): Unit = this {
+    val traceNexusNode = BundleBridgeBlockDuringReset[Vec[TracedInstruction]](
+      resetCrossingType = crossingParams.resetCrossingType,
+      name = Some(traceSignalName))
+    traceNode :*= traceNexusNode := tile.traceNode
+
+    val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
+      resetCrossingType = crossingParams.resetCrossingType,
+      name = Some(traceCoreSignalName))
+    traceCoreNode :*= traceCoreNexusNode := tile.traceCoreNode
+  }
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossingType: ClockCrossingType): IntInwardNode = {
