@@ -247,20 +247,23 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   val mmioAddressPrefixNode: BundleBridgeInwardNode[UInt] =
     mmioAddressPrefixNexusNode :=* BundleBridgeNameNode("mmio_address_prefix")
 
-  protected def traceRetireWidth = tileParams.core.retireWidth
-  protected def traceCoreParams = new TraceCoreParams()
-  protected def traceCoreSignalName = "tracecore"
   // TODO: Any node marked "consumed by the core" or "driven by the core"
-  //       should be moved to either be: a member of a BaseTile subclass,
-  //       or actually just a member of the core itself,
+  //       should be moved to either be: a member of a specific BaseTile subclass,
+  //       or actually just a member of the core's LazyModule itself,
   //       assuming the core itself is diplomatic.
-  //       Then we probably don't need the above parameters exposed here either.
+  //       Then these nodes should just become IdentityNodes of their respective type
 
+  protected def traceRetireWidth = tileParams.core.retireWidth
   /** Node for the core to drive legacy "raw" instruction trace. */
   val traceSourceNode = BundleBridgeSource(() => Vec(traceRetireWidth, new TracedInstruction()))
   /** Node for external consumers to source a legacy instruction trace from the core. */
-  val traceNode: BundleBridgeOutwardNode[Vec[TracedInstruction]] =
-    BundleBridgeNameNode("trace") := traceSourceNode
+  val traceNode: BundleBridgeOutwardNode[Vec[TracedInstruction]] = traceSourceNode
+
+  protected def traceCoreParams = new TraceCoreParams()
+  /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */
+  val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
+  /** Node for external consumers to source  a V1.0 instruction trace from the core. */
+  val traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface] = traceCoreSourceNode
 
   /** Node to broadcast collected trace sideband signals into the tile. */
   val traceAuxNexusNode = BundleBridgeNexus[TraceAux](default = Some(() => {
@@ -274,14 +277,6 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   /** Trace sideband signals collected here to be driven into the tile. */
   val traceAuxNode: BundleBridgeInwardNode[TraceAux] =
     traceAuxSinkNode := traceAuxNexusNode :=* BundleBridgeNameNode("trace_aux")
-
-  /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */
-  val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
-  /** Node to broadcast V1.0 instruction trace to external consumers. */
-  val traceCoreNexusNode = BundleBroadcast[TraceCoreInterface]()
-  /** Node for external consumers to source  a V1.0 instruction trace from the core. */
-  val traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface] =
-    BundleBridgeNameNode(traceCoreSignalName) :*= traceCoreNexusNode := traceCoreSourceNode
 
   /** Node for watchpoints to control trace driven by core. */
   val bpwatchSourceNode = BundleBridgeSource(() => Vec(tileParams.core.nBreakpoints, new BPWatch(traceRetireWidth)))
