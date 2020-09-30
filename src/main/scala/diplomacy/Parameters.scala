@@ -23,50 +23,111 @@ object RegionType {
   case object GET_EFFECTS extends T // gets produce side effects and so must not be issued speculatively
 }
 
-// A non-empty half-open range; [start, end)
+/** A non-empty half-open range; [start, end)
+  *
+  * Order of [[IdRange]] is defined below:
+  * - idRange with greater `start` are greater.
+  * - if two `start` are same, idRange with less size are greater.
+  */
 case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
 {
+  /* sanctity tests. */
   require (start >= 0, s"Ids cannot be negative, but got: $start.")
   require (start <= end, "Id ranges cannot be negative.")
 
-  def compare(x: IdRange) = {
-    val primary   = (this.start - x.start).signum
-    val secondary = (x.end - this.end).signum
+  /* Define the order of IdRange. */
+  def compare(x: IdRange): Int = {
+    /* idRange with greater `start` are greater. */
+    val primary   = (start - x.start).signum
+    /* idRange with less size are greater. */
+    val secondary = (x.end - end).signum
     if (primary != 0) primary else secondary
   }
 
-  def overlaps(x: IdRange) = start < x.end && x.start < end
-  def contains(x: IdRange) = start <= x.start && x.end <= end
+  /** @return true if another [[IdRange]] `x` is overlap to this. */
+  def overlaps(x: IdRange): Boolean = start < x.end && x.start < end
 
-  def contains(x: Int)  = start <= x && x < end
-  def contains(x: UInt) =
-    if (size == 0) {
-      Bool(false)
-    } else if (size == 1) { // simple comparison
-      x === UInt(start)
+  /** @return true if this contains another [[IdRange]] `x`. */
+  def contains(x: IdRange): Boolean = start <= x.start && x.end <= end
+
+  /** @return true if [[Int]] x is contained by this [[IdRange]]. */
+  def contains(x: Int): Boolean = start <= x && x < end
+
+  /** It will generate hardware: if signal `x` is contained in this the range.
+    *
+    * original logic is ` start.B <= x && x < end.B`
+    *
+    * For optimization, there are 3 cases:
+    * - this [[IdRange]] is 0:
+    *   it will tie down to `false.B`
+    * - this [[IdRange]] only has one element:
+    *   just compare `x` and `start`
+    * - this [[IdRange]] has multiple elements:
+    *   for example, we compare 1028.U <= x < 1036.U.
+    *   1028 -> 0b10000000100
+    *   1035 -> 0b10000001011 (half-open range)
+    *   originally, two 11 bits adder are needed to construct this logic:
+    *   x - 1028.U >= 0.U
+    *   x - 1035.U <= 0.U
+    *
+    *   In the optimized way:
+    *   - find the index of smallest common bit is 4:
+    *     0b10000001011 xor 0b10000000100 -> 0b1111
+    *   - higher bits of `x` should equal:
+    *     (x >> 4) === 0b1000000
+    *   - lower bits of `x` should compare:
+    *     0b0100 <= x <= 0b1011
+    *
+    *   In this case, two 11 bits adder will be reduced to two 4 bits adder(saves a lot timing and area.)
+    *
+    *   If lucky, lower bond is all 0, then we will save an additional adder.
+    *   and if high bond is all 1, then we will save an additional adder with and logic
+    */
+  def contains(x: UInt): Bool =
+    if (isEmpty) {
+      /* if this range contains nothing. */
+      false.B
+    } else if (size == 1) {
+      /* if this range only contains one instance. */
+      x === start.U
     } else {
-      // find index of largest different bit
-      val largestDeltaBit = log2Floor(start ^ (end-1))
-      val smallestCommonBit = largestDeltaBit + 1 // may not exist in x
+      /* optimized logic for `start.U <= x && x < end.U`. */
+      /* find index of largest different bit. */
+      val largestDeltaBit = log2Floor(start ^ (end - 1))
+      /** the width of common bits, count from right to left. */
+      val smallestCommonBit = largestDeltaBit + 1
+      /** mask of different bits between start and (end - 1)*/
       val uncommonMask = (1 << smallestCommonBit) - 1
-      val uncommonBits = (x | UInt(0, width=smallestCommonBit))(largestDeltaBit, 0)
-      // the prefix must match exactly (note: may shift ALL bits away)
-      (x >> smallestCommonBit) === UInt(start >> smallestCommonBit) &&
-      // firrtl constant prop range analysis can eliminate these two:
-      UInt(start & uncommonMask) <= uncommonBits &&
-      uncommonBits <= UInt((end-1) & uncommonMask)
+      /** the lower bits of x. */
+      val uncommonBits = (x | 0.U(smallestCommonBit.W)) (largestDeltaBit, 0)
+      /* the higher bits must match exactly (note: may shift ALL bits away) */
+      (x >> smallestCommonBit).asUInt() === (start >> smallestCommonBit).U &&
+        /* firrtl constant prop range analysis can eliminate these two: */
+        UInt(start & uncommonMask) <= uncommonBits &&
+        uncommonBits <= UInt((end - 1) & uncommonMask)
     }
 
-  def shift(x: Int) = IdRange(start+x, end+x)
-  def size = end - start
-  def isEmpty = end == start
+  /** @return A new instance, adds `x` as offset. */
+  def shift(x: Int): IdRange = IdRange(start + x, end + x)
 
-  def range = start until end
+  /** @return Size of this range. */
+  def size: Int = end - start
+
+  /** @return true if this [[IdRange]] is empty.*/
+  def isEmpty: Boolean = end == start
+
+  /** @return a [[Range]] of from `start` until `end`. */
+  def range: Range = start until end
 }
 
 object IdRange
 {
-  def overlaps(s: Seq[IdRange]) = if (s.isEmpty) None else {
+  /** Find if a sequence of [[IdRange]] are overlapped.
+    *
+    * @param s is a sequence of [[IdRange]]
+    *
+    * @return a first pair of [[IdRange]], if `s` has any overlaps to each other. */
+  def overlaps(s: Seq[IdRange]): Option[(IdRange, IdRange)] = if (s.isEmpty) None else {
     val ranges = s.sorted
     (ranges.tail zip ranges.init) find { case (a, b) => a overlaps b }
   }
