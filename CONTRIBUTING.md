@@ -32,7 +32,7 @@ Please ensure to fill out the PR template appropriately and update it if your PR
 
 Currently, the requirements for merging a PR are:
  + At least one approved review from an administrator
- + Passing at least one of the GitHub actions checks or the Travis checks
+ + Passing the GitHub actions checks
 
 ### <a name="bumping"></a> Bumping Submodules
 
