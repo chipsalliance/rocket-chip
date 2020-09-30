@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import chisel3.util.ReadyValidIO
-import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams, CreditedDelay}
+import freechips.rocketchip.util.{AsyncQueueParams, CreditedDelay, FastToSlow, RationalDirection, ShiftQueue}
 
 /** Options for describing the attributes of memory regions */
 object RegionType {
