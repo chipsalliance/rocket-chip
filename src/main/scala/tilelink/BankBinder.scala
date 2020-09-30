@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.tilelink
 
-import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 

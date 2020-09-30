@@ -7,7 +7,6 @@ import chisel3.util.{DecoupledIO, log2Ceil, Cat, RegEnable}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule

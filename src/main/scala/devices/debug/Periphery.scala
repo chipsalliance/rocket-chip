@@ -8,11 +8,9 @@ import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink._

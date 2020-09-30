@@ -6,8 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.regmapper._
-import scala.math.{min,max}
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new APBNexusNode(

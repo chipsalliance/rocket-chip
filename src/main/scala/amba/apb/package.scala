@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.amba
 
-import Chisel._
 import freechips.rocketchip.diplomacy._
 
 package object apb

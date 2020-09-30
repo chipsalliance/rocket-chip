@@ -15,8 +15,6 @@ import freechips.rocketchip.util.property._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.dontTouch
 import chisel3.util.random.LFSR
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model._
 
 case class ICacheParams(
     nSets: Int = 64,

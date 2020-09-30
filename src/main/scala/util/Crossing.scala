@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.util.{DecoupledIO, Decoupled, Irrevocable, IrrevocableIO, ReadyValidIO}
+import chisel3.util.Decoupled
 
 class CrossingIO[T <: Data](gen: T) extends Bundle {
   // Enqueue clock domain

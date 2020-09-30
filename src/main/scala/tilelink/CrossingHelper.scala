@@ -4,7 +4,6 @@ package freechips.rocketchip.tilelink
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.RationalDirection
 
 case class TLInwardCrossingHelper(name: String, scope: LazyScope, node: TLInwardNode) {
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLInwardNode = {

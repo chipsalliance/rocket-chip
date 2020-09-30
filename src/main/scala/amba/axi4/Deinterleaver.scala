@@ -3,12 +3,11 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util.{Cat, IrrevocableIO, isPow2, log2Ceil,
+import chisel3.util.{Cat, isPow2, log2Ceil,
   log2Up, OHToUInt, Queue, QueueIO, UIntToOH}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{leftOR, rightOR, UIntToOH1, OH1ToOH}
-import scala.math.{min,max}
+import freechips.rocketchip.util.leftOR
 
 class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.default)(implicit p: Parameters) extends LazyModule
 {

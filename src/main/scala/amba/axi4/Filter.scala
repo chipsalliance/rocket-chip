@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 

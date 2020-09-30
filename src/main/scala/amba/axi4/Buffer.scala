@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import scala.math.{min,max}
+import scala.math.min
 
 // pipe is only used if a queue has depth = 1
 class AXI4Buffer(
