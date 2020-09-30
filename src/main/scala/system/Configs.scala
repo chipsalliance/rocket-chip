@@ -3,7 +3,6 @@
 
 package freechips.rocketchip.system
 
-import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.groundtest.WithTraceGen

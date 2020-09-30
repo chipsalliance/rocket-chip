@@ -3,12 +3,9 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import chisel3.experimental.withReset
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import scala.math.min
 
 abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false, bufferError: Boolean = true, maxAtomic: Int = 16, maxTransfer: Int = 4096)
   (implicit p: Parameters) extends LazyModule

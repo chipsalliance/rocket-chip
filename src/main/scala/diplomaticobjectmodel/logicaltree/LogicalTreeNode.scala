@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.diplomacy.BindingScope.bindingScopes
 import freechips.rocketchip.diplomacy.{BindingScope, Device, ResourceBindings, ResourceBindingsMap, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 

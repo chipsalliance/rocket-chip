@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
+import scala.math.min
 
 object EarlyAck {
   sealed trait T

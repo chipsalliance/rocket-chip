@@ -2,7 +2,7 @@
 
 package freechips.rocketchip
 
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
 import chisel3.Data
 import freechips.rocketchip.config.Parameters
 import scala.language.implicitConversions

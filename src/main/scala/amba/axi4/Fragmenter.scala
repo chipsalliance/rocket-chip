@@ -7,7 +7,6 @@ import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)

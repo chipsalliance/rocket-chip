@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{DataMirror,IO}
 import chisel3.experimental.DataMirror.internal.chiselTypeClone
-import freechips.rocketchip.config.{Parameters,Field}
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.util.DataToAugmentedData
 
 case class BundleBridgeParams[T <: Data](genOpt: Option[() => T])
