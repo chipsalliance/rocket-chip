@@ -2,15 +2,9 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
-import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.prci.{ClockAdapterNode, ClockNode, ClockTempNode, ResetStretcher}
+import freechips.rocketchip.prci.{ClockNode, ClockTempNode, ResetStretcher}
 import freechips.rocketchip.tile._
 
 case class RocketCrossingParams(

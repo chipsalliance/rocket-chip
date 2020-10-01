@@ -6,7 +6,7 @@ import freechips.rocketchip.diplomacy.{ResourceBindings, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.rocket.{DCacheParams, HellaCache, ICache, ICacheParams}
-import freechips.rocketchip.tile.{CoreParams, RocketTile, XLen}
+import freechips.rocketchip.tile.{CoreParams, RocketTile}
 
 
 /**

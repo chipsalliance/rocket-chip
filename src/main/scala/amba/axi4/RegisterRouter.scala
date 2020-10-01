@@ -8,7 +8,6 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 case object AXI4RRId extends ControlKey[UInt]("extra_id")
 case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(UInt(OUTPUT, width = 1 max width), UInt(0))

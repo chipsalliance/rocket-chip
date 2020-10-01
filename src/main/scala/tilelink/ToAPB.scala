@@ -7,7 +7,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.amba._
-import scala.math.{min, max}
 import APBParameters._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(

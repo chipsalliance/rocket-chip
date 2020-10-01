@@ -9,9 +9,7 @@ import chisel3.{withClock,withReset}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._

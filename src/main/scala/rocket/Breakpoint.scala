@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.util.{Cat}
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.{CoreModule, CoreBundle, HasCoreParameters}
+import freechips.rocketchip.tile.{CoreBundle, HasCoreParameters}
 import freechips.rocketchip.util._
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {

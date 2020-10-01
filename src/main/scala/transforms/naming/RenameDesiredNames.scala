@@ -3,7 +3,7 @@
 package freechips.rocketchip.transforms.naming
 
 import firrtl._
-import firrtl.annotations.{CircuitTarget, HasSerializationHints, IsModule, SingleTargetAnnotation, Target}
+import firrtl.annotations.{CircuitTarget, IsModule, SingleTargetAnnotation, Target}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.transforms.DedupModules

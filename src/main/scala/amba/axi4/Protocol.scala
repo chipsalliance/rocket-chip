@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.util.{Irrevocable, IrrevocableIO}
 
 object AXI4Parameters
 {

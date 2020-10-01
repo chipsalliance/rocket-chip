@@ -15,3 +15,5 @@ addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.5.1")
 addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.6.1")
 
 addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.2.5" )
+
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.21")

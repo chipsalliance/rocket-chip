@@ -87,7 +87,11 @@ lazy val rocketchip = dependOnChisel(project in file("."))
       mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
       mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
       exportJars := true,
-      Test / unmanagedBase := baseDirectory.value / "test_lib"
+      Test / unmanagedBase := baseDirectory.value / "test_lib",
+      // Settings for scalafix
+      semanticdbEnabled := true,
+      semanticdbVersion := scalafixSemanticdb.revision,
+      scalacOptions += "-Ywarn-unused-import"
   )
 
 

@@ -3,8 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.util.{ReadyValidIO}
-import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
 

@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._

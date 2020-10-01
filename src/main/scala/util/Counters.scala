@@ -4,7 +4,6 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import scala.math.max
 
 // Produces 0-width value when counting to 1
 class ZCounter(val n: Int) {

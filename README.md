@@ -84,6 +84,19 @@ To generate FPGA- or VLSI-synthesizable Verilog (output will be in `vsim/generat
     $ cd vsim
     $ make verilog
 
+To run the Scala tests (`sbt test`) or linter (`sbt scalafix`):
+
+    $ cd regression
+
+    # Scala tests
+    $ make scalatest SUITE=foo
+
+    # Scala linter, automatically modifying files to correct issues
+    $ make scalafix SUITE=foo
+
+    # Scala linter, only printing out issues
+    $ make scalafix-check SUITE=foo
+
 
 ### Keeping Your Repo Up-to-Date
 

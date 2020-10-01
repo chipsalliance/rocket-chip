@@ -3,7 +3,6 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import freechips.rocketchip.util.RecordMap
-import scala.collection.immutable.ListMap
 
 
 class ClockBundle(val params: ClockBundleParameters) extends Bundle

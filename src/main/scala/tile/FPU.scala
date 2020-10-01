@@ -28,7 +28,6 @@ object FPConstants
   val RM_SZ = 3
   val FLAGS_SZ = 5
 }
-import FPConstants._
 
 trait HasFPUCtrlSigs {
   val ldst = Bool()
