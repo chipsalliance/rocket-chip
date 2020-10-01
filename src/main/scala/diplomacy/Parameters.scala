@@ -133,34 +133,51 @@ object IdRange
   }
 }
 
-// An potentially empty inclusive range of 2-powers [min, max] (in bytes)
+/** An potentially empty inclusive range of 2-powers [min, max] in bytes */
 case class TransferSizes(min: Int, max: Int)
 {
+  /** @return a [[TransferSizes]] with `min` and `max` both with `x`. */
   def this(x: Int) = this(x, x)
 
+  /* sanity check. */
   require (min <= max, s"Min transfer $min > max transfer $max")
   require (min >= 0 && max >= 0, s"TransferSizes must be positive, got: ($min, $max)")
   require (max == 0 || isPow2(max), s"TransferSizes must be a power of 2, got: $max")
   require (min == 0 || isPow2(min), s"TransferSizes must be a power of 2, got: $min")
   require (max == 0 || min != 0, s"TransferSize 0 is forbidden unless (0,0), got: ($min, $max)")
 
-  def none = min == 0
-  def contains(x: Int) = isPow2(x) && min <= x && x <= max
-  def containsLg(x: Int) = contains(1 << x)
-  def containsLg(x: UInt) =
-    if (none) Bool(false)
-    else if (min == max) { UInt(log2Ceil(min)) === x }
-    else { UInt(log2Ceil(min)) <= x && x <= UInt(log2Ceil(max)) }
+  /** @return true, if this [[TransferSizes]] is empty. */
+  def none: Boolean = min == 0
 
-  def contains(x: TransferSizes) = x.none || (min <= x.min && x.max <= max)
+  /** @return true, if `x` is a power of 2 number between `min`, `max`. */
+  def contains(x: Int): Boolean = isPow2(x) && min <= x && x <= max
 
-  def intersect(x: TransferSizes) =
+  /** Give a constant `x`, check if 2 to the power of `x` is in this [[TransferSizes]]. */
+  def containsLg(x: Int): Boolean = contains(1 << x)
+
+  /** Generate a circuit with [[UInt]] signal `x` as input
+    * to check if 2 to the power of `x` is in this.
+    */
+  def containsLg(x: UInt): Bool =
+    if (none) false.B
+    else if (min == max) { log2Ceil(min).U === x }
+    else { log2Ceil(min).U <= x && x <= log2Ceil(max).U }
+
+  /** @return true if `x` is a subset to this. */
+  def contains(x: TransferSizes): Boolean = x.none || (min <= x.min && x.max <= max)
+
+  /** @return the intersecting [[TransferSizes]] between this and `x`. */
+  def intersect(x: TransferSizes): TransferSizes =
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
 
-  // Not a union, because the result may contain sizes contained by neither term
-  // NOT TO BE CONFUSED WITH COVERPOINTS
-  def mincover(x: TransferSizes) = {
+  /** A minimal continuous [[TransferSizes]] to cover this and `x`,
+    *
+    * @note This is not a union, because if this and `x` has no intersection,
+    *       result will contain sizes contained by neither term.
+    *       This should ont to be confused with coverpoints
+    */
+  def mincover(x: TransferSizes): TransferSizes = {
     if (none) {
       x
     } else if (x.none) {
@@ -174,11 +191,17 @@ case class TransferSizes(min: Int, max: Int)
 }
 
 object TransferSizes {
-  def apply(x: Int) = new TransferSizes(x)
-  val none = new TransferSizes(0)
+  /** @return a [[TransferSizes]] with `min` and `max` both `x`. */
+  def apply(x: Int): TransferSizes = new TransferSizes(x)
 
-  def mincover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ mincover _)
-  def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
+  /** @return a [[TransferSizes]] with `min` and `max` both 0. */
+  val none: TransferSizes = new TransferSizes(0)
+
+  /** @return A minimal continuous [[TransferSizes]] to cover all `seq`. */
+  def mincover(seq: Seq[TransferSizes]): TransferSizes = seq.foldLeft(none)(_ mincover _)
+
+  /** @return A intersection among all `seq`. */
+  def intersect(seq: Seq[TransferSizes]): TransferSizes = seq.reduce(_ intersect _)
 
   implicit def asBool(x: TransferSizes) = !x.none
 }
