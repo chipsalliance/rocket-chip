@@ -113,7 +113,7 @@ class DebugLogicalTreeNode(
         hartSeltoHartIDMapping = Nil, // HartSel goes from 0->N but HartID is not contiguious or increasing
         authenticationType = (if (cfg.hasAuthentication) PASSTHRU else NONE),
         nHartsellenBits = p(MaxHartIdBits), // Number of actually implemented bits of Hartsel
-        hasHartInfo = true,
+        hasHartInfo = cfg.atzero,
         hasAbstractauto = true,
         cfgStrPtrValid = false,
         nHaltSummaryRegisters = 2,

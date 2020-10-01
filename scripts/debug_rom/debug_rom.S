@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-#include "spike/encoding.h"
+#include "riscv-pk/encoding.h"
 
 // These are implementation-specific addresses in the Debug Module
 #define HALTED    0x100
