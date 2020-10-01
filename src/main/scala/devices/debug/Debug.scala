@@ -9,7 +9,7 @@ import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.rocket.Instructions
+import freechips.rocketchip.rocket.{CSRs, Instructions}
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.tilelink.{DevNullParams, TLError}
@@ -54,8 +54,8 @@ object DsbRegAddrs{
   def IMPEBREAK(cfg: DebugModuleParams) = { DATA - 4 }
 
   // We want abstract to be immediately before PROGBUF
-  // because we auto-generate 2 instructions.
-  def ABSTRACT(cfg:DebugModuleParams) = PROGBUF(cfg) - 8
+  // because we auto-generate 2 (or 5) instructions.
+  def ABSTRACT(cfg:DebugModuleParams) = PROGBUF(cfg) - (cfg.nAbstractInstructions * 4)
 
   def FLAGS        = 0x400
   def ROMBASE      = 0x800
@@ -101,6 +101,7 @@ object DebugAbstractCommandType extends scala.Enumeration {
   **/
 
 case class DebugModuleParams (
+  baseAddress : BigInt = BigInt(0),
   nDMIAddrSize  : Int = 7,
   nProgramBufferWords: Int = 16,
   nAbstractDataWords : Int = 4,
@@ -130,7 +131,12 @@ case class DebugModuleParams (
     // TODO: Check that quick access requirements are met.
   }
 
-  def address = AddressSet(0, 0xFFF) // This is required for correct functionality; it's not configurable.
+  def address = AddressSet(baseAddress, 0xFFF)
+  def atzero = (baseAddress == 0)
+  def nAbstractInstructions = if (atzero) 2 else 5
+  def debugEntry: BigInt = baseAddress + 0x800
+  def debugException: BigInt = baseAddress + 0x808
+  def nDscratch: Int = if (atzero) 1 else 2
 }
 
 object DefaultDebugModuleParams {
@@ -363,9 +369,12 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     }
 
     //----HARTINFO
+    // DATA registers are mapped to memory. The dataaddr field of HARTINFO has only
+    // 12 bits and assumes the DM base is 0.  If not at 0, then HARTINFO reads as 0
+    // (implying nonexistence according to the Debug Spec).
 
     val HARTINFORdData = WireInit(0.U.asTypeOf(new HARTINFOFields()))
-    when (dmAuthenticated) {
+    if (cfg.atzero) when (dmAuthenticated) {
       HARTINFORdData.dataaccess  := true.B
       HARTINFORdData.datasize    := cfg.nAbstractDataWords.U
       HARTINFORdData.dataaddr    := DsbRegAddrs.DATA.U
@@ -510,11 +519,11 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     ))
 
     val hartinfoRegFields = RegFieldGroup("dmi_hartinfo", Some("hart information"), Seq(
-      RegField.r(12, HARTINFORdData.dataaddr,   RegFieldDesc("dataaddr",   "data address",                reset=Some(DsbRegAddrs.DATA))),
-      RegField.r(4,  HARTINFORdData.datasize,   RegFieldDesc("datasize",   "number of DATA registers",    reset=Some(cfg.nAbstractDataWords))),
-      RegField.r(1,  HARTINFORdData.dataaccess, RegFieldDesc("dataaccess", "data access type",            reset=Some(1))),
+      RegField.r(12, HARTINFORdData.dataaddr,   RegFieldDesc("dataaddr",   "data address",                reset=Some(if (cfg.atzero) DsbRegAddrs.DATA else 0))),
+      RegField.r(4,  HARTINFORdData.datasize,   RegFieldDesc("datasize",   "number of DATA registers",    reset=Some(if (cfg.atzero) cfg.nAbstractDataWords else 0))),
+      RegField.r(1,  HARTINFORdData.dataaccess, RegFieldDesc("dataaccess", "data access type",            reset=Some(if (cfg.atzero) 1 else 0))),
       RegField(3),
-      RegField.r(4,  HARTINFORdData.nscratch,   RegFieldDesc("nscratch",   "number of scratch registers", reset=Some(cfg.nScratch)))
+      RegField.r(4,  HARTINFORdData.nscratch,   RegFieldDesc("nscratch",   "number of scratch registers", reset=Some(if (cfg.atzero) cfg.nScratch else 0)))
     ))
 
     //--------------------------------------------------------------
@@ -1429,6 +1438,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val opcode = UInt(7.W)
     }
 
+    class GeneratedCSR extends Bundle {
+      val imm    = UInt(12.W)
+      val rs1    = UInt(5.W)
+      val funct3 = UInt(3.W)
+      val rd     = UInt(5.W)
+      val opcode = UInt(7.W)
+    }
+
     class GeneratedUJ extends Bundle {
       val imm3    = UInt(1.W)
       val imm0    = UInt(10.W)
@@ -1451,41 +1468,87 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       }
     }
 
-    val abstractGeneratedMem = Reg(Vec(2, (UInt(32.W))))
-    val abstractGeneratedI = Wire(new GeneratedI())
-    val abstractGeneratedS = Wire(new GeneratedS())
+    require((cfg.atzero && cfg.nAbstractInstructions == 2) || (!cfg.atzero && cfg.nAbstractInstructions == 5),
+      "Mismatch between DebugModuleParams atzero and nAbstractInstructions")
+    val abstractGeneratedMem = Reg(Vec(cfg.nAbstractInstructions, (UInt(32.W))))
+
+    def abstractGeneratedI(cfg: DebugModuleParams): UInt = {
+      val inst = Wire(new GeneratedI())
+      val offset = if (cfg.atzero) DATA else (DATA-0x800) & 0xFFF
+      val base = if (cfg.atzero) 0.U else Mux(accessRegisterCommandReg.regno(0), 8.U, 9.U)
+      inst.opcode := (Instructions.LW.value.U.asTypeOf(new GeneratedI())).opcode
+      inst.rd     := (accessRegisterCommandReg.regno & 0x1F.U)
+      inst.funct3 := accessRegisterCommandReg.size
+      inst.rs1    := base
+      inst.imm    := offset.U
+      inst.asUInt
+    }
+
+    def abstractGeneratedS(cfg: DebugModuleParams): UInt = {
+      val inst = Wire(new GeneratedS())
+      val offset = if (cfg.atzero) DATA else (DATA-0x800) & 0xFFF
+      val base = if (cfg.atzero) 0.U else Mux(accessRegisterCommandReg.regno(0), 8.U, 9.U)
+      inst.opcode := (Instructions.SW.value.U.asTypeOf(new GeneratedS())).opcode
+      inst.immlo  := (offset & 0x1F).U
+      inst.funct3 := accessRegisterCommandReg.size
+      inst.rs1    := base
+      inst.rs2    := (accessRegisterCommandReg.regno & 0x1F.U)
+      inst.immhi  := (offset >> 5).U
+      inst.asUInt
+    }
+
+    def abstractGeneratedCSR: UInt = {
+      val inst = Wire(new GeneratedCSR())
+      val base = Mux(accessRegisterCommandReg.regno(0), 8.U, 9.U)     // use s0 as base for odd regs, s1 as base for even regs
+      inst := (Instructions.CSRRW.value.U.asTypeOf(new GeneratedCSR()))
+      inst.imm := CSRs.dscratch1.U
+      inst.rs1 := base
+      inst.rd := base
+      inst.asUInt
+    }
+
     val nop = Wire(new GeneratedI())
-
-    abstractGeneratedI.opcode := (Instructions.LW.value.U.asTypeOf(new GeneratedI())).opcode
-    abstractGeneratedI.rd     := (accessRegisterCommandReg.regno & 0x1F.U)
-    abstractGeneratedI.funct3 := accessRegisterCommandReg.size
-    abstractGeneratedI.rs1    := 0.U
-    abstractGeneratedI.imm    := DATA.U
-
-    abstractGeneratedS.opcode := (Instructions.SW.value.U.asTypeOf(new GeneratedS())).opcode
-    abstractGeneratedS.immlo  := (DATA & 0x1F).U
-    abstractGeneratedS.funct3 := accessRegisterCommandReg.size
-    abstractGeneratedS.rs1    := 0.U
-    abstractGeneratedS.rs2    := (accessRegisterCommandReg.regno & 0x1F.U)
-    abstractGeneratedS.immhi  := (DATA >> 5).U
-
     nop := Instructions.ADDI.value.U.asTypeOf(new GeneratedI())
     nop.rd   := 0.U
     nop.rs1  := 0.U
     nop.imm  := 0.U
 
+    val isa = Wire(new GeneratedI())
+    isa := Instructions.ADDIW.value.U.asTypeOf(new GeneratedI())
+    isa.rd   := 0.U
+    isa.rs1  := 0.U
+    isa.imm  := 0.U
+
+
     when (goAbstract) {
-      abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer,
-        Mux(accessRegisterCommandReg.write,
-          // To write a register, we need to do LW.
-          abstractGeneratedI.asUInt(),
-          // To read a register, we need to do SW.
-          abstractGeneratedS.asUInt()),
-        nop.asUInt()
-      )
-      abstractGeneratedMem(1) := Mux(accessRegisterCommandReg.postexec,
-        nop.asUInt(),
-        Instructions.EBREAK.value.U)
+      if (cfg.nAbstractInstructions == 2) {
+        // ABSTRACT(0): Transfer: LW or SW, else NOP
+        // ABSTRACT(1): Postexec: NOP       else EBREAK
+        abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer,
+          Mux(accessRegisterCommandReg.write, abstractGeneratedI(cfg), abstractGeneratedS(cfg)),
+          nop.asUInt()
+        )
+        abstractGeneratedMem(1) := Mux(accessRegisterCommandReg.postexec,
+          nop.asUInt(),
+          Instructions.EBREAK.value.U)
+      } else {
+        // Entry: All regs in GPRs, dscratch1=offset 0x800 in DM
+        // ABSTRACT(0): CheckISA: ADDW or NOP (exception here if size=3 and not RV64)
+        // ABSTRACT(1):           CSRRW s1,dscratch1,s1 or CSRRW s0,dscratch1,s0
+        // ABSTRACT(2): Transfer: LW, SW, LD, SD else NOP
+        // ABSTRACT(3):           CSRRW s1,dscratch1,s1 or CSRRW s0,dscratch1,s0
+        // ABSTRACT(4): Postexec: NOP else EBREAK
+        abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer && accessRegisterCommandReg.size =/= 2.U, isa.asUInt(), nop.asUInt())
+        abstractGeneratedMem(1) := abstractGeneratedCSR
+        abstractGeneratedMem(2) := Mux(accessRegisterCommandReg.transfer,
+          Mux(accessRegisterCommandReg.write, abstractGeneratedI(cfg), abstractGeneratedS(cfg)),
+          nop.asUInt()
+        )
+        abstractGeneratedMem(3) := abstractGeneratedCSR
+        abstractGeneratedMem(4) := Mux(accessRegisterCommandReg.postexec,
+          nop.asUInt(),
+          Instructions.EBREAK.value.U)
+      }
     }
 
     //--------------------------------------------------------------
@@ -1528,7 +1591,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true))}
         }),
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
-        DebugRomContents().zipWithIndex.map{case (x, i) => RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
+        (if (cfg.atzero) DebugRomContents() else DebugRomNonzeroContents()).zipWithIndex.map{case (x, i) =>
+          RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
     )
 
     // Override System Bus accesses with dmactive reset.
@@ -1579,13 +1643,14 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     val commandWrIsAccessRegister = (COMMANDWrData.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
     val commandRegIsAccessRegister = (COMMANDReg.cmdtype === DebugAbstractCommandType.AccessRegister.id.U)
 
-    val commandWrIsUnsupported = COMMANDWrEn && !commandWrIsAccessRegister;
+    val commandWrIsUnsupported = COMMANDWrEn && !commandWrIsAccessRegister
 
     val commandRegIsUnsupported = WireInit(true.B)
     val commandRegBadHaltResume = WireInit(false.B)
 
     // We only support abstract commands for GPRs and any custom registers, if specified.
-    val accessRegIsGPR = (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U)
+    val accessRegIsLegalSize = (accessRegisterCommandReg.size === 2.U) || (accessRegisterCommandReg.size === 3.U)
+    val accessRegIsGPR = (accessRegisterCommandReg.regno >= 0x1000.U && accessRegisterCommandReg.regno <= 0x101F.U) && accessRegIsLegalSize
     val accessRegIsCustom = if (needCustom) {
       val (custom, customP) = customNode.in.head
       customP.addrs.foldLeft(false.B){
