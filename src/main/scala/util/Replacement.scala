@@ -107,10 +107,10 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
     nextState.zipWithIndex.tail.foldLeft((nextState.head.apply(n_ways-1,1),0)) { case ((pe,pi),(ce,ci)) => (Cat(ce.apply(n_ways-1,ci+1), pe), ci) }._1
   }
 
-  def access(touch_way: UInt) {
+  def access(touch_way: UInt): Unit = {
     state_reg := get_next_state(state_reg, touch_way)
   }
-  def access(touch_ways: Seq[Valid[UInt]]) {
+  def access(touch_ways: Seq[Valid[UInt]]): Unit = {
     when (touch_ways.map(_.valid).orR) {
       state_reg := get_next_state(state_reg, touch_ways)
     }
@@ -164,10 +164,10 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
   private val state_reg = Reg(UInt(nBits.W))
   def state_read = WireDefault(state_reg)
 
-  def access(touch_way: UInt) {
+  def access(touch_way: UInt): Unit = {
     state_reg := get_next_state(state_reg, touch_way)
   }
-  def access(touch_ways: Seq[Valid[UInt]]) {
+  def access(touch_ways: Seq[Valid[UInt]]): Unit = {
     when (touch_ways.map(_.valid).orR) {
       state_reg := get_next_state(state_reg, touch_ways)
     }

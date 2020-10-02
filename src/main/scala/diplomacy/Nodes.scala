@@ -639,7 +639,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode {
     * @param node    the [[OutwardNode]] to bind to this [[InwardNode]].
     * @param binding [[NodeBinding]] type.
     */
-  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!iRealized,
       s"""Diplomacy has detected a problem in your code:
@@ -732,7 +732,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode {
     * @param node    [[InwardNode]] to bind to.
     * @param binding Binding type.
     */
-  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!oRealized,
       s"""Diplomacy has detected a problem in your code:
@@ -1277,7 +1277,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   }
 
   /** Connects the outward part of a node with the inward part of this node. */
-  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val x = this // x := y
     val y = h
     val info = sourceLine(sourceInfo, " at ", "")

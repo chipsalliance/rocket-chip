@@ -263,7 +263,7 @@ class TLBundle(val params: TLBundleParameters) extends Record
     if (params.hasBCE) ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
     else ListMap("d" -> d, "a" -> a)
 
-  def tieoff() {
+  def tieoff(): Unit = {
     a.ready.dir match {
       case INPUT =>
         a.ready := Bool(false)

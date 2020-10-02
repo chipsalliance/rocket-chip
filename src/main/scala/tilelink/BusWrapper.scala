@@ -242,11 +242,11 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     to("slave" named name) { gen :*= TLBuffer(buffer) :*= outwardNode }
   }
 
-  def toVariableWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: TLInwardNode) {
+  def toVariableWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: TLInwardNode): Unit = {
     toVariableWidthSlaveNodeOption(name, buffer)(Some(node))
   }
 
-  def toVariableWidthSlaveNodeOption(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: Option[TLInwardNode]) {
+  def toVariableWidthSlaveNodeOption(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: Option[TLInwardNode]): Unit = {
     node foreach { n => to("slave" named name) {
       n :*= TLFragmenter(beatBytes, blockBytes) :*= TLBuffer(buffer) :*= outwardNode
     }}
@@ -261,7 +261,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     }
   }
 
-  def toFixedWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(gen: TLInwardNode) {
+  def toFixedWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(gen: TLInwardNode): Unit = {
     to("slave" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
@@ -274,7 +274,7 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
 
   def toFixedWidthSingleBeatSlaveNode
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: TLInwardNode) {
+      (gen: TLInwardNode): Unit = {
     to("slave" named name) {
       gen :*= TLFragmenter(widthBytes, blockBytes) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }
@@ -319,7 +319,7 @@ trait CanAttachTLMasters extends HasTLBusParams { this: TLBusWrapper =>
 
   def fromMasterNode
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
-      (gen: TLOutwardNode) {
+      (gen: TLOutwardNode): Unit = {
     from("master" named name) {
       inwardNode :=* TLBuffer(buffer) :=* TLFIFOFixer(TLFIFOFixer.all) :=* gen
     }

@@ -106,7 +106,7 @@ case class TLRegisterNode(
     OMRegister.convert(mapping = mapping:_*)
   }
 
-  def genRegDescsJson(mapping: RegField.Map*) {
+  def genRegDescsJson(mapping: RegField.Map*): Unit = {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
@@ -199,5 +199,5 @@ trait HasTLControlRegMap { this: RegisterRouter =>
   val controlXing: TLInwardCrossingHelper = this.crossIn(controlNode)
 
   // Internally, this function should be used to populate the control port with registers
-  protected def regmap(mapping: RegField.Map*) { controlNode.regmap(mapping:_*) }
+  protected def regmap(mapping: RegField.Map*): Unit = { controlNode.regmap(mapping:_*) }
 }

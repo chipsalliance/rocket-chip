@@ -235,7 +235,7 @@ object AXI4Xbar
 
 object AXI4Arbiter
 {
-  def apply[T <: Data](policy: TLArbiter.Policy)(sink: IrrevocableIO[T], sources: IrrevocableIO[T]*) {
+  def apply[T <: Data](policy: TLArbiter.Policy)(sink: IrrevocableIO[T], sources: IrrevocableIO[T]*): Unit = {
     if (sources.isEmpty) {
       sink.valid := Bool(false)
     } else {

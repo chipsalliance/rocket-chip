@@ -75,7 +75,7 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val ar = Irrevocable(new AXI4BundleAR(params))
   val r  = Irrevocable(new AXI4BundleR (params)).flip
 
-  def tieoff() {
+  def tieoff(): Unit = {
     ar.ready.dir match {
       case INPUT =>
         ar.ready := Bool(false)

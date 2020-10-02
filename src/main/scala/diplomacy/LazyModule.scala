@@ -141,7 +141,7 @@ abstract class LazyModule()(implicit val p: Parameters) {
     * @param buf String buffer to write to.
     * @param pad Padding as prefix for indentation purposes.
     */
-  private def nodesGraphML(buf: StringBuilder, pad: String) {
+  private def nodesGraphML(buf: StringBuilder, pad: String): Unit = {
     buf ++= s"""$pad<node id=\"$index\">\n"""
     buf ++= s"""$pad  <data key=\"n\"><y:ShapeNode><y:NodeLabel modelName=\"sides\" modelPosition=\"w\" rotationAngle=\"270.0\">$instanceName</y:NodeLabel><y:BorderStyle type=\"${if (shouldBeInlined) "dotted" else "line"}\"/></y:ShapeNode></data>\n"""
     buf ++= s"""$pad  <data key=\"d\">$moduleName ($pathName)</data>\n"""
@@ -162,7 +162,7 @@ abstract class LazyModule()(implicit val p: Parameters) {
     * @param buf String buffer to write to.
     * @param pad Padding as prefix for indentation purposes.
     */
-  private def edgesGraphML(buf: StringBuilder, pad: String) {
+  private def edgesGraphML(buf: StringBuilder, pad: String): Unit = {
     nodes.filter(!_.omitGraphML) foreach { n =>
       n.outputs.filter(!_._1.omitGraphML).foreach { case (o, edge) =>
         val RenderedEdge(colour, label, flipped) = edge
@@ -328,7 +328,7 @@ sealed trait LazyModuleImpLike extends RawModule {
     * Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]].
     * Annotate this module to tell FIRRTL if it should be inlined.
     */
-  protected[diplomacy] def finishInstantiate() {
+  protected[diplomacy] def finishInstantiate(): Unit = {
     wrapper.nodes.reverse.foreach {
       _.finishInstantiate()
     }
@@ -538,7 +538,7 @@ object InModuleBody {
     val out = new ModuleValue[T] {
       var result: Option[T] = None
 
-      def execute() {
+      def execute(): Unit = {
         result = Some(body)
       }
 
