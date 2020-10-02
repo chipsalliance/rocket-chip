@@ -7,6 +7,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.withClock
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -363,6 +364,7 @@ class CSRFile(
   val reg_debug = Reg(init=Bool(false))
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
   val reg_dscratch = Reg(UInt(width = xLen))
+  val reg_dscratch1 = (p(DebugModuleKey).map(_.nDscratch).getOrElse(1) > 1).option(Reg(UInt(width = xLen)))
   val reg_singleStepped = Reg(Bool())
 
   val reg_mcontext = (coreParams.mcontextWidth > 0).option(RegInit(0.U(coreParams.mcontextWidth.W)))
@@ -485,7 +487,8 @@ class CSRFile(
   val debug_csrs = if (!usingDebug) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
-    CSRs.dscratch -> reg_dscratch.asUInt)
+    CSRs.dscratch -> reg_dscratch.asUInt) ++
+    reg_dscratch1.map(r => CSRs.dscratch1 -> r)
 
   val context_csrs = LinkedHashMap[Int,Bits]() ++
     reg_mcontext.map(r => CSRs.mcontext -> r) ++
@@ -654,7 +657,9 @@ class CSRFile(
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
   val trapToDebug = Bool(usingDebug) && (reg_singleStepped || causeIsDebugInt || causeIsDebugTrigger || causeIsDebugBreak || reg_debug)
-  val debugTVec = Mux(reg_debug, Mux(insn_break, UInt(0x800), UInt(0x808)), UInt(0x800))
+  val debugEntry = p(DebugModuleKey).map(_.debugEntry).getOrElse(BigInt(0x800))
+  val debugException = p(DebugModuleKey).map(_.debugException).getOrElse(BigInt(0x808))
+  val debugTVec = Mux(reg_debug, Mux(insn_break, debugEntry.U, debugException.U), debugEntry.U)
   val delegate = Bool(usingSupervisor) && reg_mstatus.prv <= PRV.S && Mux(cause(xLen-1), read_mideleg(cause_lsbs), read_medeleg(cause_lsbs))
   def mtvecBaseAlign = 2
   def mtvecInterruptAlign = {
@@ -905,6 +910,9 @@ class CSRFile(
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
       when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
+      reg_dscratch1.foreach { r =>
+        when (decoded_addr(CSRs.dscratch1)) { r := wdata }
+      }
     }
     if (usingSupervisor) {
       when (decoded_addr(CSRs.sstatus)) {
