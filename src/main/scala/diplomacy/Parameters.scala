@@ -206,40 +206,162 @@ object TransferSizes {
   implicit def asBool(x: TransferSizes) = !x.none
 }
 
-// AddressSets specify the address space managed by the manager
-// Base is the base address, and mask are the bits consumed by the manager
-// e.g: base=0x200, mask=0xff describes a device managing 0x200-0x2ff
-// e.g: base=0x1000, mask=0xf0f decribes a device managing 0x1000-0x100f, 0x1100-0x110f, ...
+/** AddressSets specify the address space managed by the manager.
+  * Base is the base address, and mask are the bits consumed by the manager.
+  *
+  * @example
+  * {{{
+  *   AddressSet(0x200, 0xff) describes an address 0b10????????: 0x200-0x2ff
+  *   AddressSet(0x1000, 0xf0f) describes an address 0b1????0000????: 0x1000-0x100f, 0x1100-0x110f
+  * }}}
+  * @param base is the base address of this [[AddressSet]]
+  * @param mask is mutable bits of this [[AddressSet]]
+  * @note
+  * There are some constraints:
+  * - if a bit in `base` is 1, mask cannot be 1.
+  * - `base` cannot be negative, while mask can be.
+  *
+  * if `mask` is positive, higher bits in mask is 0;
+  * if `mask` is negative, higher bits in mask is 1, for example:
+  * -1 represents all bits are mutable;
+  * -100 represents lower 8 bits are immutable while higher bits are all mutable.
+  */
 case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 {
-  // Forbid misaligned base address (and empty sets)
-  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, got: ${this.toString}")
-  require (base >= 0, s"AddressSet negative base is ambiguous: $base") // TL2 address widths are not fixed => negative is ambiguous
-  // We do allow negative mask (=> ignore all high bits)
+  /* sanity test. */
+  require ((base & mask) == 0, s"Mis-aligned AddressSets are forbidden, bits in base and mask cannot be 1 at sametime, got: ${this.toString()}")
+  require (base >= 0, s"AddressSet negative base is ambiguous: $base")
 
-  def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
-  def contains(x: UInt) = ((x ^ UInt(base)).zext() & SInt(~mask)) === SInt(0)
+  /** Check if a [[BigInt]] `x` is in this set.
+    *
+    * @return true, if `x` is in this set.
+    */
+  def contains(x: BigInt): Boolean = ((x ^ base) & ~mask) == 0
 
-  // turn x into an address contained in this set
+  /** Generate a [[Bool]] signal, check if a [[UInt]] address `x` is in this.
+    *
+    * @param x the [[UInt]] address signal.
+    *
+    * @note chisel will do type check on lhs and rhs of `&`,
+    *       so {{{x ^ base.U}}} need to be zero extended to SInt.
+    *
+    * @todo convert `zext()` to `toSInt`.
+    *
+    * @return a circuit, output is [[Bool]] to indicate if `x` is inside
+    */
+  def contains(x: UInt): Bool = ((x ^ base.U).zext() & SInt(~mask)) === SInt(0)
+
+  /** Mask `x` with [[mask]], put it into this [[AddressSet]].
+    *
+    * @param x original [[UInt]] address signal.
+    *
+    * @return a legalized address signal which is contained by this [[AddressSet]].
+    */
   def legalize(x: UInt): UInt = base.U | (mask.U & x)
 
-  // overlap iff bitwise: both care (~mask0 & ~mask1) => both equal (base0=base1)
-  def overlaps(x: AddressSet) = (~(mask | x.mask) & (base ^ x.base)) == 0
-  // contains iff bitwise: x.mask => mask && contains(x.base)
-  def contains(x: AddressSet) = ((x.mask | (base ^ x.base)) & ~mask) == 0
+  /** Check if `x` is overlapped to this.
+    *
+    * @return true, if `x` and this has overlap.
+    */
+  def overlaps(x: AddressSet): Boolean = (~(mask | x.mask) & (base ^ x.base)) == 0
 
-  // The number of bytes to which the manager must be aligned
-  def alignment = ((mask + 1) & ~mask)
-  // Is this a contiguous memory range
-  def contiguous = alignment == mask+1
+  /** Check if `x` is contained by this.
+    *
+    * @return true, if `x` is contained by this. */
+  def contains(x: AddressSet): Boolean = ((x.mask | (base ^ x.base)) & ~mask) == 0
 
-  def finite = mask >= 0
-  def max = { require (finite, "Max cannot be calculated on infinite mask"); base | mask }
+  /** @return The most right 0 of mask set to 1, which is number of bytes to which the manager must be aligned. */
+  def alignment: BigInt = (mask + 1) & ~mask
 
-  // Widen the match function to ignore all bits in imask
-  def widen(imask: BigInt) = AddressSet(base & ~imask, mask | imask)
+  /** @return ture if address is contiguous.
+    *
+    * @note check the highest 0 is the first right 0.
+    */
+  def contiguous: Boolean = alignment == mask + 1
 
-  // Return an AddressSet that only contains the addresses both sets contain
+  /** @return ture if higher bits of mask is 0. */
+  def finite: Boolean = mask >= 0
+
+  /** @return the maximal address this set can represent. */
+  def max: BigInt = { require (finite, "Max cannot be calculated on infinite mask"); base | mask }
+
+  /** Widen the match function to ignore all bits in `imask`.
+    *
+    * @example
+    * {{{
+    *   val addr = AddressSet(Integer.parseInt("01000", 2), Integer.parseInt("00011", 2)) // 0b010??
+    *   addr.widen(Integer.parseInt("01000", 2)) // 0b0?0??
+    *   addr.widen(Integer.parseInt("10000", 2)) // 0b?10??
+    * }}}
+    */
+  def widen(imask: BigInt): AddressSet = AddressSet(base & ~imask, mask | imask)
+
+  /** Find a [[AddressSet]] both belongs to this and `x`.
+    *
+    * @note `b0, m0` and `b1, m1` are base and mask of this and `x`,
+    *       Any `x` in the returned [[AddressSet]] should satisfy:
+    * {{{
+    *   (x ^ b0) & (~m0) = 0
+    *   (x ^ b1) & (~m1) = 0
+    *   b0 & m0 = 0 // constraint
+    *   b1 & m1 = 0 // constraint
+    *   (b0 | b1) & (m0 & m1) = 0 // constraint
+    * }}}
+    * is equal to
+    * {{{
+    *   x ^ (b0 | b1) & (~(m0 & m1)) = 0
+    *   b0 & m0 = 0 // constraint
+    *   b1 & m1 = 0 // constraint
+    *   (b0 | b1) & (m0 & m1) = 0 // constraint
+    * }}}
+    *
+    * @note here is the proof for both [[intersect]] and [[overlaps]], you can run it with python-z3
+    * {{{
+    *   from z3 import *
+    *   i = 32
+    *
+    *   def equal(p0, p1):
+    *       s0 = Solver()
+    *       s1 = Solver()
+    *       s0.add(p0 == True)
+    *       s0.add(p1 == False)
+    *       s1.add(p1 == True)
+    *       s1.add(p0 == False)
+    *       r0 = s0.check() == unsat
+    *       r1 = s1.check() == unsat
+    *       if(r0 & r1):
+    *           return (f"{p0}\n<=>\n{p1}:\n")
+    *       elif(r0 & (not r1)):
+    *           return (f"{p0}\n=>\n{p1}:\n")
+    *       elif((not r0) & r1):
+    *           return (f"{p0}\n<=\n{p1}:\n")
+    *       else:
+    *           return (f"{p0}\n=/=\n{p1}:\n")
+    *
+    *   x = BitVec('x', i)
+    *   b0 = BitVec('b0', i)
+    *   m0 = BitVec('m0', i)
+    *   b1 = BitVec('b1', i)
+    *   m1 = BitVec('m1', i)
+    *   zero = BitVecVal(0, i)
+    *
+    *   equation0 = (x ^ b0) & (~m0) == zero
+    *   constraint0 = b0 & m0 == zero
+    *   equation1 = (x ^ b1) & (~m1) == zero
+    *   constraint1 = b1 & m1 == zero
+    *   overlap = (b0 ^ b1) & (~(m0 | m1)) == zero
+    *   equation2 = (x ^ (b0 | b1)) & (~(m0 & m1)) == zero
+    *   constraint2 = (b0 | b1) & (~(m0 & m1)) == zero
+    *
+    *   p0 = And(equation0, equation1, constraint0, constraint1, constraint2)
+    *   p1 = And(equation2, constraint0, constraint1, constraint2)
+    *   p3 = And(equation0, equation1, constraint0, constraint1)
+    *   p4 = And(equation0, equation1, constraint0, constraint1, overlap)
+    *   print(equal(p0, p1)) // <=>
+    *   print(equal(p3, p4)) // <=>
+    * }}}
+    * @return intersection with `x` if not empty, else [[None]].
+    */
   def intersect(x: AddressSet): Option[AddressSet] = {
     if (!overlaps(x)) {
       None
@@ -250,6 +372,10 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
     }
   }
 
+  /** Subtract the intersect of this and `x`.
+    *
+    * @return a Sequence of non-overlapped [[AddressSet]], each mask has only 1 bit asserted.
+    */
   def subtract(x: AddressSet): Seq[AddressSet] = {
     intersect(x) match {
       case None => Seq(this)
@@ -261,14 +387,14 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
     }
   }
 
-  // AddressSets have one natural Ordering (the containment order, if contiguous)
-  def compare(x: AddressSet) = {
+  /* AddressSets have one natural Ordering (the containment order, if contiguous). */
+  def compare(x: AddressSet): Int = {
     val primary   = (this.base - x.base).signum // smallest address first
     val secondary = (x.mask - this.mask).signum // largest mask first
     if (primary != 0) primary else secondary
   }
 
-  // We always want to see things in hex
+  /* We always want to see things in hex. */
   override def toString() = {
     if (mask >= 0) {
       "AddressSet(0x%x, 0x%x)".format(base, mask)
@@ -277,10 +403,11 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
     }
   }
 
-  def toRanges = {
-    require (finite, "Ranges cannot be calculated on infinite mask")
+  /** @return A sequence of contiguous [[AddressSet]], represent them in [[AddressRange]]. */
+  def toRanges: Seq[AddressRange] = {
+    require(finite, "Ranges cannot be calculated on infinite mask")
     val size = alignment
-    val fragments = mask & ~(size-1)
+    val fragments = mask & ~(size - 1)
     val bits = bitIndexes(fragments)
     (BigInt(0) until (BigInt(1) << bits.size)).map { i =>
       val off = bitIndexes(i).foldLeft(base) { case (a, b) => a.setBit(bits(b)) }
@@ -291,15 +418,24 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
 
 object AddressSet
 {
-  val everything = AddressSet(0, -1)
+  /** A whole set to address, start are 0, and don't mask any bits. */
+  val everything: AddressSet = AddressSet(0, -1)
+
+  /** Generate a sequence of continuous [[AddressSet]], all of the elements size will be aligned to power of 2.
+    *
+    * @param base base address of this sequence of addresses.
+    * @param size total size of this address.
+    */
   def misaligned(base: BigInt, size: BigInt, tail: Seq[AddressSet] = Seq()): Seq[AddressSet] = {
     if (size == 0) tail.reverse else {
-      val maxBaseAlignment = base & (-base) // 0 for infinite (LSB)
-      val maxSizeAlignment = BigInt(1) << log2Floor(size) // MSB of size
+      val maxBaseAlignment = base & (-base)
+      val maxSizeAlignment = BigInt(1) << log2Floor(size)
       val step =
         if (maxBaseAlignment == 0 || maxBaseAlignment > maxSizeAlignment)
-        maxSizeAlignment else maxBaseAlignment
-      misaligned(base+step, size-step, AddressSet(base, step-1) +: tail)
+          maxSizeAlignment
+        else
+          maxBaseAlignment
+      misaligned(base + step, size - step, AddressSet(base, step - 1) +: tail)
     }
   }
 
@@ -314,17 +450,47 @@ object AddressSet
     }.toList
   }
 
+  /** {{{y = AddressSet.unify(x: List[AddressSet])}}}
+    * has this property for all z:
+    * {{{y.exists(_.contains(z))}}} iff {{{x.exists(_.contains(z))}}}
+    *
+    * The goal is to reduce the number of terms in 'y' while upholding that property.
+    * It does NOT try to find the optimal solution as that is NP-hard.
+    */
   def unify(seq: Seq[AddressSet]): Seq[AddressSet] = {
     val bits = seq.map(_.base).foldLeft(BigInt(0))(_ | _)
     AddressSet.enumerateBits(bits).foldLeft(seq) { case (acc, bit) => unify(acc, bit) }.sorted
   }
 
+  /** Enumerate addresses can be represent by this `mask`.
+    *
+    * @example
+    * {{{
+    *   enumerateMask(0b11) = Seq(0b00, 0b01, 0b10, 0b11)
+    *   enumerateMask(0b10) = Seq(0b00, 0b10)
+    * }}}
+    */
   def enumerateMask(mask: BigInt): Seq[BigInt] = {
     def helper(id: BigInt, tail: Seq[BigInt]): Seq[BigInt] =
       if (id == mask) (id +: tail).reverse else helper(((~mask | id) + 1) & mask, id +: tail)
+
     helper(0, Nil)
   }
 
+  /** Split a mask into a sequence of masks, which has only one asserted bit.
+    *
+    * @example
+    * {{{
+    *   enumerateBits(0b10101111) = Seq(
+    *     0b10000000,
+    *     0b00100000,
+    *     0b00001000,
+    *     0b00000100,
+    *     0b00000010,
+    *     0b00000001,
+    *   )
+    * }}}
+    */
   def enumerateBits(mask: BigInt): Seq[BigInt] = {
     def helper(x: BigInt): Seq[BigInt] = {
       if (x == 0) {
@@ -334,6 +500,7 @@ object AddressSet
         bit +: helper(x & ~bit)
       }
     }
+
     helper(mask)
   }
 }
