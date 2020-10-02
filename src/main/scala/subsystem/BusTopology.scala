@@ -75,13 +75,14 @@ case class HierarchicalBusTopologyParams(
 case class CoherentBusTopologyParams(
   sbus: SystemBusParams, // TODO remove this after better width propagation
   mbus: MemoryBusParams,
-  l2: BankedL2Params
+  l2: BankedL2Params,
+  sbusToMbusXType: ClockCrossingType
 ) extends TLBusWrapperTopology(
   instantiations = (if (l2.nBanks == 0) Nil else List(
     (MBUS, mbus),
     (L2, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, l2.nBanks, L2.name)(l2.coherenceManager)))),
   connections = if (l2.nBanks == 0) Nil else List(
-    (SBUS, L2,   TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
-    (L2,  MBUS,  TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_QUERY)())
+    (SBUS, L2,   TLBusWrapperConnection(xType = NoCrossing, driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
+    (L2,  MBUS,  TLBusWrapperConnection(xType = sbusToMbusXType, driveClockFromMaster = Some(true), nodeBinding = BIND_QUERY)())
   )
 )
