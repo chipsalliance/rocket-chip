@@ -6,12 +6,10 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{DCache, ICacheParams, NonBlockingDCache, RocketCoreParams}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import scala.collection.mutable.ListBuffer
 
 trait GroundTestTileParams extends TileParams {
   val memStart: BigInt

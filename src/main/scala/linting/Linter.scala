@@ -2,8 +2,6 @@
 
 package freechips.rocketchip.linting
 
-import firrtl._
-import firrtl.ir._
 import chisel3.experimental.annotate
 
 /** Chisel users: Use to whitelist files

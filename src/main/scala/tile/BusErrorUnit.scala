@@ -7,7 +7,6 @@ import Chisel.ImplicitConversions._
 import chisel3.util.Valid
 import chisel3.DontCare
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.util._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusErrorLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}

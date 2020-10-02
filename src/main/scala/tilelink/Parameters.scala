@@ -8,7 +8,6 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.max
-import scala.reflect.ClassTag
 
 //These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel
 case class TLMasterToSlaveTransferSizes(

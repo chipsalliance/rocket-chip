@@ -3,9 +3,8 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import chisel3.util.{IrrevocableIO,ReadyValidIO}
+import chisel3.util.ReadyValidIO
 import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams, CreditedDelay}
-import scala.reflect.ClassTag
 
 /** Options for describing the attributes of memory regions */
 object RegionType {

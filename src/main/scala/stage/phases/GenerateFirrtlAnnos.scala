@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.stage.phases
 
-import chisel3.stage.phases.{Convert, Elaborate, MaybeAspectPhase}
 import firrtl.AnnotationSeq
 import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
 import firrtl.options.Viewer.view

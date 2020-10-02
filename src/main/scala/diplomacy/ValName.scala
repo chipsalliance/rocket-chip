@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.diplomacy
 
-import scala.language.experimental.macros
 import freechips.rocketchip.macros.ValNameImpl
 
 case class ValName(name: String)

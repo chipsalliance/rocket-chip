@@ -6,7 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 import TLMessages._
 
 class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters) extends LazyModule
