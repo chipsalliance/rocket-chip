@@ -57,9 +57,9 @@ class RegressionTestSuite(val names: LinkedHashSet[String]) extends RocketTestSu
 object TestGeneration {
   private val suites = collection.mutable.ListMap[String, RocketTestSuite]()
 
-  def addSuite(s: RocketTestSuite) { suites += (s.makeTargetName -> s) }
+  def addSuite(s: RocketTestSuite): Unit = { suites += (s.makeTargetName -> s) }
   
-  def addSuites(s: Seq[RocketTestSuite]) { s.foreach(addSuite) }
+  def addSuites(s: Seq[RocketTestSuite]): Unit = { s.foreach(addSuite) }
 
   private[rocketchip] def gen(kind: String, s: Seq[RocketTestSuite]) = {
     if(s.length > 0) {

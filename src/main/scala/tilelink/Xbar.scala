@@ -128,7 +128,7 @@ class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p
 
 object TLXbar
 {
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]) {
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]): Unit = {
     val seqOut_ACancel = seqOut.map(sOut => (Wire(new TLBundle_ACancel(sOut._1.params)), sOut._2))
     val seqIn_ACancel = seqIn.map(sIn => (TLBundle_ACancel(sIn._1), sIn._2))
     TLXbar_ACancel.circuit(policy, seqIn_ACancel, seqOut_ACancel)
@@ -185,7 +185,7 @@ object TLXbar
 
 object TLXbar_ACancel
 {
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]) {
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]): Unit = {
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 

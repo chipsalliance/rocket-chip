@@ -288,14 +288,14 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   def rawReset = externalClockSinkNode.in.head._1.reset
 
   /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
-  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
+  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int): Unit = {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
         .foldRight(xbarNode)(_ :*= _)
     }
   }
-  def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
+  def connectTLSlave(node: TLNode, bytes: Int): Unit = { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
   /** TileLink node which represents the view that the intra-tile masters have of the rest of the system. */
   val visibilityNode = p(TileVisibilityNodeKey)

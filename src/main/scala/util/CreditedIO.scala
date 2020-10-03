@@ -139,7 +139,7 @@ class CreditedIOCounter(val init: Int, val depth: Int) {
   def full: Bool = v === depth.U
   def empty: Bool = v === 0.U
 
-  def update(credit: Bool, debit: Bool) {
+  def update(credit: Bool, debit: Bool): Unit = {
     assert((!(credit && full) || debit) && (!(debit && empty) || credit))
     val next = Mux(credit, v + 1.U, v - 1.U)
     when (credit =/= debit) {
@@ -148,5 +148,5 @@ class CreditedIOCounter(val init: Int, val depth: Int) {
     }
   }
 
-  def update(c: CreditedIO[_]) { update(c.credit, c.debit) }
+  def update(c: CreditedIO[_]): Unit = { update(c.credit, c.debit) }
 }

@@ -72,7 +72,7 @@ object AXISXbar
   def mapInputIds (ports: Seq[AXISMasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endSourceId))
   def mapOutputIds(ports: Seq[AXISSlavePortParameters]) = TLXbar.assignRanges(ports.map(_.endDestinationId))
 
-  def arbitrate(policy: TLArbiter.Policy)(sink: AXISBundle, sources: Seq[AXISBundle]) {
+  def arbitrate(policy: TLArbiter.Policy)(sink: AXISBundle, sources: Seq[AXISBundle]): Unit = {
     if (sources.isEmpty) {
       sink.valid := false.B
     } else if (sources.size == 1) {

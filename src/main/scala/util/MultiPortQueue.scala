@@ -19,7 +19,7 @@ class MultiPortQueue[T <: Data](gen: T, val enq_lanes: Int, val deq_lanes: Int, 
 }
 
 object MultiPortQueue {
-  def gather[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U) {
+  def gather[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U): Unit = {
     // Compute per-enq-port ready
     val enq_valid = DensePrefixSum(sparse.map(_.valid.asUInt))(_ +& _)
     val low_ready = if (dense.lanes == 1) 0.U else dense.ready(log2Ceil(dense.lanes)-1, 0)
@@ -46,7 +46,7 @@ object MultiPortQueue {
     }
   }
 
-  def scatter[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U) {
+  def scatter[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U): Unit = {
     // Computer per-deq-port valid
     val deq_ready = DensePrefixSum(sparse.map(_.ready.asUInt))(_ +& _)
     val low_valid = if (dense.lanes == 1) 0.U else dense.valid(log2Ceil(dense.lanes)-1, 0)

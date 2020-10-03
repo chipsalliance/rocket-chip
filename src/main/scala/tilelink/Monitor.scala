@@ -66,7 +66,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       c.visibility.map(_.contains(address)).reduce(_ || _)
     }.reduce(_ && _)
 
-  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
+  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge): Unit = {
     //switch this flag to turn on diplomacy in error messages
     def diplomacyInfo = if (true) "" else "\nThe diplomacy information for the edge is as follows:\n" + edge.formatEdge + "\n"
     monAssert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
@@ -155,7 +155,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge) {
+  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge): Unit = {
     monAssert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
@@ -232,7 +232,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge) {
+  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge): Unit = {
     monAssert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -301,7 +301,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge) {
+  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge): Unit = {
     assume (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -362,7 +362,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge) {
+  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge): Unit = {
     val sink_ok = bundle.sink < edge.manager.endSinkId.U
     monAssert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
@@ -381,7 +381,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge) {
+  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge): Unit = {
     val a_first = edge.first(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -404,7 +404,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge) {
+  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge): Unit = {
     val b_first = edge.first(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -427,7 +427,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeADSourceFormal(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSourceFormal(bundle: TLBundle, edge: TLEdge): Unit = {
     // Symbolic variable
     val sym_source = Wire(UInt(edge.client.endSourceId.W))
     // TODO: Connect sym_source to a fixed value for simulation and to a
@@ -509,7 +509,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
             "request message" + extra)
   }
 
-  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
+  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge): Unit = {
     val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -532,7 +532,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge) {
+  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge): Unit = {
     val d_first = edge.first(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -558,7 +558,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge) {
+  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge): Unit = {
     legalizeMultibeatA(bundle.a, edge)
     legalizeMultibeatD(bundle.d, edge)
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
@@ -569,7 +569,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   //This is left in for almond which doesn't adhere to the tilelink protocol
   @deprecated("Use legalizeADSource instead if possible","")
-  def legalizeADSourceOld(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSourceOld(bundle: TLBundle, edge: TLEdge): Unit = {
     val inflight = RegInit(0.U(edge.client.endSourceId.W))
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
@@ -603,7 +603,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
-  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge): Unit = {
     val a_size_bus_size       = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
     val a_opcode_bus_size     = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
@@ -714,7 +714,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
-  def legalizeCDSource(bundle: TLBundle, edge: TLEdge) {
+  def legalizeCDSource(bundle: TLBundle, edge: TLEdge): Unit = {
     val c_size_bus_size   = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
     val c_opcode_bus_size = 3 + 1                    //opcode size is 3, but add so that 0 is not mapped to anything
 
@@ -821,7 +821,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     when (bundle.c.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
-  def legalizeDESink(bundle: TLBundle, edge: TLEdge) {
+  def legalizeDESink(bundle: TLBundle, edge: TLEdge): Unit = {
     val inflight = RegInit(0.U(edge.manager.endSinkId.W))
 
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
@@ -844,7 +844,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     inflight := (inflight | d_set) & ~e_clr
   }
 
-  def legalizeUnique(bundle: TLBundle, edge: TLEdge) {
+  def legalizeUnique(bundle: TLBundle, edge: TLEdge): Unit = {
     val sourceBits = log2Ceil(edge.client.endSourceId)
     val tooBig = 14 // >16kB worth of flight information gets to be too much
     if (sourceBits > tooBig) {
@@ -873,7 +873,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset) {
+  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit = {
     legalizeFormat    (bundle, edge)
     legalizeMultibeat (bundle, edge)
     legalizeUnique    (bundle, edge)

@@ -39,11 +39,11 @@ class LanePositionedDecoupledIO[T <: Data](private val gen: T, val maxValid: Int
     Mux(xhi && yhi, lanes.U, Mux(Mux(xly, !xhi, yhi), xlo, ylo))
   }
 
-  def clamp_ready(x: UInt) { ready := min(x, valid, lanes) }
-  def clamp_valid(x: UInt) { valid := min(x, ready, lanes) }
+  def clamp_ready(x: UInt): Unit = { ready := min(x, valid, lanes) }
+  def clamp_valid(x: UInt): Unit = { valid := min(x, ready, lanes) }
 
   // Feed from LPQ from another
-  def driveWith(x: LanePositionedDecoupledIO[T], selfRotation: UInt = 0.U, xRotation: UInt = 0.U) {
+  def driveWith(x: LanePositionedDecoupledIO[T], selfRotation: UInt = 0.U, xRotation: UInt = 0.U): Unit = {
     val limit = lanes min x.lanes
     val moved = min(ready, x.valid, limit)
     valid := moved
@@ -108,7 +108,7 @@ class LanePositionedQueueIO[T <: Data](private val gen: T, val args: LanePositio
   val abort = if (args.abort) Some(Input(Bool())) else None
 
   // Connect two LPQs (enq <= deq)
-  def driveWith(x: LanePositionedQueueIO[T]) { enq.driveWith(x.deq, enq_0_lane, x.deq_0_lane) }
+  def driveWith(x: LanePositionedQueueIO[T]): Unit = { enq.driveWith(x.deq, enq_0_lane, x.deq_0_lane) }
 }
 
 trait LanePositionedQueueModule[T <: Data] extends Module {
