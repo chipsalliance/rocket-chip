@@ -52,16 +52,21 @@ class TLRAM(
 
   val notifyNode = ecc.notifyErrors.option(BundleBridgeSource(() => new TLRAMErrors(ecc, log2Ceil(address.max)).cloneType))
 
-  lazy val module = new LazyModuleImp(this) {
+  private val outer = this
+
+  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, edge) = node.in(0)
 
-    val indexBits = (address.mask & ~(beatBytes-1)).bitCount
+    val indexBits = (outer.address.mask & ~(beatBytes-1)).bitCount
     val width = code.width(eccBytes*8)
     val lanes = beatBytes/eccBytes
     val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
       size = BigInt(1) << indexBits,
       lanes = lanes,
       bits = width)
+    val eccCode = Some(ecc.code)
+    val address = outer.address
+    val laneDataBits = eccBytes * 8
 
     parentLogicalTreeNode.map {
       case parentLTN =>

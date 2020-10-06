@@ -21,6 +21,11 @@ abstract class Code
 
   def width(w0: Int): Int
 
+  /** Takes the unencoded width and returns a list of indices indicating which
+    * bits of the encoded value will be used for ecc
+    */
+  def eccIndices(width: Int): Seq[Int]
+
   /** Encode x to a codeword suitable for decode.
    *  If poison is true, the decoded value will report uncorrectable
    *  error despite uncorrected == corrected == x.
@@ -42,6 +47,7 @@ class IdentityCode extends Code
   def canCorrect = false
 
   def width(w0: Int) = w0
+  def eccIndices(width: Int) = Seq.empty[Int]
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     require (poison.isLit && poison.litValue == 0, "IdentityCode can not be poisoned")
     x
@@ -61,6 +67,7 @@ class ParityCode extends Code
   def canCorrect = false
 
   def width(w0: Int) = w0+1
+  def eccIndices(w0: Int) = Seq(w0)
   def encode(x: UInt, poison: Bool = Bool(false)) = Cat(x.xorR ^ poison, x)
   def swizzle(x: UInt) = Cat(false.B, x)
   def decode(y: UInt) = new Decoding {
@@ -84,6 +91,13 @@ class SECCode extends Code
     val m = log2Floor(k) + 1
     k + m + (if((1 << m) < m+k+1) 1 else 0)
   }
+
+  def eccIndices(w0: Int) = {
+    (0 until width(w0)).collect {
+      case i if i >= w0 => i
+    }
+  }
+
   def swizzle(x: UInt) = {
     val k = x.getWidth
     val n = width(k)
@@ -157,6 +171,11 @@ class SECDEDCode extends Code
   private val par = new ParityCode
 
   def width(k: Int) = sec.width(k)+1
+  def eccIndices(w0: Int) = {
+    (0 until width(w0)).collect {
+      case i if i >= w0 => i
+    }
+  }
   def encode(x: UInt, poison: Bool = Bool(false)) = {
     // toggling two bits ensures the error is uncorrectable
     // to ensure corrected == uncorrected, we pick one redundant

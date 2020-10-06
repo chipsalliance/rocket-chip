@@ -3,13 +3,14 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
+import chisel3.SyncReadMem
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
-import freechips.rocketchip.util.DescribedSRAM
+import freechips.rocketchip.util.{DescribedSRAM, Code}
 
 abstract class DiplomaticSRAM(
-    address: AddressSet,
+    val address: AddressSet,
     beatBytes: Int,
     devName: Option[String],
     dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule
@@ -49,4 +50,29 @@ abstract class DiplomaticSRAM(
 
     (mem, omSRAM, Seq(omMem))
   }
+}
+
+/** Represents a single seq mem mapped to a single, contiguous address space
+  */
+trait HasJustOneSeqMem {
+
+  /** A reference to the chisel memory mapped to this address
+    *
+    * Each element of the Vec type is a lane
+    */
+  def mem: SyncReadMem[Vec[UInt]]
+
+  /** The number of bits used for data in a single lane
+    *
+    * laneDataBits + laneECCBits should equal the total width of a lane
+    */
+  def laneDataBits: Int
+
+    /** The ecc code used by this memory
+    */
+  def eccCode: Option[Code]
+
+  /** The address set this memory is mapped to
+    */
+  def address: AddressSet
 }
