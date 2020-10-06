@@ -25,46 +25,38 @@ EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
 COMMA := ,
 
-SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -jar $(base_dir)/sbt-launch.jar
+# Running with sbt-launch.jar doesn't read .sbtopts by default
+# Set if the file exists (if it exists, we're building chisel3 and firrtl from source)
+sbtopts_file := $(base_dir)/.sbtopts
+ifneq (,$(wildcard $(sbtopts_file)))
+	SBT_OPTS ?= $(shell cat $(sbtopts_file))
+endif
+SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
 FIRRTL_TRANSFORMS := \
 	firrtl.passes.InlineInstances \
 
-ROCKET_CLASS_DIRS ?= \
-	$(base_dir)/target/scala-2.12/classes \
-	$(base_dir)/chisel3/target/scala-2.12/classes \
-	$(base_dir)/chisel3/core/target/scala-2.12/classes \
-	$(base_dir)/chisel3/macros/target/scala-2.12/classes
-
-ROCKET_CLASSES ?= $(subst $(SPACE),:,$(ROCKET_CLASS_DIRS))
-FIRRTL_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl.jar
 FIRRTL_TEST_JAR ?= $(base_dir)/firrtl/utils/bin/firrtl-test.jar
-FIRRTL ?= java -Xmx$(JVM_MEMORY) -Xss8M -XX:MaxPermSize=256M -cp "$(FIRRTL_JAR)":"$(ROCKET_CLASSES)" firrtl.Driver
 
-# Build firrtl.jar and put it where chisel3 can find it.
-$(FIRRTL_JAR): $(shell find $(base_dir)/firrtl/src/main/scala -iname "*.scala")
-	$(MAKE) -C $(base_dir)/firrtl SBT="$(SBT)" root_dir=$(base_dir)/firrtl build-scala
-	cd $(base_dir)/firrtl && $(SBT) "Test / assembly"
-	touch $(FIRRTL_JAR)
-	mkdir -p $(base_dir)/lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/lib
+JAVA ?= java -Xmx$(JVM_MEMORY) -Xss8M
+FIRRTL ?= $(JAVA) -cp $(ROCKET_CHIP_JAR) firrtl.stage.FirrtlMain
+GENERATOR ?= $(JAVA) -cp $(ROCKET_CHIP_JAR) $(PROJECT).Generator
 
-	mkdir -p $(base_dir)/test_lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/test_lib
-	cp -p $(FIRRTL_TEST_JAR) $(base_dir)/test_lib
-# When chisel3 pr 448 is merged, the following extraneous copy may be removed.
-	mkdir -p $(base_dir)/chisel3/lib
-	cp -p $(FIRRTL_JAR) $(base_dir)/chisel3/lib
+# Extracting this information from SBT would be more robust
+# api-config-chipsalliance does not use standard SBT src/main/scala, but has no resources
+scala_srcs := $(shell find $(base_dir) -name "*.scala" -o -name "*.sbt")
+resource_dirs := $(shell find $(base_dir) -type d -path "*/src/main/resources")
+resources := $(foreach d,$(resource_dirs),$(shell find $(d) -type f))
+all_srcs := $(scala_srcs) $(resources)
 
-src_path := src/main/scala
-resources := $(base_dir)/src/main/resources
-csrc := $(resources)/csrc
-vsrc := $(resources)/vsrc
-default_submodules := . hardfloat chisel3
-default_submodule_src_paths := $(foreach submodule,$(default_submodules) $(ROCKETCHIP_ADDONS),$(base_dir)/$(submodule)/$(src_path))
-other_src_paths := $(base_dir)/api-config-chipsalliance/design/craft/src
-chisel_srcs := $(foreach path,$(default_submodule_src_paths) $(other_src_paths),$(shell find $(path) -name "*.scala"))
+ROCKET_CHIP_JAR := $(base_dir)/rocketchip.jar
+$(ROCKET_CHIP_JAR): $(all_srcs)
+	cd $(base_dir) && $(SBT) $(SBT_OPTS) assembly
+
+rc_resource_dir := $(base_dir)/src/main/resources
+csrc := $(rc_resource_dir)/csrc
+vsrc := $(rc_resource_dir)/vsrc
 
 disasm := 2>
 which_disasm := $(shell which spike-dasm 2> /dev/null)

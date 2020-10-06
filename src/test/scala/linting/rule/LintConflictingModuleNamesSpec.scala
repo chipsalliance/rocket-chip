@@ -4,12 +4,13 @@ package freechips.rocketchip.linting.rule
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.propspec.AnyPropSpec
 
 import freechips.rocketchip.linting.Violation
 import freechips.rocketchip.transforms.naming.{OverrideDesiredNameAnnotation, RenameDesiredNames}
 
-class LintConflictingModuleNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
+class LintConflictingModuleNamesSpec extends AnyPropSpec with Matchers {
   val transform = new LintConflictingModuleNames
   def lint(input: String, annos: Seq[Annotation]): CircuitState = {
     val state = CircuitState(Parser.parse(input), UnknownForm, annos)

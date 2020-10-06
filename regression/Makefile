@@ -337,16 +337,16 @@ emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests
 
 # Target to run Scalatest regressions 'sbt test'
 .PHONY: scalatest
-scalatest: stamps/other-submodules.stamp $(FIRRTL_JAR)
-	(cd $(abspath $(TOP)) && $(SBT) test)
+scalatest: stamps/other-submodules.stamp $(all_srcs)
+	(cd $(base_dir) && $(SBT) $(SBT_OPTS) test)
 
 # Target to run Scalafix 'sbt scalafix'
 .PHONY: scalafix
-scalafix: stamps/other-submodules.stamp $(FIRRTL_JAR)
-	(cd $(abspath $(TOP)) && $(SBT) scalafix)
+scalafix: stamps/other-submodules.stamp $(all_srcs)
+	(cd $(base_dir) && $(SBT) $(SBT_OPTS) scalafix)
 
 # Target to run Scalafix 'sbt scalafix --check', which will not actually modify
 # Scala files.
 .PHONY: scalafix-check
-scalafix-check: stamps/other-submodules.stamp $(FIRRTL_JAR)
-	(cd $(abspath $(TOP)) && $(SBT) 'scalafix --check')
+scalafix-check: stamps/other-submodules.stamp $(all_srcs)
+	(cd $(base_dir) && $(SBT) $(SBT_OPTS) 'scalafix --check')
