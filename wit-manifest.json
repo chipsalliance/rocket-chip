@@ -1,6 +1,6 @@
 [
     {
-        "commit": "3e63336a916ea6b7ccacd0a7a14c2a5e3288cf6c",
+        "commit": "01904f99ed3ad26cdbe2876f638d63e30e7fecdc",
         "name": "hardfloat",
         "source": "git@github.com:ucb-bar/berkeley-hardfloat.git"
     },
@@ -25,7 +25,7 @@
         "source": "git@github.com:ucb-bar/riscv-torture.git"
     },
     {
-        "commit": "d619ca850846d2ec36da64bf8a28e7d9a3d9ed1b",
+        "commit": "fd8df1105a92065425cd353b6855777e35bd79b4",
         "name": "api-config-chipsalliance",
         "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
     },
