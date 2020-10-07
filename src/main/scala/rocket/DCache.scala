@@ -260,14 +260,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   pma_checker.io.req.bits := s1_req
 
   val s1_paddr = Cat(Mux(s1_tlb_req_valid, s1_req.addr(paddrBits-1, pgIdxBits), tlb.io.resp.paddr >> pgIdxBits), s1_req.addr(pgIdxBits-1, 0))
-  val s1_victim_way = Wire(init = replacer.way)
-  val (s1_hit_way, s1_hit_state, s1_meta, s1_victim_meta) =
+  val s1_victim_way = Wire(UInt())
+  val (s1_hit_way, s1_hit_state, s1_meta) =
     if (usingDataScratchpad) {
       val baseAddr = p(LookupByHartId)(_.dcache.flatMap(_.scratch.map(_.U)), io_hartid.get) | io_mmio_address_prefix.get
       val inScratchpad = s1_paddr >= baseAddr && s1_paddr < baseAddr + nSets * cacheBlockBytes
       val hitState = Mux(inScratchpad, ClientMetadata.maximum, ClientMetadata.onReset)
       val dummyMeta = L1Metadata(UInt(0), ClientMetadata.onReset)
-      (inScratchpad, hitState, Seq(tECC.encode(dummyMeta.asUInt)), dummyMeta)
+      (inScratchpad, hitState, Seq(tECC.encode(dummyMeta.asUInt)))
     } else {
       val metaReq = metaArb.io.out
       val metaIdx = metaReq.bits.idx
@@ -282,7 +282,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       val s1_meta_hit_state = ClientMetadata.onReset.fromBits(
         s1_meta_uncorrected.map(r => Mux(r.tag === s1_tag && !s1_flush_valid, r.coh.asUInt, UInt(0)))
         .reduce (_|_))
-      (s1_meta_hit_way, s1_meta_hit_state, s1_meta, s1_meta_uncorrected(s1_victim_way))
+      (s1_meta_hit_way, s1_meta_hit_state, s1_meta)
     }
   val s1_data_way = Wire(init = if (nWays == 1) 1.U else Mux(inWriteback, releaseWay, s1_hit_way))
   val tl_d_data_encoded = Wire(encodeData(tl_out.d.bits.data, false.B).cloneType)
@@ -392,9 +392,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_cannot_victimize = !s2_flush_valid && io.cpu.s2_kill
   val s2_victimize = s2_want_victimize && !s2_cannot_victimize
   val s2_valid_uncached_pending = s2_valid_miss && s2_uncached && !uncachedInFlight.asUInt.andR
-  val s2_victim_way = Mux(s2_hit_valid, s2_hit_way, UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid)))
-  val s2_victim_tag = Mux(s2_valid_data_error || s2_valid_flush_line, s2_req.addr(paddrBits-1, tagLSB), RegEnable(s1_victim_meta.tag, s1_valid_not_nacked || s1_flush_valid))
-  val s2_victim_state = Mux(s2_hit_valid, s2_hit_state, RegEnable(s1_victim_meta.coh, s1_valid_not_nacked || s1_flush_valid))
+  val s2_victim_way = UIntToOH(RegEnable(s1_victim_way, s1_valid_not_nacked || s1_flush_valid))
+  val s2_victim_or_hit_way = Mux(s2_hit_valid, s2_hit_way, s2_victim_way)
+  val s2_victim_tag = Mux(s2_valid_data_error || s2_valid_flush_line, s2_req.addr(paddrBits-1, tagLSB), Mux1H(s2_victim_way, s2_meta_corrected).tag)
+  val s2_victim_state = Mux(s2_hit_valid, s2_hit_state, Mux1H(s2_victim_way, s2_meta_corrected).coh)
 
   val (s2_prb_ack_data, s2_report_param, probeNewCoh)= s2_probe_state.onProbe(probe_bits.param)
   val (s2_victim_dirty, s2_shrink_param, voluntaryNewCoh) = s2_victim_state.onCacheControl(M_FLUSH)
@@ -424,7 +425,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // tag updates on hit
   metaArb.io.in(2).valid := s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta
   metaArb.io.in(2).bits.write := !io.cpu.s2_kill
-  metaArb.io.in(2).bits.way_en := s2_victim_way
+  metaArb.io.in(2).bits.way_en := s2_victim_or_hit_way
   metaArb.io.in(2).bits.idx := s2_vaddr(idxMSB, idxLSB)
   metaArb.io.in(2).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_vaddr(idxMSB, 0))
   metaArb.io.in(2).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, s2_new_hit_state).asUInt)
@@ -599,6 +600,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       }
     }.otherwise {
       cached_grant_wait := true
+      refill_way := s2_victim_or_hit_way
     }
   }
 
@@ -685,7 +687,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   if (!usingDataScratchpad) {
     dataArb.io.in(1).bits.write := true
     dataArb.io.in(1).bits.addr :=  (s2_vaddr >> idxLSB) << idxLSB | d_address_inc
-    dataArb.io.in(1).bits.way_en := s2_victim_way
+    dataArb.io.in(1).bits.way_en := refill_way
     dataArb.io.in(1).bits.wdata := tl_d_data_encoded
     dataArb.io.in(1).bits.wordMask := ~UInt(0, rowBytes / subWordBytes)
     dataArb.io.in(1).bits.eccMask := ~UInt(0, wordBytes / eccBytes)
@@ -699,7 +701,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // line invalid, so we'll simply request the line again later.
   metaArb.io.in(3).valid := grantIsCached && d_done && !tl_out.d.bits.denied
   metaArb.io.in(3).bits.write := true
-  metaArb.io.in(3).bits.way_en := s2_victim_way
+  metaArb.io.in(3).bits.way_en := refill_way
   metaArb.io.in(3).bits.idx := s2_vaddr(idxMSB, idxLSB)
   metaArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.addr >> untagBits, s2_vaddr(idxMSB, 0))
   metaArb.io.in(3).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, s2_hit_state.onGrant(s2_req.cmd, tl_out.d.bits.param)).asUInt)
@@ -813,7 +815,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
                                     shrinkPermissions = s2_shrink_param,
                                     data = 0.U)._2
       newCoh := voluntaryNewCoh
-      releaseWay := s2_victim_way
+      releaseWay := s2_victim_or_hit_way
       when (releaseDone) { release_state := s_voluntary_write_meta }
       when (tl_out_c.fire() && c_first) {
         release_ack_wait := true
