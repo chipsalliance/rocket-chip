@@ -117,7 +117,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pma_checker = Module(new TLB(false, log2Ceil(coreDataBytes), TLBConfig(nTLBSets, nTLBWays, cacheParams.nTLBBasePageSectors, cacheParams.nTLBSuperpages)) with InlineInstance)
 
   // tags
-  val replacer = cacheParams.replacement
+  val replacer = ReplacementPolicy.fromString(cacheParams.replacementPolicy, nWays)
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val (tag_array, omSRAM) = DescribedSRAM(
@@ -198,6 +198,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val release_ack_wait = Reg(init=Bool(false))
   val release_ack_addr = Reg(UInt(paddrBits.W))
   val release_state = Reg(init=s_ready)
+  val refill_way = Reg(UInt())
   val any_pstore_valid = Wire(Bool())
   val inWriteback = release_state.isOneOf(s_voluntary_writeback, s_probe_rep_dirty)
   val releaseWay = Wire(UInt())
@@ -734,6 +735,22 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, tl_out.b.bits.address)
   metaArb.io.in(6).bits.way_en := metaArb.io.in(4).bits.way_en
   metaArb.io.in(6).bits.data := metaArb.io.in(4).bits.data
+
+  // replacement policy
+  s1_victim_way := (if (replacer.perSet && nWays > 1) {
+    val repl_array = Mem(nSets, UInt(replacer.nBits.W))
+    val s1_repl_idx = s1_req.addr(idxBits+blockOffBits-1, blockOffBits)
+    val s2_repl_idx = s2_vaddr(idxBits+blockOffBits-1, blockOffBits)
+    val s2_repl_state = Reg(UInt(replacer.nBits.W))
+    val s2_new_repl_state = replacer.get_next_state(s2_repl_state, OHToUInt(s2_hit_way))
+    val s2_repl_wen = s2_valid_masked && s2_hit_way.orR && s2_repl_state =/= s2_new_repl_state
+    val s1_repl_state = Mux(s2_repl_wen && s2_repl_idx === s1_repl_idx, s2_new_repl_state, repl_array(s1_repl_idx))
+    when (s1_valid_not_nacked) { s2_repl_state := s1_repl_state }
+    when (s2_repl_wen) { repl_array(s2_repl_idx) := s2_new_repl_state }
+    replacer.get_replace_way(s1_repl_state)
+  } else {
+    replacer.way
+  })
 
   // release
   val (c_first, c_last, releaseDone, c_count) = edge.count(tl_out_c)

@@ -19,6 +19,7 @@ case class DCacheParams(
     nWays: Int = 4,
     rowBits: Int = 64,
     subWordBits: Option[Int] = None,
+    replacementPolicy: String = "random",
     nTLBSets: Int = 1,
     nTLBWays: Int = 32,
     nTLBBasePageSectors: Int = 4,
