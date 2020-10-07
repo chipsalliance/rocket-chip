@@ -10,6 +10,7 @@ import freechips.rocketchip.util.property.cover
 
 abstract class ReplacementPolicy {
   def nBits: Int
+  def perSet: Boolean
   def way: UInt
   def miss: Unit
   def hit: Unit
@@ -36,6 +37,7 @@ class RandomReplacement(n_ways: Int) extends ReplacementPolicy {
   private val replace = Wire(Bool())
   replace := false.B
   def nBits = 16
+  def perSet = false
   private val lfsr = LFSR(nBits, replace)
   def state_read = WireDefault(lfsr)
 
@@ -79,6 +81,7 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   // [1] - 2 more recent than 0
   // [0] - 1 more recent than 0
   def nBits = (n_ways * (n_ways-1)) / 2
+  def perSet = true
   private val state_reg = RegInit(0.U(nBits.W))
   def state_read = WireDefault(state_reg)
 
@@ -161,6 +164,7 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
   //     bit[4]: way 7>6    bit[3]: way 5>4    bit[1]: way 3>2    bit[0]: way 1>0
 
   def nBits = n_ways - 1
+  def perSet = true
   private val state_reg = Reg(UInt(nBits.W))
   def state_read = WireDefault(state_reg)
 
