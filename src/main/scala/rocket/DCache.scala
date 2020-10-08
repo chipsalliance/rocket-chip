@@ -195,6 +195,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val flushing = Reg(init=Bool(false))
   val flushing_req = Reg(s1_req)
   val cached_grant_wait = Reg(init=Bool(false))
+  val resetting = RegInit(false.B)
+  val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val release_ack_wait = Reg(init=Bool(false))
   val release_ack_addr = Reg(UInt(paddrBits.W))
   val release_state = Reg(init=s_ready)
@@ -746,7 +748,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     val s2_repl_wen = s2_valid_masked && s2_hit_way.orR && s2_repl_state =/= s2_new_repl_state
     val s1_repl_state = Mux(s2_repl_wen && s2_repl_idx === s1_repl_idx, s2_new_repl_state, repl_array(s1_repl_idx))
     when (s1_valid_not_nacked) { s2_repl_state := s1_repl_state }
-    when (s2_repl_wen) { repl_array(s2_repl_idx) := s2_new_repl_state }
+
+    val waddr = Mux(resetting, flushCounter(idxBits-1, 0), s2_repl_idx)
+    val wdata = Mux(resetting, 0.U, s2_new_repl_state)
+    val wen = resetting || s2_repl_wen
+    when (wen) { repl_array(waddr) := wdata }
+
     replacer.get_replace_way(s1_repl_state)
   } else {
     replacer.way
@@ -949,10 +956,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   // flushes
-  val resetting = RegInit(false.B)
   if (!usingDataScratchpad)
     when (RegNext(reset)) { resetting := true }
-  val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val flushCounterNext = flushCounter +& 1
   val flushDone = (flushCounterNext >> log2Ceil(nSets)) === nWays
   val flushCounterWrap = flushCounterNext(log2Ceil(nSets)-1, 0)
