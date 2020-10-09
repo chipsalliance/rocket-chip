@@ -204,6 +204,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val tgtPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
   val pages = Reg(Vec(nPages, UInt(width=vaddrBits - matchBits)))
   val pageValid = Reg(init = UInt(0, nPages))
+  val pagesMasked = (pageValid.asBools zip pages).map { case (v, p) => Mux(v, p, 0.U) }
 
   val isValid = Reg(init = UInt(0, entries))
   val cfiType = Reg(Vec(entries, CFIType()))
@@ -235,7 +236,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
-  val nextPageRepl = Reg(UInt(width = log2Ceil(nPages)))
+  val nextPageRepl = RegInit(0.U(log2Ceil(nPages).W))
   val idxPageRepl = Cat(pageHit(nPages-2,0), pageHit(nPages-1)) | Mux(usePageHit, UInt(0), UIntToOH(nextPageRepl))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
@@ -287,7 +288,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
 
   io.resp.valid := (pageHit << 1)(Mux1H(idxHit, idxPages))
   io.resp.bits.taken := true
-  io.resp.bits.target := Cat(pages(Mux1H(idxHit, tgtPages)), Mux1H(idxHit, tgts) << log2Up(coreInstBytes))
+  io.resp.bits.target := Cat(pagesMasked(Mux1H(idxHit, tgtPages)), Mux1H(idxHit, tgts) << log2Up(coreInstBytes))
   io.resp.bits.entry := OHToUInt(idxHit)
   io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(idxHit, brIdx) else UInt(0))
   io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
