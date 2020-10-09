@@ -165,7 +165,7 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
 
   def nBits = n_ways - 1
   def perSet = true
-  private val state_reg = Reg(UInt(nBits.W))
+  private val state_reg = if (nBits == 0) Reg(UInt(0.W)) else RegInit(0.U(nBits.W))
   def state_read = WireDefault(state_reg)
 
   def access(touch_way: UInt): Unit = {
