@@ -185,6 +185,9 @@ package object util {
     def inRange(base: UInt, bounds: UInt) = x >= base && x < bounds
 
     def ## (y: Option[UInt]): UInt = y.map(x ## _).getOrElse(x)
+
+    // Like >=, but prevents x-prop for ('x >= 0)
+    def >== (y: UInt): Bool = x >= y || y === 0.U
   }
 
   implicit class OptionUIntToAugmentedOptionUInt(private val x: Option[UInt]) extends AnyVal {
