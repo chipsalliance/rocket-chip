@@ -45,7 +45,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
 
   if (n > 0) {
     when (io.inst(0).ready) {
-      nBufValid := Mux(nReady >= nBufValid, UInt(0), nBufValid - nReady)
+      nBufValid := Mux(nReady >== nBufValid, UInt(0), nBufValid - nReady)
       if (n > 1) when (nReady > 0 && nReady < nBufValid) {
         val shiftedBuf = shiftInsnRight(buf.data(n*coreInstBits-1, coreInstBits), (nReady-1)(log2Ceil(n-1)-1,0))
         buf.data := Cat(buf.data(n*coreInstBits-1, (n-1)*coreInstBits), shiftedBuf((n-1)*coreInstBits-1, 0))
