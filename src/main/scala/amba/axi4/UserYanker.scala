@@ -49,17 +49,18 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       out.ar.valid := in .ar.valid && ar_ready
       out.ar.bits :<= in .ar.bits
 
-      val rid = out.r.bits.id
+      val out_r = SuppressX(out.r)
+      val rid = out_r.bits.id
       val r_valid = Vec(rqueues.map(_.deq.valid))(rid)
       val r_bits = Vec(rqueues.map(_.deq.bits))(rid)
-      assert (!out.r.valid || r_valid) // Q must be ready faster than the response
-      in.r :<> out.r
+      assert (!out_r.valid || r_valid) // Q must be ready faster than the response
+      in.r :<> out_r
       in.r.bits.echo :<= r_bits
 
       val arsel = UIntToOH(arid, edgeIn.master.endId).asBools
       val rsel  = UIntToOH(rid,  edgeIn.master.endId).asBools
       (rqueues zip (arsel zip rsel)) foreach { case (q, (ar, r)) =>
-        q.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
+        q.deq.ready := out_r .valid && in .r .ready && r && out_r.bits.last
         q.enq.valid := in .ar.valid && out.ar.ready && ar
         q.enq.bits :<= in.ar.bits.echo
       }

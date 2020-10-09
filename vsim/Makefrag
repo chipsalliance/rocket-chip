@@ -19,6 +19,9 @@ sim_vsrcs = \
     $(vsrc)/SimJTAG.v \
     $(bb_vsrcs)
 
+extra_vsrcs = \
+	$(generated_dir)/$(long_name)/XSuppressor.v \
+
 # C sources
 
 sim_csrcs = \
@@ -49,14 +52,9 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	$(RISCV)/lib/libfesvr.a \
 	-sverilog \
 	+incdir+$(generated_dir) \
-	+define+CLOCK_PERIOD=1.0 $(sim_vsrcs) $(sim_csrcs) \
+	+define+CLOCK_PERIOD=1.0 $(sim_vsrcs) $(sim_csrcs) $(extra_vsrcs) \
 	+define+PRINTF_COND=$(TB).printf_cond \
 	+define+STOP_COND=!$(TB).reset \
-	+define+RANDOMIZE_MEM_INIT \
-	+define+RANDOMIZE_REG_INIT \
-	+define+RANDOMIZE_GARBAGE_ASSIGN \
-	+define+RANDOMIZE_INVALID_ASSIGN \
-	+define+RANDOMIZE_DELAY=0.1 \
 	+define+MODEL=$(MODEL) \
 	+libext+.v \
 
