@@ -6,6 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.internal.InstanceId
+import chisel3.WireInit
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters
@@ -90,15 +91,19 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
   }
   def get(addr: UInt): BHTResp = {
     val res = Wire(new BHTResp)
-    res.value := table(index(addr, history))
+    res.value := Mux(resetting, 0.U, table(index(addr, history)))
     res.history := history
     res
   }
   def updateTable(addr: UInt, d: BHTResp, taken: Bool): Unit = {
-    table(index(addr, d.history)) := (params.counterLength match {
-      case 1 => taken
-      case 2 => Cat(taken ^ d.value(0), d.value === 1 || d.value(1) && taken)
-    })
+    wen := true
+    when (!resetting) {
+      waddr := index(addr, d.history)
+      wdata := (params.counterLength match {
+        case 1 => taken
+        case 2 => Cat(taken ^ d.value(0), d.value === 1 || d.value(1) && taken)
+      })
+    }
   }
   def resetHistory(d: BHTResp): Unit = {
     history := d.history
@@ -111,7 +116,15 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
   }
 
   private val table = Mem(params.nEntries, UInt(width = params.counterLength))
-  val history = Reg(UInt(width = params.historyLength))
+  val history = RegInit(0.U(params.historyLength.W))
+
+  private val reset_waddr = RegInit(0.U((params.nEntries.log2+1).W))
+  private val resetting = !reset_waddr(params.nEntries.log2)
+  private val wen = WireInit(resetting)
+  private val waddr = WireInit(reset_waddr)
+  private val wdata = WireInit(0.U)
+  when (resetting) { reset_waddr := reset_waddr + 1 }
+  when (wen) { table(waddr) := wdata }
 }
 
 object CFIType {
