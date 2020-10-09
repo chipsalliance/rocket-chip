@@ -54,8 +54,8 @@ class RAS(nras: Int) {
   def clear(): Unit = count := UInt(0)
   def isEmpty: Bool = count === UInt(0)
 
-  private val count = Reg(UInt(width = log2Up(nras+1)))
-  private val pos = Reg(UInt(width = log2Up(nras)))
+  private val count = RegInit(0.U(log2Up(nras+1).W))
+  private val pos = RegInit(0.U(log2Up(nras).W))
   private val stack = Reg(Vec(nras, UInt()))
 }
 
