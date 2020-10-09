@@ -465,10 +465,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val pstore1_rmw = Bool(usingRMW) && RegEnable(needsRead(s1_req), s1_valid_not_nacked && s1_write)
   val pstore1_merge_likely = s2_valid_not_nacked_in_s1 && s2_write && s2_store_merge
   val pstore1_merge = s2_store_valid && s2_store_merge
-  val pstore2_valid = Reg(Bool())
+  val pstore2_valid = RegInit(false.B)
   val pstore_drain_opportunistic = !(io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)) && !(s1_valid && s1_waw_hazard)
   val pstore_drain_on_miss = releaseInFlight || RegNext(io.cpu.s2_nack)
-  val pstore1_held = Reg(Bool())
+  val pstore1_held = RegInit(false.B)
   val pstore1_valid_likely = s2_valid && s2_write || pstore1_held
   def pstore1_valid_not_rmw(s2_kill: Bool) = s2_valid_hit_pre_data_ecc && s2_write && !s2_kill || pstore1_held
   val pstore1_valid = s2_store_valid || pstore1_held
@@ -999,7 +999,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(0).bits := metaArb.io.in(5).bits
   metaArb.io.in(0).bits.write := true
   metaArb.io.in(0).bits.way_en := ~UInt(0, nWays)
-  metaArb.io.in(0).bits.data := tECC.encode(L1Metadata(s2_req.addr >> tagLSB, ClientMetadata.onReset).asUInt)
+  metaArb.io.in(0).bits.data := tECC.encode(L1Metadata(0.U, ClientMetadata.onReset).asUInt)
   when (resetting) {
     flushCounter := flushCounterNext
     when (flushDone) {
