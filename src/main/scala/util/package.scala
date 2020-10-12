@@ -38,17 +38,25 @@ package object util {
     def rotate(n: Int): Seq[T] = x.drop(n) ++ x.take(n)
 
     def rotate(n: UInt): Seq[T] = {
-      require(isPow2(x.size))
-      val amt = n.padTo(log2Ceil(x.size))
-      (0 until log2Ceil(x.size)).foldLeft(x)((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+      if (x.size <= 1) {
+        x
+      } else {
+        require(isPow2(x.size))
+        val amt = n.padTo(log2Ceil(x.size))
+        (0 until log2Ceil(x.size)).foldLeft(x)((r, i) => (r.rotate(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+      }
     }
 
     def rotateRight(n: Int): Seq[T] = x.takeRight(n) ++ x.dropRight(n)
 
     def rotateRight(n: UInt): Seq[T] = {
-      require(isPow2(x.size))
-      val amt = n.padTo(log2Ceil(x.size))
-      (0 until log2Ceil(x.size)).foldLeft(x)((r, i) => (r.rotateRight(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+      if (x.size <= 1) {
+        x
+      } else {
+        require(isPow2(x.size))
+        val amt = n.padTo(log2Ceil(x.size))
+        (0 until log2Ceil(x.size)).foldLeft(x)((r, i) => (r.rotateRight(1 << i) zip r).map { case (s, a) => Mux(amt(i), s, a) })
+      }
     }
   }
 
@@ -156,15 +164,23 @@ package object util {
     def rotateRight(n: Int): UInt = if (n == 0) x else Cat(x(n-1, 0), x >> n)
 
     def rotateRight(n: UInt): UInt = {
-      val amt = n.padTo(log2Ceil(x.getWidth))
-      (0 until log2Ceil(x.getWidth)).foldLeft(x)((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+      if (x.getWidth <= 1) {
+        x
+      } else {
+        val amt = n.padTo(log2Ceil(x.getWidth))
+        (0 until log2Ceil(x.getWidth)).foldLeft(x)((r, i) => Mux(amt(i), r.rotateRight(1 << i), r))
+      }
     }
 
     def rotateLeft(n: Int): UInt = if (n == 0) x else Cat(x(x.getWidth-1-n,0), x(x.getWidth-1,x.getWidth-n))
 
     def rotateLeft(n: UInt): UInt = {
-      val amt = n.padTo(log2Ceil(x.getWidth))
-      (0 until log2Ceil(x.getWidth)).foldLeft(x)((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
+      if (x.getWidth <= 1) {
+        x
+      } else {
+        val amt = n.padTo(log2Ceil(x.getWidth))
+        (0 until log2Ceil(x.getWidth)).foldLeft(x)((r, i) => Mux(amt(i), r.rotateLeft(1 << i), r))
+      }
     }
 
     // compute (this + y) % n, given (this < n) and (y < n)
