@@ -216,6 +216,8 @@ test the generated designs.
 Sources for the first-stage bootloader included in the BootROM.
 * **csrc**
 C sources for use with Verilator simulation.
+* **docs**
+Documentation, tutorials, etc for specific parts of the codebase.
 * **emulator**
 Directory in which Verilator simulations are compiled and run.
 * **project**
