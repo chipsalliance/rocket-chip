@@ -21,6 +21,17 @@ The goal of this walkthrough is to demonstrate an extremely simple Diplomacy
 protocol. In this walkthrough, we will demonstrate how to create a parameterized
 adder and its associated testing modules.
 
+To follow along and execute this tutorial, create a new Chisel source file
+`rocket-chip/src/main/scala/DiplomacyTutorial.scala`
+Add a packge declaration:
+
+```scala
+package chipsalliance.rocketchip.tutorial
+```
+
+To complete the tutorial, copy the code snippets
+below into your DiplomacyTutorial.scala.
+
 ## Diplomatic Adder and Test Bench
 
 Let's begin by describing the desired circuit. We want a 2-to-1 **adder**, and
@@ -35,7 +46,8 @@ expect both our drivers to provide addends of the same widths. It will use the
 smaller of the two widths from the drivers versus the monitor, which is the opposite
 behavior of typical Chisel width inference.
 
-```scala mdoc:invisible
+Add the necessary imports for the tutorial code:
+```scala mdoc
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
@@ -310,17 +322,34 @@ of bindings can be found in [Nodes.scala](https://github.com/chipsalliance/rocke
 ### The Generated Verilog
 
 Now we are ready to generate the Verilog for our circuit.
+We will wrap it inside an `App` so that we can
+call it with `sbt`:
 
-```scala mdoc:silent
-val verilog = (new ChiselStage).emitVerilog(
-  LazyModule(new AdderTestHarness()(Parameters.empty)).module
-)
+``` scala mdoc:silent
+/** MAIN */
+object DiplomaticAdderTutorial extends App {
+  val verilog = (new ChiselStage).emitVerilog(
+    LazyModule(new AdderTestHarness()(Parameters.empty)).module
+  )
+  println(verilog)
+}
+```
+
+From your command line execute:
+```
+sbt
+sbt::rocketchip> runMain tutorials.DiplomaticAdderTutorial
 ```
 
 Below is the generated Verilog for our modules! Note the parameterized ports
 in `Adder`, `AdderDriver`, and `AdderChecker` all get the lower width (4).
 The LFSR is also parameterized to 4 bits.
 
+```scala mdoc:invisible
+  val verilog = (new ChiselStage).emitVerilog(
+    LazyModule(new AdderTestHarness()(Parameters.empty)).module
+  )
+```
 ```scala mdoc:passthrough
 println(s"```verilog\n$verilog```")
 ```
