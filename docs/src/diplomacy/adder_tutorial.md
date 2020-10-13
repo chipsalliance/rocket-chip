@@ -1,5 +1,11 @@
 # The Littlest Diplomacy Walkthrough
 
+```scala mdoc:invisible
+/** ATTENTION: if you can read this, you are reading raw documentation. Please generate
+  * documentation from this source file as described in the docs/README.md.
+  */
+```
+
 - [What is Diplomacy?](#what-is-diplomacy)
 - [Diplomatic Adder and Test Bench](#diplomatic-adder-and-test-bench)
   * [Parameter negotiation and passing](#parameter-negotiation-and-passing)
