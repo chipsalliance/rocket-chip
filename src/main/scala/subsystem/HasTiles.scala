@@ -114,6 +114,14 @@ trait HasTileInterruptSources
       outputRequiresInput = false,
       inputRequiresOutput = false))
   }
+  val seipNode = p(PLICKey) match {
+    case Some(_) => None
+    case None    => Some(IntNexusNode(
+      sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
+      sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+      outputRequiresInput = false,
+      inputRequiresOutput = false))
+  }
 }
 
 /** These are sources of "constants" that are driven into the tile.
@@ -297,7 +305,7 @@ trait CanAttachTile {
     if (domain.tile.tileParams.core.hasSupervisorMode) {
       domain.crossIntIn(crossingParams.crossingType) :=
         context.plicOpt .map { _.intnode }
-          .getOrElse { NullIntSource() }
+          .getOrElse { context.seipNode.get }
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
@@ -402,6 +410,12 @@ trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
   meip.foreach { m =>
     m.zipWithIndex.foreach{ case (pin, i) =>
       (outer.meipNode.get.out(i)._1)(0) := pin
+    }
+  }
+  val seip = if(outer.seipNode.isDefined) Some(IO(Vec(outer.seipNode.get.out.size, Bool()).asInput)) else None
+  seip.foreach { s =>
+    s.zipWithIndex.foreach{ case (pin, i) =>
+      (outer.seipNode.get.out(i)._1)(0) := pin
     }
   }
 }
