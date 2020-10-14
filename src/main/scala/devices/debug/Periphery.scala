@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.experimental.IntParam
+import chisel3.experimental.{IntParam, noPrefix}
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
@@ -109,7 +109,8 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     resetctrl
   }
 
-  val debug = outer.debugOpt.map { outerdebug =>
+  // noPrefix is workaround https://github.com/freechipsproject/chisel3/issues/1603
+  val debug = noPrefix(outer.debugOpt.map { outerdebug =>
     val debug = IO(new DebugIO)
 
     require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
@@ -145,7 +146,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
 
     debug
-  }
+  })
 
   val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
 
