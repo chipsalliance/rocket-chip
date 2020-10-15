@@ -6,7 +6,7 @@ import Chisel.{defaultCompileOptions => _, _}
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem._
+import freechips.rocketchip.subsystem.{HasTileLinkLocations, TLBusWrapperLocation, CBUS}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -99,58 +99,56 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
+  /** The inward side of the this node is edges coming from external devices or
+    * an IntXbar that has aggregated over such devices.
+    * The outward side of this node has edges going to a core or local interrupt controller
+    * in pairs of meip/seip lines. Each outward node picks the number of interrupts based on
+    * whether or not it supports supervisor mode.
+    */
   val intnode: IntNexusNode = IntNexusNode(
-    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(None, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
     inputRequiresOutput = false)
 
-  /* Negotiated sizes */
-  def nDevices: Int = intnode.edges.in.map(_.source.num).sum
+  // Negotiated sizes
+  def nDevices: Int = intnode.edges.in.map(_.num).sum
   def minPriorities = min(params.maxPriorities, nDevices)
   def nPriorities = (1 << log2Ceil(minPriorities+1)) - 1 // round up to next 2^n-1
-  def nHarts = intnode.edges.out.map(_.source.num).sum
+  def nHarts = intnode.edges.out.map(_.num).sum
 
-  // Assign all the devices unique ranges
-  lazy val sources = intnode.edges.in.map(_.source)
-  lazy val flatSources = (sources zip sources.map(_.num).scanLeft(0)(_+_).init).map {
-    case (s, o) => s.sources.map(z => z.copy(range = z.range.offset(o)))
-  }.flatten
+  // Deterministic sizes
+  val numReserved = 1 // interrupt 0 is reserved
 
+  // Assign all the devices unique ranges and make records of the finalized maps
   ResourceBinding {
-    flatSources.foreach { s => s.resources.foreach { r =>
-      // +1 because interrupt 0 is reserved
-      (s.range.start until s.range.end).foreach { i => r.bind(device, ResourceInt(i+1)) }
-    } }
+    intnode.edges.in.zip(intnode.edges.in.runningTotal).foreach { case (edge, offset) =>
+      edge.bindDevice(device, (i: Int) => Some(i + numReserved + offset))
+    }
+  }
+
+  def description = {
+    s"Platform-Level Interrupt Map (${nHarts} hart contexts, ${nDevices} interrupts):\n" +
+    intnode.edges.in.flattenSources(numReserved).map("  " + _.description).mkString("\n")
   }
 
   lazy val module = new LazyModuleImp(this) {
-    Annotated.params(this, params)
+    println(description+"\n")
 
     val (io_devices, edgesIn) = intnode.in.unzip
     val (io_harts, _) = intnode.out.unzip
 
-    // Compact the interrupt vector the same way
-    val interrupts = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
-    // This flattens the harts into an MSMSMSMSMS... or MMMMM.... sequence
-    val harts = io_harts.flatten
-
-    def getNInterrupts = interrupts.size
-
-    println(s"Interrupt map (${nHarts} harts ${nDevices} interrupts):")
-    flatSources.foreach { s =>
-      // +1 because 0 is reserved, +1-1 because the range is half-open
-      println(s"  [${s.range.start+1}, ${s.range.end}] => ${s.name}")
-    }
-    println("")
+    // Compact the incoming device interrupts into a single sequence
+    val interrupts: Seq[Bool] = intnode.in.map { case (i, e) => i.take(e.num) }.flatten
+    // Compact the outgoing hart interrupts into an MSMSMSMSMS... or MMMMM.... sequence
+    val harts: Seq[Bool] = io_harts.flatten
 
     require (nDevices == interrupts.size, s"Must be: nDevices=$nDevices == interrupts.size=${interrupts.size}")
     require (nHarts == harts.size, s"Must be: nHarts=$nHarts == harts.size=${harts.size}")
-
     require(nDevices <= PLICConsts.maxDevices, s"Must be: nDevices=$nDevices <= PLICConsts.maxDevices=${PLICConsts.maxDevices}")
     require(nHarts > 0 && nHarts <= params.maxHarts, s"Must be: nHarts=$nHarts > 0 && nHarts <= PLICParams.maxHarts=${params.maxHarts}")
 
-    // For now, use LevelGateways for all TL2 interrupts
+    // For now, use LevelGateways for all incoming diplomatic interrupts
     val gateways = interrupts.map { case i =>
       val gateway = Module(new LevelGateway)
       gateway.io.interrupt := i
@@ -330,15 +328,6 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
     val max  = UInt(width = prioBits)
   }
 
-  def findMax(x: Seq[UInt]): (UInt, UInt) = {
-    if (x.length > 1) {
-      val half = 1 << (log2Ceil(x.length) - 1)
-      val left = findMax(x take half)
-      val right = findMax(x drop half)
-      MuxT(left._1 >= right._1, left, (right._1, UInt(half) | right._2))
-    } else (x.head, UInt(0))
-  }
-
   val effectivePriority = (UInt(1) << prioBits) +: (io.ip.asBools zip io.prio).map { case (p, x) => Cat(p, x) }
   val (maxPri, maxDev) = findMax(effectivePriority)
   io.max := maxPri // strips the always-constant high '1' bit
@@ -346,7 +335,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 }
 
 /** Trait that will connect a PLIC to a subsystem */
-trait CanHavePeripheryPLIC { this: BaseSubsystem =>
+trait CanHavePeripheryPLIC { this: HasTileLinkLocations =>
   val plicOpt  = p(PLICKey).map { params =>
     val tlbus = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
     val plic = LazyModule(new TLPLIC(params, tlbus.beatBytes))
