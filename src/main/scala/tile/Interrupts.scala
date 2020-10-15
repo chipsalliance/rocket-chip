@@ -2,12 +2,25 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
-
+import chisel3._
+import chisel3.util.{log2Ceil, RegEnable}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
+
+object InterruptOffsetConstants {
+  def SSIPID        : Int = 1       // ssip (if S-Mode present)
+  def MSIPID        : Int = 3       // msip
+  def STIPID        : Int = 5       // stip (if S-Mode present)
+  def MTIPID        : Int = 7       // mtip
+  def SEIPID        : Int = 9       // seip from PLIC (if S-Mode present)
+  def MEIPID        : Int = 11      // meip from PLIC
+  def CSIPID        : Int = 12      // additional CLIC software interrupt
+  def LOCALINTIDBASE: Int = 16      // 1st local interrupt ID
+  def DEBUGID       : Int = 65535   // mysterious ancient constant
+}
+import InterruptOffsetConstants._
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
   val debug = Bool()
@@ -18,12 +31,36 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
 }
 
-// Use diplomatic interrupts to external interrupts from the subsystem into the tile
+/** This trait offers the nodes necessary to decode external interrupts raised
+  * by debug, clint, plic, interrupt controllers and translate them into
+  * the bundle format expected by the CSR file.
+  */
 trait SinksExternalInterrupts { this: BaseTile =>
+  private val debugCSRIntIds = List(DEBUGID)
+  private val clintCSRIntIds = List(MSIPID, MTIPID)
+  private val plicCSRIntIds = if (usingSupervisor) List(MEIPID, SEIPID) else List(MEIPID)
+  private val localCSRIntIds = List.tabulate(tileParams.core.nLocalInterrupts)(_ + LOCALINTIDBASE)
+  // The order of ids in this list must match the below ordering of IntSinkPorts,
+  // the indexing order used below in decodeCoreInterrupts, and
+  // the order of := connections in subsystem.HasTiles.connectInterrupts
+  private val csrIntIds = debugCSRIntIds ++ clintCSRIntIds ++ plicCSRIntIds ++ localCSRIntIds
+  val intSinkNode = IntSinkNode(Seq(
+    IntSinkPortParameters(Seq(IntSinkParameters(debugCSRIntIds.size))),
+    IntSinkPortParameters(Seq(IntSinkParameters(clintCSRIntIds.size))),
+    IntSinkPortParameters(Seq(IntSinkParameters(plicCSRIntIds.size))),
+    IntSinkPortParameters(Seq(IntSinkParameters(localCSRIntIds.size)))
+  ))
+  val intInwardNode = intSinkNode
 
-  val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
-  protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
-  intSinkNode := intXbar.intnode
+  // go from diplomatic Interrupts to bundled TileInterrupts
+  def decodeCoreInterrupts(core: TileInterrupts): Unit = {
+    core.debug := intSinkNode.in(0)._1(0)
+    core.msip  := intSinkNode.in(1)._1(0)
+    core.mtip  := intSinkNode.in(1)._1(1)
+    core.meip  := intSinkNode.in(2)._1(0)
+    core.seip.foreach { _ := intSinkNode.in(2)._1(1) }
+    core.lip   := intSinkNode.in(3)._1
+  }
 
   def cpuDevice: Device
   val intcDevice = new DeviceSnippet {
@@ -37,42 +74,7 @@ trait SinksExternalInterrupts { this: BaseTile =>
   }
 
   ResourceBinding {
-    intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
-      for (i <- s.range.start until s.range.end) {
-       csrIntMap.lift(i).foreach { j =>
-          s.resources.foreach { r =>
-            r.bind(intcDevice, ResourceInt(j))
-          }
-        }
-      }
-    }
-  }
-
-  // TODO: the order of the following two functions must match, and
-  //         also match the order which things are connected to the
-  //         per-tile crossbar in subsystem.HasTiles.connectInterrupts
-
-  // debug, msip, mtip, meip, seip, lip offsets in CSRs
-  def csrIntMap: List[Int] = {
-    val nlips = tileParams.core.nLocalInterrupts
-    val seip = if (usingSupervisor) Seq(9) else Nil
-    List(65535, 3, 7, 11) ++ seip ++ List.tabulate(nlips)(_ + 16)
-  }
-
-  // go from flat diplomatic Interrupts to bundled TileInterrupts
-  def decodeCoreInterrupts(core: TileInterrupts): Unit = {
-    val async_ips = Seq(core.debug)
-    val periph_ips = Seq(
-      core.msip,
-      core.mtip,
-      core.meip)
-
-    val seip = if (core.seip.isDefined) Seq(core.seip.get) else Nil
-
-    val core_ips = core.lip
-
-    val (interrupts, _) = intSinkNode.in(0)
-    (async_ips ++ periph_ips ++ seip ++ core_ips).zip(interrupts).foreach { case(c, i) => c := i }
+    intSinkNode.edges.in.foreach { _.bindDevice(intcDevice, csrIntIds.lift) }
   }
 }
 

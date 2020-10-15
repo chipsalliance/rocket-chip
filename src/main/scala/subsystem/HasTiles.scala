@@ -6,7 +6,7 @@ import Chisel._
 import chisel3.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
@@ -105,23 +105,19 @@ trait HasTileInterruptSources
   with CanHavePeripheryCLINT
   with HasPeripheryDebug
 { this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
-  /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
-  val meipNode = p(PLICKey) match {
-    case Some(_) => None
-    case None    => Some(IntNexusNode(
-      sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
-      sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
-      outputRequiresInput = false,
-      inputRequiresOutput = false))
-  }
-  val seipNode = p(PLICKey) match {
-    case Some(_) => None
-    case None    => Some(IntNexusNode(
-      sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
-      sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
-      outputRequiresInput = false,
-      inputRequiresOutput = false))
-  }
+  /** extPlatformIntNode is used to create per-tile subsystem inputs in Configs without a PLIC */
+  val extPlatformIntNode = IntNexusNode(
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(None))) }, // could be 1 or 2 per tile
+    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false,
+    inputRequiresOutput = false)
+
+   /** extLocalIntNode is used to create per-tile subsystem inputs for local interrupts */
+  val extLocalIntNode = IntNexusNode(
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(None))) }, // varies per tile
+    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false,
+    inputRequiresOutput = false)
 }
 
 /** These are sources of "constants" that are driven into the tile.
@@ -294,22 +290,15 @@ trait CanAttachTile {
     //    From CLINT: "msip" and "mtip"
     domain.crossIntIn(crossingParams.crossingType) :=
       context.clintOpt.map { _.intnode }
-        .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+        .getOrElse { NullIntSource(num = CLINTConsts.ints) }
 
-    //    From PLIC: "meip"
+    //    From PLIC: "meip" and possibly "seip"
     domain.crossIntIn(crossingParams.crossingType) :=
-      context.plicOpt .map { _.intnode }
-        .getOrElse { context.meipNode.get }
-
-    //    From PLIC: "seip" (only if supervisor mode is enabled)
-    if (domain.tile.tileParams.core.hasSupervisorMode) {
-      domain.crossIntIn(crossingParams.crossingType) :=
-        context.plicOpt .map { _.intnode }
-          .getOrElse { context.seipNode.get }
-    }
+      context.plicOpt.map { _.intnode }
+        .getOrElse { context.extPlatformIntNode }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
-    // (they are connected to domain.tile.intInwardNode in a seperate trait)
+    domain.crossIntIn(NoCrossing) := context.extLocalIntNode
 
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
@@ -406,10 +395,16 @@ trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
   val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
 
-  val meip = if(outer.meipNode.isDefined) Some(IO(Vec(outer.meipNode.get.out.size, Bool()).asInput)) else None
-  meip.foreach { m =>
-    m.zipWithIndex.foreach{ case (pin, i) =>
-      (outer.meipNode.get.out(i)._1)(0) := pin
+  val meip: Vec[Bool] = IO(Input(Vec(outer.extPlatformIntNode.out.size, Bool())))
+  meip.zip(outer.extPlatformIntNode.out).foreach {
+    case (io, (bundle, _)) => bundle(0) := io
+  }
+
+  val seip: Seq[Bool] = outer.extPlatformIntNode.out.zipWithIndex.collect {
+    case ((bundle, edge), i) if edge.num > 1 => {
+      val io = IO(Input(Bool()))
+      bundle(1) := io
+      io.suggestName(s"$i") // TODO might have to change this back to $"seip_$i" depending on resolution to https://github.com/freechipsproject/chisel3/issues/1603
     }
   }
   val seip = if(outer.seipNode.isDefined) Some(IO(Vec(outer.seipNode.get.out.size, Bool()).asInput)) else None
