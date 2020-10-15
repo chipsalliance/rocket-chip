@@ -41,6 +41,9 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
 
 class PTWPerfEvents extends Bundle {
   val l2miss = Bool()
+  val l2hit = Bool()
+  val pte_miss = Bool()
+  val pte_hit = Bool()
 }
 
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
@@ -189,10 +192,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     (hit && count < pgLevels-1, Mux1H(hits, data))
   }
+  io.dpath.perf.pte_miss := false
+  io.dpath.perf.pte_hit := false
 
   val l2_refill = RegNext(false.B)
   l2_refill_wire := l2_refill
   io.dpath.perf.l2miss := false
+  io.dpath.perf.l2hit := false
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
     require(isPow2(coreParams.nL2TLBEntries))
@@ -236,6 +242,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val s2_entry = s2_rdata.uncorrected.asTypeOf(new L2TLBEntry)
     val s2_hit = s2_valid && s2_valid_bit && r_tag === s2_entry.tag
     io.dpath.perf.l2miss := s2_valid && !(s2_valid_bit && r_tag === s2_entry.tag)
+    io.dpath.perf.l2hit := s2_hit
     val s2_pte = Wire(new PTE)
     s2_pte := s2_entry
     s2_pte.g := s2_g
@@ -301,8 +308,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_req) {
       when (pte_cache_hit) {
         count := count + 1
+        io.dpath.perf.pte_hit := true
       }.otherwise {
         next_state := Mux(io.mem.req.ready, s_wait1, s_req)
+        io.dpath.perf.pte_miss := io.mem.req.ready
       }
     }
     is (s_wait1) {
