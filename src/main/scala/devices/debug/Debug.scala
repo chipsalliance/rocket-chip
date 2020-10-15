@@ -163,12 +163,12 @@ case class DebugModuleHartSelFuncs (
 
 case object DebugModuleHartSelKey extends Field(DebugModuleHartSelFuncs())
 
-class DebugExtTriggerOut (nExtTriggers: Int) extends Bundle {
+class DebugExtTriggerOut (val nExtTriggers: Int) extends Bundle {
   val req = Output(UInt(nExtTriggers.W))
   val ack = Input(UInt(nExtTriggers.W))
 }
 
-class DebugExtTriggerIn (nExtTriggers: Int) extends Bundle {
+class DebugExtTriggerIn (val nExtTriggers: Int) extends Bundle {
   val req = Input(UInt(nExtTriggers.W))
   val ack = Output(UInt(nExtTriggers.W))
 }
