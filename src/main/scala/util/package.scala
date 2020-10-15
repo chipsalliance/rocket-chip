@@ -251,6 +251,15 @@ package object util {
     helper(1, x)(width-1, 0)
   }
 
+  def findMax(x: Seq[UInt]): (UInt, UInt) = {
+    if (x.length > 1) {
+      val half = 1 << (log2Ceil(x.length) - 1)
+      val left = findMax(x take half)
+      val right = findMax(x drop half)
+      MuxT(left._1 > right._1, left, (right._1, half.U | right._2))
+    } else { (x.head, 0.U) }
+  }
+
   def OptimizationBarrier[T <: Data](in: T): T = {
     val barrier = Module(new Module {
       val io = IO(new Bundle {
