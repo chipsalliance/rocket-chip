@@ -2,10 +2,9 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
-import freechips.rocketchip.util._
+import chisel3._
 
-class SyncInterrupts(params: IntEdge) extends GenericParameterizedBundle(params)
+class SyncInterrupts(val params: IntEdge) extends Bundle
 {
-  val sync = Vec(params.source.num, Bool())
+  val sync = Vec(params.num, Bool())
 }

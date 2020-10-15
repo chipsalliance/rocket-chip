@@ -10,8 +10,8 @@ import freechips.rocketchip.diplomacy._
 object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
 {
   def edge(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo) = IntEdge(pd, pu, p, sourceInfo)
-  def bundle(e: IntEdge) = Vec(e.source.num, Bool())
-  def render(e: IntEdge) = RenderedEdge(colour = "#0000ff" /* blue */, label = e.source.sources.map(_.range.size).sum.toString, flipped = true)
+  def bundle(e: IntEdge) = Vec(e.num, Bool())
+  def render(e: IntEdge) = RenderedEdge(colour = "#0000ff" /* blue */, label = e.num.toString, flipped = true)
 
   override def mixO(pd: IntSourcePortParameters, node: OutwardNode[IntSourcePortParameters, IntSinkPortParameters, Vec[Bool]]): IntSourcePortParameters =
    pd.copy(sources = pd.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })
@@ -52,7 +52,7 @@ object IntSyncImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortPara
 {
   def edge(pd: IntSourcePortParameters, pu: IntSinkPortParameters, p: Parameters, sourceInfo: SourceInfo) = IntEdge(pd, pu, p, sourceInfo)
   def bundle(e: IntEdge) = new SyncInterrupts(e)
-  def render(e: IntEdge) = RenderedEdge(colour = "#ff00ff" /* purple */, label = e.source.sources.map(_.range.size).sum.toString, flipped = true)
+  def render(e: IntEdge) = RenderedEdge(colour = "#ff00ff" /* purple */, label = e.num.toString, flipped = true)
 
   override def mixO(pd: IntSourcePortParameters, node: OutwardNode[IntSourcePortParameters, IntSinkPortParameters, SyncInterrupts]): IntSourcePortParameters =
    pd.copy(sources = pd.sources.map  { s => s.copy (nodePath = node +: s.nodePath) })

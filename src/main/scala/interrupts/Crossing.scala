@@ -2,10 +2,11 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
+import chisel3._
+import chisel3.util.Cat
 import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.util.{SynchronizerShiftReg, AsyncResetReg}
-import freechips.rocketchip.diplomacy._
 
 @deprecated("IntXing does not ensure interrupt source is glitch free. Use IntSyncSource and IntSyncSink", "rocket-chip 1.2")
 class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
@@ -34,8 +35,8 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
   val node = IntSyncSourceNode(alreadyRegistered)
 
   lazy val module = new LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      if (alreadyRegistered) {
+    node.in.zip(node.out).foreach { case ((in, _), (out, _)) =>
+      if (alreadyRegistered || in.size == 0) { // size check to work around https://github.com/freechipsproject/chisel3/issues/1622
         out.sync := in
       } else {
         out.sync := AsyncResetReg(Cat(in.reverse)).asBools
