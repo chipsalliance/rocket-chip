@@ -29,19 +29,19 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
       mp.masters.foreach { m =>
         for (i <- m.id.start until m.id.end) {
           val j = i % (1 << idBits)
-          val old = masters(j)
+          val accumulated = masters(j)
           names(j) += m.name
-          masters(j) = old.copy(
-            aligned   = old.aligned && m.aligned,
-            maxFlight = old.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
+          masters(j) = accumulated.copy(
+            aligned   = accumulated.aligned && m.aligned,
+            maxFlight = accumulated.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
         }
       }
-      names.foreach { n => if (n.isEmpty) n += "(unused)" }
+      val finalNameStrings = names.map { n => if (n.isEmpty) "(unused)" else n.toList.mkString(", ") }
       val bits = log2Ceil(mp.endId) - idBits
       val field = if (bits > 0) Seq(AXI4ExtraIdField(bits)) else Nil
       mp.copy(
         echoFields = field ++ mp.echoFields,
-        masters    = masters.zipWithIndex.map { case (m,i) => m.copy(name = names(i).toList.mkString(", "))})
+        masters    = masters.zip(finalNameStrings).map { case (m, n) => m.copy(name = n) })
     },
     slaveFn = { sp => sp
     })
