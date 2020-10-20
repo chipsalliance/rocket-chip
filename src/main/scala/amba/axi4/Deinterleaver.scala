@@ -36,10 +36,14 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
         // Nothing to do if only single-beat R
         in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<> buffer.irrevocable(out.r)
       } else {
+        // We only care to do something for ids that are in use
+        val maxFlightPerId = Seq.tabulate(endId) { i =>
+          edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
+        }
+
         // Queues to buffer R responses
-        val qs = Seq.tabulate(endId) { i =>
-          val depth = edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
-          if (depth > 0) {
+        val qs = maxFlightPerId.map { mf =>
+          if (mf > 0) {
             val q = Module(new Queue(out.r.bits.cloneType, beats))
             q.suggestName(s"queue_${i}")
             q.io
@@ -63,11 +67,9 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
         val enq_OH = UIntToOH(enq_id, endId)
 
         // Track the number of completely received bursts per FIFO id
-        val pending = Cat(Seq.tabulate(endId) { i =>
-          val depth = edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
-          if (depth == 0) {
-            false.B
-          } else {
+        val pending = Cat(maxFlightPerId.zipWithIndex.map {
+          case (0, _) => false.B
+          case (_, i) => {
             val count = RegInit(0.U(log2Ceil(beats+1).W))
             val next = Wire(chiselTypeOf(count))
             val inc = enq_OH(i) && out.r.fire() && out.r.bits.last
