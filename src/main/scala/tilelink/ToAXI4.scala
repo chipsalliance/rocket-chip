@@ -29,9 +29,8 @@ class TLtoAXI4IdMap(tl: TLMasterPortParameters, axi4: AXI4MasterPortParameters)
   private val axiDigits = String.valueOf(axi4.endId-1).length()
   private val tlDigits = String.valueOf(tl.endSourceId-1).length()
   protected val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.clients.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
 
-  val mapping: Seq[TLToAXI4IdMapEntry] = (sorted zip axi4.masters) map { case (c, m) =>
+  val mapping: Seq[TLToAXI4IdMapEntry] = TLToAXI4.sort(tl.clients).zip(axi4.masters).map { case (c, m) =>
     TLToAXI4IdMapEntry(m.id, c.sourceId, c.name, c.supports.probe, c.requestFifo)
   }
 }
@@ -51,7 +50,7 @@ case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit v
                c.sourceId.end   % (1 << stripBits) == 0,
                s"Cannot strip bits of aligned client ${c.name}: ${c.sourceId}")
     }
-    val clients = p.clients.sortWith(TLToAXI4.sortByType _)
+    val clients = TLToAXI4.sort(p.clients)
     val idSize = clients.map { c => if (c.requestFifo) 1 else (c.sourceId.size >> stripBits) }
     val idStart = idSize.scanLeft(0)(_+_).init
     val masters = ((idStart zip idSize) zip clients) map { case ((start, size), c) =>
@@ -276,6 +275,9 @@ object TLToAXI4
     val tl2axi4 = LazyModule(new TLToAXI4(combinational, adapterName, stripBits, wcorrupt))
     tl2axi4.node
   }
+
+  def sort(clients: Seq[TLMasterParameters]): Seq[TLMasterParameters] =
+    clients.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
 
   def sortByType(a: TLMasterParameters, b: TLMasterParameters): Boolean = {
     if ( a.supports.probe && !b.supports.probe) return false
