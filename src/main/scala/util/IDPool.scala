@@ -15,23 +15,23 @@ class IDPool(numIds: Int, preValid: Boolean = true, preSelect: Boolean = true) e
   })
 
   // True indicates that the id is available
-  val bitmap = RegInit(-1.S(numIds.W).asUInt)
+  val bitmap = RegInit(-1.S(numIds.W).asUInt()(numIds-1, 0))
   val select = RegInit(0.U(idWidth.W))
   val valid  = RegInit(true.B)
 
   io.alloc.valid := (if (preValid)  valid  else bitmap.orR)
-  io.alloc.bits  := (if (preSelect) select else PriorityEncoder(bitmap))
+  io.alloc.bits  := (if (preSelect) select else PriorityEncoder(bitmap(numIds-1, 0)))
 
-  val taken  = Mux(io.alloc.ready, (1.U << io.alloc.bits)(numIds-1, 0), 0.U)
-  val given  = Mux(io.free .valid, (1.U << io.free .bits)(numIds-1, 0), 0.U)
+  val taken  = Mux(io.alloc.ready, UIntToOH(io.alloc.bits, numIds), 0.U)
+  val given  = Mux(io.free .valid, UIntToOH(io.free .bits, numIds), 0.U)
   val bitmap1 = (bitmap & ~taken) | given
   val select1 = PriorityEncoder(bitmap1(numIds-1, 0))
-  val valid1  = (  (bitmap.orR && !((PopCount(bitmap) === 1.U) && io.alloc.ready))  // bitmap not zero, and not allocating last bit
+  val valid1  = (  (bitmap.orR && !((PopCount(bitmap(numIds-1, 0)) === 1.U) && io.alloc.ready))  // bitmap not zero, and not allocating last bit
                 || io.free.valid)
 
   // Clock gate the bitmap
   when (io.alloc.ready || io.free.valid) {
-    bitmap := bitmap1
+    bitmap := bitmap1(numIds-1, 0)
     valid  := valid1
   }
 
@@ -46,6 +46,6 @@ class IDPool(numIds: Int, preValid: Boolean = true, preSelect: Boolean = true) e
   // pre-calculations for timing
   assert (valid === bitmap.orR)
   when (io.alloc.valid) {
-    assert (select === PriorityEncoder(bitmap))
+    assert (select === PriorityEncoder(bitmap(numIds-1, 0)))
   }
 }
