@@ -25,7 +25,7 @@ class IDPool(numIds: Int) extends Module {
   val taken  = Mux(io.alloc.ready, (1.U << io.alloc.bits)(numIds-1, 0), 0.U)
   val given  = Mux(io.free .valid, (1.U << io.free .bits)(numIds-1, 0), 0.U)
   val bitmap1 = (bitmap & ~taken) | given
-  val select1 = OHToUInt(~(leftOR(bitmap1, numIds) << 1) & bitmap1, numIds)
+  val select1 = PriorityEncoder(bitmap1(numIds-1, 0))
   val valid1  = bitmap1.orR
 
   // Clock gate the bitmap
