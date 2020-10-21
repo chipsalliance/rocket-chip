@@ -5,13 +5,13 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
-class IDPool(numIds: Int, preValid: Boolean = true, preSelect: Boolean = true) extends Module {
+class IDPool(numIds: Int, lateValid: Boolean = false, revocableSelect: Boolean = false) extends Module {
   require (numIds > 0)
   val idWidth = log2Up(numIds)
 
   val io = IO(new Bundle {
     val free = Flipped(Valid(UInt(idWidth.W)))
-    val alloc = Irrevocable(UInt(idWidth.W))
+    val alloc = if (revocableSelect) Decoupled(UInt(idWidth.W)) else Irrevocable(UInt(idWidth.W))
   })
 
   // True indicates that the id is available
@@ -19,8 +19,8 @@ class IDPool(numIds: Int, preValid: Boolean = true, preSelect: Boolean = true) e
   val select = RegInit(0.U(idWidth.W))
   val valid  = RegInit(true.B)
 
-  io.alloc.valid := (if (preValid)  valid  else bitmap.orR)
-  io.alloc.bits  := (if (preSelect) select else PriorityEncoder(bitmap(numIds-1, 0)))
+  io.alloc.valid := (if (lateValid)       bitmap.orR                           else valid)
+  io.alloc.bits  := (if (revocableSelect) PriorityEncoder(bitmap(numIds-1, 0)) else select)
 
   val taken  = Mux(io.alloc.ready, UIntToOH(io.alloc.bits, numIds), 0.U)
   val given  = Mux(io.free .valid, UIntToOH(io.free .bits, numIds), 0.U)
@@ -44,8 +44,12 @@ class IDPool(numIds: Int, preValid: Boolean = true, preSelect: Boolean = true) e
   assert (!io.free.valid || !(bitmap & ~taken)(io.free.bits))
 
   // pre-calculations for timing
-  assert (valid === bitmap.orR)
-  when (io.alloc.valid) {
-    assert (select === PriorityEncoder(bitmap(numIds-1, 0)))
+  if (!lateValid) {
+    assert (valid === bitmap.orR)
+  }
+  if (!revocableSelect) {
+    when (io.alloc.valid && RegNext(io.alloc.ready || (!io.alloc.valid && io.free.valid))) {
+      assert (select === PriorityEncoder(bitmap(numIds-1, 0)))
+    }
   }
 }
