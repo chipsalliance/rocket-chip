@@ -1507,7 +1507,10 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
   override def omitGraphML = true
   override def oForward(x: Int): Option[(Int, OutwardNode[D, U, B])] = Some(iDirectPorts(x) match { case (i, n, _, _) => (i, n) })
   override def iForward(x: Int): Option[(Int, InwardNode[D, U, B])] = Some(oDirectPorts(x) match { case (i, n, _, _) => (i, n) })
-  override protected[diplomacy] def instantiate(): Seq[Dangle] = Nil
+  override protected[diplomacy] def instantiate(): Seq[Dangle] = {
+    instantiated = true
+    Nil
+  }
 }
 
 /** [[MixedNexusNode]] is used when the number of nodes connecting from either side is unknown (e.g. a Crossbar which also is a protocol adapter).
