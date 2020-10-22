@@ -9,9 +9,20 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.leftOR
 
+/** This adapter deinterleaves read responses on the R channel.
+  *
+  * Deinterleaving guarantees that once the first beat of a read response
+  * has been accepted by the recipient, all further presented read responses will
+  * be from the same burst transactions, until the burst is complete.
+  *
+  * @param maxReadBytes is the maximum supported read burst size that this adapter
+  *   has been provisioned to support.
+  * @param buffer is the internal buffering to provide in the case where no deinterleaving is required.
+  */
 class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.default)(implicit p: Parameters) extends LazyModule
 {
-  require (maxReadBytes >= 1 && isPow2(maxReadBytes))
+  require (maxReadBytes >= 1, s"AXI4Deinterleaver: maxReadBytes must be at least 1, not $maxReadBytes")
+  require (isPow2(maxReadBytes), s"AXI4Deinterleaver: maxReadBytes must be a power of two, not $maxReadBytes")
 
   private def beats(slave: AXI4SlavePortParameters): Int =
     (maxReadBytes+slave.beatBytes-1) / slave.beatBytes
