@@ -15,7 +15,7 @@ class IDPool(numIds: Int, lateValid: Boolean = false, revocableSelect: Boolean =
   })
 
   // True indicates that the id is available
-  val bitmap = RegInit(-1.S(numIds.W).asUInt()(numIds-1, 0))
+  val bitmap = RegInit(UInt(numIds.W), -1.S(numIds.W).asUInt)
   val select = RegInit(0.U(idWidth.W))
   val valid  = RegInit(true.B)
 
