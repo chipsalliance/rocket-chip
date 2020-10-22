@@ -8,7 +8,7 @@ import chisel3.internal.sourceinfo.SourceLine
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{PlusArg, UIntIsOneOf}
+import freechips.rocketchip.util.PlusArg
 import freechips.rocketchip.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
@@ -255,7 +255,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert (source_ok, "'C' channel ProbeAckData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ProbeAckData smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel ProbeAckData address not aligned to size" + extra)
-      monAssert (bundle.param.isOneOf(TLPermissions.TtoT, TLPermissions.TtoB, TLPermissions.TtoN), "'C' channel ProbeAckData carries invalid trunk param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel ProbeAckData carries invalid report param" + extra)
     }
 
     when (bundle.opcode === TLMessages.Release) {
@@ -264,7 +264,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel Release address not aligned to size" + extra)
-      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel Release carries invalid shrink param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel Release carries invalid report param" + extra)
       monAssert (!bundle.corrupt, "'C' channel Release is corrupt" + extra)
     }
 
@@ -274,7 +274,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
-      monAssert (bundle.param.isOneOf(TLPermissions.TtoT, TLPermissions.TtoB, TLPermissions.TtoN), "'C' channel ReleaseData carries invalid trunk param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel ReleaseData carries invalid report param" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
