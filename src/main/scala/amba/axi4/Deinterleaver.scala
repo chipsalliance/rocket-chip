@@ -13,18 +13,26 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
 {
   require (maxReadBytes >= 1 && isPow2(maxReadBytes))
 
-  val node = AXI4AdapterNode(
+  private def beats(slave: AXI4SlavePortParameters): Int =
+    (maxReadBytes+slave.beatBytes-1) / slave.beatBytes
+
+  // Nothing to do if R channel only uses a single beat
+  private def nothingToDeinterleave(slave: AXI4SlavePortParameters): Boolean =
+    beats(slave) <= 1
+
+  val node = new AXI4AdapterNode(
     masterFn = { mp => mp },
     slaveFn  = { sp => sp.copy(slaves = sp.slaves.map(s => s.copy(
       supportsRead = s.supportsRead.intersect(TransferSizes(1, maxReadBytes)),
       interleavedId = Some(0))))
-  })
+  }) {
+    override def circuitIdentity = edges.out.map(_.slave).forall(nothingToDeinterleave)
+  }
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val endId = edgeOut.master.endId
-      val beatBytes = edgeOut.slave.beatBytes
-      val beats = (maxReadBytes+beatBytes-1) / beatBytes
+      val beats = beats(edgeOut.slave)
 
       // This adapter leaves the control + write paths completely untouched
       out.ar :<> in.ar
@@ -32,8 +40,8 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
       out.w :<> in.w
       in.b :<> out.b
 
-      if (beats <= 1) {
-        // Nothing to do if only single-beat R
+      // Only the R channel has the possibility of being changed
+      if (nothingToDeinterleave(edgeOut.slave)) {
         in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<> buffer.irrevocable(out.r)
       } else {
         // We only care to do something for ids that are in use
