@@ -13,7 +13,7 @@ import freechips.rocketchip.util.leftOR
   *
   * Deinterleaving guarantees that once the first beat of a read response
   * has been accepted by the recipient, all further presented read responses will
-  * be from the same burst transactions, until the burst is complete.
+  * be from the same burst transaction, until the burst is complete.
   *
   * @param maxReadBytes is the maximum supported read burst size that this adapter
   *   has been provisioned to support.
@@ -24,12 +24,12 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
   require (maxReadBytes >= 1, s"AXI4Deinterleaver: maxReadBytes must be at least 1, not $maxReadBytes")
   require (isPow2(maxReadBytes), s"AXI4Deinterleaver: maxReadBytes must be a power of two, not $maxReadBytes")
 
-  private def beats(slave: AXI4SlavePortParameters): Int =
+  private def maxBeats(slave: AXI4SlavePortParameters): Int =
     (maxReadBytes+slave.beatBytes-1) / slave.beatBytes
 
   // Nothing to do if R channel only uses a single beat
   private def nothingToDeinterleave(slave: AXI4SlavePortParameters): Boolean =
-    beats(slave) <= 1
+    maxBeats(slave) <= 1
 
   val node = new AXI4AdapterNode(
     masterFn = { mp => mp },
@@ -43,9 +43,9 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val endId = edgeOut.master.endId
-      val beats = beats(edgeOut.slave)
+      val beats = maxBeats(edgeOut.slave)
 
-      // This adapter leaves the control + write paths completely untouched
+      // This adapter passes through the AR/AW control + W/B write data channels
       out.ar :<> in.ar
       out.aw :<> in.aw
       out.w :<> in.w
@@ -55,15 +55,15 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
       if (nothingToDeinterleave(edgeOut.slave)) {
         in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<> buffer.irrevocable(out.r)
       } else {
-        // We only care to do something for ids that are in use
+        // We only care to deinterleave ids that are actually in use
         val maxFlightPerId = Seq.tabulate(endId) { i =>
           edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
         }
 
         // Queues to buffer R responses
-        val qs = maxFlightPerId.map { mf =>
+        val qs = maxFlightPerId.zipWithIndex.map { case (mf, i) =>
           if (mf > 0) {
-            val q = Module(new Queue(out.r.bits.cloneType, beats))
+            val q = Module(new Queue(out.r.bits.cloneType, entries = beats))
             q.suggestName(s"queue_${i}")
             q.io
           } else {
@@ -87,8 +87,8 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
 
         // Track the number of completely received bursts per FIFO id
         val pending = Cat(maxFlightPerId.zipWithIndex.map {
-          case (0, _) => false.B
-          case (_, i) => {
+          case (0, _) => false.B // any id not in use
+          case (_, i) => {       // i is an id in use
             val count = RegInit(0.U(log2Ceil(beats+1).W))
             val next = Wire(chiselTypeOf(count))
             val inc = enq_OH(i) && out.r.fire() && out.r.bits.last
