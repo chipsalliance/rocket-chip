@@ -264,7 +264,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel Release address not aligned to size" + extra)
-      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel Release carries invalid shrink param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel Release carries invalid report param" + extra)
       monAssert (!bundle.corrupt, "'C' channel Release is corrupt" + extra)
     }
 
@@ -274,7 +274,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
-      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel ReleaseData carries invalid report param" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
