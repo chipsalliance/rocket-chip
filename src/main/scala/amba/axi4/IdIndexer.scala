@@ -10,9 +10,17 @@ import freechips.rocketchip.util._
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
 case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(UInt(OUTPUT, width = width), UInt(0))
 
+/** This adapter limits the set of FIFO domain ids used by outbound transactions.
+  *
+  * Extra AWID and ARID bits from upstream transactions are stored in a User Bits field called AXI4ExtraId,
+  * which values are expected to be echoed back to this adapter alongside any downstream response messages,
+  * and are then prepended to the RID and BID field to restore the original identifier.
+  *
+  * @param idBits is the desired number of AXID bits to be used
+  */
 class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 {
-  require (idBits >= 0)
+  require (idBits >= 0, s"AXI4IdIndexer: idBits must be > 0, not $idBits")
 
   val node = AXI4AdapterNode(
     masterFn = { mp =>
