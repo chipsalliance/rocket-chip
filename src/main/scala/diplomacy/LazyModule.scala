@@ -272,13 +272,10 @@ sealed trait LazyModuleImpLike extends RawModule {
     * return [[AutoBundle]] and a unconnected [[Dangle]]s from this module and submodules. */
   protected[diplomacy] def instantiate(): (AutoBundle, List[Dangle]) = {
     // 1. It will recursively append [[wrapper.children]] into [[chisel3.internal.Builder]],
-    // 2. After each appending elements from [[wrapper.children]],
-    //    [[BaseNode]] from [[LazyModule.nodes]] will be sealed by [[BaseNode.finishInstantiate]]
-    // 3. return [[Dangle]]s from each module.
+    // 2. return [[Dangle]]s from each module.
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo: SourceInfo = c.info
       val mod = Module(c.module)
-      mod.finishInstantiate()
       mod.dangles
     }
 
@@ -319,25 +316,15 @@ sealed trait LazyModuleImpLike extends RawModule {
     wrapper.inModuleBody.reverse.foreach {
       _ ()
     }
-    // Return [[IO]] and [[Dangle]] of this [[LazyModuleImp]].
-    (auto, dangles)
-  }
-
-  /** Finalize the instantiation of this module.
-    *
-    * Ask each [[BaseNode]] in [[wrapper.nodes]] to call [[BaseNode.finishInstantiate]].
-    * Annotate this module to tell FIRRTL if it should be inlined.
-    */
-  protected[diplomacy] def finishInstantiate(): Unit = {
-    wrapper.nodes.reverse.foreach {
-      _.finishInstantiate()
-    }
 
     if (wrapper.shouldBeInlined) {
       chisel3.experimental.annotate(new ChiselAnnotation {
         def toFirrtl = InlineAnnotation(toNamed)
       })
     }
+
+    // Return [[IO]] and [[Dangle]] of this [[LazyModuleImp]].
+    (auto, dangles)
   }
 }
 
