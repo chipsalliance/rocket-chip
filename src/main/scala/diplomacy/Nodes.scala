@@ -1235,14 +1235,14 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       data   = bundleIn(i))
   }
 
-  private var bundlesSafeNow = false
+  private[diplomacy] var instantiated = false
 
   /** Gather Bundle and edge parameters of outward ports.
     *
     * Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code.
     */
   def out: Seq[(BO, EO)] = {
-    require(bundlesSafeNow, s"$name.out should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
+    require(instantiated, s"$name.out should only be called after its parent LazyModule.module has been instantiated")
     bundleOut zip edgesOut
   }
 
@@ -1251,7 +1251,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     * Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code.
     */
   def in: Seq[(BI, EI)] = {
-    require(bundlesSafeNow, s"$name.in should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
+    require(instantiated, s"$name.in should only be called after its parent LazyModule.module has been instantiated")
     bundleIn zip edgesIn
   }
 
@@ -1261,7 +1261,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     * and return all the dangles of this node.
     */
   protected[diplomacy] def instantiate(): Seq[Dangle] = {
-    bundlesSafeNow = true
+    instantiated = true
     if (!circuitIdentity) {
       (iPorts zip in) foreach {
         case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
@@ -1273,7 +1273,6 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     * wires as the [[LazyModuleImp]] has been completely evaluated to create a [[Module]].
     */
   protected[diplomacy] def finishInstantiate(): Unit = {
-    bundlesSafeNow = false
   }
 
   /** Connects the outward part of a node with the inward part of this node. */
