@@ -19,19 +19,19 @@ class IDPool(numIds: Int, lateValid: Boolean = false, revocableSelect: Boolean =
   val select = RegInit(0.U(idWidth.W))
   val valid  = RegInit(true.B)
 
-  io.alloc.valid := (if (lateValid)       bitmap.orR                           else valid)
-  io.alloc.bits  := (if (revocableSelect) PriorityEncoder(bitmap(numIds-1, 0)) else select)
+  io.alloc.valid := (if (lateValid)       bitmap.orR              else valid)
+  io.alloc.bits  := (if (revocableSelect) PriorityEncoder(bitmap) else select)
 
   val taken  = Mux(io.alloc.ready, UIntToOH(io.alloc.bits, numIds), 0.U)
   val given  = Mux(io.free .valid, UIntToOH(io.free .bits, numIds), 0.U)
   val bitmap1 = (bitmap & ~taken) | given
-  val select1 = PriorityEncoder(bitmap1(numIds-1, 0))
-  val valid1  = (  (bitmap.orR && !((PopCount(bitmap(numIds-1, 0)) === 1.U) && io.alloc.ready))  // bitmap not zero, and not allocating last bit
+  val select1 = PriorityEncoder(bitmap1)
+  val valid1  = (  (bitmap.orR && !((PopCount(bitmap) === 1.U) && io.alloc.ready))  // bitmap not zero, and not allocating last bit
                 || io.free.valid)
 
   // Clock gate the bitmap
   when (io.alloc.ready || io.free.valid) {
-    bitmap := bitmap1(numIds-1, 0)
+    bitmap := bitmap1
     valid  := valid1
   }
 
@@ -49,7 +49,7 @@ class IDPool(numIds: Int, lateValid: Boolean = false, revocableSelect: Boolean =
   }
   if (!revocableSelect) {
     when (io.alloc.valid && RegNext(io.alloc.ready || (!io.alloc.valid && io.free.valid))) {
-      assert (select === PriorityEncoder(bitmap(numIds-1, 0)))
+      assert (select === PriorityEncoder(bitmap))
     }
   }
 }
