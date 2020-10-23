@@ -12,9 +12,9 @@ import freechips.rocketchip.util._
   * storing them in queues and echoing them back when matching response messages are recevied.
   *
   * It also optionally rate limits the number of transactions that can be in flight simultaneously
-  * per FIFO domain / AXID.
+  * per FIFO domain / A[W|R]ID.
   *
-  * @param capMaxFlight is an optional maximum number of transactions that can be in flight per AXID.
+  * @param capMaxFlight is an optional maximum number of transactions that can be in flight per A[W|R]ID.
   */
 class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {

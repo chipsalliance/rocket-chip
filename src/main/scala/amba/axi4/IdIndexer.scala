@@ -16,7 +16,7 @@ case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(U
   * which values are expected to be echoed back to this adapter alongside any downstream response messages,
   * and are then prepended to the RID and BID field to restore the original identifier.
   *
-  * @param idBits is the desired number of AXID bits to be used
+  * @param idBits is the desired number of A[W|R]ID bits to be used
   */
 class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 {
