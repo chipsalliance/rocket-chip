@@ -227,12 +227,6 @@ abstract class BaseNode(implicit val valName: ValName) {
     */
   protected[diplomacy] def instantiate(): Seq[Dangle]
 
-  /** A callback to finish the node generation.
-    *
-    * This will be executed in [[LazyModuleImpLike.instantiate]].
-    */
-  protected[diplomacy] def finishInstantiate(): Unit
-
   /** @return name of this node. */
   def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
 
@@ -1239,19 +1233,23 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
 
   /** Gather Bundle and edge parameters of outward ports.
     *
-    * Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code.
+    * Accessors to the result of negotiation to be used within
+    * [[LazyModuleImp]] Code. Should only be used within [[LazyModuleImp]] code
+    * or after its instantiation has completed.
     */
   def out: Seq[(BO, EO)] = {
-    require(instantiated, s"$name.out should only be called after its parent LazyModule.module has been instantiated")
+    require(instantiated, s"$name.out should not be called until after instantiation of its parent LazyModule.module has begun")
     bundleOut zip edgesOut
   }
 
   /** Gather Bundle and edge parameters of inward ports.
     *
-    * Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code.
+    * Accessors to the result of negotiation to be used within
+    * [[LazyModuleImp]] Code. Should only be used within [[LazyModuleImp]] code
+    * or after its instantiation has completed.
     */
   def in: Seq[(BI, EI)] = {
-    require(instantiated, s"$name.in should only be called after its parent LazyModule.module has been instantiated")
+    require(instantiated, s"$name.in should not be called until after instantiation of its parent LazyModule.module has begun")
     bundleIn zip edgesIn
   }
 
@@ -1267,12 +1265,6 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
         case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
     } }
     danglesOut ++ danglesIn
-  }
-
-  /** Complete instantiation. It is no longer safe to access the Bundle
-    * wires as the [[LazyModuleImp]] has been completely evaluated to create a [[Module]].
-    */
-  protected[diplomacy] def finishInstantiate(): Unit = {
   }
 
   /** Connects the outward part of a node with the inward part of this node. */
