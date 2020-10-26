@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.aop
 
-import chisel3.{Data, RawModule}
-import chisel3.experimental.BaseModule
+import chisel3.Data
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{
   AnyMixedNode,

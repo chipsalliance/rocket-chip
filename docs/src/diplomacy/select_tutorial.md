@@ -120,7 +120,7 @@ Select.filterCollectDeep(top) {
 `LazyModule`s have a `getNodes` method that return all the nodes instantiated
 within that module. This can be combined with the `Select.collectInwardEdges`
 to select `LazyModule`s based on their connectivity.
-`Select.collectInwardEdges` takes a `BaseNode` and a parital function. It
+`Select.collectInwardEdges` takes a `BaseNode` and a partial function. It
 applies the function to all the `InwardEdge`s of the node. There is also a
 `Select.collectOutwardEdges` that does the same for outward edges. The example
 below uses `Select.filterCollectDeep`, `LazyModule.getNodes`, and
@@ -133,6 +133,7 @@ Select.filterCollectDeep (top) {
   case _ => true
 } {
   case a: A =>
+    // Function.unlift used to convert `InwardEdge => Option[String]` to `PartialFunction[InwardEdge, String]
     a.getNodes.flatMap(Select.collectInwardEdges(_)(Function.unlift { edge =>
       edge.node.lazyModule match {
         case l: Leaf => Some(l.pathName)
