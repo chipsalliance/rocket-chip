@@ -18,24 +18,6 @@ import freechips.rocketchip.diplomacy.{
   *
   * These can be used for e.g. finding specific TLBundles in a design and
   * placing monitors or annotating metadata.
-  *
-  * For example, the following block will print all instances of MyModule that
-  * are instantiated outside of any BaseTile and are connected to a
-  * TLBusWrapper by an inward edge
-  * {{{
-  * filterCollectDeep (top) {
-  *   case _: BaseTile => false
-  *   case _ => true
-  * } {
-  *   case m: TLBusWrapper =>
-  *     m.getNodes.flatMap(_.collectInwardEdges(m) { edge =>
-  *       edge.node.lazyModule match {
-  *         case m: MyModule => println(m)
-  *         case _ =>
-  *       }
-  *     }).toSeq.flatten
-  * }
-  * }}}
   */
 object Select {
 
