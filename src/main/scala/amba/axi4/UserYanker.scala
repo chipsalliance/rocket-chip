@@ -8,6 +8,14 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
+/** This adapter prunes all user bit fields of the echo type from request messages,
+  * storing them in queues and echoing them back when matching response messages are recevied.
+  *
+  * It also optionally rate limits the number of transactions that can be in flight simultaneously
+  * per FIFO domain / A[W|R]ID.
+  *
+  * @param capMaxFlight is an optional maximum number of transactions that can be in flight per A[W|R]ID.
+  */
 class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4AdapterNode(

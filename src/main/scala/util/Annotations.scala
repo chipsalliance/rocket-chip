@@ -10,7 +10,6 @@ import firrtl.annotations._
 
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink.TLToAXI4IdMapEntry
 
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
@@ -62,11 +61,6 @@ case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], la
     s"""{\n  "${label}":  [\n""" +
       mapping.map(_.range.toJSON).mkString(",\n") +
       "\n  ]\n}"
-}
-
-/** Record a conversion of TL source ids to AXI4 ids. */
-case class TLToAXI4IdMapAnnotation(target: Named, mapping: Seq[TLToAXI4IdMapEntry]) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(n)
 }
 
 /** Marks this module as a candidate for register retiming */
@@ -146,11 +140,6 @@ object Annotated {
 
   def addressMapping(component: InstanceId, mapping: Seq[AddressMapEntry]): Seq[AddressMapEntry] = {
     annotate(new ChiselAnnotation { def toFirrtl = AddressMapAnnotation(component.toNamed, mapping, "mapping") })
-    mapping
-  }
-
-  def idMapping(component: InstanceId, mapping: Seq[TLToAXI4IdMapEntry]): Seq[TLToAXI4IdMapEntry] = {
-    annotate(new ChiselAnnotation { def toFirrtl = TLToAXI4IdMapAnnotation(component.toNamed, mapping) })
     mapping
   }
 
