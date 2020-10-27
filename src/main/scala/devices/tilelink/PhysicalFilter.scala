@@ -10,6 +10,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
+
+
 class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(params)
 {
   require (params.addressBits > params.pageBits)
@@ -23,53 +25,109 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
   def address = Cat(addr_hi, UInt(0, width=params.pageBits))
   def blockPriorAddress = l(0) && a(0)
 
-  def fields(blockAddress: Bool): Seq[RegField] = {
-    def field(bits: Int, reg: UInt, lock: Bool = l(0)) =
+  def fields(blockAddress: Bool, initial: PMPInitialValue): Seq[RegField] = {
+    val initialInts = DevicePMP.getInitialValueInts(params.addressBits, params.pageBits, initial)
+
+    val lDesc = RegFieldDesc("l",
+      "Lock bit. When set, prevents modification to other fields in the register. Cannot be modified if l bit is set.",
+      reset = Some(initialInts.l),
+      wrType = Some(RegFieldWrType.MODIFY))
+
+    val aDesc = RegFieldDesc("a", "Access bit. When clear, this PMP does not filter anything. When set, Top-of-Range (TOR) filtering is applied by this PMP. Cannot be modified if l bit is set.",
+      reset = Some(initialInts.a),
+      wrType = Some(RegFieldWrType.MODIFY))
+
+    val rDesc = RegFieldDesc("r", "Read bit. When set grants read access to the matching address range. Cannot be modified if l bit is set.",
+      reset = Some(initialInts.r),
+      wrType = Some(RegFieldWrType.MODIFY))
+
+    val wDesc = RegFieldDesc("w", "Write bit. When set grants write access to the matching address range. Cannot be modified if l bit is set.",
+      reset = Some(initialInts.w),
+      wrType = Some(RegFieldWrType.MODIFY))
+
+    val addrHiDesc = RegFieldDesc("addr_hi", "Page address. Specifies top-of-range page address for this PMP and bottom-of-range address for following PMP. Cannot be modified if l or if `a` bit is set on the subsequent PMP.",
+      reset = Some(initialInts.addr_hi),
+      wrType = Some(RegFieldWrType.MODIFY))
+
+    def field(bits: Int, reg: UInt, desc: RegFieldDesc, lock: Bool = l(0)) =
       RegField(bits, RegReadFn(reg), RegWriteFn((wen, data) => {
         when (wen && !lock) { reg := data }
         Bool(true)
-      }))
+      }), Some(desc))
+
     Seq(
       RegField(params.pageBits-2),
-      field(params.addressBits-params.pageBits, addr_hi, l(0) || blockAddress),
+      field(params.addressBits-params.pageBits, addr_hi, addrHiDesc,
+        l(0) || blockAddress),
       RegField(56 - (params.addressBits-2)),
-      field(1, r),
-      field(1, w),
+      field(1, r, rDesc),
+      field(1, w, wDesc),
       RegField(1), // x
-      field(1, a),
+      field(1, a, aDesc),
       RegField(3), // a high + 2 reserved
-      field(1, l))
+      field(1, l, lDesc))
   }
 }
 
+
+/* Initial value of the PMP registers
+ *  
+ *  @param address - Initial value of the address field. Will be shifted down by pageBits before being stored in the PMP register addr_hi register.
+ *  @param l Initial value of the l (locked) bit. True means no modifications of other fields are allowed.
+ *  @param a Initial value of the a (address match type) bit. False means disabled, True means use TOR address matching. Also disables modification of previous PMP address.
+ *  @param r Initial value of the r (read access match) bit. True means allow read accesses.
+ *  @param w Initial value of the w (write access match) bit. True means allow write accesses.
+ *  
+ */
 case class PMPInitialValue(address: BigInt = 0, l: Boolean = false, a: Boolean = false, r: Boolean = false, w: Boolean = false)
+case class PMPInitialValueInt(addr_hi: BigInt = 0, l: Int, a: Int, r: Int, w: Int)
 
 object DevicePMP
 {
-  def apply(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue] = None) = {
+  /** Create DevicePMP bundle with appropriate initial value intended for use in RegInit
+    *  
+    *  @param addressBits width of addresses
+    *  @param pageBits number of address bits per page
+    *  @param initial optional initial value. 0 is used for all fields if not specified.
+    *  
+    */
+
+  def apply(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue] = None): DevicePMP = {
     val out = Wire(new DevicePMP(DevicePMPParams(addressBits, pageBits)))
 
+    // Note that out.addr_hi is undriven unless initial is specified.
+    // Would be an error if using chisel3 instead of Chisel._
+
     initial.foreach { i =>
-      require ((i.address >> addressBits) == 0)
-      require ((i.address >> pageBits) << pageBits == i.address)
+      require ((i.address >> addressBits) == 0,
+        s"Device PMP Initial value address must be 0 for bits past ${addressBits}, not ${i.address}")
+      require ((i.address >> pageBits) << pageBits == i.address,
+        s"Device PMP Initial value address must be 0 for bits less than ${pageBits}, not ${i.address}")
       out.addr_hi := UInt(i.address >> pageBits)
     }
 
-    def get(f: PMPInitialValue => Boolean) = initial.map(x => Bool(f(x)).asUInt).getOrElse(UInt(0))
+    // Translate the optional fields from Boolean to UInt
+    def get(f: PMPInitialValue => Boolean): UInt = initial.map(x => Bool(f(x)).asUInt).getOrElse(UInt(0))
     out.l := get(_.l)
     out.a := get(_.a)
     out.r := get(_.r)
     out.w := get(_.w)
     out
   }
+
+  /** Helper to convert from config booleans to integer values needed for RegFieldDesc */
+  def getInitialValueInts(addressBits: Int, pageBits: Int, initial: PMPInitialValue): PMPInitialValueInt = {
+    require ((initial.address >> addressBits) == 0,
+      s"Device PMP Initial value address must be 0 for bits past ${addressBits}, not ${initial.address}")
+    require ((initial.address >> pageBits) << pageBits == initial.address,
+      s"Device PMP Initial value address must be 0 for bits less than ${pageBits}, not ${initial.address}")
+    val addr_hi = initial.address >> pageBits
+
+    // Convert from Boolean to UInt
+    def get(b: Boolean): Int = if (b) 1 else 0
+    PMPInitialValueInt(addr_hi = addr_hi, l = get(initial.l), a = get(initial.a), r = get(initial.r), w = get(initial.w))
+  }
 }
-
-/** PhysicalFilter uses a set of DevicePMP registers to control whether
-  * accesses of certain types are allowed to proceed or denied. The Filter
-  * will only prevent acquisition of NEW permissions; it will not shoot
-  * down permissions Acquired previously.
-  */
-
 
 case class PhysicalFilterParams(
   controlAddress:   BigInt,
@@ -80,11 +138,48 @@ case class PhysicalFilterParams(
   val pageBits = log2Ceil(page)
   val size = (((pmpRegisters.size * 8) + page - 1) / page) * page
 
-  require (!pmpRegisters.isEmpty)
-  require (controlAddress > 0)
-  require (controlAddress % size == 0)
-  require (controlBeatBytes > 0 && isPow2(controlBeatBytes))
+  require (!pmpRegisters.isEmpty,
+    "Must specify at least one Device PMP register")
+  require (controlAddress > 0,
+    "Must specify a non-zero control address for PhysicalFilter")
+  require (controlAddress % size == 0,
+    s"PhysicalFilter Control address must be aligned to its size, not size ${size} at ${controlAddress}")
+  require (controlBeatBytes > 0 && isPow2(controlBeatBytes),
+    s"PhyiscalFilter control beat bytes must be a positive power of two, not ${controlBeatBytes}")
 }
+
+/** The PhyisicalFilter provides physical memory protection for Tile Link bus traffic, granting or denying accesses based on address and access type.
+  *  
+  *  The PhysicalFilter uses a set of DevicePMP registers to control whether
+  *  accesses of certain types are allowed to proceed or denied.
+  *  For transactions in flight, the PhysicalFilter will only prevent acquisition of NEW permissions;
+  *  it will not shoot down permissions acquired previously.
+  *  
+  *  The blocking behavior is controlled by a series of PMP registers which are accessible via memory mapped reads and writes.
+  *  The list is a priority allow list. If no PMP matches the transaction will be denied. Otherwise the first PMP which is active
+  *  and address matches is compared against the requested read and/or write permissions. 
+  *  When an access is denied they Phyiscal Filter crafts and responds with a Tile Link Denied response message.
+  *  
+  *  When a device PMP register's a bit is set, it is enabled and Top of Range (TOR) matching is applied.
+  *  For a given PMP register, the associated address register forms the top of the
+  *  address range, and the preceding PMP address register forms the bottom of the
+  *  address range.  If PMP[i]'s `a` field is set to TOR, the entry matches
+  *  any address `y` such that PMP[i-1].address <= y < PMP[i].address
+  *  If PMP[0].a is set (TOR is applied), zero is used for the lower bound, and so
+  *  it matches any address `y` < PMP[0].address.
+  *  Note that the addresses bits found in the PMP registers are addr_hi, or page address.
+  * 
+  *  Accesses which need write access are anything but Get, AcquireBlock, or NtoB.
+  *  Accesses which need read access are anything but PutFull data or PutPartial Data.
+  * 
+  *  Setting a PMP's r or w bit set grants read or write access respectively.
+  *
+  *  PMP registers are protected by a lock bit. Once lock bit is set the PMP register can no
+  *  longer be modified. In addition, if the following PMP access is set to TOR, the PMP's address
+  *  cannot be modified, even if its own lock bit is not set.
+  * 
+  *  @param params sets the base address and width of the control registers, the number of PMP registers and their initial values.
+  */
 
 class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) extends LazyModule
 {
@@ -104,7 +199,9 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
     val addressBits = log2Ceil(node.edges.out.map(_.manager.maxAddress).max+1+1)
     val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
     val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
-    controlNode.regmap(0 -> (pmps zip blocks).map { case (p, b) => p.fields(b) }.toList.flatten)
+    controlNode.regmap(0 -> ((pmps zip blocks) zip params.pmpRegisters).zipWithIndex.map{ case (((p, b), init), i) =>
+      RegFieldGroup(s"devicepmp${i}", Some(s"Physical Filter Device PMP Register ${i}"), p.fields(b, init))
+    }.toList.flatten)
 
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
@@ -122,9 +219,11 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val needR = in.a.bits.opcode =/= TLMessages.PutFullData &&
                   in.a.bits.opcode =/= TLMessages.PutPartialData
       val lt = Bool(false) +: pmps.map(in.a.bits.address < _.address)
+      // sel[i] is true if PMP[i].a is set and the PMP[i-1].address <= address < PMP[i].address
       val sel = (pmps.map(_.a) zip (lt.init zip lt.tail)) map { case (a, (l, r)) => a(0) && !l && r }
       val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
-      val allowFirst = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // no match => deny
+      // If PMP[i] matches the address and is active, apply PMP[i].r/w permissions.
+      val allowFirst = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // deny if no match
       val allow = allowFirst holdUnless a_first // don't change our mind mid-transaction
 
       // Track the progress of transactions from A => D
