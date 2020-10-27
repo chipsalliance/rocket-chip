@@ -33,19 +33,19 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
       reset = Some(initialInts.l),
       wrType = Some(RegFieldWrType.MODIFY))
 
-    val aDesc = RegFieldDesc("a", "Access bit. When clear, this PMP does not filter anything. When set, Top-of-Range (TOR) filtering is applied by this PMP. Cannot be modified if l bit is set.",
+    val aDesc = RegFieldDesc("a", "Address match mode. When clear, this PMP does not match any address. When set, Top-of-Range (TOR) matching is applied by this PMP. Cannot be modified if lock bit is set.",
       reset = Some(initialInts.a),
       wrType = Some(RegFieldWrType.MODIFY))
 
-    val rDesc = RegFieldDesc("r", "Read bit. When set grants read access to the matching address range. Cannot be modified if l bit is set.",
+    val rDesc = RegFieldDesc("r", "Read bit. When set grants read access to the matching address range. Cannot be modified if lock bit is set.",
       reset = Some(initialInts.r),
       wrType = Some(RegFieldWrType.MODIFY))
 
-    val wDesc = RegFieldDesc("w", "Write bit. When set grants write access to the matching address range. Cannot be modified if l bit is set.",
+    val wDesc = RegFieldDesc("w", "Write bit. When set grants write access to the matching address range. Cannot be modified if lock bit is set.",
       reset = Some(initialInts.w),
       wrType = Some(RegFieldWrType.MODIFY))
 
-    val addrHiDesc = RegFieldDesc("addr_hi", "Page address. Specifies top-of-range page address for this PMP and bottom-of-range address for following PMP. Cannot be modified if `l` bit is set, or if `a` bit and `l` bit is set on the subsequent PMP.",
+    val addrHiDesc = RegFieldDesc("addr_hi", "Page address. Specifies top-of-range page address for this PMP and bottom-of-range address for following PMP. Cannot be modified if lock bit is set, or if address match mode is TOR and lock bit is set on the subsequent PMP.",
       reset = Some(initialInts.addr_hi),
       wrType = Some(RegFieldWrType.MODIFY))
 
@@ -74,7 +74,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
  *  
  *  @param address - Initial value of the address field. Will be shifted down by pageBits before being stored in the PMP register addr_hi register.
  *  @param l Initial value of the l (locked) bit. True means no modifications of other fields are allowed.
- *  @param a Initial value of the a (address match type) bit. False means disabled, True means use TOR address matching. Also disables modification of previous PMP address.
+ *  @param a Initial value of the a (address match mode) bit. False means disabled, True means use TOR address matching. Also disables modification of previous PMP address.
  *  @param r Initial value of the r (read access match) bit. True means allow read accesses.
  *  @param w Initial value of the w (write access match) bit. True means allow write accesses.
  *  
@@ -135,7 +135,7 @@ case class PhysicalFilterParams(
   require (!pmpRegisters.isEmpty,
     "Must specify at least one Device PMP register")
   require (controlAddress > 0,
-    "Must specify a non-zero control address for PhysicalFilter")
+    s"Must specify a positive, non-zero control address for PhysicalFilter, not ${controlAddress}")
   require (controlAddress % size == 0,
     s"PhysicalFilter Control address must be aligned to its size, not size ${size} at ${controlAddress}")
   require (controlBeatBytes > 0 && isPow2(controlBeatBytes),
@@ -145,23 +145,23 @@ case class PhysicalFilterParams(
 /** The PhyisicalFilter provides physical memory protection for Tile Link bus traffic, granting or denying accesses based on address and access type.
   *  
   *  The PhysicalFilter uses a set of DevicePMP registers to control whether
-  *  accesses of certain types are allowed to proceed or denied.
+  *  accesses of certain types are allowed or denied.
   *  For transactions in flight, the PhysicalFilter will only prevent acquisition of NEW permissions;
   *  it will not shoot down permissions acquired previously.
   *  
   *  The blocking behavior is controlled by a series of PMP registers which are accessible via memory mapped reads and writes.
   *  The list is a priority allow list. If no PMP matches the transaction will be denied. Otherwise the first PMP which is active
   *  and address matches is compared against the requested read and/or write permissions. 
-  *  When an access is denied they Phyiscal Filter crafts and responds with a Tile Link Denied response message.
+  *  When an access is denied the Phyiscal Filter crafts and responds with a Tile Link Denied response message.
   *  
-  *  When a device PMP register's a bit is set, it is enabled and Top of Range (TOR) matching is applied.
+  *  When a device PMP register's `a` bit is set, it is enabled and Top of Range (TOR) matching is applied.
   *  For a given PMP register, the associated address register forms the top of the
   *  address range, and the preceding PMP address register forms the bottom of the
   *  address range.  If PMP[i]'s `a` field is set to TOR, the entry matches
-  *  any address `y` such that PMP[i-1].address <= y < PMP[i].address
+  *  any address `y` such that `PMP[i-1].address <= y < PMP[i].address` .
   *  If PMP[0].a is set (TOR is applied), zero is used for the lower bound, and so
-  *  it matches any address `y` < PMP[0].address.
-  *  Note that the addresses bits found in the PMP registers are addr_hi, or page address.
+  *  it matches any address `y < PMP[0].address`.
+  *  Note that the addresses bits stored in the PMP registers are addr_hi, or page address.
   * 
   *  Accesses which need write access are anything but Get, AcquireBlock, or NtoB.
   *  Accesses which need read access are anything but PutFull data or PutPartial Data.
@@ -213,7 +213,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val needR = in.a.bits.opcode =/= TLMessages.PutFullData &&
                   in.a.bits.opcode =/= TLMessages.PutPartialData
       val lt = Bool(false) +: pmps.map(in.a.bits.address < _.address)
-      // sel[i] is true if PMP[i].a is set and the PMP[i-1].address <= address < PMP[i].address
+      // sel[i] is true if PMP[i].a is set and PMP[i-1].address <= address < PMP[i].address
       val sel = (pmps.map(_.a) zip (lt.init zip lt.tail)) map { case (a, (l, r)) => a(0) && !l && r }
       val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
       // If PMP[i] matches the address and is active, apply PMP[i].r/w permissions.
