@@ -11,7 +11,7 @@ import freechips.rocketchip.util._
 
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
 
-
+/** Defines the fields of the Device PMP registers */
 class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(params)
 {
   require (params.addressBits > params.pageBits)
@@ -26,7 +26,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
   def blockPriorAddress = l(0) && a(0)
 
   def fields(blockAddress: Bool, initial: PMPInitialValue): Seq[RegField] = {
-    val initialInts = DevicePMP.getInitialValueInts(params.addressBits, params.pageBits, initial)
+    val initialInts = DevicePMP.getInitialValueInts(params.addressBits, params.pageBits, Some(initial))
 
     val lDesc = RegFieldDesc("l",
       "Lock bit. When set, prevents modification to other fields in the register. Cannot be modified if l bit is set.",
@@ -45,7 +45,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
       reset = Some(initialInts.w),
       wrType = Some(RegFieldWrType.MODIFY))
 
-    val addrHiDesc = RegFieldDesc("addr_hi", "Page address. Specifies top-of-range page address for this PMP and bottom-of-range address for following PMP. Cannot be modified if l or if `a` bit is set on the subsequent PMP.",
+    val addrHiDesc = RegFieldDesc("addr_hi", "Page address. Specifies top-of-range page address for this PMP and bottom-of-range address for following PMP. Cannot be modified if `l` bit is set, or if `a` bit and `l` bit is set on the subsequent PMP.",
       reset = Some(initialInts.addr_hi),
       wrType = Some(RegFieldWrType.MODIFY))
 
@@ -93,39 +93,33 @@ object DevicePMP
     */
 
   def apply(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue] = None): DevicePMP = {
+
     val out = Wire(new DevicePMP(DevicePMPParams(addressBits, pageBits)))
+    val outInts = getInitialValueInts(addressBits, pageBits, initial)
 
-    // Note that out.addr_hi is undriven unless initial is specified.
-    // Would be an error if using chisel3 instead of Chisel._
+    out.addr_hi := outInts.addr_hi.U
+    out.l := outInts.l.U
+    out.a := outInts.a.U
+    out.r := outInts.r.U
+    out.w := outInts.w.U
 
-    initial.foreach { i =>
+    out
+  }
+
+  /** Helper to convert from config booleans to integer values needed for the DevicePMP Bundles */
+  def getInitialValueInts(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue]): PMPInitialValueInt = {
+
+    val addr_hi = initial.map { i =>
       require ((i.address >> addressBits) == 0,
         s"Device PMP Initial value address must be 0 for bits past ${addressBits}, not ${i.address}")
       require ((i.address >> pageBits) << pageBits == i.address,
         s"Device PMP Initial value address must be 0 for bits less than ${pageBits}, not ${i.address}")
-      out.addr_hi := UInt(i.address >> pageBits)
-    }
+      i.address >> pageBits
+    }.getOrElse (BigInt(0))
 
-    // Translate the optional fields from Boolean to UInt
-    def get(f: PMPInitialValue => Boolean): UInt = initial.map(x => Bool(f(x)).asUInt).getOrElse(UInt(0))
-    out.l := get(_.l)
-    out.a := get(_.a)
-    out.r := get(_.r)
-    out.w := get(_.w)
-    out
-  }
-
-  /** Helper to convert from config booleans to integer values needed for RegFieldDesc */
-  def getInitialValueInts(addressBits: Int, pageBits: Int, initial: PMPInitialValue): PMPInitialValueInt = {
-    require ((initial.address >> addressBits) == 0,
-      s"Device PMP Initial value address must be 0 for bits past ${addressBits}, not ${initial.address}")
-    require ((initial.address >> pageBits) << pageBits == initial.address,
-      s"Device PMP Initial value address must be 0 for bits less than ${pageBits}, not ${initial.address}")
-    val addr_hi = initial.address >> pageBits
-
-    // Convert from Boolean to UInt
-    def get(b: Boolean): Int = if (b) 1 else 0
-    PMPInitialValueInt(addr_hi = addr_hi, l = get(initial.l), a = get(initial.a), r = get(initial.r), w = get(initial.w))
+    // Convert from optional Boolean to Int with a default of 0
+    def get(f: PMPInitialValue => Boolean): Int = initial.map { i => if (f(i)) 1 else 0}.getOrElse(0)
+    PMPInitialValueInt(addr_hi = addr_hi, l = get(_.l), a = get(_.a), r = get(_.r), w = get(_.w))
   }
 }
 
