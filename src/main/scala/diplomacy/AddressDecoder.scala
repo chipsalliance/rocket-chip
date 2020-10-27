@@ -2,111 +2,164 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel.log2Ceil
+import chisel3._
 
+/** Find the minimum subset of bits needed to disambiguate port addresses.
+  *
+  * The algorithm has a set of partitions, discriminated by the selected bits.
+  * Each partition has a set of ports, listing all addresses that lead to that port.
+  *
+  * {{{
+  * Seq[Seq[Seq[AddressSet]]]
+  *         ^^^^^^^^^^^^^^^ set of addresses that are routed out this port <- [[Port]]
+  *     ^^^ the list of ports                                              <- [[Ports]] | [[Partition]]
+  * ^^^ cases already distinguished by the selected bits thus far          <- [[Partitions]]
+  * }}}
+  *
+  */
 object AddressDecoder
 {
+  /*× set debug to true to print debug information. */
+  var debug = false
+
+  /** set of addresses that are routed out this port. */
   type Port = Seq[AddressSet]
+
+  /** the list of [[Port]]s */
   type Ports = Seq[Port]
+
+  /** represent partition result by a input. */
   type Partition = Ports
+
+  /** cases already distinguished by the selected bits thus far. */
   type Partitions = Seq[Partition]
 
+  /* require the port to be ordered, since we need to adjoin same addresses. */
   val addressOrder = Ordering.ordered[AddressSet]
   val portOrder = Ordering.Iterable(addressOrder)
   val partitionOrder = Ordering.Iterable(portOrder)
 
-  // Find the minimum subset of bits needed to disambiguate port addresses.
-  // ie: inspecting only the bits in the output, you can look at an address
-  //     and decide to which port (outer Seq) the address belongs.
+  /** @param ports a set of [[Port]]s need to be partitioned.
+    * @param givenBits mask bits that predefined by user.
+    * @return bits can partition this [[Ports]].
+    */
   def apply(ports: Ports, givenBits: BigInt = BigInt(0)): BigInt = {
-    val nonEmptyPorts = ports.filter(_.nonEmpty)
+    def checkOverlap(ports: Ports): Unit = ports.combinations(2).foreach { case Seq(x, y) =>
+      x.foreach { a => y.foreach { b =>
+        require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
+      } }
+    }
+
+    /* remove all empty ports. */
+    val nonEmptyPorts: Ports = ports.filter(_.nonEmpty)
     if (nonEmptyPorts.size <= 1) {
       givenBits
     } else {
-      // Verify the user did not give us an impossible problem
-      nonEmptyPorts.combinations(2).foreach { case Seq(x, y) =>
-        x.foreach { a => y.foreach { b =>
-          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
-        } }
-      }
+      /* Verify the user did not give us an impossible problem. */
+      checkOverlap(nonEmptyPorts)
 
-      val maxBits = log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
-      val (bitsToTry, bitsToTake) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
-      val partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
+      /** log2 result of the maximum base of [[AddressSet]]s to cover to maximum address. */
+      val maxBits: Int = util.log2Ceil(1 + nonEmptyPorts.map(_.map(_.base).max).max)
+      /** Test each one-hot `base` with [[givenBits]].
+        * If result is 0, we need to try it heuristically.
+        * If result is not 0, we just take it.
+        */
+      val (bitsToTry: Seq[BigInt], bitsToTake: Seq[BigInt]) = (0 until maxBits).map(BigInt(1) << _).partition(b => (givenBits & b) == 0)
+      /** The initial partition. */
+      val partitions: Partitions = Seq(nonEmptyPorts.map(_.sorted).sorted(portOrder))
+      /** Partition [[partitions]] with [[bitsToTake]]. */
       val givenPartitions = bitsToTake.foldLeft(partitions) { (p, b) => partitionPartitions(p, b) }
+      /** Use greedy algorithm to try and select best bits in [[bitsToTry]]. */
       val selected = recurse(givenPartitions, bitsToTry.reverse.toSeq)
+      /** Final bits to partition [[ports]]. */
       val output = selected.reduceLeft(_ | _) | givenBits
-
-      // Modify the AddressSets to allow the new wider match functions
+      /** Modify the AddressSets to allow the new wider match functions. */
       val widePorts = nonEmptyPorts.map { _.map { _.widen(~output) } }
-      // Verify that it remains possible to disambiguate all ports
-      widePorts.combinations(2).foreach { case Seq(x, y) =>
-        x.foreach { a => y.foreach { b =>
-          require (!a.overlaps(b), s"Ports cannot overlap: $a $b")
-        } }
-      }
-
+      /** Verify that it remains possible to disambiguate all ports. */
+      checkOverlap(widePorts)
       output
     }
   }
 
-  // A simpler version that works for a Seq[Int]
+  /** A simpler version that works for a Seq[Int], all mask are set to 0.
+    * @param keys is a a sequence of `base` represented in [[AddressSet]]
+    */
   def apply(keys: Seq[Int]): Int = {
     val ports = keys.map(b => Seq(AddressSet(b, 0)))
     apply(ports).toInt
   }
 
-  // The algorithm has a set of partitions, discriminated by the selected bits.
-  // Each partion has a set of ports, listing all addresses that lead to that port.
-  // Seq[Seq[Seq[AddressSet]]]
-  //         ^^^^^^^^^^^^^^^ set of addresses that are routed out this port
-  //     ^^^ the list of ports
-  // ^^^ cases already distinguished by the selected bits thus far
-  //
-  // Solving this problem is NP-hard, so we use a simple greedy heuristic:
-  //   pick the bit which minimizes the number of ports in each partition
-  //   as a secondary goal, reduce the number of AddressSets within a partition
-
+  /** Score partitions.
+    * @param partitions to be scored
+    * @return scores of this partition strategy.
+    * */
   def bitScore(partitions: Partitions): Seq[Int] = {
+    /** Detect partition change. */
     val maxPortsPerPartition = partitions.map(_.size).max
+    /** Detect port change. */
     val maxSetsPerPartition = partitions.map(_.map(_.size).sum).max
+    /** Detect partition change. */
     val sumSquarePortsPerPartition = partitions.map(p => p.size * p.size).sum
+    /** Detect port change. */
     val sumSquareSetsPerPartition = partitions.map(_.map(p => p.size * p.size).sum).max
     Seq(maxPortsPerPartition, maxSetsPerPartition, sumSquarePortsPerPartition, sumSquareSetsPerPartition)
   }
 
+  /** Use `bit` to split `port` into two partition:
+    * `addr_a` `0??????` and `addr_b` `1??????`. (`?` means mutable bits.)
+    *
+    * @return two subset of port which generated by checking overlap with `addr_a` and `addr_b`
+    *
+    * For each AddressSet, there are three cases:
+    * 1. bit partition this AddressSet in `port` to `addr_a` only.(Good partition)
+    * 1. bit partition this AddressSet in `port` to `addr_b` only.(Good partition)
+    * 3. bit didn't successfully partition this port, both `addr_a` and `addr_b` exist this AddressSet.(Bad partition)
+    */
   def partitionPort(port: Port, bit: BigInt): (Port, Port) = {
     val addr_a = AddressSet(0, ~bit)
     val addr_b = AddressSet(bit, ~bit)
-    // The addresses were sorted, so the filtered addresses are still sorted
+    /* The addresses were sorted, so the filtered addresses are still sorted. */
     val subset_a = port.filter(_.overlaps(addr_a))
     val subset_b = port.filter(_.overlaps(addr_b))
     (subset_a, subset_b)
   }
 
+  /** Use `bit` to split each `port` in `ports` into two partition, and gather them into two [[Ports]]. */
   def partitionPorts(ports: Ports, bit: BigInt): (Ports, Ports) = {
     val partitioned_ports = ports.map(p => partitionPort(p, bit))
-    // because partitionPort dropped AddresSets, the ports might no longer be sorted
-    val case_a_ports = partitioned_ports.map(_._1).filter(!_.isEmpty).sorted(portOrder)
-    val case_b_ports = partitioned_ports.map(_._2).filter(!_.isEmpty).sorted(portOrder)
+    /* because [[partitionPort]] dropped [[AddressSets]], the ports might no longer be sorted. */
+    val case_a_ports = partitioned_ports.map(_._1).filter(_.nonEmpty).sorted(portOrder)
+    val case_b_ports = partitioned_ports.map(_._2).filter(_.nonEmpty).sorted(portOrder)
     (case_a_ports, case_b_ports)
   }
-  
+
+  /** Partition `partitions` with `bit` into a new [[Partitions]]. */
   def partitionPartitions(partitions: Partitions, bit: BigInt): Partitions = {
-    val partitioned_partitions = partitions.map(p => partitionPorts(p, bit))
-    val case_a_partitions = partitioned_partitions.map(_._1).filter(!_.isEmpty)
-    val case_b_partitions = partitioned_partitions.map(_._2).filter(!_.isEmpty)
-    val new_partitions = (case_a_partitions ++ case_b_partitions).sorted(partitionOrder)
-    // Prevent combinational memory explosion; if two partitions are equal, keep only one
-    // Note: AddressSets in a port are sorted, and ports in a partition are sorted.
-    // This makes it easy to structurally compare two partitions for equality
-    val keep = (new_partitions.init zip new_partitions.tail) filter { case (a,b) => partitionOrder.compare(a,b) != 0 } map { _._2 }
+    val partitioned_partitions: Seq[(Ports, Ports)] = partitions.map(p => partitionPorts(p, bit))
+    val case_a_partitions: Partitions = partitioned_partitions.map(_._1).filter(_.nonEmpty)
+    val case_b_partitions: Partitions = partitioned_partitions.map(_._2).filter(_.nonEmpty)
+    val new_partitions: Partitions = (case_a_partitions ++ case_b_partitions).sorted(partitionOrder)
+    /** Prevent combinational memory explosion; if two partitions are equal, keep only one
+      * @note AddressSets in a port are sorted, and ports in a partition are sorted.
+      * This makes it easy to structurally compare two partitions for equality.
+      */
+    val keep = (new_partitions.init zip new_partitions.tail) filter { case (a,b) => partitionOrder.compare(a, b) != 0 } map { _._2 }
     new_partitions.head +: keep
   }
 
-  // requirement: ports have sorted addresses and are sorted lexicographically
-  val debug = false
-  def recurse(partitions: Partitions, bits: Seq[BigInt]): Seq[BigInt] = {
+  /** Recursively partition and score `partitions` with bit in `bitsToTry`,
+    * select bit with best score and test remains in next turn.
+    *
+    * Solving this problem is NP-hard, so we use a simple greedy heuristic algorithm:
+    * pick the bit which minimizes the number of ports in each partition as a secondary goal,
+    * reduce the number of AddressSets within a partition
+    *
+    * requirement: ports have sorted addresses and are sorted lexicographically.
+    *
+    * @return bits which can partition [[Port]] in each `partitions` to be 1 or 0.
+    */
+  def recurse(partitions: Partitions, bitsToTry: Seq[BigInt]): Seq[BigInt] = {
+    /** recurse stop at each partitions only have 1 or 0 [[Port]] */
     if (partitions.map(_.size <= 1).reduce(_ && _)) Seq() else {
       if (debug) {
         println("Partitioning:")
@@ -119,7 +172,8 @@ object AddressDecoder
           }
         }
       }
-      val candidates = bits.map { bit =>
+      /* Partition partitions with bits respectively, and giving score to which. */
+      val candidates: Seq[(Seq[Int], BigInt, Partitions)] = bitsToTry.map { bit =>
         val result = partitionPartitions(partitions, bit)
         val score = bitScore(result)
         if (debug)
@@ -128,7 +182,8 @@ object AddressDecoder
       }
       val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Iterable[Int]](_._1.toIterable))
       if (debug) println("=> Selected bit 0x%x".format(bestBit))
-      bestBit +: recurse(bestPartitions, bits.filter(_ != bestBit))
+      /** Remove the best bits, test remains. */
+      bestBit +: recurse(bestPartitions, bitsToTry.filter(_ != bestBit))
     }
   }
 }
