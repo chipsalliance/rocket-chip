@@ -13,8 +13,8 @@ case class MemoryBusParams(
   beatBytes: Int,
   blockBytes: Int,
   dtsFrequency: Option[BigInt] = None,
-  zeroDevice: Option[AddressSet] = None,
-  errorDevice: Option[DevNullParams] = None,
+  zeroDevice: Option[BuiltInZeroDeviceParams] = None,
+  errorDevice: Option[BuiltInErrorDeviceParams] = None,
   replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams

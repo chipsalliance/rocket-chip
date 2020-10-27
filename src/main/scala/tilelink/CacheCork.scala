@@ -8,8 +8,14 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import TLMessages._
 
-class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters) extends LazyModule
+case class TLCacheCorkParams(
+  unsafe: Boolean = false,
+  sinkIds: Int = 8)
+
+class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: Parameters) extends LazyModule
 {
+  val unsafe = params.unsafe
+  val sinkIds = params.sinkIds
   val node = TLAdapterNode(
     clientFn  = { case cp =>
       cp.v1copy(clients = cp.clients.map { c => c.v1copy(
@@ -166,9 +172,13 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
 
 object TLCacheCork
 {
+  def apply(params: TLCacheCorkParams)(implicit p: Parameters): TLNode =
+  {
+    val cork = LazyModule(new TLCacheCork(params))
+    cork.node
+  }
   def apply(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters): TLNode =
   {
-    val cork = LazyModule(new TLCacheCork(unsafe, sinkIds))
-    cork.node
+    apply(TLCacheCorkParams(unsafe, sinkIds))
   }
 }

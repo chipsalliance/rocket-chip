@@ -19,8 +19,8 @@ case class PeripheryBusParams(
     blockBytes: Int,
     atomics: Option[BusAtomics] = Some(BusAtomics()),
     dtsFrequency: Option[BigInt] = None,
-    zeroDevice: Option[AddressSet] = None,
-    errorDevice: Option[DevNullParams] = None,
+    zeroDevice: Option[BuiltInZeroDeviceParams] = None,
+    errorDevice: Option[BuiltInErrorDeviceParams] = None,
     replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
