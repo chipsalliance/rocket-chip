@@ -106,7 +106,7 @@ object DevicePMP
     out
   }
 
-  /** Helper to convert from config booleans to integer values needed for the DevicePMP Bundles */
+  /** Helper to convert from Booleans in the optional PMPInitialValue to Int/BigInt values needed to create the UInts in a DevicePMP Bundle */
   def getInitialValueInts(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue]): PMPInitialValueInt = {
 
     val addr_hi = initial.map { i =>
