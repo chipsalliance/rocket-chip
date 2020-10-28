@@ -1,3 +1,4 @@
+out/
 target/
 project/target
 docs/generated
@@ -10,4 +11,5 @@ docs-target/
 .addons-dont-touch
 /lib/
 /test_lib/
+/testbuild/
 rocketchip.jar
