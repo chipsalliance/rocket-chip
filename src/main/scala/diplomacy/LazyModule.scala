@@ -5,7 +5,7 @@ package freechips.rocketchip.diplomacy
 import Chisel.{defaultCompileOptions => _, _}
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{MultiIOModule, RawModule, Reset, withClockAndReset}
-import chisel3.experimental.{ChiselAnnotation}
+import chisel3.experimental.ChiselAnnotation
 import firrtl.passes.InlineAnnotation
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
