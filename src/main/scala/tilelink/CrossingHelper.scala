@@ -5,7 +5,6 @@ package freechips.rocketchip.tilelink
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci._
-import freechips.rocketchip.util.RationalDirection
 
 trait TLOutwardCrossingHelper {
   type HelperCrossingType <: CrossingType
