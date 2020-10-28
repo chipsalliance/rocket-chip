@@ -2,9 +2,8 @@
 
 package freechips.rocketchip.interrupts
 
-import chisel3._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.util.BlockDuringReset
 
 /** BlockDuringReset ensures that no interrupt is raised while reset is raised. */
