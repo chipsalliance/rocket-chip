@@ -322,7 +322,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     is (s_wait2) {
       next_state := s_wait3
-      io.dpath.perf.pte_miss := true
+      io.dpath.perf.pte_miss := count < pgLevels-1
       when (io.mem.s2_xcpt.ae.ld) {
         resp_ae := true
         next_state := s_ready
