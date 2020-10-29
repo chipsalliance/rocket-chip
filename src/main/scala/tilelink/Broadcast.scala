@@ -17,6 +17,12 @@ case class TLBroadcastControlParams(
   address:   AddressSet,
   beatBytes: Int)
 
+/**
+  * @param lineBytes cacheline size
+  * @param numTrackers maximum transaction size to record on each port.
+  * @param bufferless if this is true. ready signal in A channel will directly decoupled from manger to client.
+  * @param control Add a control node for filter notification.
+  */
 case class TLBroadcastParams(
   lineBytes:     Int,
   numTrackers:   Int = 4,
@@ -28,6 +34,94 @@ case class TLBroadcastParams(
   require (numTrackers > 0)
 }
 
+/** [[TLBroadcast]] is the last level coherence manger for TileLink. Simplest topology can be this:
+  * {{{
+  *   A           B
+  *   │           │
+  *   └─────┬─────┘
+  *         │
+  *     Broadcast
+  *         │
+  *   ┌─────┴─────┐
+  *   │           │
+  *   A'          B'
+  *   └─────┬─────┘
+  *       XBar
+  *         │
+  *         C
+  * }}}
+  *
+  * It probes clients cachelines to maintain coherence.
+  * It can store or not store directory, depending on the implementation of [[ProbeFilter]] in this Broadcast.
+  *
+  * @example Here is some example transactions on the broadcast.
+  *          if A is Tip, B acquire this cacheline:
+  *          - (t0) B -> BH: AcquireBlock
+  *          - (t1) BH -> A: ProbeBlock
+  *          - (t1) A -> BH: ProbeAckData/ProbeAck
+  *          -   (t2) if ProbeAckData: BH -> C: PutFullData
+  *          -   (t2) if ProbeAckData: C -> BH: AccessAck
+  *          - (t3) BH -> C: Get
+  *          - (t3) C -> BH: AccessAckData
+  *          - (t0) BH -> B: GrantData
+  *          - (t0) B -> BH: GrantAck
+  *
+  *          if A is Tip, A need to release TtoB:
+  *          - (t0) A -> BH: ReleaseData/Release TtoB
+  *          - (t1) BH -> C: Put (payload [[TLBroadcastConstants.TRANSFORM_B]] in the highest bits of source field.)
+  *          - (t1) C -> BH: AccessAck (check the highest bit to be 1 or 0, here is 1 since manger is replying to [[TLBroadcastConstants.TRANSFORM_B]] sourceId.))
+  *          - (t0) BH -> A: ReleaseAck
+  *
+  * Behavior of [[TLBroadcast]]:
+  * receive A channel from client:
+  * PutFullData    : to manger A channel -> PutFullData with payload [[TLBroadcastConstants.PASS]] in highest 2 bits of source.
+  * PutPartialData : to manger A channel -> PutPartialData with payload [[TLBroadcastConstants.PASS]] in highest 2 bits of source.
+  * ArithmeticLogic: to manger A channel -> ArithmeticLogic with payload [[TLBroadcastConstants.PASS]] in highest 2 bits of source.
+  * LogicalData    : to manger A channel -> LogicalData with payload [[TLBroadcastConstants.PASS]] in highest 2 bits of source.
+  * Get            : to manger A channel -> Get with payload [[TLBroadcastConstants.PASS]] in highest 2 bits of source.
+  * Intent         : to manger A channel -> Intent with payload [[TLBroadcastConstants.PASS]] in highest 2 bits of source.
+  * AcquireBlock   : to manger A channel -> Get with payload in highest 2 bits of source.
+  *                                         payload depends on `a_param`:
+  *                                         if `a_param` is `NtoB`, payload is [[TLBroadcastConstants.TRANSFORM_B]]
+  *                                         if `a_param` is `NtoT` or `BtoT`, payload is [[TLBroadcastConstants.TRANSFORM_T]]
+  * AcquirePerm    : to manger A channel -> Get with payload in highest 2 bits of source.
+  *                                         payload depends on `a_param`:
+  *                                         if `a_param` is `NtoB`, payload is [[TLBroadcastConstants.TRANSFORM_B]]
+  *                                         if `a_param` is `NtoT` or `BtoT`, payload is [[TLBroadcastConstants.TRANSFORM_T]]
+  *
+  * receive C channel from client:
+  * ProbeAck       : notify [[TLBroadcastTracker.io.probenack]](Probe with no data is finished.)
+  * ProbeAckData   : to manger A channel -> PutFullData with payload [[TLBroadcastConstants.DROP]] in highest 2 bits of source.
+  * Release        : to client D channel -> ReleaseAck
+  *                  notify [[ProbeFilter.io.release]]
+  * ReleaseData    : PutFullData with payload [[TLBroadcastConstants.TRANSFORM_B]] in highest 2 bits of source.
+  *                  notify [[ProbeFilter.io.release]]
+  *
+  * receive E channel from client:
+  * GrantAck       : accept only
+  *                  notify [[TLBroadcastTracker.io.e_last]]
+  *
+  * receive D channel from manger:
+  * if payload in highest 2 bits of source is [[TLBroadcastConstants.PASS]]:
+  *   AccessAck      : to manger D channel -> AccessAck
+  *   AccessAckData  : to manger D channel -> AccessAckData
+  *   HintAck        : to manger D channel -> HintAck
+  * if payload in highest 2 bits of source is [[TLBroadcastConstants.DROP]]:
+  *   AccessAck      : notify [[TLBroadcastTracker.io.probedack]](replying ProbeAckData is finished.)
+  * if payload in highest 2 bits of source is [[TLBroadcastConstants.TRANSFORM_B]]:
+  *   AccessAck      : to manger D channel -> TLMessages.ReleaseAck with `d_param` [[TLPermissions.toB]](replying to AcquirePerm)
+  *   AccessAckData  : to manger D channel -> TLMessages.GrantData with `d_param` [[TLPermissions.toB]](replying to AcquireBlock)
+  * if payload in highest 2 bits of source is [[TLBroadcastConstants.TRANSFORM_T]]:
+  *   AccessAck      : to manger D channel -> TLMessages.ReleaseAck with `d_param` [[TLPermissions.toT]](replying to AcquirePerm)
+  *   AccessAckData  : to manger D channel -> TLMessages.GrantData with `d_param` [[TLPermissions.toT]](replying to AcquireBlock)
+  *
+  * send to client in B channel:
+  * Probe cachelines in `probe_todo` which is updated by [[ProbeFilter.io.response]].
+  *
+  * send to client in D channel:
+  * Convert D transaction from D channel of manger.
+  *
+  */
 class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends LazyModule
 {
   // Backwards compatibility
@@ -38,33 +132,38 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
     clientFn  = { cp =>
       cp.v1copy(clients = Seq(TLMasterParameters.v1(
         name     = "TLBroadcast",
+        /* Add 2 bits encoded in [[TLBroadcastConstants]] to record transaction type for each sourceId in clients. */
         sourceId = IdRange(0, 1 << log2Ceil(cp.endSourceId*4)))))
     },
     managerFn = { mp =>
       mp.v1copy(
         endSinkId  = params.numTrackers,
         managers   = mp.managers.map { m =>
-          // We are the last level manager
+          /** This is the last level coherence manager, so it cannot be probed by mangers. */
           require (!m.supportsAcquireB)
-          // We only manage addresses which are uncached
+          /* We only manage addresses which are uncached. */
           if (m.regionType == RegionType.UNCACHED) {
-            // The device had better support line transfers
+            /* The device had better support line transfers.
+             * @todo why?
+             */
             val lowerBound = max(m.supportsPutFull.min, m.supportsGet.min)
             require (!m.supportsPutFull || m.supportsPutFull.contains(params.lineBytes), s"${m.name} only supports PutFull(${m.supportsPutFull}), which does not include ${params.lineBytes}")
             require (!m.supportsGet     || m.supportsGet    .contains(params.lineBytes), s"${m.name} only supports Get(${m.supportsGet}), which does not include ${params.lineBytes}")
             m.v1copy(
               regionType         = RegionType.TRACKED,
               supportsAcquireB   = TransferSizes(lowerBound, params.lineBytes),
+              /* dirty data write back to ddr in a transaction. */
               supportsAcquireT   = if (m.supportsPutFull) TransferSizes(lowerBound, params.lineBytes) else TransferSizes.none,
               alwaysGrantsT      = false,
-              // truncate supported accesses to lineBytes (we only ever probe for one line)
+              /* truncate supported accesses to lineBytes (we only ever probe for one line). */
               supportsPutFull    = TransferSizes(m.supportsPutFull   .min, min(m.supportsPutFull   .max, params.lineBytes)),
               supportsPutPartial = TransferSizes(m.supportsPutPartial.min, min(m.supportsPutPartial.max, params.lineBytes)),
               supportsGet        = TransferSizes(m.supportsGet       .min, min(m.supportsGet       .max, params.lineBytes)),
               supportsHint       = TransferSizes(m.supportsHint      .min, min(m.supportsHint      .max, params.lineBytes)),
               supportsArithmetic = TransferSizes(m.supportsArithmetic.min, min(m.supportsArithmetic.max, params.lineBytes)),
               supportsLogical    = TransferSizes(m.supportsLogical   .min, min(m.supportsLogical   .max, params.lineBytes)),
-              fifoId             = None // trackers do not respond in FIFO order!
+              /* trackers do not respond in FIFO order! */
+              fifoId             = None
             )
           } else {
             m
@@ -74,13 +173,18 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
     }
   )
 
+  /** Interrupt Node for filter. Each Filter has a interrupt. */
   val intNode = if (params.control.isEmpty) None else Some(IntSourceNode(IntSourcePortSimple(num = 1)))
+  /** Control Node for filter.
+    * [[ProbeFilter.useRegFields]] can be defined to add register to control.
+    */
   val controlNode = params.control.map(x => TLRegisterNode(
     address   = Seq(x.address),
     beatBytes = x.beatBytes,
     device    = new SimpleDevice("cache-controller", Seq("sifive,broadcast0"))))
 
   lazy val module = new LazyModuleImp(this) {
+    /* Number of inward node will decide the number bank. */
     val (ints, fields) = node.in.zip(node.out).zipWithIndex.map { case (((in, edgeIn), (out, edgeOut)), bankIndex) =>
       val clients = edgeIn.client.clients
       val managers = edgeOut.manager.managers
@@ -88,58 +192,124 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       import TLBroadcastConstants._
 
+      /** Since [[TLBroadcast]] doesn't implements PutPartialData,
+        * cacheline size must not be less than manger beatBytes.
+        */
       require (params.lineBytes >= edgeOut.manager.beatBytes)
-      // For the probe walker, we need to identify all the caches
-      val caches = clients.filter(_.supports.probe).map(_.sourceId)
-      val cache_targets = caches.map(c => c.start.U)
+      /** This identify all the caches for the probe walker.  */
+      val caches: Seq[IdRange] = clients.filter(_.supports.probe).map(_.sourceId)
+      /** Use start bit in IdRange to locate which client is target. */
+      val cache_targets: Seq[UInt] = caches.map(c => c.start.U)
 
-      // Create the probe filter
-      val flatAddresses = AddressSet.unify(edgeOut.manager.managers.flatMap(_.address))
-      val addressMask = AddressDecoder(flatAddresses.map(Seq(_)), flatAddresses.map(_.mask).reduce(_|_))
+      /** Create the probe filter, to filter B channel and D channel transactions. */
+      val flatAddresses: Seq[AddressSet] = AddressSet.unify(edgeOut.manager.managers.flatMap(_.address))
+      val addressMask: BigInt = AddressDecoder(flatAddresses.map(Seq(_)), flatAddresses.map(_.mask).reduce(_|_))
+      /** create [[ProbeFilter]] instance. */
       val filter = Module(params.filterFactory(ProbeFilterParams(
         mshrs  = params.numTrackers,
         caches = caches.size,
         maxAddress  = edgeIn.manager.maxAddress,
         addressMask = addressMask & ~(params.lineBytes-1))))
 
-      // Create the request tracker queues
+      /** Create the request tracker queues. */
       val trackers = Seq.tabulate(params.numTrackers) { id =>
         Module(new TLBroadcastTracker(id, params.lineBytes, caches.size, params.bufferless, edgeIn, edgeOut)).io
       }
 
-      // We always accept E
+      /* Client E Channel:
+       * Always accept E.
+       */
       in.e.ready := true.B
+      /* Notify tracker received E of a transaction.
+       * In to D channel handling logic of client, MSHR(currently tracker ID) is encoded in the sink field,
+       * client will reply it in the sink.
+       * this decode sink from E channel, then notify correspond tracker.
+       */
       (trackers zip UIntToOH(in.e.bits.sink).asBools) foreach { case (tracker, select) =>
         tracker.e_last := select && in.e.fire()
       }
 
-      // Depending on the high source bits, we might transform D
+      /* Client D Channel:
+       * Forward or transform manger D channel based on the payload of the source.
+       */
+      /** Highest sourceId index, using endSourceId to detect. */
       val d_high = log2Ceil(edgeIn.client.endSourceId)
+      /** payload extracted from source. */
       val d_what = out.d.bits.source(d_high+1, d_high)
+      /** indicate this transaction should be dropped:
+        * Probe client -> client ProbeAckData -> Put manger(DROP) -> manger AccessAck(DROP)
+        */
       val d_drop = d_what === DROP
+      /** indicate this transaction has an available data field. */
       val d_hasData = edgeOut.hasData(out.d.bits)
+      /* D channel to response to clients. */
       val d_normal = Wire(in.d)
+      /** [[d_first]] is the update enable signal of [[d_trackerOH]].
+        * [[d_last]] tell tracker and filter the end of transaction in D channel.
+        */
       val (d_first, d_last, _) = edgeIn.firstlast(d_normal)
+      /** select tracker with:
+        * 1. tracker need d reply
+        * 2. tracker source is same with the client source.
+        *
+        * This is used for:
+        * 1. encode tracker id into sink of D, make client reply in E to this tracker.
+        * 2. filter will need this D.
+        */
       val d_trackerOH = VecInit(trackers.map { t => t.need_d && t.source === d_normal.bits.source }).asUInt holdUnless d_first
 
+      /** if d is valid, and not drop. */
       assert (!out.d.valid || !d_drop || out.d.bits.opcode === TLMessages.AccessAck)
 
+      /** [[d_allow]] is the signal allowing accept transaction from manger. */
       val d_allow = Wire(Bool())
+      /* if [[d_drop]], accept it and don't pass it to client.
+       * if not [[d_drop]], wait for client ready.
+       */
       out.d.ready := (d_normal.ready && d_allow) || d_drop
+      /* only pass to client when manger is valid and not [[d_drop]]. */
       d_normal.valid := out.d.valid && d_allow && !d_drop
-      d_normal.bits := out.d.bits // truncates source
-      when (d_what(1)) { // TRANSFORM_*
+      /* size of source in client is less 2 bits than manger.
+       * truncates the higher 2 bits in source.
+       */
+      d_normal.bits := out.d.bits
+
+      /* modify opcode and param with d_what:
+       * if [[d_what(1)]] is high, this transaction is a TL-C transaction:
+       * if [[d_hasData]], transaction is: client -> BH: Acquire.
+       * if not [[d_hasData]], transaction is: client -> BH: ReleaseData.
+       *
+       * [[d_what(0)]] will decide which target permission is.
+       */
+      when (d_what(1)) {
         d_normal.bits.opcode := Mux(d_hasData, TLMessages.GrantData, TLMessages.ReleaseAck)
         d_normal.bits.param  := Mux(d_hasData, Mux(d_what(0), TLPermissions.toT, TLPermissions.toB), 0.U)
       }
+      /** Miss Stats Handler Register of D, directly encode from tracker id. */
       val d_mshr = OHToUInt(d_trackerOH)
+
+      /* ask client to reply in E channel with the [[d_mshr]] as source. */
       d_normal.bits.sink := d_mshr
       assert (!d_normal.valid || (d_trackerOH.orR() || d_normal.bits.opcode === TLMessages.ReleaseAck))
 
-      // A tracker response is anything neither dropped nor a ReleaseAck
+      /* Need to response to client.
+       * A tracker response is anything neither dropped nor a ReleaseAck.
+       *
+       * if [[d_hasData]], there are data must be reply to client.
+       * if is not TL-C transaction, just pass from manger to client.
+       */
       val d_response = d_hasData || !d_what(1)
+
       (trackers zip d_trackerOH.asBools) foreach { case (tracker, select) =>
+        /* last bit in D channel reply to client:
+         * 1. This tracker is selected
+         * 2. Reply to client in D is fired.
+         * 3. Need to response to client.
+         *    if the transaction is Release -> ReleaseAck, tracker won't track this transaction, and [[d_response]] is false.
+         * 4. this is the last beat of this transaction.
+         */
         tracker.d_last := select && d_normal.fire() && d_response && d_last
+        /* C channel is ProbeAckData or Release. */
         tracker.probedack := select && out.d.fire() && d_drop
       }
 
@@ -149,12 +319,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       filter.io.update.bits.gaveT := d_what === TRANSFORM_T
       filter.io.update.bits.cacheOH := Mux1H(d_trackerOH, trackers.map(_.cacheOH))
 
-      // Incoming C can be:
-      // ProbeAck     => decrement tracker, drop 
-      // ProbeAckData => decrement tracker, send out A as PutFull(DROP)
-      // ReleaseData  =>                    send out A as PutFull(TRANSFORM)
-      // Release      => send out D as ReleaseAck
-
+      /* C Channel */
       val c_probeack     = in.c.bits.opcode === TLMessages.ProbeAck
       val c_probeackdata = in.c.bits.opcode === TLMessages.ProbeAckData
       val c_releasedata  = in.c.bits.opcode === TLMessages.ReleaseData
@@ -211,7 +376,9 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       // Combine the PutFull with the trackers
       TLArbiter.lowestFromSeq(edgeOut, out.a, putfull +: trackers.map(_.out_a))
 
-      // The Probe FSM walks all caches and probes them
+      /** B Channel
+        * The Probe FSM walks all caches and probes them
+        */
       val probe_todo = RegInit(0.U(max(1, caches.size).W))
       val probe_line = Reg(UInt())
       val probe_perms = Reg(UInt(2.W))
@@ -226,6 +393,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       }
       when (in.b.fire()) { probe_todo := probe_todo & ~probe_next }
 
+      /* A Channel. */
       // Which cache does a request come from?
       val a_cache = if (caches.size == 0) 0.U else VecInit(caches.map(_.contains(in.a.bits.source))).asUInt
       val a_first = edgeIn.first(in.a)
@@ -391,45 +559,81 @@ object TLBroadcast
 }
 
 class ProbeTrackInfo(val caches: Int) extends Bundle {
+  /** how many clients left need to be probed. */
   val count   = UInt(log2Ceil(caches+1).W)
+  /** probe which client now. */
   val cacheOH = UInt(caches.W)
 }
 
+/** Tracker to track trans */
 class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boolean, edgeIn: TLEdgeIn, edgeOut: TLEdgeOut) extends Module
 {
   val io = IO(new Bundle {
-    val in_a_first = Input(Bool())
-    val in_a  = Flipped(Decoupled(new TLBundleA(edgeIn.bundle)))
+    /** first packet come from a. */
+    val in_a_first: Bool = Input(Bool())
+    /** incoming A channel from clients. */
+    val in_a: DecoupledIO[TLBundleA] = Flipped(Decoupled(new TLBundleA(edgeIn.bundle)))
+    /** output A channel to mangers. */
     val out_a = Decoupled(new TLBundleA(edgeOut.bundle))
+    /** @todo */
     val probe = Input(Valid(new ProbeTrackInfo(caches)))
+    /** nack: No Data ACK. */
     val probenack = Input(Bool())
+    /** dack: ACK with Data. */
     val probedack = Input(Bool())
+    /** sack: shared ack. */
     val probesack = Input(Bool())
+
+    /** transaction in d has finished. */
     val d_last = Input(Bool())
+    /** transaction in e has finished. */
     val e_last = Input(Bool())
-    val source = Output(UInt()) // the source awaiting D response
-    val line = Output(UInt())   // the line waiting for probes
+    /** the source awaiting D response. */
+    val source = Output(UInt())
+    /** the line waiting for probes. */
+    val line = Output(UInt())
+    /** this module is idle. */
     val idle = Output(Bool())
+    /** wait for transcation in d channel. */
     val need_d = Output(Bool())
+    /** @todo */
     val cacheOH = Output(UInt(caches.W))
+    /** @todo */
     val clearOH = Input(UInt(caches.W))
   })
 
   val lineShift = log2Ceil(lineBytes)
   import TLBroadcastConstants._
 
-  // Only one operation can be inflight per line, because we need to be sure
-  // we send the request after all the probes we sent and before all the next probes
+  /* Only one operation can be inflight per line
+   *
+   * since we need to force the order:
+   * this probe -> request -> next probes
+   * @todo what is request?
+   */
+
+  /** state we got transaction in e channel.
+    * client -> manger receive state has ended.
+    */
   val got_e   = RegInit(true.B)
+  /** state we sent transaction in d channel.
+    * client -> manger send state has ended
+    */
   val sent_d  = RegInit(true.B)
+  /** indicate a transaction is for branch operation. */
   val shared  = Reg(Bool())
+  /* cache transaction. */
   val opcode  = Reg(io.in_a.bits.opcode)
   val param   = Reg(io.in_a.bits.param)
   val size    = Reg(io.in_a.bits.size)
   val source  = Reg(io.in_a.bits.source)
   val user    = Reg(io.in_a.bits.user)
   val echo    = Reg(io.in_a.bits.echo)
+  /** @todo why this Init value? */
   val address = RegInit((id << lineShift).U(io.in_a.bits.address.getWidth.W))
+  /** caches: how many cache from upper level.
+    * 1: need to fetch from lower level
+    * */
   val count   = Reg(UInt(log2Ceil(caches+1).W))
   val cacheOH = Reg(UInt(caches.W))
   val idle    = got_e && sent_d
@@ -438,6 +642,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
     assert (idle)
     sent_d  := false.B
     shared  := false.B
+    /* If incoming transaction is AcquireBlock or AcquirePerm, we need to wait for e. */
     got_e   := io.in_a.bits.opcode =/= TLMessages.AcquireBlock && io.in_a.bits.opcode =/= TLMessages.AcquirePerm
     opcode  := io.in_a.bits.opcode
     param   := io.in_a.bits.param
@@ -446,10 +651,13 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
     user   :<= io.in_a.bits.user
     echo   :<= io.in_a.bits.echo
     address := io.in_a.bits.address
+    /* we need to fetch from lower level at least. */
     count   := 1.U
   }
-
+  /* cache [[cacheOH]] by [[io.clearOH]] */
   cacheOH := cacheOH & ~io.clearOH
+
+  /* if we are probing to other clients. */
   when (io.probe.valid) {
     count   := io.probe.bits.count
     cacheOH := io.probe.bits.cacheOH
@@ -459,16 +667,19 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
     assert (!sent_d)
     sent_d := true.B
   }
+
   when (io.e_last) {
     assert (!got_e)
     got_e := true.B
   }
 
+  /* send probe transactions. */
   when (io.probenack || io.probedack) {
     assert (count > 0.U)
     count := count - Mux(io.probenack && io.probedack, 2.U, 1.U)
   }
 
+  /* we have branch in the upper level. */
   when (io.probesack) {
     shared := true.B
   }
@@ -479,6 +690,9 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
   io.line := address >> lineShift
   io.cacheOH := cacheOH
 
+  /* only have mask and data.
+   * only in idle state, tracker will accept new transaction set.
+   */
   val i_data = Wire(Decoupled(new TLBroadcastData(edgeIn.bundle)))
   val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes), pipe=bufferless)
 
@@ -487,13 +701,19 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
   i_data.bits.mask := io.in_a.bits.mask
   i_data.bits.data := io.in_a.bits.data
 
+  /* finish this all probe and fetch data from next level. */
   val probe_done = count === 0.U
+  /** from upper level this transaction is a Acquire. */
   val acquire = opcode === TLMessages.AcquireBlock || opcode === TLMessages.AcquirePerm
 
+  /** if this transaction probe others to branch:
+    * this is [[TRANSFORM_B]], otherwise [[TRANSFORM_T]]
+    */
   val transform = Mux(shared, TRANSFORM_B, TRANSFORM_T)
 
   o_data.ready := io.out_a.ready && probe_done
   io.out_a.valid := o_data.valid && probe_done
+  /** convert TL-C -> TL-UH. */
   io.out_a.bits.opcode  := Mux(acquire, TLMessages.Get, opcode)
   io.out_a.bits.param   := Mux(acquire, 0.U, param)
   io.out_a.bits.size    := size
