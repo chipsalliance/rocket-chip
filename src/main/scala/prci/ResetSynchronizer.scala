@@ -9,7 +9,7 @@ import freechips.rocketchip.util.{ResetCatchAndSync}
   * Synchronizes the reset of a diplomatic clock-reset pair to its accompanying clock.
   */
 class ResetSynchronizer(implicit p: Parameters) extends LazyModule {
-  val node = ClockIdentityNode()
+  val node = ClockAdapterNode()
   lazy val module = new LazyRawModuleImp(this) {
     (node.out zip node.in).map { case ((o, _), (i, _)) =>
       o.clock := i.clock
@@ -27,7 +27,7 @@ object ResetSynchronizer {
   * Instantiates a reset synchronizer on all clock-reset pairs in a clock group.
   */
 class ClockGroupResetSynchronizer(implicit p: Parameters) extends LazyModule {
-  val node = ClockGroupIdentityNode()
+  val node = ClockGroupAdapterNode()
   lazy val module = new LazyRawModuleImp(this) {
     (node.out zip node.in).map { case ((oG, _), (iG, _)) =>
       (oG.member.data zip iG.member.data).foreach { case (o, i) =>
