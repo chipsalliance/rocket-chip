@@ -419,11 +419,14 @@ class CSRFile(
   val reg_vxsat = usingVector.option(Reg(Bool()))
   val reg_vxrm = usingVector.option(Reg(UInt(io.vector.get.vxrm.getWidth.W)))
 
-  val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
+  val reg_mcountinhibit = RegInit(0.U((2 + nPerfCounters).W))
+  val reg_instret = WideCounter(64, io.retire, inhibit = reg_mcountinhibit(2))
+  val reg_cycle = if (enableCommitLog) WideCounter(64, io.retire,     inhibit = reg_mcountinhibit(0))
+    else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall, inhibit = reg_mcountinhibit(0)) }
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
-  (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
-  val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
+    (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
+  val reg_hpmcounter = io.counters.zipWithIndex.map { case (c, i) =>
+    WideCounter(CSR.hpmWidth, c.inc, reset = false, inhibit = reg_mcountinhibit(2+i)) }
 
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
@@ -517,6 +520,7 @@ class CSRFile(
   read_mapping ++= vector_csrs
 
   if (coreParams.haveBasicCounters) {
+    read_mapping += CSRs.mcountinhibit -> reg_mcountinhibit
     read_mapping += CSRs.mcycle -> reg_cycle
     read_mapping += CSRs.minstret -> reg_instret
 
