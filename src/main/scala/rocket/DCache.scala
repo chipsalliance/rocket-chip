@@ -169,8 +169,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val s0_req = WireInit(io.cpu.req.bits)
   s0_req.addr := Cat(metaArb.io.out.bits.addr >> blockOffBits, io.cpu.req.bits.addr(blockOffBits-1,0))
+  s0_req.idx.foreach(_ := Cat(metaArb.io.out.bits.idx, s0_req.addr(blockOffBits-1, 0)))
   when (!metaArb.io.in(7).ready) { s0_req.phys := true }
   val s1_req = RegEnable(s0_req, s0_clk_en)
+  val s1_vaddr = Cat(s1_req.idx.getOrElse(s1_req.addr) >> tagLSB, s1_req.addr(tagLSB-1, 0))
 
   val s0_tlb_req = WireInit(tlb_port.req.bits)
   when (!tlb_port.req.fire()) {
@@ -216,7 +218,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(3).valid := io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)
   dataArb.io.in(3).bits := dataArb.io.in(1).bits
   dataArb.io.in(3).bits.write := false
-  dataArb.io.in(3).bits.addr := io.cpu.req.bits.addr
+  dataArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.idx.getOrElse(io.cpu.req.bits.addr) >> tagLSB, io.cpu.req.bits.addr(tagLSB-1, 0))
   dataArb.io.in(3).bits.wordMask := {
     val mask = (subWordBytes.log2 until rowOffBits).foldLeft(1.U) { case (in, i) =>
       val upper_mask = Mux(i >= wordBytes.log2 || io.cpu.req.bits.size <= i.U, 0.U,
@@ -234,7 +236,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_read_mask = RegEnable(dataArb.io.in(3).bits.wordMask, s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false
-  metaArb.io.in(7).bits.idx := io.cpu.req.bits.addr(idxMSB, idxLSB)
+  metaArb.io.in(7).bits.idx := dataArb.io.in(3).bits.addr(idxMSB, idxLSB)
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
   metaArb.io.in(7).bits.way_en := metaArb.io.in(4).bits.way_en
   metaArb.io.in(7).bits.data := metaArb.io.in(4).bits.data
@@ -315,7 +317,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     s2_tlb_xcpt := tlb.io.resp
     s2_pma := Mux(s1_tlb_req_valid, pma_checker.io.resp, tlb.io.resp)
   }
-  val s2_vaddr = Cat(RegEnable(s1_req.addr, s1_valid_not_nacked || s1_flush_valid) >> pgIdxBits, s2_req.addr(pgIdxBits-1, 0))
+  val s2_vaddr = Cat(RegEnable(s1_vaddr, s1_valid_not_nacked || s1_flush_valid) >> tagLSB, s2_req.addr(tagLSB-1, 0))
   val s2_read = isRead(s2_req.cmd)
   val s2_write = isWrite(s2_req.cmd)
   val s2_readwrite = s2_read || s2_write
@@ -457,7 +459,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   def s2_store_valid_pre_kill = s2_valid_hit && s2_write && !s2_sc_fail
   def s2_store_valid = s2_store_valid_pre_kill && !io.cpu.s2_kill
   val pstore1_cmd = RegEnable(s1_req.cmd, s1_valid_not_nacked && s1_write)
-  val pstore1_addr = RegEnable(s1_req.addr, s1_valid_not_nacked && s1_write)
+  val pstore1_addr = RegEnable(s1_vaddr, s1_valid_not_nacked && s1_write)
   val pstore1_data = RegEnable(io.cpu.s1_data.data, s1_valid_not_nacked && s1_write)
   val pstore1_way = RegEnable(s1_hit_way, s1_valid_not_nacked && s1_write)
   val pstore1_mask = RegEnable(s1_mask, s1_valid_not_nacked && s1_write)
