@@ -526,7 +526,7 @@ class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheMod
     val wb_req = Decoupled(new WritebackReq(edge.bundle))
     val way_en = Bits(INPUT, nWays)
     val mshr_rdy = Bool(INPUT)
-    val block_state = new ClientMetadata().asInput
+    val block_state = cacheParams.clientMetadata.asInput
   }
 
   val (s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req ::
@@ -540,7 +540,7 @@ class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheMod
 
   val way_en = Reg(Bits())
   val tag_matches = way_en.orR
-  val old_coh = Reg(new ClientMetadata)
+  val old_coh = Reg(cacheParams.clientMetadata.asInput)
   val miss_coh = ClientMetadata.onReset
   val reply_coh = Mux(tag_matches, old_coh, miss_coh)
   val (is_dirty, report_param, new_coh) = reply_coh.onProbe(req.param)

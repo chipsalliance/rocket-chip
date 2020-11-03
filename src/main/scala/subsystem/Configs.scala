@@ -212,6 +212,16 @@ class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
   }
 })
 
+/** Changes the policy of the L1 Data Cache to writeback data on a clean downgrade, i.e., where the cache has a line in
+  * exclusive mode, unmodified, and is probed to release it. This will cause the cache to respond _with_ the data as
+  * opposed to with a simple acknowledgment.
+  */
+class WithL1DCacheExclusiveL2 extends Config ((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(dcache = r.dcache.map(_.copy(coherencePolicy = CoherencePolicy(writebackDataOnCleanDowngrade = false))))
+  }
+})
+
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
   case CacheBlockBytes => linesize
 })
