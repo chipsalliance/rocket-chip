@@ -227,6 +227,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
+  val inhibit_cycle = Output(Bool())
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
   val mcontext = Output(UInt(coreParams.mcontextWidth.W))
@@ -420,6 +421,7 @@ class CSRFile(
   val reg_vxrm = usingVector.option(Reg(UInt(io.vector.get.vxrm.getWidth.W)))
 
   val reg_mcountinhibit = RegInit(0.U((CSR.firstHPM + nPerfCounters).W))
+  io.inhibit_cycle := reg_mcountinhibit(0)
   val reg_instret = WideCounter(64, io.retire, inhibit = reg_mcountinhibit(2))
   val reg_cycle = if (enableCommitLog) WideCounter(64, io.retire,     inhibit = reg_mcountinhibit(0))
     else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall, inhibit = reg_mcountinhibit(0)) }
