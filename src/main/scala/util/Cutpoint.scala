@@ -4,7 +4,7 @@ package freechips.rocketchip.util
 
 import chisel3._
 import firrtl.annotations.{Annotation, MultiTargetAnnotation, ReferenceTarget, Target}
-import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, LowForm, Transform}
+import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, Transform}
 import chisel3.experimental.{ChiselAnnotation, annotate}
 import firrtl.annotations.TargetToken.{Instance, Ref}
 import firrtl.stage.RunFirrtlTransformAnnotation
