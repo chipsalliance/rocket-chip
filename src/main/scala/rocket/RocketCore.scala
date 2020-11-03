@@ -853,7 +853,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
   // gate the clock
-  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || io.dmem.perf.release || take_pc
+  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || csr.io.inhibit_cycle || io.dmem.perf.release || take_pc
   when (unpause) { id_reg_pause := false }
   io.cease := csr.io.status.cease && !clock_en_reg
   io.wfi := csr.io.status.wfi
