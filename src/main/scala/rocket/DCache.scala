@@ -191,7 +191,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_flush_valid = Reg(Bool())
   val s1_waw_hazard = Wire(Bool())
 
-  val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_retry :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: Nil = Enum(UInt(), 8)
+  val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_retry :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: s_dummy :: s_voluntary_release :: Nil = Enum(UInt(), 10)
   val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
   val flushed = Reg(init=Bool(true))
   val flushing = Reg(init=Bool(false))
@@ -200,6 +200,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val resetting = RegInit(false.B)
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val release_ack_wait = Reg(init=Bool(false))
+  val release_ack_dirty = Reg(Bool())
   val release_ack_addr = Reg(UInt(paddrBits.W))
   val release_state = Reg(init=s_ready)
   val refill_way = Reg(UInt())
@@ -569,8 +570,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     Wire(new TLBundleA(edge.bundle))
   }
 
-  tl_out_a.valid := !io.cpu.s2_kill && (s2_valid_uncached_pending ||
-    (s2_valid_cached_miss && !release_ack_wait && (Bool(cacheParams.acquireBeforeRelease) && release_queue_empty || !s2_victim_dirty)))
+  tl_out_a.valid := !io.cpu.s2_kill &&
+    (s2_valid_uncached_pending ||
+      (s2_valid_cached_miss &&
+       !(release_ack_wait && release_ack_dirty) &&
+       (cacheParams.acquireBeforeRelease && release_queue_empty || cacheParams.silentDrop && !s2_victim_dirty)))
   tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param),
     Mux(!s2_write, get,
     Mux(s2_req.cmd === M_PWR, putpartial,
@@ -633,7 +637,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val grantInProgress = Reg(init=Bool(false))
   val blockProbeAfterGrantCount = Reg(init=UInt(0))
   when (blockProbeAfterGrantCount > 0) { blockProbeAfterGrantCount := blockProbeAfterGrantCount - 1 }
-  val canAcceptCachedGrant = !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)
+  val canAcceptCachedGrant = !release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta, s_voluntary_release)
   tl_out.d.ready := Mux(grantIsCached, (!d_first || tl_out.e.ready) && canAcceptCachedGrant, true.B)
   val uncachedRespIdxOH = UIntToOH(tl_out.d.bits.source, maxUncachedInFlight+mmioOffset) >> mmioOffset
   uncachedResp := Mux1H(uncachedRespIdxOH, uncachedReqs)
@@ -730,7 +734,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // Handle an incoming TileLink Probe message
   val block_probe_for_core_progress = blockProbeAfterGrantCount > 0 || lrscValid
-  val block_probe_for_pending_release_ack = release_ack_wait && (tl_out.b.bits.address ^ release_ack_addr)(idxMSB, idxLSB) === 0
+  val block_probe_for_pending_release_ack = release_ack_wait && release_ack_dirty && (tl_out.b.bits.address ^ release_ack_addr)(idxMSB, idxLSB) === 0
   val block_probe_for_ordering = releaseInFlight || block_probe_for_pending_release_ack || grantInProgress
   metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe_for_core_progress || lrscBackingOff)
   tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid)
@@ -773,7 +777,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val cleanReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param)
   val dirtyReleaseMessage = edge.ProbeAck(b = probe_bits, reportPermissions = s2_report_param, data = 0.U)
 
-  tl_out_c.valid := s2_release_data_valid && !(c_first && release_ack_wait)
+  tl_out_c.valid := (s2_release_data_valid || (!cacheParams.silentDrop && release_state === s_voluntary_release)) && !(c_first && release_ack_wait)
   tl_out_c.bits := nackResponseMessage
   val newCoh = Wire(init = probeNewCoh)
   releaseWay := s2_probe_way
@@ -792,7 +796,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     when (s2_victimize) {
       assert(s2_valid_flush_line || s2_flush_valid || io.cpu.s2_nack)
       val discard_line = s2_valid_flush_line && s2_req.size(1) || s2_flush_valid && flushing_req.size(1)
-      release_state := Mux(s2_victim_dirty && !discard_line, s_voluntary_writeback, s_voluntary_write_meta)
+      release_state := Mux(s2_victim_dirty && !discard_line, s_voluntary_writeback,
+                       Mux(!cacheParams.silentDrop && s2_victim_state.isValid() && (s2_valid_flush_line || s2_flush_valid || s2_readwrite && !s2_hit_valid), s_voluntary_release,
+                       s_voluntary_write_meta))
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
     when (s2_probe) {
@@ -834,17 +840,25 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       tl_out_c.bits := dirtyReleaseMessage
       when (releaseDone) { release_state := s_probe_write_meta }
     }
-    when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta)) {
-      tl_out_c.bits := edge.Release(fromSource = 0.U,
-                                    toAddress = 0.U,
-                                    lgSize = lgCacheBlockBytes,
-                                    shrinkPermissions = s2_shrink_param,
-                                    data = 0.U)._2
+    when (release_state.isOneOf(s_voluntary_writeback, s_voluntary_write_meta, s_voluntary_release)) {
+      when (release_state === s_voluntary_release) {
+        tl_out_c.bits := edge.Release(fromSource = 0.U,
+                                      toAddress = 0.U,
+                                      lgSize = lgCacheBlockBytes,
+                                      shrinkPermissions = s2_shrink_param)._2
+      }.otherwise {
+        tl_out_c.bits := edge.Release(fromSource = 0.U,
+                                      toAddress = 0.U,
+                                      lgSize = lgCacheBlockBytes,
+                                      shrinkPermissions = s2_shrink_param,
+                                      data = 0.U)._2
+      }
       newCoh := voluntaryNewCoh
       releaseWay := s2_victim_or_hit_way
       when (releaseDone) { release_state := s_voluntary_write_meta }
       when (tl_out_c.fire() && c_first) {
         release_ack_wait := true
+        release_ack_dirty := release_state === s_voluntary_release
         release_ack_addr := probe_bits.address
       }
     }

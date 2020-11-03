@@ -45,6 +45,8 @@ case class DCacheParams(
 
   def replacement = new RandomReplacement(nWays)
 
+  def silentDrop: Boolean = !acquireBeforeRelease
+
   require((!scratch.isDefined || nWays == 1),
     "Scratchpad only allowed in direct-mapped cache.")
   require((!scratch.isDefined || nMSHRs == 0),
