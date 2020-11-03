@@ -221,7 +221,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       }
 
     val priorityRegFields = priority.zipWithIndex.map { case (p, i) =>
-      PLICConsts.priorityBase+4*(i+1) -> Seq(priorityRegField(p, i+1)) }
+      PLICConsts.priorityBase+PLICConsts.priorityBytes*(i+1) ->
+      Seq(priorityRegField(p, i+1)) }
     val pendingRegFields = Seq(PLICConsts.pendingBase ->
       (RegField(1) +: pending.zipWithIndex.map { case (b, i) => RegField.r(1, b, pendingRegDesc(i+1))}))
     val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
