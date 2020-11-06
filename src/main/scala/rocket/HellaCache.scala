@@ -201,7 +201,7 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
   val fLen = tileParams.core.fpu.map(_.fLen).getOrElse(0)
   val vMemDataBits = tileParams.core.vMemDataBits
   val coreDataBits = p(XLen) max fLen max vMemDataBits
-  val coreDataBytes = maxTransferSizeBits / 8
+  val coreDataBytes = coreDataBits / 8
 
   protected def mmioClientParameters = Seq(TLMasterParameters.v2(
     name          = s"Core ${staticIdForMetadataUseOnly} DCache MMIO",
@@ -211,7 +211,7 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
       arithmetic = TransferSizes(4, coreDataBytes),
       logical = TransferSizes(4, coreDataBytes),
       get = TransferSizes(1, coreDataBytes),
-      putFull = TransferSizes(1, coreDataBytes)
+      putFull = TransferSizes(1, coreDataBytes),
       putPartial = TransferSizes(1, coreDataBytes)
     )))
 
