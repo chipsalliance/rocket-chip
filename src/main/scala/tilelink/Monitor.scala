@@ -122,7 +122,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.expectsVipCheckerMasterToSlavePutPartial(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.expectsVipCheckerEmitsPutPartial(bundle.source, bundle.size), "'A' channel carries PutPartial type which master claims it can't emit" + diplomacyInfo + extra)
+      monAssert (edge.slave.expectsVipCheckerSupportsPutPartial(edge.address(bundle), bundle.size, None), "'A' channel carries PutPartial type which slave claims it can't support" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel PutPartial carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutPartial carries invalid param" + extra)
