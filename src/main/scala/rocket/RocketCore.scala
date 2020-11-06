@@ -838,6 +838,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.signed := !ex_reg_inst(14)
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
+  io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := csr.io.status.dprv
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
@@ -853,7 +854,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
   // gate the clock
-  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || io.dmem.perf.release || take_pc
+  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || csr.io.inhibit_cycle || io.dmem.perf.release || take_pc
   when (unpause) { id_reg_pause := false }
   io.cease := csr.io.status.cease && !clock_en_reg
   io.wfi := csr.io.status.wfi

@@ -192,8 +192,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     (hit && count < pgLevels-1, Mux1H(hits, data))
   }
+  val pte_hit = RegNext(false.B)
   io.dpath.perf.pte_miss := false
-  io.dpath.perf.pte_hit := false
+  io.dpath.perf.pte_hit := pte_hit && (state === s_req) && !io.dpath.perf.l2hit
+  assert(!(io.dpath.perf.l2hit && (io.dpath.perf.pte_miss || io.dpath.perf.pte_hit)),
+    "PTE Cache Hit/Miss Performance Monitor Events are lower priority than L2TLB Hit event")
 
   val l2_refill = RegNext(false.B)
   l2_refill_wire := l2_refill
@@ -263,6 +266,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.size := log2Ceil(xLen/8)
   io.mem.req.bits.signed := false
   io.mem.req.bits.addr := pte_addr
+  io.mem.req.bits.idx.foreach(_ := pte_addr)
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
   io.mem.s1_kill := l2_hit || state =/= s_wait1
   io.mem.s2_kill := Bool(false)
@@ -308,10 +312,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_req) {
       when (pte_cache_hit) {
         count := count + 1
-        io.dpath.perf.pte_hit := true
+        pte_hit := true
       }.otherwise {
         next_state := Mux(io.mem.req.ready, s_wait1, s_req)
-        io.dpath.perf.pte_miss := io.mem.req.ready
       }
     }
     is (s_wait1) {
@@ -320,6 +323,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     is (s_wait2) {
       next_state := s_wait3
+      io.dpath.perf.pte_miss := count < pgLevels-1
       when (io.mem.s2_xcpt.ae.ld) {
         resp_ae := true
         next_state := s_ready

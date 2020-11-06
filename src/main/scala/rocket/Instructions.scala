@@ -1067,6 +1067,7 @@ object CSRs {
   val mhpmcounter29 = 0xb1d
   val mhpmcounter30 = 0xb1e
   val mhpmcounter31 = 0xb1f
+  val mcountinhibit = 0x320
   val mhpmevent3 = 0x323
   val mhpmevent4 = 0x324
   val mhpmevent5 = 0x325
@@ -1327,6 +1328,7 @@ object CSRs {
     res += mhpmcounter29
     res += mhpmcounter30
     res += mhpmcounter31
+    res += mcountinhibit
     res += mhpmevent3
     res += mhpmevent4
     res += mhpmevent5

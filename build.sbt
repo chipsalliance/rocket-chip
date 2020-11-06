@@ -6,7 +6,7 @@ import scala.sys.process._
 enablePlugins(PackPlugin)
 
 // This needs to stay in sync with the chisel3 and firrtl git submodules
-val chiselVersion = "3.4.0-RC3"
+val chiselVersion = "3.4.0"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",

@@ -230,6 +230,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val pmp = Vec(nPMPs, new PMP).asOutput
   val counters = Vec(nPerfCounters, new PerfCounterIO)
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
+  val inhibit_cycle = Output(Bool())
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
   val mcontext = Output(UInt(coreParams.mcontextWidth.W))
@@ -431,11 +432,15 @@ class CSRFile(
   val reg_vxsat = usingVector.option(Reg(Bool()))
   val reg_vxrm = usingVector.option(Reg(UInt(io.vector.get.vxrm.getWidth.W)))
 
-  val reg_instret = WideCounter(64, io.retire)
-  val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
+  val reg_mcountinhibit = RegInit(0.U((CSR.firstHPM + nPerfCounters).W))
+  io.inhibit_cycle := reg_mcountinhibit(0)
+  val reg_instret = WideCounter(64, io.retire, inhibit = reg_mcountinhibit(2))
+  val reg_cycle = if (enableCommitLog) WideCounter(64, io.retire,     inhibit = reg_mcountinhibit(0))
+    else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall, inhibit = reg_mcountinhibit(0)) }
   val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
-  (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
-  val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
+    (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
+  val reg_hpmcounter = io.counters.zipWithIndex.map { case (c, i) =>
+    WideCounter(CSR.hpmWidth, c.inc, reset = false, inhibit = reg_mcountinhibit(CSR.firstHPM+i)) }
 
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
@@ -542,6 +547,7 @@ class CSRFile(
   read_mapping ++= vector_csrs
 
   if (coreParams.haveBasicCounters) {
+    read_mapping += CSRs.mcountinhibit -> reg_mcountinhibit
     read_mapping += CSRs.mcycle -> reg_cycle
     read_mapping += CSRs.minstret -> reg_instret
 
@@ -954,6 +960,7 @@ class CSRFile(
       when (decoded_addr(i + CSR.firstHPE)) { e := perfEventSets.maskEventSelector(wdata) }
     }
     if (coreParams.haveBasicCounters) {
+      when (decoded_addr(CSRs.mcountinhibit)) { reg_mcountinhibit := wdata & ~2.U(xLen.W) }  // mcountinhibit bit [1] is tied zero
       writeCounter(CSRs.mcycle, reg_cycle, wdata)
       writeCounter(CSRs.minstret, reg_instret, wdata)
     }

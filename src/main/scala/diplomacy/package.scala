@@ -179,6 +179,7 @@ import scala.language.implicitConversions
 package object diplomacy
 {
   type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = NodeHandle[D, U, E, B, D, U, E, B]
+  type AnyMixedNode = MixedNode[_, _, _, _ <: Data, _, _, _, _ <: Data]
 
   def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
     case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
