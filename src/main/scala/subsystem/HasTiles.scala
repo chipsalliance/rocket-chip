@@ -10,7 +10,7 @@ import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerPa
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci.{ClockGroup, ClockNode}
 import freechips.rocketchip.util._
@@ -124,6 +124,18 @@ trait HasTileInterruptSources
   }
 }
 
+trait HasTileNMISources extends InstantiatesTiles { this: BaseSubsystem =>
+  /** NMI input bundle */
+  val tileNMINode = BundleBridgeEphemeralNode[NMI]()
+  val tileNMIIONodes: Seq[BundleBridgeSource[NMI]] = {
+    Seq.fill(tiles.size) {
+      val nmiSource = BundleBridgeSource[NMI]()
+      tileNMINode := nmiSource
+      nmiSource
+    }
+  }
+}
+
 /** These are sources of "constants" that are driven into the tile.
   * 
   * While they are not expected to change dyanmically while the tile is executing code,
@@ -219,6 +231,7 @@ trait HasTileNotificationSinks { this: LazyModule =>
 trait DefaultTileContextType
   extends Attachable
   with HasTileInterruptSources
+  with HasTileNMISources
   with HasTileNotificationSinks
   with HasTileInputConstants
 { this: BaseSubsystem => } // TODO: ideally this bound would be softened to LazyModule
@@ -249,6 +262,7 @@ trait CanAttachTile {
     connectMasterPorts(domain, context)
     connectSlavePorts(domain, context)
     connectInterrupts(domain, context)
+    connectNMI(domain.tile, context)
     connectPRC(domain, context)
     connectOutputNotifications(domain.tile, context)
     connectInputConstants(domain.tile, context)
@@ -318,6 +332,12 @@ trait CanAttachTile {
         plic.intnode :=* domain.crossIntOut(crossingParams.crossingType)
       }
     }
+  }
+
+  /** Connect NMI inputs to the tile. No clock crossing needed. */
+  def connectNMI(tile: TileType, context: TileContextType): Unit = {
+    implicit val p = context.p
+    tile.nmiNode := context.tileNMINode
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
@@ -401,7 +421,7 @@ trait HasTiles extends InstantiatesTiles with HasCoreMonitorBundles with Default
 
 /** Provides some Chisel connectivity to certain tile IOs */
 trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
-  val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants
+  val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants with HasTileNMISources
 
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
   val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
@@ -418,4 +438,5 @@ trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
       (outer.seipNode.get.out(i)._1)(0) := pin
     }
   }
+  val nmi = outer.tiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => if (tile.tileParams.core.useNMI) n.makeIO(s"nmi_$i") }
 }

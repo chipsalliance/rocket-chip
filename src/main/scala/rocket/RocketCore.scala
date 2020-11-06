@@ -177,6 +177,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (usingVM.option(new SVMDecode)) ++:
     (usingSupervisor.option(new SDecode)) ++:
     (usingDebug.option(new DebugDecode)) ++:
+    (usingNMI.option(new NMIDecode)) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine)) ++:
     Seq(new IDecode)
