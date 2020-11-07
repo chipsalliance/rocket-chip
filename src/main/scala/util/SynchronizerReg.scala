@@ -32,6 +32,8 @@ object SynchronizerResetType extends Enumeration {
 }
 
 
+// Note: this should not be used directly.
+// Use the companion object to generate this with the correct reset type mixin.
 private class SynchronizerPrimitiveShiftReg(
   sync: Int,
   init: Boolean,
@@ -45,40 +47,45 @@ private class SynchronizerPrimitiveShiftReg(
   }
   override def desiredName = s"${resetType.toString}ResetSynchronizerPrimitiveShiftReg_d${sync}${initPostfix}"
 
-  // this is private to workaround https://github.com/freechipsproject/chisel3/issues/1352
-  private val local_reset = resetType match {
-    case SynchronizerResetType.NonSync => reset // unused because a RegInit is not used
-    case SynchronizerResetType.Inferred => reset
-    case SynchronizerResetType.Sync => reset.asBool
-    case SynchronizerResetType.Async => reset.asAsyncReset
+  val chain = List.tabulate(sync) { i =>
+    val reg = if (resetType == SynchronizerResetType.NonSync) Reg(Bool()) else RegInit(init.B)
+    reg.suggestName(s"sync_$i")
   }
+  chain.last := io.d.asBool
 
-  withReset(local_reset){
-    val chain = List.tabulate(sync) { i =>
-      val reg = if (resetType == SynchronizerResetType.NonSync) Reg(Bool()) else RegInit(init.B)
-      reg.suggestName(s"sync_$i")
-    }
-    chain.last := io.d.asBool
-
-    (chain.init zip chain.tail).foreach { case (sink, source) =>
-      sink := source
-    }
-    io.q := chain.head.asUInt
+  (chain.init zip chain.tail).foreach { case (sink, source) =>
+    sink := source
   }
+  io.q := chain.head.asUInt
 }
 
 private object SynchronizerPrimitiveShiftReg {
-  def apply (in: Bool, sync: Int, init: Boolean, resetType: SynchronizerResetType.Value): Bool =
-    AbstractPipelineReg(new SynchronizerPrimitiveShiftReg(sync, init, resetType), in)
+  def apply (in: Bool, sync: Int, init: Boolean, resetType: SynchronizerResetType.Value): Bool = {
+    val gen: () => SynchronizerPrimitiveShiftReg = resetType match {
+      case SynchronizerResetType.NonSync =>
+        () => new SynchronizerPrimitiveShiftReg(sync, init, resetType)
+      case SynchronizerResetType.Async =>
+        () => new SynchronizerPrimitiveShiftReg(sync, init, resetType) with RequireAsyncReset
+      case SynchronizerResetType.Sync =>
+        () => new SynchronizerPrimitiveShiftReg(sync, init, resetType) with RequireSyncReset
+      case SynchronizerResetType.Inferred =>
+        () => new  SynchronizerPrimitiveShiftReg(sync, init, resetType)
+    }
+    AbstractPipelineReg(gen(), in)
+  }
 }
 
+// Note: This module may end up with a non-AsyncReset type reset.
+// But the Primitives within will always have AsyncReset type.
 class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int)
     extends AbstractPipelineReg(w) {
   require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
   override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
   val output = Seq.tabulate(w) { i =>
     val initBit = ((init >> i) & 1) > 0
-    SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit,  SynchronizerResetType.Async)
+    withReset(reset.asAsyncReset){
+      SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit,  SynchronizerResetType.Async)
+    }
   }
   io.q := Cat(output.reverse)
 }
@@ -100,13 +107,17 @@ object AsyncResetSynchronizerShiftReg {
     apply (in, sync, init.litValue.toInt, None)
 }
 
+// Note: This module may end up with a non-Bool type reset.
+// But the Primitives within will always have Bool reset type.
 @deprecated("SyncResetSynchronizerShiftReg is unecessary with Chisel3 inferred resets. Use ResetSynchronizerShiftReg which will use the inferred reset type.", "rocket-chip 1.2")
 class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int) extends AbstractPipelineReg(w) {
   require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
   override def desiredName = s"SyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
   val output = Seq.tabulate(w) { i =>
     val initBit = ((init >> i) & 1) > 0
-    SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit, SynchronizerResetType.Sync)
+    withReset(reset.asBool){
+      SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit, SynchronizerResetType.Sync)
+    }
   }
   io.q := Cat(output.reverse)
 }
