@@ -438,5 +438,5 @@ trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
       (outer.seipNode.get.out(i)._1)(0) := pin
     }
   }
-  val nmi = outer.tiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => if (tile.tileParams.core.useNMI) n.makeIO(s"nmi_$i") }
+  val nmi = outer.tiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
 }

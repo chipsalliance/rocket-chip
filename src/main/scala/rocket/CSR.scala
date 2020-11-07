@@ -716,7 +716,7 @@ class CSRFile(
   val trapToNmiInt = usingNMI.B && causeIsNmi
   val trapToNmiXcpt = usingNMI.B && !nmie
   val trapToNmi = trapToNmiInt || trapToNmiXcpt
-  val nmiTVec = Mux(causeIsNmi, nmiTVecInt, nmiTVecXcpt)
+  val nmiTVec = (Mux(causeIsNmi, nmiTVecInt, nmiTVecXcpt)>>1)<<1
 
   val tvec = Mux(trapToDebug, debugTVec, Mux(trapToNmi, nmiTVec, notDebugTVec))
   io.evec := tvec

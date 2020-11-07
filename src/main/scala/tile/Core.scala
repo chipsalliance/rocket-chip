@@ -32,7 +32,7 @@ trait CoreParams {
   val retireWidth: Int
   val instBits: Int
   val nLocalInterrupts: Int
-  val useNMI: Boolean = true
+  val useNMI: Boolean
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
@@ -103,6 +103,10 @@ trait HasCoreParameters extends HasTileParameters {
   def eLen = coreParams.eLen(xLen, fLen)
   def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
   def maxVLMax = vLen
+
+  if (tileParams.beuAddr.nonEmpty) {
+    require(usingNMI, "If BEU is present, then NMI must also be present")
+  }
 
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
