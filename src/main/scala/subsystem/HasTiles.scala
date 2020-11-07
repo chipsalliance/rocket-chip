@@ -124,6 +124,8 @@ trait HasTileInterruptSources
   }
 }
 
+/** Source of Non-maskable Interrupt (NMI) input bundle to each tile.
+  */
 trait HasTileNMISources extends InstantiatesTiles { this: BaseSubsystem =>
   /** NMI input bundle */
   val tileNMINode = BundleBridgeEphemeralNode[NMI]()
@@ -334,7 +336,7 @@ trait CanAttachTile {
     }
   }
 
-  /** Connect NMI inputs to the tile. No clock crossing needed. */
+  /** Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock. */
   def connectNMI(tile: TileType, context: TileContextType): Unit = {
     implicit val p = context.p
     tile.nmiNode := context.tileNMINode
