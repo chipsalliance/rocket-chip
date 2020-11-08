@@ -573,7 +573,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out_a.valid := !io.cpu.s2_kill &&
     (s2_valid_uncached_pending ||
       (s2_valid_cached_miss &&
-       !(release_ack_wait && release_ack_dirty) &&
+       !release_ack_wait &&
        (cacheParams.acquireBeforeRelease && release_queue_empty || cacheParams.silentDrop && !s2_victim_dirty)))
   tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param),
     Mux(!s2_write, get,
@@ -858,7 +858,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       when (releaseDone) { release_state := s_voluntary_write_meta }
       when (tl_out_c.fire() && c_first) {
         release_ack_wait := true
-        release_ack_dirty := release_state === s_voluntary_release
+        release_ack_dirty := inWriteback
         release_ack_addr := probe_bits.address
       }
     }
