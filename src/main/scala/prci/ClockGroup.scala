@@ -49,7 +49,7 @@ class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends La
     val (out, _) = node.out.unzip
     val outputs = out.flatMap(_.member.data)
 
-    require (node.in.size == 1)
+    require (node.in.size == 1, s"Aggregator for groupName: ${groupName} had ${node.in.size} inward edges instead of 1")
     require (in.head.member.size == outputs.size)
     in.head.member.data.zip(outputs).foreach { case (i, o) => o := i }
   }
