@@ -197,7 +197,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         name      = s"priority_$i",
         desc      = s"Acting priority of interrupt source $i",
         group     = Some(s"priority_${i}"),
-        groupDesc = Some("Acting priority of interrupt source $i")
+        groupDesc = Some(s"Acting priority of interrupt source ${i}")
         reset     = if (nPriorities > 0) None else Some(1))
 
     def pendingRegDesc(i: Int) =
