@@ -479,10 +479,10 @@ The objective of this section is to use GNU debugger to debug RISC-V programs ru
 For that we need to add a Remote Bit-Bang client to the emulator. We can do so by extending our Config with JtagDTMSystem, which will add a DebugTransportModuleJTAG to the DUT and connect a SimJTAG module in the Test Harness. This will allow OpenOCD to interface with the emulator, and GDB can interface with OpenOCD. In the following example we add this Config alteration to `src/main/scala/system/Configs.scala`:
 
     class DefaultConfigRBB extends Config(
-    new WithJtagDTMSystem ++ new WithNBigCores(1) ++ new BaseConfig)
+    new WithJtagDTMSystem ++ new WithNBigCores(1) ++ WithCoherentBusTopology ++ new BaseConfig)
 
     class QuadCoreConfigRBB extends Config(
-    new WithJtagDTMSystem ++ new WithNBigCores(4) ++ new BaseConfig)
+    new WithJtagDTMSystem ++ new WithNBigCores(4) ++ WithCoherentBusTopology ++ new BaseConfig)
 
 To build the emulator with `DefaultConfigRBB` configuration we use the command:
 
