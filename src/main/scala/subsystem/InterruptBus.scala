@@ -6,13 +6,15 @@ import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
+import freechips.rocketchip.prci.{ClockSinkDomain}
 
 /** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
 class InterruptBusWrapper(implicit p: Parameters) extends SimpleLazyModule with LazyScope with HasClockDomainCrossing {
   override def shouldBeInlined = true
-  val int_bus = LazyModule(new IntXbar)
-  private val int_in_xing = this.crossIn(int_bus.intnode)
-  private val int_out_xing = this.crossOut(int_bus.intnode)
+  val interruptBusDomainWrapper = LazyModule(new ClockSinkDomain() { override def shouldBeInlined = true })
+  val int_bus = interruptBusDomainWrapper { LazyModule(new IntXbar) }   // Interrupt crossbar
+  private val int_in_xing  = interruptBusDomainWrapper.crossIn(int_bus.intnode)
+  private val int_out_xing = interruptBusDomainWrapper.crossOut(int_bus.intnode)
   def from(name: Option[String])(xing: ClockCrossingType) = int_in_xing(xing) :=* IntNameNode(name)
   def to(name: Option[String])(xing: ClockCrossingType) = IntNameNode(name) :*= int_out_xing(xing)
   def fromAsync: IntInwardNode = from(None)(AsynchronousCrossing(8,3))
