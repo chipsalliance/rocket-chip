@@ -104,10 +104,6 @@ trait HasCoreParameters extends HasTileParameters {
   def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
   def maxVLMax = vLen
 
-  if (tileParams.beuAddr.nonEmpty) {
-    require(usingNMI, "If BEU is present, then NMI must also be present")
-  }
-
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")

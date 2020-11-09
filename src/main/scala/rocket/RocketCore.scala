@@ -26,7 +26,7 @@ case class RocketCoreParams(
   useRVE: Boolean = false,
   useSCIE: Boolean = false,
   nLocalInterrupts: Int = 0,
-  useNMI: Boolean = true,
+  useNMI: Boolean = false,
   nBreakpoints: Int = 1,
   useBPWatch: Boolean = false,
   mcontextWidth: Int = 0,

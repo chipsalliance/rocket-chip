@@ -133,7 +133,7 @@ object CSR
   }
 
   val ADDRSZ = 12
-  def busErrorIntCause = 128  //TODO: Remove once other clients no longer need this
+  def busErrorIntCause = 128
   def debugIntCause = 14 // keep in sync with MIP.debug
   def debugTriggerCause = {
     val res = debugIntCause
@@ -345,13 +345,14 @@ class CSRFile(
     sup.debug := false
     sup.zero2 := false
     sup.lip foreach { _ := true }
+    val supported_high_interrupts = if (io.interrupts.buserror.nonEmpty && !usingNMI) UInt(BigInt(1) << CSR.busErrorIntCause) else 0.U
 
     val del = Wire(init=sup)
     del.msip := false
     del.mtip := false
     del.meip := false
 
-    (sup.asUInt, del.asUInt)
+    (sup.asUInt | supported_high_interrupts, del.asUInt)
   }
   val delegable_exceptions = UInt(Seq(
     Causes.misaligned_fetch,
@@ -451,17 +452,18 @@ class CSRFile(
   io.interrupts.seip.foreach { mip.seip := reg_mip.seip || _ }
   mip.rocc := io.rocc_interrupt
   val read_mip = mip.asUInt & supported_interrupts
+  val high_interrupts = (if (usingNMI) 0.U else io.interrupts.buserror.map(_ << CSR.busErrorIntCause).getOrElse(0.U))
 
-  val pending_interrupts = read_mip & reg_mie
+  val pending_interrupts = high_interrupts | (read_mip & reg_mie)
   val d_interrupts = io.interrupts.debug << CSR.debugIntCause
-  val (n_interrupts, nmiFlag) = io.interrupts.nmi.map(nmi =>
+  val (nmi_interrupts, nmiFlag) = io.interrupts.nmi.map(nmi =>
     (((nmi.unmi && reg_unmie) << CSR.unmiIntCause) |
     ((nmi.rnmi && reg_rnmie) << CSR.rnmiIntCause) |
     io.interrupts.buserror.map(_ << CSR.rnmiBEUCause).getOrElse(0.U),
     !io.interrupts.debug && (nmi.unmi && reg_unmie || nmi.rnmi && reg_rnmie))).getOrElse(0.U, false.B)
   val m_interrupts = Mux(nmie && (reg_mstatus.prv <= PRV.S || reg_mstatus.mie), ~(~pending_interrupts | read_mideleg), UInt(0))
   val s_interrupts = Mux(nmie && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & read_mideleg, UInt(0))
-  val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, n_interrupts, d_interrupts))
+  val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, nmi_interrupts, d_interrupts))
   val interruptMSB = BigInt(1) << (xLen-1)
   val interruptCause = UInt(interruptMSB) + (nmiFlag << (xLen-2)) + whichInterrupt
   io.interrupt := (anyInterrupt && !io.singleStep || reg_singleStepped) && !(reg_debug || io.status.cease)
@@ -685,7 +687,7 @@ class CSRFile(
   val cause =
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, io.cause))
-  val cause_lsbs = cause(log2Ceil(mip.getWidth)-1, 0)
+  val cause_lsbs = cause(log2Ceil(1 + CSR.busErrorIntCause)-1, 0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
