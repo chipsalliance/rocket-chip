@@ -85,7 +85,7 @@ trait HasNonDiplomaticTileParameters {
   def masterPortBeatBytes = p(SystemBusKey).beatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
-  //                  Core   PTW                DTIM                    coprocessors           
+  //                  Core   PTW                DTIM                    coprocessors
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + tileParams.core.useVector.toInt
 
   // TODO merge with isaString in CSR.scala
@@ -98,7 +98,8 @@ trait HasNonDiplomaticTileParameters {
     val c = if (tileParams.core.useCompressed) "c" else ""
     val b = if (tileParams.core.useBitManip) "b" else ""
     val v = if (tileParams.core.useVector) "v" else ""
-    s"rv${p(XLen)}$ie$m$a$f$d$c$b$v"
+    val zfh = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.minFLen == 16) "_zfh" else ""
+    s"rv${p(XLen)}$ie$m$a$f$d$c$b$v$zfh"
   }
 
   def tileProperties: PropertyMap = {
