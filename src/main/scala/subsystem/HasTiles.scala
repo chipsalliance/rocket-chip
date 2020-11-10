@@ -104,6 +104,7 @@ trait HasTileInterruptSources
   extends CanHavePeripheryPLIC
   with CanHavePeripheryCLINT
   with HasPeripheryDebug
+  with InstantiatesTiles
 { this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
   /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
   val meipNode = p(PLICKey) match {
@@ -122,12 +123,7 @@ trait HasTileInterruptSources
       outputRequiresInput = false,
       inputRequiresOutput = false))
   }
-}
-
-/** Source of Non-maskable Interrupt (NMI) input bundle to each tile.
-  */
-trait HasTileNMISources extends InstantiatesTiles { this: BaseSubsystem =>
-  /** NMI input bundle */
+  /** Source of Non-maskable Interrupt (NMI) input bundle to each tile. */
   val tileNMINode = BundleBridgeEphemeralNode[NMI]()
   val tileNMIIONodes: Seq[BundleBridgeSource[NMI]] = {
     Seq.fill(tiles.size) {
@@ -233,7 +229,6 @@ trait HasTileNotificationSinks { this: LazyModule =>
 trait DefaultTileContextType
   extends Attachable
   with HasTileInterruptSources
-  with HasTileNMISources
   with HasTileNotificationSinks
   with HasTileInputConstants
 { this: BaseSubsystem => } // TODO: ideally this bound would be softened to LazyModule
@@ -264,7 +259,6 @@ trait CanAttachTile {
     connectMasterPorts(domain, context)
     connectSlavePorts(domain, context)
     connectInterrupts(domain, context)
-    connectNMI(domain.tile, context)
     connectPRC(domain, context)
     connectOutputNotifications(domain.tile, context)
     connectInputConstants(domain.tile, context)
@@ -334,12 +328,9 @@ trait CanAttachTile {
         plic.intnode :=* domain.crossIntOut(crossingParams.crossingType)
       }
     }
-  }
 
-  /** Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock. */
-  def connectNMI(tile: TileType, context: TileContextType): Unit = {
-    implicit val p = context.p
-    tile.nmiNode := context.tileNMINode
+    // 5. Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock.
+    domain.tile.nmiNode := context.tileNMINode
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
@@ -423,7 +414,7 @@ trait HasTiles extends InstantiatesTiles with HasCoreMonitorBundles with Default
 
 /** Provides some Chisel connectivity to certain tile IOs */
 trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
-  val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants with HasTileNMISources
+  val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants
 
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
   val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
