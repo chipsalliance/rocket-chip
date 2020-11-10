@@ -74,12 +74,14 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
       xTypes = SubsystemCrossingParams(
         sbusToCbusXType = site(SbusToCbusXTypeKey),
         cbusToPbusXType = site(CbusToPbusXTypeKey),
-        fbusToSbusXType = site(FbusToSbusXTypeKey))),
+        fbusToSbusXType = site(FbusToSbusXTypeKey)),
+      driveClocksFromSBus = site(DriveClocksFromSBus)),
     CoherentBusTopologyParams(
       sbus = site(SystemBusKey),
       mbus = site(MemoryBusKey),
       l2 = site(BankedL2Key),
-      sbusToMbusXType = site(SbusToMbusXTypeKey)))
+      sbusToMbusXType = site(SbusToMbusXTypeKey),
+      driveMBusClockFromSBus = site(DriveClocksFromSBus)))
 })
 
 class WithNBigCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
@@ -488,4 +490,9 @@ class WithFrontBusFrequency(freqMHz: Double) extends Config((site, here, up) => 
 })
 class WithControlBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
   case ControlBusKey => up(ControlBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+})
+
+/** Under the default multi-bus topologies, this leaves bus ClockSinks undriven by the topology itself */
+class WithDontDriveBusClocksFromSBus extends Config((site, here, up) => {
+  case DriveClocksFromSBus => false
 })
