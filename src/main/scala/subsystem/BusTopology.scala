@@ -41,6 +41,14 @@ case class SubsystemCrossingParams(
   fbusToSbusXType: ClockCrossingType = SynchronousCrossing()
 )
 
+/** Keys to parameterize the most common crossings between the five traditional TL buses. Used to populated
+  * [[SubsystemCrossingParams]].
+  */
+case object SbusToMbusXTypeKey extends Field[ClockCrossingType](NoCrossing)
+case object SbusToCbusXTypeKey extends Field[ClockCrossingType](NoCrossing)
+case object CbusToPbusXTypeKey extends Field[ClockCrossingType](SynchronousCrossing())
+case object FbusToSbusXTypeKey extends Field[ClockCrossingType](SynchronousCrossing())
+
 // Taken together these case classes provide a backwards-compatibility parameterization
 //  of a bus topology that contains the five traditional tilelink bus wrappers.
 //  Users desiring a different topology are free to define a similar subclass,
