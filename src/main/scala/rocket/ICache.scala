@@ -64,7 +64,10 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
       name     = s"Core ${staticIdForMetadataUseOnly} ICache",
       emits    = TLMasterToSlaveTransferSizes(
         get = TransferSizes(icacheParams.blockBytes, icacheParams.blockBytes),
-        hint = TransferSizes(icacheParams.blockBytes, icacheParams.blockBytes)
+        hint = if (icacheParams.prefetch) 
+                 TransferSizes(icacheParams.blockBytes, icacheParams.blockBytes)
+               else
+                 TransferSizes.none
       ))),
     requestFields = useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
