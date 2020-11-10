@@ -7,7 +7,7 @@ import chisel3.stage.ChiselGeneratorAnnotation
 import firrtl.AnnotationSeq
 import firrtl.options.Viewer.view
 import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
-import freechips.rocketchip.config.{Config, Field, Parameters}
+import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
@@ -27,7 +27,7 @@ class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipSt
     val topMod = rOpts.topModule.get
 
     val config = getConfig(rOpts.configNames.get).alterPartial {
-	case TargetDirKey => stageOpts.targetDir
+      case TargetDirKey => stageOpts.targetDir
     }
 
     val gen = () =>
