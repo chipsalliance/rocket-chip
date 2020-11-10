@@ -212,7 +212,10 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
       logical = TransferSizes(4, coreDataBytes),
       get = TransferSizes(1, coreDataBytes),
       putFull = TransferSizes(1, coreDataBytes),
-      putPartial = TransferSizes(1, coreDataBytes)
+      putPartial = if (tileParams.core.useVector)
+                     TransferSizes(1, coreDataBytes)
+                   else
+                     TransferSizes.none
     )))
 
   def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
