@@ -6,11 +6,17 @@ import chisel3.RawModule
 import chisel3.stage.ChiselGeneratorAnnotation
 import firrtl.AnnotationSeq
 import firrtl.options.Viewer.view
-import firrtl.options.{Dependency, Phase, PreservesAll}
-import freechips.rocketchip.config.Parameters
+import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
+import freechips.rocketchip.config.{Config, Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
+
+case object TargetDirKey extends Field[String](".")
+
+case class WithTargetDir(dir: String) extends Config((site, here, up) => {
+  case TargetDirKey => dir
+})
 
 /** Constructs a generator function that returns a top module with given config parameters */
 class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
@@ -20,10 +26,11 @@ class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipSt
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
 
+    val stageOpts = view[StageOptions](annotations)
     val rOpts = view[RocketChipOptions](annotations)
     val topMod = rOpts.topModule.get
 
-    val config = getConfig(rOpts.configNames.get)
+    val config = getConfig(rOpts.configNames.get) ++ WithTargetDir(stageOpts.targetDir)
 
     val gen = () =>
       topMod
