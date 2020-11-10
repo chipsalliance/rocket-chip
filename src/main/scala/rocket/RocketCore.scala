@@ -56,6 +56,7 @@ case class RocketCoreParams(
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
+  override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }
 
@@ -169,8 +170,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     require(!usingRoCC || !rocketParams.useSCIE)
     (if (usingMulDiv) new MDecode(pipelinedMul) +: (xLen > 32).option(new M64Decode(pipelinedMul)).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode +: (xLen > 32).option(new A64Decode).toSeq else Nil) ++:
-    (if (fLen >= 32) new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
-    (if (fLen >= 64) new DDecode +: (xLen > 32).option(new D64Decode).toSeq else Nil) ++:
+    (if (fLen >= 32)    new FDecode +: (xLen > 32).option(new F64Decode).toSeq else Nil) ++:
+    (if (fLen >= 64)    new DDecode +: (xLen > 32).option(new D64Decode).toSeq else Nil) ++:
+    (if (minFLen == 16) new HDecode +: (xLen > 32).option(new H64Decode).toSeq ++: (fLen >= 64).option(new HDDecode).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
     (rocketParams.useSCIE.option(new SCIEDecode)) ++:
     (if (xLen == 32) new I32Decode else new I64Decode) +:
