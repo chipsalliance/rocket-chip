@@ -14,10 +14,6 @@ import freechips.rocketchip.util.HasRocketChipStageUtils
 
 case object TargetDirKey extends Field[String](".")
 
-case class WithTargetDir(dir: String) extends Config((site, here, up) => {
-  case TargetDirKey => dir
-})
-
 /** Constructs a generator function that returns a top module with given config parameters */
 class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipStageUtils {
 
@@ -30,7 +26,9 @@ class PreElaboration extends Phase with PreservesAll[Phase] with HasRocketChipSt
     val rOpts = view[RocketChipOptions](annotations)
     val topMod = rOpts.topModule.get
 
-    val config = getConfig(rOpts.configNames.get) ++ WithTargetDir(stageOpts.targetDir)
+    val config = getConfig(rOpts.configNames.get).alterPartial {
+	case TargetDirKey => stageOpts.targetDir
+    }
 
     val gen = () =>
       topMod
