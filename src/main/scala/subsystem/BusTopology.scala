@@ -41,6 +41,21 @@ case class SubsystemCrossingParams(
   fbusToSbusXType: ClockCrossingType = SynchronousCrossing()
 )
 
+/** Keys to parameterize the most common crossings between the five traditional TL buses. Used to populated
+  * [[SubsystemCrossingParams]].
+  */
+case object SbusToMbusXTypeKey extends Field[ClockCrossingType](NoCrossing)
+case object SbusToCbusXTypeKey extends Field[ClockCrossingType](NoCrossing)
+case object CbusToPbusXTypeKey extends Field[ClockCrossingType](SynchronousCrossing())
+case object FbusToSbusXTypeKey extends Field[ClockCrossingType](SynchronousCrossing())
+
+
+/** By default, ClockSources for the five traditional TL buses are provided from
+  * connections that originate at the SBUS. Setting this to false removes these connections and permits
+  * supplying diplomatic clocks to each bus independently.
+  */
+case object DriveClocksFromSBus extends Field[Boolean](true)
+
 // Taken together these case classes provide a backwards-compatibility parameterization
 //  of a bus topology that contains the five traditional tilelink bus wrappers.
 //  Users desiring a different topology are free to define a similar subclass,
@@ -59,29 +74,35 @@ case class HierarchicalBusTopologyParams(
   pbus: PeripheryBusParams,
   fbus: FrontBusParams,
   cbus: PeripheryBusParams,
-  xTypes: SubsystemCrossingParams
+  xTypes: SubsystemCrossingParams,
+  driveClocksFromSBus: Boolean = true
 ) extends TLBusWrapperTopology(
   instantiations = List(
     (PBUS, pbus),
     (FBUS, fbus),
     (CBUS, cbus)),
   connections = List(
-    (SBUS, CBUS, TLBusWrapperConnection  .crossTo(xTypes.sbusToCbusXType)),
-    (CBUS, PBUS, TLBusWrapperConnection  .crossTo(xTypes.cbusToPbusXType)),
-    (FBUS, SBUS, TLBusWrapperConnection.crossFrom(xTypes.fbusToSbusXType)))
+    (SBUS, CBUS, TLBusWrapperConnection  .crossTo(xTypes.sbusToCbusXType, if (driveClocksFromSBus) Some(true) else None)),
+    (CBUS, PBUS, TLBusWrapperConnection  .crossTo(xTypes.cbusToPbusXType, if (driveClocksFromSBus) Some(true) else None)),
+    (FBUS, SBUS, TLBusWrapperConnection.crossFrom(xTypes.fbusToSbusXType, if (driveClocksFromSBus) Some(false) else None)))
 )
 
 /** Parameterization of a topology containing a banked coherence manager and a bus for attaching memory devices. */
 case class CoherentBusTopologyParams(
   sbus: SystemBusParams, // TODO remove this after better width propagation
   mbus: MemoryBusParams,
-  l2: BankedL2Params
+  l2: BankedL2Params,
+  sbusToMbusXType: ClockCrossingType = NoCrossing,
+  driveMBusClockFromSBus: Boolean = true
 ) extends TLBusWrapperTopology(
   instantiations = (if (l2.nBanks == 0) Nil else List(
     (MBUS, mbus),
     (L2, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, l2.nBanks, L2.name)(l2.coherenceManager)))),
   connections = if (l2.nBanks == 0) Nil else List(
     (SBUS, L2,   TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
-    (L2,  MBUS,  TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_QUERY)())
+    (L2,  MBUS,  TLBusWrapperConnection.crossTo(
+      xType = sbusToMbusXType,
+      driveClockFromMaster = if (driveMBusClockFromSBus) Some(true) else None,
+      nodeBinding = BIND_QUERY))
   )
 )

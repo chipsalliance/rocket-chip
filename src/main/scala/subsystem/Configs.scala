@@ -71,11 +71,17 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
       pbus = site(PeripheryBusKey),
       fbus = site(FrontBusKey),
       cbus = site(ControlBusKey),
-      xTypes = SubsystemCrossingParams()),
+      xTypes = SubsystemCrossingParams(
+        sbusToCbusXType = site(SbusToCbusXTypeKey),
+        cbusToPbusXType = site(CbusToPbusXTypeKey),
+        fbusToSbusXType = site(FbusToSbusXTypeKey)),
+      driveClocksFromSBus = site(DriveClocksFromSBus)),
     CoherentBusTopologyParams(
       sbus = site(SystemBusKey),
       mbus = site(MemoryBusKey),
-      l2 = site(BankedL2Key)))
+      l2 = site(BankedL2Key),
+      sbusToMbusXType = site(SbusToMbusXTypeKey),
+      driveMBusClockFromSBus = site(DriveClocksFromSBus)))
 })
 
 class WithNBigCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
@@ -442,3 +448,51 @@ object LegacyTileFieldHelper {
     }
   }
 }
+
+/**
+  * Mixins to specify crossing types between the 5 traditional TL buses
+  *
+  * Note: these presuppose the legacy connections between buses and set
+  * parameters in SubsystemCrossingParams; they may not be resuable in custom
+  * topologies (but you can specify the desired crossings in your topology).
+  *
+  * @param xType The clock crossing type
+  */
+
+class WithSbusToMbusCrossingType(xType: ClockCrossingType) extends Config((site, here, up) => {
+  case SbusToMbusXTypeKey => xType
+})
+class WithSbusToCbusCrossingType(xType: ClockCrossingType) extends Config((site, here, up) => {
+  case SbusToCbusXTypeKey => xType
+})
+class WithCbusToPbusCrossingType(xType: ClockCrossingType) extends Config((site, here, up) => {
+  case CbusToPbusXTypeKey => xType
+})
+class WithFbusToSbusCrossingType(xType: ClockCrossingType) extends Config((site, here, up) => {
+  case FbusToSbusXTypeKey => xType
+})
+
+/**
+  * Mixins to set the dtsFrequency field of BusParams -- these will percolate its way
+  * up the diplomatic graph to the clock sources.
+  */
+class WithPeripheryBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
+  case PeripheryBusKey => up(PeripheryBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+})
+class WithMemoryBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
+  case MemoryBusKey => up(MemoryBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+})
+class WithSystemBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
+  case SystemBusKey => up(SystemBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+})
+class WithFrontBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
+  case FrontBusKey => up(FrontBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+})
+class WithControlBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
+  case ControlBusKey => up(ControlBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+})
+
+/** Under the default multi-bus topologies, this leaves bus ClockSinks undriven by the topology itself */
+class WithDontDriveBusClocksFromSBus extends Config((site, here, up) => {
+  case DriveClocksFromSBus => false
+})
