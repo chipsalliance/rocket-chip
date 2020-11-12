@@ -364,7 +364,7 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
     plic.intnode :=* ibus.toPLIC
 
     // TODO: What should be responsible for defining the ibus domain when there's no PLIC?
-    ibus.interruptBusDomainWrapper.clockNode := tlbus.fixedClockNode
+    ibus.clockNode := tlbus.fixedClockNode
 
     plic
   }
