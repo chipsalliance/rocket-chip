@@ -72,6 +72,7 @@ case class MemoryPathToken(target: ReferenceTarget) extends Token {
     renames.get(target) match {
       case None => Seq(this)
       case Some(Seq()) => throw new Exception(s"memory $target was deleted")
+      case Some(Seq(one: ReferenceTarget)) => Seq(this.copy(target = one))
       case Some(many) =>
         many.tail.foldLeft(Seq[Token](MemoryPathToken(many.head.asInstanceOf[ReferenceTarget]))) {
           case (tokens, r: ReferenceTarget) => this.copy(target = r) +: StringToken(" ") +: tokens
