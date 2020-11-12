@@ -95,7 +95,7 @@ object Token {
     * converted to Tokens, and all other values will be turned into
     * [[StringToken]]s using their .toString method.
     */
-  implicit class TokensInterpolator(val sc: StringContext) extends AnyVal {
+  implicit class TokensInterpolator(private val sc: StringContext) extends AnyVal {
     def tokens(args: Any*): Seq[Token] = {
       val strings = sc.parts.map(StringContext.treatEscapes).iterator
       val expressions = args.iterator
