@@ -4,13 +4,12 @@ package freechips.rocketchip.util
 
 import firrtl.RenameMap
 import firrtl.annotations.{Annotation, HasSerializationHints}
-import firrtl.annotations.{IsModule, ModuleTarget, ReferenceTarget, Target}
+import firrtl.annotations.{IsModule, ReferenceTarget}
 
 import chisel3.{Data, SyncReadMem}
 import chisel3.experimental.{BaseModule, ChiselAnnotation}
 
 import scala.collection.mutable
-import java.io.File
 
 /** Like [[ElaborationArtefact]] but in annotation form.
   *
