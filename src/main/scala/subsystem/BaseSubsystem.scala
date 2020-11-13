@@ -82,6 +82,10 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   val sbus = tlBusWrapperLocationMap(SBUS)
   tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := asyncClockGroupsNode }
 
+  // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
+  // a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.
+  ibus.clockNode := sbus.fixedClockNode
+
   // TODO deprecate these public members to see where users are manually hardcoding a particular bus that might actually not exist in a certain dynamic topology
   val pbus = tlBusWrapperLocationMap.lift(PBUS).getOrElse(sbus)
   val fbus = tlBusWrapperLocationMap.lift(FBUS).getOrElse(sbus)
