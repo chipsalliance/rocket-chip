@@ -406,7 +406,7 @@ class CSRFile(
   val reg_mnstatus = Reg(init=reset_mnstatus)
   val reg_rnmie = RegInit(true.B)
   val reg_unmie = RegInit(true.B)
-  val nmie = WireInit(reg_rnmie && reg_unmie)
+  val nmie = reg_rnmie && reg_unmie
 
   val delegable_counters = ((BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1).U
   val (reg_mcounteren, read_mcounteren) = {
