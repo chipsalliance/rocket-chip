@@ -528,7 +528,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // store->load RAW hazard detection
   def s1Depends(addr: UInt, mask: UInt) =
-    addr(idxMSB, wordOffBits) === s1_req.addr(idxMSB, wordOffBits) &&
+    addr(idxMSB, wordOffBits) === s1_vaddr(idxMSB, wordOffBits) &&
     Mux(s1_write, (eccByteMask(mask) & eccByteMask(s1_mask_xwr)).orR, (mask & s1_mask_xwr).orR)
   val s1_hazard =
     (pstore1_valid_likely && s1Depends(pstore1_addr, pstore1_mask)) ||
