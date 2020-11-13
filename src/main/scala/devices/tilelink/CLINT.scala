@@ -34,10 +34,28 @@ case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 case object CLINTKey extends Field[Option[CLINTParams]](None)
 
 case class CLINTAttachParams(
-  slaveWhere: TLBusWrapperLocation = CBUS
-)
+  device: CLINTParams,
+  slaveWhere: TLBusWrapperLocation = CBUS,
+  driveRTCTickWithPeriod: Option[Int] = None
+) {
+  def attachTo(context: Attachable)(implicit p: Parameters): CLINT = {
+    val tlbus = context.locateTLBusWrapper(slaveWhere)
+    val clint = LazyModule(new CLINT(device, tlbus.beatBytes))
+    LogicalModuleTree.add(context.logicalTreeNode, clint.logicalTreeNode)
+    clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
+    driveRTCTickWithPeriod.foreach { period => InModuleBody {
+      clint.module.io.rtcTick := RTC.tick(clint.module.clock, clint.module.reset, period)
+    } }
+    clint
+  }
+}
 
-case object CLINTAttachKey extends Field(CLINTAttachParams())
+case class CLINTLocated(loc: HierarchicalLocation) extends Field[Option[CLINTAttachParams]](None)
+
+/** Legacy trait that will connect a CLINT to a subsystem */
+trait CanHavePeripheryCLINT { this: BaseSubsystem =>
+  val clintOpt = p(CLINTLocated(location)).map { params => params.attachTo(this) }
+}
 
 class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
@@ -100,15 +118,4 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
   }
 
   def logicalTreeNode: CLINTLogicalTreeNode = new CLINTLogicalTreeNode(device, module.omRegMap)
-}
-
-/** Trait that will connect a CLINT to a subsystem */
-trait CanHavePeripheryCLINT { this: BaseSubsystem =>
-  val clintOpt = p(CLINTKey).map { params =>
-    val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
-    val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    LogicalModuleTree.add(logicalTreeNode, clint.logicalTreeNode)
-    clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
-    clint
-  }
 }

@@ -30,6 +30,15 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000)) // Default to 100 MHz pbus clock
+  case RTCPeriodCycles => {
+    val pbusFreq = site(PeripheryBusKey).dtsFrequency.get
+    val rtcFreq = site(DTSTimebase)
+    val internalPeriod: BigInt = pbusFreq / rtcFreq
+    require(internalPeriod > 0, s"pbusFreq($pbusFreq) must be >= rtcFreq($rtcFreq)")
+    // check whether the integer division is within 5% of the real division
+    require((pbusFreq - rtcFreq * internalPeriod) * 100 / pbusFreq <= 5)
+    internalPeriod.toInt
+  }
   case MemoryBusKey => MemoryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
@@ -41,6 +50,9 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case SubsystemExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
+  case CLINTLocated(InSubsystem) => site(CLINTKey).map { c =>
+    CLINTAttachParams(device = c, driveRTCTickWithPeriod = Some(site(RTCPeriodCycles)))
+  }
   case PLICKey => Some(PLICParams())
   case TilesLocated(InSubsystem) => 
     LegacyTileFieldHelper(site(RocketTilesKey), site(RocketCrossingKey), RocketTileAttachParams.apply _)
