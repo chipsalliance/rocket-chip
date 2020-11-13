@@ -363,9 +363,6 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
     plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ }
     plic.intnode :=* ibus.toPLIC
 
-    // TODO: What should be responsible for defining the ibus domain when there's no PLIC?
-    ibus.clockNode := tlbus.fixedClockNode
-
     plic
   }
 }
