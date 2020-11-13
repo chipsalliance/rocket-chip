@@ -210,6 +210,7 @@ object Instructions {
   def URET               = BitPat("b00000000001000000000000001110011")
   def SRET               = BitPat("b00010000001000000000000001110011")
   def MRET               = BitPat("b00110000001000000000000001110011")
+  def MNRET              = BitPat("b01110000001000000000000001110011")
   def DRET               = BitPat("b01111011001000000000000001110011")
   def SFENCE_VMA         = BitPat("b0001001??????????000000001110011")
   def WFI                = BitPat("b00010000010100000000000001110011")
@@ -1000,6 +1001,10 @@ object CSRs {
   val mcause = 0x342
   val mtval = 0x343
   val mip = 0x344
+  val mnscratch = 0x350
+  val mnepc = 0x351
+  val mncause = 0x352
+  val mnstatus = 0x353
   val pmpcfg0 = 0x3a0
   val pmpcfg1 = 0x3a1
   val pmpcfg2 = 0x3a2

@@ -164,6 +164,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     beu.module.io.errors.icache := outer.frontend.module.io.errors
   }
 
+  core.io.interrupts.nmi.foreach { nmi => nmi := outer.nmiSinkNode.bundle }
+
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
   outer.traceSourceNode.bundle.zip(core.io.trace).foreach { case(tb, t) => tb.valid := t.valid && traceValidEnable }

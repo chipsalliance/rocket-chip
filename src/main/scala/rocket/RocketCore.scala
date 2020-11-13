@@ -26,6 +26,7 @@ case class RocketCoreParams(
   useRVE: Boolean = false,
   useSCIE: Boolean = false,
   nLocalInterrupts: Int = 0,
+  useNMI: Boolean = false,
   nBreakpoints: Int = 1,
   useBPWatch: Boolean = false,
   mcontextWidth: Int = 0,
@@ -179,6 +180,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (usingVM.option(new SVMDecode)) ++:
     (usingSupervisor.option(new SDecode)) ++:
     (usingDebug.option(new DebugDecode)) ++:
+    (usingNMI.option(new NMIDecode)) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine)) ++:
     Seq(new IDecode)

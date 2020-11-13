@@ -10,7 +10,7 @@ import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerPa
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain}
+import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci.{ClockGroup, ClockNode}
 import freechips.rocketchip.util._
@@ -104,6 +104,7 @@ trait HasTileInterruptSources
   extends CanHavePeripheryPLIC
   with CanHavePeripheryCLINT
   with HasPeripheryDebug
+  with InstantiatesTiles
 { this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
   /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
   val meipNode = p(PLICKey) match {
@@ -121,6 +122,15 @@ trait HasTileInterruptSources
       sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
       outputRequiresInput = false,
       inputRequiresOutput = false))
+  }
+  /** Source of Non-maskable Interrupt (NMI) input bundle to each tile. */
+  val tileNMINode = BundleBridgeEphemeralNode[NMI]()
+  val tileNMIIONodes: Seq[BundleBridgeSource[NMI]] = {
+    Seq.fill(tiles.size) {
+      val nmiSource = BundleBridgeSource[NMI]()
+      tileNMINode := nmiSource
+      nmiSource
+    }
   }
 }
 
@@ -318,6 +328,9 @@ trait CanAttachTile {
         plic.intnode :=* domain.crossIntOut(crossingParams.crossingType)
       }
     }
+
+    // 5. Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock.
+    domain.tile.nmiNode := context.tileNMINode
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
@@ -418,4 +431,5 @@ trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
       (outer.seipNode.get.out(i)._1)(0) := pin
     }
   }
+  val nmi = outer.tiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
 }

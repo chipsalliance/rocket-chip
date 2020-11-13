@@ -22,6 +22,8 @@ case class OMRocketCore(
   hasVectoredInterrupts: Boolean,
   interruptLatency: Int,
   nLocalInterrupts: Int,
+  rnmiPresent: Boolean,
+  unmiPresent: Boolean,
   nBreakpoints: Int,
   mcontextWidth: Int,
   scontextWidth: Int,

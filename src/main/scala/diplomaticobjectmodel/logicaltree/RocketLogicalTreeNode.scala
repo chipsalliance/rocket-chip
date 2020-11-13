@@ -111,6 +111,8 @@ class RocketLogicalTreeNode(
       hasVectoredInterrupts = true,
       interruptLatency = 4,
       nLocalInterrupts = coreParams.nLocalInterrupts,
+      rnmiPresent = coreParams.useNMI,
+      unmiPresent = coreParams.useNMI,
       nBreakpoints = coreParams.nBreakpoints,
       mcontextWidth = coreParams.mcontextWidth,
       scontextWidth = coreParams.scontextWidth,

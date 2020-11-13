@@ -32,6 +32,7 @@ trait CoreParams {
   val retireWidth: Int
   val instBits: Int
   val nLocalInterrupts: Int
+  val useNMI: Boolean
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
@@ -77,6 +78,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingBitManip = coreParams.useBitManip
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
+  val usingNMI = coreParams.useNMI
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth
