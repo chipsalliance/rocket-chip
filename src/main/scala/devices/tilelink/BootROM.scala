@@ -7,6 +7,7 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.prci.{ClockSinkDomain}
 
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
@@ -65,7 +66,10 @@ object BootROM {
     */
   def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
-    val cbus = subsystem.locateTLBusWrapper(where)
+    val tlbus = subsystem.locateTLBusWrapper(where)
+    val bootROMDomainWrapper = LazyModule(new ClockSinkDomain(take = None))
+    bootROMDomainWrapper.clockNode := tlbus.fixedClockNode
+
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
     lazy val contents = {
       val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
@@ -73,11 +77,11 @@ object BootROM {
       rom.array() ++ subsystem.dtb.contents
     }
 
-    val bootrom = subsystem {
-      LazyModule(new TLROM(params.address, params.size, contents, true, cbus.beatBytes))
+    val bootrom = bootROMDomainWrapper {
+      LazyModule(new TLROM(params.address, params.size, contents, true, tlbus.beatBytes))
     }
 
-    bootrom.node := cbus.coupleTo("bootrom"){ TLFragmenter(cbus) := _ }
+    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus) := _ }
     // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
     subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
     InModuleBody {
