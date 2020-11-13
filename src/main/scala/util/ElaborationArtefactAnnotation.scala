@@ -26,8 +26,8 @@ case class ElaborationArtefactAnnotation(outputFile: String, tokens: List[Any]) 
   def update(renames: RenameMap): Seq[Annotation] = {
     Seq(this.copy(tokens = tokens.collect {
       case t: Token => t.update(renames)
-      case other => other
-    }))
+      case other => Seq(other)
+    }.flatten))
   }
 
   def typeHints: Seq[Class[_]] = Seq(
@@ -50,18 +50,18 @@ object ElaborationArtefactAnnotation {
 
 
 sealed trait Token {
-  def update(renames: RenameMap): Token
+  def update(renames: RenameMap): Seq[Token]
 }
 
 case class StringToken(value: String) extends Token {
-  def update(renames: RenameMap) = this
+  def update(renames: RenameMap) = Seq(this)
 }
 
 case class ModulePathToken(target: IsModule) extends Token {
   def update(renames: RenameMap) = {
     renames.get(target) match {
-      case None => this
-      case Some(Seq(newModule: IsModule)) => this.copy(target = newModule)
+      case None => Seq(this)
+      case Some(Seq(newModule: IsModule)) => Seq(this.copy(target = newModule))
       case Some(other) => throw new Exception(s"module $target cannot be renamed to $other")
     }
   }
@@ -70,8 +70,13 @@ case class ModulePathToken(target: IsModule) extends Token {
 case class MemoryPathToken(target: ReferenceTarget) extends Token {
   def update(renames: RenameMap) = {
     renames.get(target) match {
-      case None => this
-      case Some(Seq(newRef: ReferenceTarget)) => this.copy(target = newRef)
+      case None => Seq(this)
+      case Some(Seq()) => throw new Exception(s"memory $target was deleted")
+      case Some(Seq(one: ReferenceTarget)) => Seq(this.copy(target = one))
+      case Some(many) =>
+        many.tail.foldLeft(Seq[Token](MemoryPathToken(many.head.asInstanceOf[ReferenceTarget]))) {
+          case (tokens, r: ReferenceTarget) => this.copy(target = r) +: StringToken(" ") +: tokens
+        }.reverse
       case Some(other) => throw new Exception(s"memory $target cannot be renamed to $other")
     }
   }
@@ -80,8 +85,8 @@ case class MemoryPathToken(target: ReferenceTarget) extends Token {
 case class ReferencePathToken(target: ReferenceTarget) extends Token {
   def update(renames: RenameMap) = {
     renames.get(target) match {
-      case None => this
-      case Some(Seq(newRef: ReferenceTarget)) => this.copy(target = newRef)
+      case None => Seq(this)
+      case Some(Seq(newRef: ReferenceTarget)) => Seq(this.copy(target = newRef))
       case Some(other) => throw new Exception(s"reference $target cannot be renamed to $other")
     }
   }
