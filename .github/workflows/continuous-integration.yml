@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - id: cache
         uses: actions/cache@v2
@@ -46,6 +48,8 @@ jobs:
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - uses: actions/cache@v2
         with:
@@ -70,6 +74,8 @@ jobs:
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - name: Use SBT Cache
         uses: actions/cache@v2
@@ -93,6 +99,8 @@ jobs:
         bucket: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - name: Use riscv-tools Cache
         uses: actions/cache@v2
