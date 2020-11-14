@@ -16,19 +16,13 @@ on:
 
 
 jobs:
-  check-wit:
-    name: Check Wit Manifest
-    runs-on: ubuntu-16.04
-    steps:
-      - uses: actions/checkout@v2
-      - run: ci-tests/check_submodules
-
-
   prepare-riscv-tools-cache:
     name: Prepare riscv-tools Cache
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - id: cache
         uses: actions/cache@v2
@@ -54,6 +48,8 @@ jobs:
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - uses: actions/cache@v2
         with:
@@ -78,6 +74,8 @@ jobs:
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
 
       - name: Use SBT Cache
         uses: actions/cache@v2
@@ -101,6 +99,12 @@ jobs:
         bucket: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}
+
+      - name: Configure Git credentials
+        run: |
+          git config --global url."https://${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}:${{ secrets.X_GITHUB_PERSONAL_ACCESS_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
       - name: Use riscv-tools Cache
         uses: actions/cache@v2
