@@ -16,14 +16,6 @@ on:
 
 
 jobs:
-  check-wit:
-    name: Check Wit Manifest
-    runs-on: ubuntu-16.04
-    steps:
-      - uses: actions/checkout@v2
-      - run: ci-tests/check_submodules
-
-
   prepare-riscv-tools-cache:
     name: Prepare riscv-tools Cache
     runs-on: ubuntu-16.04
