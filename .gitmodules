@@ -13,6 +13,3 @@
 [submodule "api-config-chipsalliance"]
 	path = api-config-chipsalliance
 	url = git@github.com:sifive/api-config-chipsalliance-private.git
-[submodule "api-chisel3-sifive"]
-	path = api-chisel3-sifive
-	url = git@github.com:sifive/api-chisel3-sifive-private.git
