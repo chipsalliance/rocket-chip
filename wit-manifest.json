@@ -1,13 +1,13 @@
 [
     {
-        "commit": "01904f99ed3ad26cdbe2876f638d63e30e7fecdc",
+        "commit": "267357bdae5973a30565da6ebc728d513827ca5e",
         "name": "hardfloat",
-        "source": "git@github.com:ucb-bar/berkeley-hardfloat.git"
+        "source": "git@github.com:sifive/berkeley-hardfloat-private.git"
     },
     {
-        "commit": "c1c87ba4899e53bfe09adf0f4631e2b6a0cca19a",
+        "commit": "c50a5ff3e26ed9952b36582edbd1688f9a90b211",
         "name": "api-chisel3-sifive",
-        "source": "git@github.com:sifive/api-chisel3-sifive.git"
+        "source": "git@github.com:sifive/api-chisel3-sifive-private.git"
     },
     {
         "commit": "d379dca4413d4cb08b02165a493faff01f3ddbb9",
@@ -25,13 +25,13 @@
         "source": "git@github.com:ucb-bar/riscv-torture.git"
     },
     {
-        "commit": "fd8df1105a92065425cd353b6855777e35bd79b4",
+        "commit": "71d9faaeec5af9c75391b8b1fb428dfb79682f88",
         "name": "api-config-chipsalliance",
-        "source": "git@github.com:chipsalliance/api-config-chipsalliance.git"
+        "source": "git@github.com:sifive/api-config-chipsalliance-private.git"
     },
     {
-        "commit": "1c3539138f71d38f007e19870bcf5f69d9713307",
+        "commit": "4cb9d83a33c0364f9b89184965ec6db7bdbb3a6b",
         "name": "api-scala-sifive",
-        "source": "git@github.com:sifive/api-scala-sifive.git"
+        "source": "git@github.com:sifive/api-scala-sifive-private.git"
     }
 ]
