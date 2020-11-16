@@ -52,7 +52,8 @@ case class TargetedMarkBitsAnnotation(target: ReferenceTarget, markBitsAnno: Mar
   def markOutput(path: String): String = markBitsAnno.markOutput(path)
 }
 
-/**
+/** An annotation containing all [[TargetedMarkBitsAnnotation]] that share the
+  * same output file.
   */
 case class PerFileMarkBitsAnnotation(markBitsAnnos: Seq[TargetedMarkBitsAnnotation]) extends Annotation with CustomFileEmission {
   override def update(renames: RenameMap): Seq[Annotation] =
@@ -94,7 +95,7 @@ class AggregateMarkedBitsTransform extends Transform with DependencyAPIMigration
   override def prerequisites = firrtl.stage.Forms.BackendEmitters
 
   override def execute(state: CircuitState): CircuitState = {
-    // gather [[MarkBitsAnnotations]]s
+    // gather [[MarkBitsAnnotation]]s
     val gatheredMarkBitsAnnos: Map[String, Seq[Annotation]] = state.annotations.groupBy {
       case a: TargetedMarkBitsAnnotation => if(a.fileName.isEmpty) "markedBits" else a.fileName
       case _ => ""
