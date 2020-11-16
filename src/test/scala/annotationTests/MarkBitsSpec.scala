@@ -8,20 +8,23 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import chisel3._
 import chisel3.stage.ChiselStage
-import firrtl.annotations.{Annotation, ReferenceTarget}
 import freechips.rocketchip.util.{MarkBits, MarkBitsAnnotation}
 
-/** Circuit for testing ____
+/** Circuit for testing [[MarkBits]] API.
   *
   * Two 2:1 adders are instantiated within a top-level adder, which sums the
-  * submodule adders' sum together. Cutpoints are placed on wires throughout.
+  * submodule adders' sum together. Constraints are placed on wires throughout.
   */
 object MarkBitsTester {
 
-  case class ConstraintAnnotation(override val fileName: String = "", property: String = "" ) extends MarkBitsAnnotation {
-
-    override def getBytes(path: String): String = s"-cutpoint $path $property"
-
+  /** Example use case of [[MarkBits]] API. Exends [[MarkBitsAnnotation]] with
+    * extra information.
+    *
+    * @param property property to be emitted for each marked [[Bits]]' constraint
+    * @param fileName file to write each constraint to
+    */
+  case class ConstraintAnnotation(property: String, override val fileName: String = "constraints.tcl") extends MarkBitsAnnotation {
+    override def markOutput(path: String): String = s"-constraint $path $property"
   }
 
   class AdderModule(width: Int) extends MultiIOModule {
@@ -31,9 +34,7 @@ object MarkBitsTester {
       val sum = Output(UInt(width.W))
     })
     io.sum := io.a + io.b
-//    Cutpoint.cutpoint(io.b, "adderModule")
-//    Constraint.constraint(io.b, "adderModule" , property = "!= '1")
-    MarkBits.mark(io.b, ConstraintAnnotation("hello", "!= '1"))
+    MarkBits.mark(io.b, ConstraintAnnotation("!= '1", "constraints_adderModule.tcl"))
   }
 
   class AdderTop extends MultiIOModule {
@@ -50,38 +51,44 @@ object MarkBitsTester {
     adderB.io.a := io.a
     adderB.io.b := io.b
     io.sum := adderA.io.sum + adderB.io.sum
-//    Cutpoint.cutpoint(io.a)
-//    Cutpoint.cutpoint(adderA.io.a)
+    MarkBits.mark(io.a, ConstraintAnnotation("== '0"))
+    MarkBits.mark(adderA.io.a, ConstraintAnnotation("== '1"))
   }
 }
 
-/** Test for [[Cutpoint]].
+/** Test for [[MarkBits]].
   *
-  * Checks that the cutpoints in the circuit above are written correctly into
+  * Checks that the constraints in the circuit above are written correctly into
   * the correct files.
   */
 class MarkBitsSpec extends AnyFlatSpec {
 
-  "cutpoint annotations" should "appear" in {
+  "constraints" should "get written to files" in {
     // create target directory
     val testDir = new File("target", "CutpointAnnotationSpec")
     testDir.mkdir()
 
-    // emit verilog and associated files
+    // emit Verilog and associated files
     (new ChiselStage).emitVerilog(new MarkBitsTester.AdderTop, Array("-td", testDir.getPath))
 
-    // check cutpoint files for correct cutpoint paths
-    val cutpointsFile = new File(testDir, "cutpoints.txt")
-    val cutpointsAdderModuleFile = new File(testDir, "cutpoints.adderModule.txt")
+    // check files for correct constraint paths
+    val constraintsFile = new File(testDir, "constraints.tcl")
+    val constraintsAdderModuleFile = new File(testDir, "constraints_adderModule.tcl")
 
     testDir should exist
-//    cutpointsFile should exist
-//    cutpointsAdderModuleFile should exist
+    constraintsFile should exist
+    constraintsAdderModuleFile should exist
 
-//    val cutpoints = scala.io.Source.fromFile(cutpointsFile).getLines.toList
-//    val cutpointAdderModule = scala.io.Source.fromFile(cutpointsAdderModuleFile).getLines.toList
+    val constraints = scala.io.Source.fromFile(constraintsFile).getLines.toList
+    val constraintsAdderModule = scala.io.Source.fromFile(constraintsAdderModuleFile).getLines.toList
 
-//    cutpoints should contain allOf ("AdderTop.adderA.io_a", "AdderTop.io_a")
-//    cutpointAdderModule should contain allOf ("AdderTop.adderB.io_b", "AdderTop.adderA.io_b")
+    constraints should contain allOf (
+      "-constraint AdderTop.adderA.io_a == '1",
+      "-constraint AdderTop.io_a == '0"
+    )
+    constraintsAdderModule should contain allOf (
+      "-constraint AdderTop.adderB.io_b != '1",
+      "-constraint AdderTop.adderA.io_b != '1"
+    )
   }
 }

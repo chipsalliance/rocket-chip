@@ -10,9 +10,14 @@ import firrtl.annotations.TargetToken.{Instance, Ref}
 import firrtl.stage.RunFirrtlTransformAnnotation
 import firrtl.options.CustomFileEmission
 
+/** Marks a [[Bits]] with information in [[MarkBitsAnnotation]]. Optionally, a
+  * file name can be passed in.
+  *
+  * The Verilog paths for each marked [[Bits]] can be emitted in a metadata file,
+  * along with other information specified in the [[MarkBitsAnnotation]].
+  */
 object MarkBits {
   def mark (bits: Bits, markBitsAnno: MarkBitsAnnotation): Unit = {
-    // create annotation for a Bits
     annotate(new ChiselAnnotation {
       override def toFirrtl: Annotation = TargetedMarkBitsAnnotation(bits.toAbsoluteTarget, markBitsAnno)
     })
@@ -23,33 +28,52 @@ object MarkBits {
   }
 }
 
+/** Annotations extending [[MarkBitsAnnotation]] will be emitted to the given
+  * fileName, or else to a default file.
+  */
 trait MarkBitsAnnotation extends NoTargetAnnotation {
   val fileName: String = ""
 
-  /** Create string to write to output file for this target */
-  def getBytes(path: String): String = path
+  /** Create a string to write to the output file for the marked [[Bits]]
+    *
+    * @param path absolute path to the marked [[Bits]]
+    */
+  def markOutput(path: String): String = path
 }
 
+/** This is the FIRRTL equivalent to [[MarkBitsAnnotation]], and passes around
+  * a [[ReferenceTarget]] instead of [[Bits]]
+  */
 case class TargetedMarkBitsAnnotation(target: ReferenceTarget, markBitsAnno: MarkBitsAnnotation) extends SingleTargetAnnotation[ReferenceTarget] {
   /** Create another instance of this Annotation */
   override def duplicate(n: ReferenceTarget): Annotation = this.copy(n, markBitsAnno)
 
   val fileName: String = markBitsAnno.fileName
-  def getBytes(path: String): String = markBitsAnno.getBytes(path)
+  def markOutput(path: String): String = markBitsAnno.markOutput(path)
 }
 
+/**
+  */
 case class PerFileMarkBitsAnnotation(markBitsAnnos: Seq[TargetedMarkBitsAnnotation]) extends Annotation with CustomFileEmission {
   override def update(renames: RenameMap): Seq[Annotation] =
     Seq(PerFileMarkBitsAnnotation(markBitsAnnos.flatMap(_.update(renames)).asInstanceOf[Seq[TargetedMarkBitsAnnotation]]))
 
-  // all annotations in the markBitsAnnos Seq should have the same (nonempty) file name TODO maybe add a check?
-  override def baseFileName(annotations: AnnotationSeq): String =
-    if (markBitsAnnos.head.fileName.isEmpty) "markedBits" else markBitsAnnos.head.fileName
+  override def baseFileName(annotations: AnnotationSeq): String = {
+    val fileName = markBitsAnnos.head.fileName
 
-  def suffix: Option[String] = if (markBitsAnnos.head.fileName.isEmpty) Some(".txt") else None
+    // check filenames of all annotations match and are not empty
+    if (markBitsAnnos.forall(_.fileName != fileName))
+      firrtl.Utils.throwInternalError(s"All file names in this Annotation are expected to match $fileName.")
+    if (fileName.isEmpty)
+      firrtl.Utils.throwInternalError("Encountered unexpected empty file name.")
+
+    fileName
+  }
+
+  def suffix: Option[String] = None
 
   def getBytes: Iterable[Byte] = {
-    val lines: Seq[String] = markBitsAnnos.map(a => a.getBytes(toVerilogPath(a.target)))
+    val lines: Seq[String] = markBitsAnnos.map(a => a.markOutput(toVerilogPath(a.target)))
     lines.mkString("\n").getBytes
   }
 
@@ -69,8 +93,6 @@ case class PerFileMarkBitsAnnotation(markBitsAnnos: Seq[TargetedMarkBitsAnnotati
 class AggregateMarkedBitsTransform extends Transform with DependencyAPIMigration {
   override def prerequisites = firrtl.stage.Forms.BackendEmitters
 
-//  override def optionalPrerequisiteOf: Seq[TransformDependency] = Seq[firrtl.options.phases.WriteOutputAnnotations]
-
   override def execute(state: CircuitState): CircuitState = {
     // gather [[MarkBitsAnnotations]]s
     val gatheredMarkBitsAnnos: Map[String, Seq[Annotation]] = state.annotations.groupBy {
@@ -86,11 +108,8 @@ class AggregateMarkedBitsTransform extends Transform with DependencyAPIMigration
       }
     }
 
-    println(s"PER FILE ANNOS: $perFileAnnos")
-
     // return remaining annotations
     val annos = gatheredMarkBitsAnnos.getOrElse("", Nil)
-//    println(s"ALL ANNOS: ${annos ++ perFileAnnos}")
     state.copy(annotations = annos ++ perFileAnnos)
   }
 }
