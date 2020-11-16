@@ -8,14 +8,21 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
 import chisel3._
 import chisel3.stage.ChiselStage
-import freechips.rocketchip.util.{Constraint}
+import firrtl.annotations.{Annotation, ReferenceTarget}
+import freechips.rocketchip.util.{MarkBits, MarkBitsAnnotation}
 
-/** Circuit for testing [[Cutpoint]].
+/** Circuit for testing ____
   *
   * Two 2:1 adders are instantiated within a top-level adder, which sums the
   * submodule adders' sum together. Cutpoints are placed on wires throughout.
   */
-object CutpointAnnotationTester {
+object MarkBitsTester {
+
+  case class ConstraintAnnotation(override val fileName: String = "", property: String = "" ) extends MarkBitsAnnotation {
+
+    override def getBytes(path: String): String = s"-cutpoint $path $property"
+
+  }
 
   class AdderModule(width: Int) extends MultiIOModule {
     val io = IO(new Bundle {
@@ -25,7 +32,8 @@ object CutpointAnnotationTester {
     })
     io.sum := io.a + io.b
 //    Cutpoint.cutpoint(io.b, "adderModule")
-    Constraint.constraint(io.b, "adderModule" , property = "!= '1")
+//    Constraint.constraint(io.b, "adderModule" , property = "!= '1")
+    MarkBits.mark(io.b, ConstraintAnnotation("hello", "!= '1"))
   }
 
   class AdderTop extends MultiIOModule {
@@ -52,7 +60,7 @@ object CutpointAnnotationTester {
   * Checks that the cutpoints in the circuit above are written correctly into
   * the correct files.
   */
-class CutpointAnnotationSpec extends AnyFlatSpec {
+class MarkBitsSpec extends AnyFlatSpec {
 
   "cutpoint annotations" should "appear" in {
     // create target directory
@@ -60,7 +68,7 @@ class CutpointAnnotationSpec extends AnyFlatSpec {
     testDir.mkdir()
 
     // emit verilog and associated files
-    (new ChiselStage).emitVerilog(new CutpointAnnotationTester.AdderTop, Array("-td", testDir.getPath, "-ll", "trace","--log-file", "mylog.txt"))
+    (new ChiselStage).emitVerilog(new MarkBitsTester.AdderTop, Array("-td", testDir.getPath))
 
     // check cutpoint files for correct cutpoint paths
     val cutpointsFile = new File(testDir, "cutpoints.txt")

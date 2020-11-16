@@ -3,13 +3,12 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import firrtl.annotations.{Annotation, MultiTargetAnnotation, ReferenceTarget, SingleTargetAnnotation, Target}
+import firrtl.annotations.{Annotation, ReferenceTarget, SingleTargetAnnotation, Target}
 import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, RenameMap, Transform}
 import chisel3.experimental.{ChiselAnnotation, annotate}
 import firrtl.annotations.TargetToken.{Instance, Ref}
 import firrtl.stage.RunFirrtlTransformAnnotation
 import firrtl.options.CustomFileEmission
-import firrtl.stage.TransformManager.TransformDependency
 
 /** Marks a signal with a [[CutpointAnnotation]]. Optionally, a label can be
   * passed in.
