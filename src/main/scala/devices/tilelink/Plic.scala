@@ -187,12 +187,17 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       harts(hart)   := ShiftRegister(Reg(next = fanin.io.max) > threshold(hart), params.intStages)
     }
 
+    // Priority registers are 32-bit aligned so treat each as its own group.
+    // Otherwise, the off-by-one nature of the priority registers gets confusing.
+    require(PLICConsts.priorityBytes == 4,
+      s"PLIC Priority register descriptions assume 32-bits per priority, not ${PLICConsts.priorityBytes}")
+
     def priorityRegDesc(i: Int) =
       RegFieldDesc(
         name      = s"priority_$i",
         desc      = s"Acting priority of interrupt source $i",
-        group     = Some("priority"),
-        groupDesc = Some("Acting priorities of each interrupt source."),
+        group     = Some(s"priority_${i}"),
+        groupDesc = Some(s"Acting priority of interrupt source ${i}"),
         reset     = if (nPriorities > 0) None else Some(1))
 
     def pendingRegDesc(i: Int) =
@@ -221,7 +226,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       }
 
     val priorityRegFields = priority.zipWithIndex.map { case (p, i) =>
-      PLICConsts.priorityBase+4*(i+1) -> Seq(priorityRegField(p, i+1)) }
+      PLICConsts.priorityBase+PLICConsts.priorityBytes*(i+1) ->
+      Seq(priorityRegField(p, i+1)) }
     val pendingRegFields = Seq(PLICConsts.pendingBase ->
       (RegField(1) +: pending.zipWithIndex.map { case (b, i) => RegField.r(1, b, pendingRegDesc(i+1))}))
     val enableRegFields = enables.zipWithIndex.map { case (e, i) =>
