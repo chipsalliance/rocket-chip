@@ -92,7 +92,7 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportHalt(could_halt: Option[Bool]): Unit = {
     val (halt_and_catch_fire, _) = haltNode.out(0)
-    halt_and_catch_fire(0) := could_halt.map(h => RegEnable(true.B, false.B, BlockDuringReset(h))).getOrElse(false.B)
+    halt_and_catch_fire(0) := could_halt.map(RegEnable(true.B, false.B, _)).getOrElse(false.B)
   }
 
   def reportHalt(errors: Seq[CanHaveErrors]): Unit = {
@@ -126,6 +126,6 @@ trait SourcesExternalNotifications { this: BaseTile =>
 
   def reportWFI(could_wfi: Option[Bool]): Unit = {
     val (wfi, _) = wfiNode.out(0)
-    wfi(0) := could_wfi.map(w => RegNext(BlockDuringReset(w), init=false.B)).getOrElse(false.B)
+    wfi(0) := could_wfi.map(RegNext(_, init=false.B)).getOrElse(false.B)
   }
 }

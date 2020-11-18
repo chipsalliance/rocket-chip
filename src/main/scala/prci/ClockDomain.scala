@@ -4,10 +4,7 @@ import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-abstract class ClockDomain(implicit p: Parameters) extends LazyModule
-  with LazyScope
-  with HasClockDomainCrossing
-{
+abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainCrossing {
   def clockBundle: ClockBundle
 
   lazy val module = new LazyRawModuleImp(this) {
@@ -23,20 +20,20 @@ abstract class ClockDomain(implicit p: Parameters) extends LazyModule
   }
 }
 
-class ClockSinkDomain(
-  take: Option[ClockParameters] = None,
-  name: Option[String] = None)
-  (implicit p: Parameters) extends ClockDomain
+abstract class ClockDomain(implicit p: Parameters) extends Domain with HasClockDomainCrossing
+
+class ClockSinkDomain(val clockSinkParams: ClockSinkParameters)(implicit p: Parameters) extends ClockDomain
 {
-  val clockNode = ClockSinkNode(Seq(ClockSinkParameters(take = take, name = name)))
+  def this(take: Option[ClockParameters] = None, name: Option[String] = None)(implicit p: Parameters) = this(ClockSinkParameters(take = take, name = name))
+  val clockNode = ClockSinkNode(Seq(clockSinkParams))
   def clockBundle = clockNode.in.head._1
 }
 
-class ClockSourceDomain(
-  give: Option[ClockParameters] = None,
-  name: Option[String] = None)
-  (implicit p: Parameters) extends ClockDomain
+class ClockSourceDomain(val clockSourceParams: ClockSourceParameters)(implicit p: Parameters) extends ClockDomain
 {
-  val clockNode = ClockSourceNode(Seq(ClockSourceParameters(give = give, name = name)))
+  def this(give: Option[ClockParameters] = None, name: Option[String] = None)(implicit p: Parameters) = this(ClockSourceParameters(give = give, name = name))
+  val clockNode = ClockSourceNode(Seq(clockSourceParams))
   def clockBundle = clockNode.out.head._1
 }
+
+abstract class ResetDomain(implicit p: Parameters) extends Domain with HasResetDomainCrossing

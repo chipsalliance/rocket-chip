@@ -84,6 +84,9 @@ package object util {
     }
   }
 
+  /** Any Data subtype that has a Bool member named valid. */
+  type DataCanBeValid = Data { val valid: Bool }
+
   implicit class SeqMemToAugmentedSeqMem[T <: Data](private val x: SeqMem[T]) extends AnyVal {
     def readAndHold(addr: UInt, enable: Bool): T = x.read(addr, enable) holdUnless RegNext(enable)
   }
