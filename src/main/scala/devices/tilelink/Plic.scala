@@ -13,6 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+import freechips.rocketchip.prci.{ClockSinkDomain}
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
@@ -355,9 +356,13 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val plicOpt  = p(PLICKey).map { params =>
     val tlbus = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
-    val plic = LazyModule(new TLPLIC(params, tlbus.beatBytes))
+    val plicDomainWrapper = LazyModule(new ClockSinkDomain(take = None))
+    plicDomainWrapper.clockNode := tlbus.fixedClockNode
+
+    val plic = plicDomainWrapper { LazyModule(new TLPLIC(params, tlbus.beatBytes)) }
     plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ }
     plic.intnode :=* ibus.toPLIC
+
     plic
   }
 }
