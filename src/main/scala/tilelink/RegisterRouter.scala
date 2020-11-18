@@ -34,7 +34,9 @@ case class TLRegisterNode(
     concurrency: Int     = 0,
     beatBytes:   Int     = 4,
     undefZero:   Boolean = true,
-    executable:  Boolean = false)(
+    executable:  Boolean = false,
+    responseFields: Seq[BundleFieldBase] = Nil,
+    requestKeys:    Seq[BundleKeyBase]   = Nil)(
     implicit valName: ValName)
   extends SinkNode(TLImp)(Seq(TLSlavePortParameters.v1(
     Seq(TLSlaveParameters.v1(
@@ -46,7 +48,10 @@ case class TLRegisterNode(
       supportsPutFull    = TransferSizes(1, beatBytes),
       fifoId             = Some(0))), // requests are handled in order
     beatBytes  = beatBytes,
-    minLatency = min(concurrency, 1)))) with TLFormatNode // the Queue adds at most one cycle
+    minLatency = min(concurrency, 1), // the Queue adds at most one cycle
+    responseFields = responseFields,
+    requestKeys = requestKeys
+  ))) with TLFormatNode
 {
   val size = 1 << log2Ceil(1 + address.map(_.max).max - address.map(_.base).min)
   require (size >= beatBytes)
