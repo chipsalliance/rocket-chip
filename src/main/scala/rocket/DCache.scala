@@ -1066,7 +1066,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
       case _: AsynchronousCrossing => 1 // likewise
     }
-    cached_grant_wait && d_address_inc < ((cacheBlockBytes - beatsBeforeEnd * beatBytes) max 0)
+    val near_end_of_refill = if (cacheBlockBytes / beatBytes <= beatsBeforeEnd) tl_out.d.valid else {
+      val refill_count = RegInit(0.U((cacheBlockBytes / beatBytes).log2.W))
+      when (tl_out.d.fire() && grantIsRefill) { refill_count := refill_count + 1 }
+      refill_count >= (cacheBlockBytes / beatBytes - beatsBeforeEnd)
+    }
+    cached_grant_wait && !near_end_of_refill
   }
 
   // report errors
