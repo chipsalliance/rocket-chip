@@ -4,9 +4,24 @@ package freechips.rocketchip.interrupts
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
 import freechips.rocketchip.util.CreditedDelay
 
-case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwardNode) {
+trait IntOutwardCrossingHelper {
+  type HelperCrossingType <: CrossingType
+  def apply(xing: HelperCrossingType)(implicit p: Parameters): IntOutwardNode
+}
+
+trait IntInwardCrossingHelper {
+  type HelperCrossingType <: CrossingType
+  def apply(xing: HelperCrossingType)(implicit p: Parameters): IntInwardNode
+}
+
+case class IntInwardClockCrossingHelper(name: String, scope: LazyScope, node: IntInwardNode)
+  extends IntInwardCrossingHelper
+{
+  type HelperCrossingType = ClockCrossingType
+  def apply(xing: ClockCrossingType)(implicit p: Parameters): IntInwardNode = apply(xing, false)
   def apply(xing: ClockCrossingType = NoCrossing, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntInwardNode = {
     xing match {
       case x: AsynchronousCrossing =>
@@ -21,7 +36,24 @@ case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwa
   }
 }
 
-case class IntOutwardCrossingHelper(name: String, scope: LazyScope, node: IntOutwardNode) {
+case class IntInwardResetCrossingHelper(name: String, scope: LazyScope, node: IntInwardNode)
+  extends IntInwardCrossingHelper
+{
+  type HelperCrossingType = ResetCrossingType
+  def apply(xing: ResetCrossingType)(implicit p: Parameters): IntInwardNode = {
+    xing match {
+      case _: NoResetCrossing => node
+      case s: StretchedResetCrossing =>
+        node :*=* scope { IntNameNode(name) } :*=* IntBlockDuringReset(s.cycles)
+    }
+  }
+}
+
+case class IntOutwardClockCrossingHelper(name: String, scope: LazyScope, node: IntOutwardNode)
+  extends IntOutwardCrossingHelper
+{
+  type HelperCrossingType = ClockCrossingType
+  def apply(xing: ClockCrossingType)(implicit p: Parameters): IntOutwardNode = apply(xing, false)
   def apply(xing: ClockCrossingType = NoCrossing, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntOutwardNode = {
     xing match {
       case x: AsynchronousCrossing =>
@@ -32,6 +64,19 @@ case class IntOutwardCrossingHelper(name: String, scope: LazyScope, node: IntOut
         IntSyncSyncCrossingSink() :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
       case CreditedCrossing(CreditedDelay(sourceDebit, _), CreditedDelay(sinkDebit, _)) =>
         IntSyncSyncCrossingSink(/*sinkDebit==0*/) :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(sourceDebit==0) } :*=* node
+    }
+  }
+}
+
+case class IntOutwardResetCrossingHelper(name: String, scope: LazyScope, node: IntOutwardNode)
+  extends IntOutwardCrossingHelper
+{
+  type HelperCrossingType = ResetCrossingType
+  def apply(xing: ResetCrossingType)(implicit p: Parameters): IntOutwardNode = {
+    xing match {
+      case _: NoResetCrossing => node
+      case s: StretchedResetCrossing =>
+        IntBlockDuringReset(s.cycles) :*=* scope { IntNameNode(name) } :*=* node
     }
   }
 }

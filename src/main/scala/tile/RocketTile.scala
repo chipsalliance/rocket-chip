@@ -4,7 +4,6 @@
 package freechips.rocketchip.tile
 
 import Chisel._
-import chisel3.withReset
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -14,6 +13,8 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.subsystem.TileCrossingParamsLike
 import freechips.rocketchip.util._
+import freechips.rocketchip.prci.{ClockSinkParameters}
+
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -25,6 +26,7 @@ case class RocketTileParams(
     hartId: Int = 0,
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
+    clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
     boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
@@ -137,24 +139,17 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   val core = Module(new Rocket(outer)(outer.p))
 
-  val traceValidEnable = Wire(Bool())
-  withReset(outer.rawReset) {   // use unmodified reset for notification ports
-    // Report unrecoverable error conditions; for now the only cause is cache ECC errors
-    outer.reportHalt(List(outer.dcache.module.io.errors))
+  // Report unrecoverable error conditions; for now the only cause is cache ECC errors
+  outer.reportHalt(List(outer.dcache.module.io.errors))
 
-    // Report when the tile has ceased to retire instructions; for now the only cause is clock gating
-    outer.reportCease(outer.rocketParams.core.clockGate.option(
-      !outer.dcache.module.io.cpu.clock_enabled &&
-      !outer.frontend.module.io.cpu.clock_enabled &&
-      !ptw.io.dpath.clock_enabled &&
-      core.io.cease))
+  // Report when the tile has ceased to retire instructions; for now the only cause is clock gating
+  outer.reportCease(outer.rocketParams.core.clockGate.option(
+    !outer.dcache.module.io.cpu.clock_enabled &&
+    !outer.frontend.module.io.cpu.clock_enabled &&
+    !ptw.io.dpath.clock_enabled &&
+    core.io.cease))
 
-    outer.reportWFI(Some(core.io.wfi))
-
-    val outOfReset = RegInit(0.U(2.W))
-    when (!traceValidEnable) { outOfReset := outOfReset + 1.U }
-    traceValidEnable := outOfReset.andR      // force trace.valid to 0 during and just after async reset without adding any loads to core.reset
-  }
+  outer.reportWFI(Some(core.io.wfi))
 
   outer.decodeCoreInterrupts(core.io.interrupts) // Decode the interrupt vector
 
@@ -168,7 +163,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
-  outer.traceSourceNode.bundle.zip(core.io.trace).foreach { case(tb, t) => tb.valid := t.valid && traceValidEnable }
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
   core.io.hartid := outer.hartIdSinkNode.bundle

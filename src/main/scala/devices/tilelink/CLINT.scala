@@ -109,6 +109,14 @@ trait CanHavePeripheryCLINT { this: BaseSubsystem =>
     val clint = LazyModule(new CLINT(params, cbus.beatBytes))
     LogicalModuleTree.add(logicalTreeNode, clint.logicalTreeNode)
     clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
+
+    // Override the implicit clock and reset -- could instead include a clockNode in the clint, and make it a RawModuleImp?
+    InModuleBody {
+      clint.module.clock := tlbus.module.clock
+      clint.module.reset := tlbus.module.reset
+    }
+
     clint
+
   }
 }

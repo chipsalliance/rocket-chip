@@ -27,6 +27,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CanAttachTile}
 import freechips.rocketchip.util._
+import freechips.rocketchip.prci.{ClockSinkParameters}
 
 // =======
 // Outline
@@ -75,6 +76,7 @@ case class TraceGenParams(
   val beuAddr = None
   val blockerCtrlAddr = None
   val name = None
+  val clockSinkParams = ClockSinkParameters()
 }
 
 trait HasTraceGenParams {

@@ -4,8 +4,22 @@ package freechips.rocketchip.tilelink
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.prci._
 
-case class TLInwardCrossingHelper(name: String, scope: LazyScope, node: TLInwardNode) {
+trait TLOutwardCrossingHelper {
+  type HelperCrossingType <: CrossingType
+  def apply(xing: HelperCrossingType)(implicit p: Parameters): TLOutwardNode
+}
+
+trait TLInwardCrossingHelper {
+  type HelperCrossingType <: CrossingType
+  def apply(xing: HelperCrossingType)(implicit p: Parameters): TLInwardNode
+}
+
+case class TLInwardClockCrossingHelper(name: String, scope: LazyScope, node: TLInwardNode)
+    extends TLInwardCrossingHelper
+{
+  type HelperCrossingType = ClockCrossingType
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLInwardNode = {
     xing match {
       case x: AsynchronousCrossing =>
@@ -20,7 +34,23 @@ case class TLInwardCrossingHelper(name: String, scope: LazyScope, node: TLInward
   }
 }
 
-case class TLOutwardCrossingHelper(name: String, scope: LazyScope, node: TLOutwardNode) {
+case class TLInwardResetCrossingHelper(name: String, scope: LazyScope, node: TLInwardNode)
+    extends TLInwardCrossingHelper
+{
+  type HelperCrossingType = ResetCrossingType
+  def apply(xing: ResetCrossingType)(implicit p: Parameters): TLInwardNode = {
+    xing match {
+      case _: NoResetCrossing => node
+      case s: StretchedResetCrossing =>
+        node :*=* scope { TLNameNode(name) } :*=* TLBlockDuringReset(s.cycles)
+    }
+  }
+}
+
+case class TLOutwardClockCrossingHelper(name: String, scope: LazyScope, node: TLOutwardNode)
+    extends TLOutwardCrossingHelper
+{
+  type HelperCrossingType = ClockCrossingType
   def apply(xing: ClockCrossingType = NoCrossing)(implicit p: Parameters): TLOutwardNode = {
     xing match {
       case x: AsynchronousCrossing =>
@@ -31,6 +61,19 @@ case class TLOutwardCrossingHelper(name: String, scope: LazyScope, node: TLOutwa
         TLNameNode(name) :*=* scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
       case CreditedCrossing(sourceDelay, sinkDelay) =>
         TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name) :*=* scope { TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay) } :*=* node
+    }
+  }
+}
+
+case class TLOutwardResetCrossingHelper(name: String, scope: LazyScope, node: TLOutwardNode)
+    extends TLOutwardCrossingHelper
+{
+  type HelperCrossingType = ResetCrossingType
+  def apply(xing: ResetCrossingType)(implicit p: Parameters): TLOutwardNode = {
+    xing match {
+      case _: NoResetCrossing => node
+      case s: StretchedResetCrossing =>
+        TLBlockDuringReset(s.cycles) :*=* scope { TLNameNode(name) } :*=* node
     }
   }
 }

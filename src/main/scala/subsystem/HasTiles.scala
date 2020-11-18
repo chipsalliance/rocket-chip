@@ -12,7 +12,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockGroup, ClockNode}
+import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType}
 import freechips.rocketchip.util._
 
 /** Entry point for Config-uring the presence of Tiles */
@@ -48,8 +48,8 @@ trait TileCrossingParamsLike {
   def slave: TilePortParamsLike
   /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the tile */
   def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
-  /** Inject a clock/reset management subgraph */
-  def injectClockNode(context: Attachable)(implicit p: Parameters): ClockNode
+  /** Inject a reset management subgraph that effects the tile child reset only */
+  def resetCrossingType: ResetCrossingType
   /** Keep the tile clock separate from the interconnect clock (e.g. even if they are synchronous to one another) */
   def forceSeparateClockReset: Boolean
 }
@@ -248,8 +248,9 @@ trait CanAttachTile {
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(implicit p: Parameters): TilePRCIDomain[TileType] = {
-    val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](tileParams.hartId) {
-      val tile = LazyModule(tileParams.instantiate(crossingParams, lookup))
+    val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(s"${tileParams.name.getOrElse("core")}_${tileParams.hartId}"))
+    val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
+      val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, lookup)) }
     })
     tile_prci_domain
   }
@@ -260,8 +261,8 @@ trait CanAttachTile {
     connectSlavePorts(domain, context)
     connectInterrupts(domain, context)
     connectPRC(domain, context)
-    connectOutputNotifications(domain.tile, context)
-    connectInputConstants(domain.tile, context)
+    connectOutputNotifications(domain, context)
+    connectInputConstants(domain, context)
     LogicalModuleTree.add(context.logicalTreeNode, domain.tile.logicalTreeNode)
   }
 
@@ -325,7 +326,7 @@ trait CanAttachTile {
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.plicOpt.foreach { plic =>
       FlipRendering { implicit p =>
-        plic.intnode :=* domain.crossIntOut(crossingParams.crossingType)
+        plic.intnode :=* domain.crossIntOut(crossingParams.crossingType, domain.tile.intOutwardNode)
       }
     }
 
@@ -334,20 +335,23 @@ trait CanAttachTile {
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
-  def connectOutputNotifications(tile: TileType, context: TileContextType): Unit = {
+  def connectOutputNotifications(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    context.tileHaltXbarNode :=* tile.haltNode
-    context.tileWFIXbarNode :=* tile.wfiNode
-    context.tileCeaseXbarNode :=* tile.ceaseNode
+    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.tile.haltNode)
+    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.tile.wfiNode)
+    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.tile.ceaseNode)
+    // TODO should context be forced to have a trace sink connected here?
+    //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
+    domain.crossTracesOut()
   }
 
   /** Connect inputs to the tile that are assumed to be constant during normal operation, and so are not clock-crossed. */
-  def connectInputConstants(tile: TileType, context: TileContextType): Unit = {
+  def connectInputConstants(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetPrefixFrom = context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere)
-    tile.hartIdNode := context.tileHartIdNode
-    tile.resetVectorNode := context.tileResetVectorNode
-    tlBusToGetPrefixFrom.prefixNode.foreach { tile.mmioAddressPrefixNode := _ }
+    domain.tile.hartIdNode := context.tileHartIdNode
+    domain.tile.resetVectorNode := context.tileResetVectorNode
+    tlBusToGetPrefixFrom.prefixNode.foreach { domain.tile.mmioAddressPrefixNode := _ }
   }
 
   /** Connect power/reset/clock resources. */
@@ -355,7 +359,7 @@ trait CanAttachTile {
     implicit val p = context.p
     val tlBusToGetClockDriverFrom = context.locateTLBusWrapper(crossingParams.master.where)
     val clockSource = (crossingParams.crossingType match {
-      case s: SynchronousCrossing =>
+      case _: SynchronousCrossing | _: CreditedCrossing =>
         if (crossingParams.forceSeparateClockReset) tlBusToGetClockDriverFrom.clockNode
         else tlBusToGetClockDriverFrom.fixedClockNode
       case _: RationalCrossing => tlBusToGetClockDriverFrom.clockNode
@@ -367,11 +371,7 @@ trait CanAttachTile {
     })
 
     domain {
-      domain.clockSinkNode := crossingParams.injectClockNode(context) := domain.clockNode
-    } := clockSource
-
-    domain {
-      domain.tile.externalClockSinkNode
+      domain.tile_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
     } := clockSource
   }
 }

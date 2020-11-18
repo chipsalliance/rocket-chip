@@ -37,12 +37,12 @@ case class CoherenceManagerWrapperParams(
     blockBytes: Int,
     beatBytes: Int,
     nBanks: Int,
-    name: String)
+    name: String,
+    dtsFrequency: Option[BigInt] = None)
   (val coherenceManager: CoherenceManagerInstantiationFn)
   extends HasTLBusParams 
   with TLBusWrapperInstantiationLike
 {
-  val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
     val cmWrapper = LazyModule(new CoherenceManagerWrapper(this, context))
     cmWrapper.suggestName(loc.name + "_wrapper")
