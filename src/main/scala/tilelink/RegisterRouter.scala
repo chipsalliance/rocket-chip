@@ -194,7 +194,7 @@ class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
 /** Mix HasTLControlRegMap into any subclass of RegisterRouter to gain helper functions for attaching a device control register map to TileLink.
   * - The intended use case is that controlNode will diplomatically publish a SW-visible device's memory-mapped control registers.
   * - Use the clock crossing helper controlXing to externally connect controlNode to a TileLink interconnect. 
-  * - Use the mapping helper function regmap to internally fill out the space of devince control registers.
+  * - Use the mapping helper function regmap to internally fill out the space of device control registers.
   */
 trait HasTLControlRegMap { this: RegisterRouter =>
   protected val controlNode = TLRegisterNode(
