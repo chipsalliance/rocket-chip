@@ -2,11 +2,14 @@
   "hardfloat": {
     "scalaVersion": "2.12.8"
   },
-  "rocketchipMacros": {
+  "diplomacyMacros": {
     "scalaVersion": "2.12.8",
     "dependencies": [
       "org.scala-lang:scala-reflect:2.12.8"
     ]
+  },
+  "diplomacy": {
+    "scalaVersion": "2.12.8"
   },
   "rocketchip": {
     "scalaVersion": "2.12.8",

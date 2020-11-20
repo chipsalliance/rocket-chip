@@ -44,7 +44,6 @@ FIRRTL ?= $(JAVA) -cp $(ROCKET_CHIP_JAR) firrtl.stage.FirrtlMain
 GENERATOR ?= $(JAVA) -cp $(ROCKET_CHIP_JAR) $(PROJECT).Generator
 
 # Extracting this information from SBT would be more robust
-# api-config-chipsalliance does not use standard SBT src/main/scala, but has no resources
 scala_srcs := $(shell find $(base_dir) -name "*.scala" -o -name "*.sbt")
 resource_dirs := $(shell find $(base_dir) -type d -path "*/src/main/resources")
 resources := $(foreach d,$(resource_dirs),$(shell find $(d) -type f))

@@ -6,7 +6,7 @@ import $file.common
 import $file.firrtl.build
 import $file.chisel3.build
 import $file.hardfloat.build
-import $file.`api-config-chipsalliance`.`build-rules`.mill.build
+import $file.diplomacy.build
 
 object firrtlRocket extends firrtl.build.firrtlCrossModule("2.12.11") {
   override def millSourcePath = os.pwd / "firrtl"
@@ -18,20 +18,11 @@ object chisel3Rocket extends chisel3.build.chisel3CrossModule("2.12.12") {
   def firrtlModule: Option[PublishModule] = Some(firrtlRocket)
 }
 
-object configRocket extends `api-config-chipsalliance`.`build-rules`.mill.build.config with PublishModule {
-  override def millSourcePath = os.pwd / "api-config-chipsalliance" / "design" / "craft"
-
-  override def scalaVersion = T {
-    rocketchip.scalaVersion()
-  }
-
-  override def pomSettings = T {
-    rocketchip.pomSettings()
-  }
-
-  override def publishVersion = T {
-    rocketchip.publishVersion()
-  }
+object diplomacyRocket extends diplomacy.build.diplomacy {
+  def scalacPluginClasspath = super.scalacPluginClasspath() ++ Agg(
+    chisel3Rocket.plugin.jar()
+  )
+  def chisel3Module: Option[PublishModule] = Some(chisel3Rocket)
 }
 
 object hardfloatRocket extends hardfloat.build.hardfloat {
@@ -54,7 +45,7 @@ object rocketchip extends common.CommonRocketChip {
 
   def hardfloatModule = hardfloatRocket
 
-  def configModule = configRocket
+  def diplomacyModule = diplomacyRocket
 
   def scalacPluginClasspath = super.scalacPluginClasspath() ++ Agg(
     chisel3Rocket.plugin.jar()
