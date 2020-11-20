@@ -280,7 +280,7 @@ trait BindingScope
 
   private case class ExpandedValue(path: Seq[String], labels: Seq[String], value: Seq[ResourceValue])
   private lazy val eval: Unit = {
-    require (!LazyModule.scope.isDefined, "May not evaluate binding while still constructing LazyModules")
+    require (!LazyModule.getScope.isDefined, "May not evaluate binding while still constructing LazyModules")
     parentScope.foreach { _.eval }
     resourceBindings = parentScope.map(_.resourceBindings).getOrElse(Nil)
     BindingScope.active = Some(this)
@@ -388,9 +388,9 @@ trait BindingScope
 object BindingScope
 {
   protected[diplomacy] var active: Option[BindingScope] = None
-  protected[diplomacy] def find(m: Option[LazyModule] = LazyModule.scope): Option[BindingScope] = m.flatMap {
-    case x: BindingScope => find(x.parent).orElse(Some(x))
-    case x => find(x.parent)
+  protected[diplomacy] def find(m: Option[LazyModule] = LazyModule.getScope): Option[BindingScope] = m.flatMap {
+    case x: BindingScope => find(x.getParent).orElse(Some(x))
+    case x => find(x.getParent)
   }
 
   var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()

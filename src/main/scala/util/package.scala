@@ -7,6 +7,12 @@ import scala.math.min
 import scala.collection.{immutable, mutable}
 
 package object util {
+
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type HeterogeneousBag[T <: Data] = _root_.diplomacy.HeterogeneousBag[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val HeterogeneousBag = _root_.diplomacy.HeterogeneousBag
+
   implicit class UnzippableOption[S, T](val x: Option[(S, T)]) {
     def unzip = (x.map(_._1), x.map(_._2))
   }
