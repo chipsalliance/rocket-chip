@@ -101,6 +101,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val dECC = cacheParams.dataCode
   require(subWordBits % eccBits == 0, "subWordBits must be a multiple of eccBits")
   require(eccBytes == 1 || !dECC.isInstanceOf[IdentityCode])
+  require(cacheParams.silentDrop || cacheParams.acquireBeforeRelease, "!silentDrop requires acquireBeforeRelease")
   val usingRMW = eccBytes > 1 || usingAtomicsInCache
   val mmioOffset = outer.firstMMIO
   edge.manager.requireFifo(TLFIFOFixer.allVolatile)  // TileLink pipelining MMIO requests
@@ -573,8 +574,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out_a.valid := !io.cpu.s2_kill &&
     (s2_valid_uncached_pending ||
       (s2_valid_cached_miss &&
-       !release_ack_wait &&
-       (cacheParams.acquireBeforeRelease && release_queue_empty || cacheParams.silentDrop && !s2_victim_dirty)))
+       !(release_ack_wait && release_ack_dirty) &&
+       (cacheParams.acquireBeforeRelease && !release_ack_wait && release_queue_empty || !s2_victim_dirty)))
   tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param),
     Mux(!s2_write, get,
     Mux(s2_req.cmd === M_PWR, putpartial,
@@ -797,7 +798,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       assert(s2_valid_flush_line || s2_flush_valid || io.cpu.s2_nack)
       val discard_line = s2_valid_flush_line && s2_req.size(1) || s2_flush_valid && flushing_req.size(1)
       release_state := Mux(s2_victim_dirty && !discard_line, s_voluntary_writeback,
-                       Mux(!cacheParams.silentDrop && s2_victim_state.isValid() && (s2_valid_flush_line || s2_flush_valid || s2_readwrite && !s2_hit_valid), s_voluntary_release,
+                       Mux(!cacheParams.silentDrop && !release_ack_wait && release_queue_empty && s2_victim_state.isValid() && (s2_valid_flush_line || s2_flush_valid || s2_readwrite && !s2_hit_valid), s_voluntary_release,
                        s_voluntary_write_meta))
       probe_bits := addressToProbe(s2_vaddr, Cat(s2_victim_tag, s2_req.addr(tagLSB-1, idxLSB)) << idxLSB)
     }
@@ -1065,7 +1066,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
       case _: AsynchronousCrossing => 1 // likewise
     }
-    cached_grant_wait && d_address_inc < ((cacheBlockBytes - beatsBeforeEnd * beatBytes) max 0)
+    val near_end_of_refill = if (cacheBlockBytes / beatBytes <= beatsBeforeEnd) tl_out.d.valid else {
+      val refill_count = RegInit(0.U((cacheBlockBytes / beatBytes).log2.W))
+      when (tl_out.d.fire() && grantIsRefill) { refill_count := refill_count + 1 }
+      refill_count >= (cacheBlockBytes / beatBytes - beatsBeforeEnd)
+    }
+    cached_grant_wait && !near_end_of_refill
   }
 
   // report errors
