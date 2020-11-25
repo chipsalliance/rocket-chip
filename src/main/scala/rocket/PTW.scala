@@ -108,16 +108,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
   val l2_refill_wire = Wire(Bool())
-  val l2_flush_entry_wire = Wire(Bool())
 
   val arb = Module(new Arbiter(Valid(new PTWReq), n))
   arb.io.in <> io.requestor.map(_.req)
-  arb.io.out.ready := (state === s_ready) && !(l2_refill_wire || l2_flush_entry_wire)
+  arb.io.out.ready := (state === s_ready) && !l2_refill_wire
 
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
 
-  val clock_en = (state =/= s_ready || l2_refill_wire || arb.io.out.valid || io.dpath.sfence.valid
-    || l2_flush_entry_wire || io.dpath.customCSRs.disableDCacheClockGate)
+  val clock_en = state =/= s_ready || l2_refill_wire || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   io.dpath.clock_enabled := usingVM && clock_en
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
@@ -201,9 +199,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     "PTE Cache Hit/Miss Performance Monitor Events are lower priority than L2TLB Hit event")
 
   val l2_refill = RegNext(false.B)
-  val l2_flush_entry = RegNext(false.B)
   l2_refill_wire := l2_refill
-  l2_flush_entry_wire := l2_flush_entry
   io.dpath.perf.l2miss := false
   io.dpath.perf.l2hit := false
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
@@ -242,24 +238,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       g_array(r_idx) := Mux(r_pte.g, g_array(r_idx) | mask.asUInt, g_array(r_idx) & ~mask.asUInt)
     }
 
-    val f_rs1   = io.dpath.sfence.valid && io.dpath.sfence.bits.rs1
-    val f_addr  = RegEnable(io.dpath.sfence.bits.addr >> pgIdxBits, f_rs1)
-    val f_rdata = ram.read(f_addr.extract(idxBits - 1, 0), f_rs1)
-    l2_flush_entry := f_rs1
-    when (l2_flush_entry) {
-      val f_decode = f_rdata.map(x => code.decode(x))
-      val f_set    = f_decode.map(x => x.uncorrected).map(_.asTypeOf(new L2TLBEntry(nL2TLBSets)))
-      val f_idx    = f_addr.extract(idxBits - 1, 0)
-      val f_tag    = f_addr >> idxBits
-      val f_mask   = f_set.map(_.tag === f_tag).asUInt
-      valid_array(f_idx) := valid_array(f_idx) & ~f_mask
-      l2_flush_entry := false.B
-    }
-    when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) {
-      for ((v, g) <- valid_array zip g_array) {
-        when (io.dpath.sfence.bits.rs2) { v := v & g }
-        .otherwise { v := 0.U }
-      }
+    when (io.dpath.sfence.valid) {
+      valid_array :=
+        Mux(io.dpath.sfence.bits.rs1, valid_array & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
+        Mux(io.dpath.sfence.bits.rs2, valid_array & g_array, 0.U))
     }
 
     val s0_valid    = !l2_refill && arb.io.out.fire()
@@ -294,7 +276,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
 
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
-  invalidated := io.dpath.sfence.valid || l2_flush_entry || (invalidated && state =/= s_ready) // FIXME
+  invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
 
   io.mem.req.valid := state === s_req || state === s_dummy1
   io.mem.req.bits.phys := Bool(true)
