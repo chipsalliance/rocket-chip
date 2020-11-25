@@ -37,6 +37,7 @@ case class RocketCoreParams(
   haveCFlush: Boolean = false,
   misaWritable: Boolean = true,
   nL2TLBEntries: Int = 0,
+  nL2TLBWays: Int = 1,
   mtvecInit: Option[BigInt] = Some(BigInt(0)),
   mtvecWritable: Boolean = true,
   fastLoadWord: Boolean = true,
