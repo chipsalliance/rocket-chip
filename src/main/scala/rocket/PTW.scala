@@ -209,7 +209,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val nL2TLBWays = coreParams.nL2TLBEntries / nL2TLBSets
     val idxBits = log2Ceil(nL2TLBSets)
     val tagBits = vpnBits - idxBits
-    val (r_tag, r_idx) = Split(r_req.addr, idxBits)
 
     val code = new ParityCode
     val l2_plru = new SetAssocLRU(nL2TLBSets, nL2TLBWays, "plru")
@@ -221,58 +220,64 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       data = Vec(nL2TLBWays, UInt(width = code.width(new L2TLBEntry(nL2TLBSets).getWidth)))
     )
 
-    val g_array = Reg(Vec(nL2TLBSets, UInt(width = nL2TLBWays)))
-    val valid_array = RegInit(Vec(Seq.fill(nL2TLBSets)(0.U(nL2TLBWays.W))))
-
+    val g = Reg(Vec(nL2TLBWays, UInt(width = nL2TLBSets)))
+    val valid = RegInit(Vec(Seq.fill(nL2TLBWays)(0.U(nL2TLBSets.W))))
+    val (r_tag, r_idx) = Split(r_req.addr, idxBits)
     when (l2_refill && !invalidated) {
-      val waddr = if (nL2TLBWays > 1) Mux(valid_array(r_idx).andR, l2_plru.way(r_idx), PriorityEncoder(~valid_array(r_idx))) else 0.U
-      val mask  = if (nL2TLBWays > 1) Vec(UIntToOH(waddr).asBools) else Vec(true.B)
-      val array = Wire(Vec(nL2TLBWays, UInt(width = code.width(new L2TLBEntry(nL2TLBSets).getWidth))))
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
+      val wmask = if (nL2TLBWays > 1) Mux(valid(r_idx).andR, UIntToOH(l2_plru.way(r_idx)), PriorityEncoderOH(~valid(r_idx))) else 1.U(1.W)
 
       entry := r_pte
       entry.tag := r_tag
-      array(waddr) := code.encode(entry.asUInt)
-      ram.write(r_idx, array, mask)
-      valid_array(r_idx) := valid_array(r_idx) | mask.asUInt
-      g_array(r_idx) := Mux(r_pte.g, g_array(r_idx) | mask.asUInt, g_array(r_idx) & ~mask.asUInt)
-    }
+      ram.write(r_idx, Vec(Seq.fill(nL2TLBWays)(code.encode(entry.asUInt))), wmask(nL2TLBWays-1,0).asBools)
 
+      val mask = UIntToOH(r_idx)
+      for (way <- 0 until nL2TLBWays) {
+        when (wmask(way)) {
+          valid(way) := valid(way) | mask
+          g(way) := Mux(r_pte.g, g(way) | mask, g(way) & ~mask)
+        }
+      }
+    }
     when (io.dpath.sfence.valid) {
-      valid_array :=
-        Mux(io.dpath.sfence.bits.rs1, valid_array & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
-        Mux(io.dpath.sfence.bits.rs2, valid_array & g_array, 0.U))
+      for (way <- 0 until nL2TLBWays) {
+        valid(way) :=
+          Mux(io.dpath.sfence.bits.rs1, valid(way) & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
+          Mux(io.dpath.sfence.bits.rs2, valid(way) & g(way), 0.U))
+      }
     }
 
-    val s0_valid    = !l2_refill && arb.io.out.fire()
-    val s1_valid    = RegNext(s0_valid && arb.io.out.bits.valid)
-    val s2_valid    = RegNext(s1_valid)
-    val s1_rdata    = ram.read(arb.io.out.bits.bits.addr.extract(idxBits-1, 0), s0_valid)
-    val s2_rdata    = RegEnable(s1_rdata, s1_valid)
-    val s2_v_lookup = RegEnable(valid_array(r_idx), s1_valid)
-    val s2_g_lookup = RegEnable(g_array(r_idx), s1_valid)
-    val s2_decode   = s2_rdata.map(x => code.decode(x))
-    val s2_set      = s2_decode.map(x => x.uncorrected).map(_.asTypeOf(new L2TLBEntry(nL2TLBSets)))
-    val s2_error    = s2_decode.map(x => x.error)
-    val hit_vec     = s2_set.map(_.tag === r_tag).asUInt & s2_v_lookup
-    val s2_hit      = s2_valid && hit_vec.orR
-    val hit_way     = OHToUInt(hit_vec)
-    io.dpath.perf.l2miss := s2_valid && !hit_vec.orR
+    val s0_valid = !l2_refill && arb.io.out.fire()
+    val s1_valid = RegNext(s0_valid && arb.io.out.bits.valid)
+    val s2_valid = RegNext(s1_valid)
+    val s1_rdata = ram.read(arb.io.out.bits.bits.addr(idxBits-1, 0), s0_valid)
+    val s2_rdata = s1_rdata.map(s1_rdway => code.decode(RegEnable(s1_rdway, s1_valid)))
+    val s2_valid_bit = RegEnable(Vec(valid.map(_(r_idx))), s1_valid)
+    val s2_g = RegEnable(Vec(g.map(_(r_idx))), s1_valid)
+    val s2_error = (0 until nL2TLBWays).map(way => s2_valid_bit(way) && s2_rdata(way).error).orR
+    when (s2_valid && s2_error) { valid := Vec(Seq.fill(nL2TLBWays)(0.U)) }
+
+    val s2_entry = s2_rdata.map(_.uncorrected.asTypeOf(new L2TLBEntry(nL2TLBSets)))
+    val s2_hit_vec = (0 until nL2TLBWays).map(way => s2_valid_bit(way) && (r_tag === s2_entry(way).tag))
+    val s2_hit = s2_valid && s2_hit_vec.orR
+    io.dpath.perf.l2miss := s2_valid && !(s2_hit_vec.orR)
     io.dpath.perf.l2hit := s2_hit
-    when (s2_valid && s2_v_lookup(hit_way) && s2_error(hit_way)) {
-      valid_array foreach { case x => x := 0.U }
+    when (s2_hit) {
+      l2_plru.access(r_idx, OHToUInt(s2_hit_vec))
+      assert((PopCount(s2_hit_vec) === 1.U) || s2_error, "L2 TLB multi-hit")
     }
-    when (s2_hit) { l2_plru.access(r_idx, hit_way) }
 
     val s2_pte = Wire(new PTE)
-    s2_pte := s2_set(hit_way)
-    s2_pte.g := s2_g_lookup(hit_way)
+    s2_pte   := Mux1H(s2_hit_vec, s2_entry)
+    s2_pte.g := Mux1H(s2_hit_vec, s2_g)
     s2_pte.v := true
 
-    ccover(s2_hit, "L2_TLB_HIT", "L2 TLB hit")
+    for (way <- 0 until nL2TLBWays) {
+      ccover(s2_hit && s2_hit_vec(way), s"L2_TLB_HIT_WAY$way", s"L2 TLB hit way$way")
+    }
 
     omSRAMs += omSRAM
-    (s2_hit, s2_error(hit_way), s2_pte, Some(ram))
+    (s2_hit, s2_error, s2_pte, Some(ram))
   }
 
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
