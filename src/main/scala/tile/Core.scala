@@ -45,6 +45,7 @@ trait CoreParams {
   val misaWritable: Boolean
   val haveCFlush: Boolean
   val nL2TLBEntries: Int
+  val nL2TLBWays: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
