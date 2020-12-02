@@ -15,13 +15,27 @@ trait L1CacheParams {
   def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
+/**
+  *                        ┌──idxBits──┐
+  *                        ↓           ↓
+  * │          tag         │    set    │offset│
+  *                        ↑           ↑
+  *                   untagBits   blockOffBits
+  */
 trait HasL1CacheParameters extends HasTileParameters {
   val cacheParams: L1CacheParams
 
+  /** Set Size. */
   def nSets = cacheParams.nSets
+  /** Block offset Bits. */
   def blockOffBits = lgCacheBlockBytes
+  /** Set bits. */
   def idxBits = log2Up(cacheParams.nSets)
+  /** Untag Bits */
   def untagBits = blockOffBits + idxBits
+  /** minimal of [[pgIdxBits]] or [[untagBits]] when using paging.
+    * used for way sizes greater than 4 KiB when using paging.
+    */
   def pgUntagBits = if (usingVM) untagBits min pgIdxBits else untagBits
   def tagBits = tlBundleParams.addressBits - pgUntagBits
   def nWays = cacheParams.nWays
@@ -36,6 +50,7 @@ trait HasL1CacheParameters extends HasTileParameters {
   def cacheDataBits = tlBundleParams.dataBits
   def cacheDataBytes = cacheDataBits / 8
   def cacheDataBeats = (cacheBlockBytes * 8) / cacheDataBits
+  /** How many cycles will be consumed for a refilling. */
   def refillCycles = cacheDataBeats
 }
 

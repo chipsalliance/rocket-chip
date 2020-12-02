@@ -43,20 +43,43 @@ class FrontendPerfEvents extends Bundle {
   val tlbMiss = Bool()
 }
 
+/** IO from CPU to Frontend. */
 class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
+  /** Used for clock gating, ask ICache not gating clock.
+    * Front end clock cannot be gated if execute stage or memory stage is valid.
+    * [[CustomCSRs.disableICacheClockGate]] valid will also keep this signal true.
+    */
   val might_request = Bool(OUTPUT)
+  /** Report to CPU ICache clock has been gated. */
   val clock_enabled = Bool(INPUT)
+  /** Request from CPU to Frontend,
+    * might be physic address(Machine Mode) or virtual address(Superviosr/User Mode).
+    */
   val req = Valid(new FrontendReq)
+  /** @todo flush ICache? */
   val sfence = Valid(new SFenceReq)
+  /** Response from Frontend to CPU.
+    * @todo what does it include.
+    */
   val resp = Decoupled(new FrontendResp).flip
+  /** CPU -> Frontend Branch Target Buffer update. */
   val btb_update = Valid(new BTBUpdate)
+  /** CPU -> Frontend Branch History Table update. */
   val bht_update = Valid(new BHTUpdate)
+  /** */
   val ras_update = Valid(new RASUpdate)
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
   val perf = new FrontendPerfEvents().asInput
 }
 
+/** Frontend of Rocket Core:
+  *
+  * Instruction Fetch Unit
+  * Instruction Cache
+  *
+  *
+  */
 class Frontend(val icacheParams: ICacheParams, staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
   val icache = LazyModule(new ICache(icacheParams, staticIdForMetadataUseOnly))
