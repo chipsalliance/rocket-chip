@@ -51,6 +51,7 @@ object PLICConsts
 
   def enableOffset(i: Int) = i * ((maxDevices+7)/8)
   def hartOffset(i: Int) = i * 0x1000
+  /** give a hard id `i`, generate enable base address for this hard id. */
   def enableBase(i: Int):Int = enableOffset(i) + enableBase
   def hartBase(i: Int):Int = hartOffset(i) + hartBase
 
@@ -76,7 +77,21 @@ case class PLICAttachParams(
 
 case object PLICAttachKey extends Field(PLICAttachParams())
 
-/** Platform-Level Interrupt Controller */
+/** Platform-Level Interrupt Controller.
+  *  Control register node.
+  *   - priority: for each interrupt, it has 8 interrupt level, higher level has higher priority, 0 is disable this register.
+  *               when different interrupt has same priority, lower id has higher priority.
+  *   - pending: a interrupt is triggered, wait for a hart to handle this interrupt.
+  *   - enable: interrupt enable register.
+  *   - hart:
+  *     - threshold: interrupt priority less than threshold will be masked.
+  *     - claim: share address with `complete`, read only.
+  *              return highest priority pending interrupt, if no pending, return 0.
+  *              this read will atomically clear correspond interrupt.
+  *     - complete: share address with `claim`, write only.
+  *                 this write will mark a interrupt completed.
+  *
+  */
 class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
   // plic0 => max devices 1023
@@ -93,6 +108,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
   }
 
+  /** [[TLRegisterNode]] to control PLIC. */
   val node : TLRegisterNode = TLRegisterNode(
     address   = Seq(params.address),
     device    = device,
@@ -100,6 +116,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     undefZero = true,
     concurrency = 1) // limiting concurrency handles RAW hazards on claim registers
 
+  /** Interrupt Nexus Node. */
   val intnode: IntNexusNode = IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1, Seq(Resource(device, "int"))))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
@@ -209,6 +226,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
         groupDesc = Some("Pending Bit Array. 1 Bit for each interrupt source."),
         volatile = true)
 
+    /** Describe enable bits for register router.
+      *
+      * @param i hart.
+      * @param j index of enable reg fields on a hart.
+      *          can be firstEnable, fullEnable, tailEnable(optional).
+      * @param wide width of this reg field. see [[firstEnable]], [[fullEnables]], [[tailEnable]]
+      */
     def enableRegDesc(i: Int, j: Int, wide: Int) = {
       val low = if (j == 0) 1 else j*8
       val high = low + wide - 1
@@ -282,7 +306,9 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val hartRegFields = Seq.tabulate(nHarts) { i =>
       PLICConsts.hartBase(i) -> Seq(
         thresholdRegField(threshold(i), i),
+        // padding threshold
         RegField(32-prioBits),
+        // read -> claimer, write -> completer
         RegField(32,
           RegReadFn { valid =>
             claimer(i) := valid
