@@ -827,21 +827,6 @@ class TLMasterParameters private(
     case _ => throw new IndexOutOfBoundsException(n.toString)
   }
 
-  @deprecated("Use supports.probe instead of supportsProbe","")
-  def supportsProbe:       TransferSizes   = supports.probe
-  @deprecated("Use supports.arithmetic instead of supportsArithmetic","")
-  def supportsArithmetic:  TransferSizes   = supports.arithmetic
-  @deprecated("Use supports.logical instead of supportsLogical","")
-  def supportsLogical:     TransferSizes   = supports.logical
-  @deprecated("Use supports.get instead of supportsGet","")
-  def supportsGet:         TransferSizes   = supports.get
-  @deprecated("Use supports.putFull instead of supportsPutFull","")
-  def supportsPutFull:     TransferSizes   = supports.putFull
-  @deprecated("Use supports.putPartial instead of supportsPutPartial","")
-  def supportsPutPartial:  TransferSizes   = supports.putPartial
-  @deprecated("Use supports.hint instead of supportsHint","")
-  def supportsHint:        TransferSizes   = supports.hint
-
   require (!sourceId.isEmpty)
   require (!visibility.isEmpty)
   require (supports.putFull.contains(supports.putPartial))
@@ -1114,23 +1099,23 @@ class TLMasterPortParameters private(
 
   // Diplomatically determined operation sizes supported by all inward Masters
   // as opposed to supports* which generate circuitry to check which specific addresses
-  val allSupportProbe      = masters.map(_.supportsProbe)     .reduce(_ intersect _)
-  val allSupportArithmetic = masters.map(_.supportsArithmetic).reduce(_ intersect _)
-  val allSupportLogical    = masters.map(_.supportsLogical)   .reduce(_ intersect _)
-  val allSupportGet        = masters.map(_.supportsGet)       .reduce(_ intersect _)
-  val allSupportPutFull    = masters.map(_.supportsPutFull)   .reduce(_ intersect _)
-  val allSupportPutPartial = masters.map(_.supportsPutPartial).reduce(_ intersect _)
-  val allSupportHint       = masters.map(_.supportsHint)      .reduce(_ intersect _)
+  val allSupportProbe      = masters.map(_.supports.probe)     .reduce(_ intersect _)
+  val allSupportArithmetic = masters.map(_.supports.arithmetic).reduce(_ intersect _)
+  val allSupportLogical    = masters.map(_.supports.logical)   .reduce(_ intersect _)
+  val allSupportGet        = masters.map(_.supports.get)       .reduce(_ intersect _)
+  val allSupportPutFull    = masters.map(_.supports.putFull)   .reduce(_ intersect _)
+  val allSupportPutPartial = masters.map(_.supports.putPartial).reduce(_ intersect _)
+  val allSupportHint       = masters.map(_.supports.hint)      .reduce(_ intersect _)
 
   // Diplomatically determined operation sizes supported by at least one master
   // as opposed to supports* which generate circuitry to check which specific addresses
-  val anySupportProbe      = masters.map(!_.supportsProbe.none)     .reduce(_ || _)
-  val anySupportArithmetic = masters.map(!_.supportsArithmetic.none).reduce(_ || _)
-  val anySupportLogical    = masters.map(!_.supportsLogical.none)   .reduce(_ || _)
-  val anySupportGet        = masters.map(!_.supportsGet.none)       .reduce(_ || _)
-  val anySupportPutFull    = masters.map(!_.supportsPutFull.none)   .reduce(_ || _)
-  val anySupportPutPartial = masters.map(!_.supportsPutPartial.none).reduce(_ || _)
-  val anySupportHint       = masters.map(!_.supportsHint.none)      .reduce(_ || _)
+  val anySupportProbe      = masters.map(!_.supports.probe.none)     .reduce(_ || _)
+  val anySupportArithmetic = masters.map(!_.supports.arithmetic.none).reduce(_ || _)
+  val anySupportLogical    = masters.map(!_.supports.logical.none)   .reduce(_ || _)
+  val anySupportGet        = masters.map(!_.supports.get.none)       .reduce(_ || _)
+  val anySupportPutFull    = masters.map(!_.supports.putFull.none)   .reduce(_ || _)
+  val anySupportPutPartial = masters.map(!_.supports.putPartial.none).reduce(_ || _)
+  val anySupportHint       = masters.map(!_.supports.hint.none)      .reduce(_ || _)
 
   // These return Option[TLMasterParameters] for your convenience
   def find(id: Int) = masters.find(_.sourceId.contains(id))
