@@ -81,8 +81,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     //The monitor doesn’t check for acquire T vs acquire B, it assumes that acquire B implies acquire T and only checks for acquire B
     //TODO: check for acquireT?
     when (bundle.opcode === TLMessages.AcquireBlock) {
-      monAssert (edge.master.emitsAcquireB(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsAcquireB(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
-      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsProbe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + diplomacyInfo + extra)
+      monAssert (edge.master.emitsAcquireB(bundle.source, bundle.size) && edge.slave.supportsAcquireBFast(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.emitsProbeFast(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + diplomacyInfo + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquireBlock smaller than a beat" + extra)
       monAssert (is_aligned, "'A' channel AcquireBlock address not aligned to size" + extra)
@@ -92,8 +92,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.AcquirePerm) {
-      monAssert (edge.master.emitsAcquireB(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsAcquireB(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
-      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsProbe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + diplomacyInfo + extra)
+      monAssert (edge.master.emitsAcquireB(bundle.source, bundle.size) && edge.slave.supportsAcquireBFast(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.emitsProbeFast(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + diplomacyInfo + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquirePerm smaller than a beat" + extra)
       monAssert (is_aligned, "'A' channel AcquirePerm address not aligned to size" + extra)
@@ -105,7 +105,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     when (bundle.opcode === TLMessages.Get) {
       monAssert (edge.master.emitsGet(bundle.source, bundle.size), "'A' channel carries Get type which master claims it can't emit" + diplomacyInfo + extra)
-      monAssert (edge.slave.expectsVipCheckerSupportsGet(edge.address(bundle), bundle.size, None), "'A' channel carries Get type which slave claims it can't support" + diplomacyInfo + extra)
+      monAssert (edge.slave.supportsGetFast(edge.address(bundle), bundle.size, None), "'A' channel carries Get type which slave claims it can't support" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel Get carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Get address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel Get carries invalid param" + extra)
@@ -114,7 +114,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.master.emitsPutFull(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsPutFull(edge.address(bundle), bundle.size), "'A' channel carries PutFull type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (edge.master.emitsPutFull(bundle.source, bundle.size) && edge.slave.supportsPutFullFast(edge.address(bundle), bundle.size), "'A' channel carries PutFull type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
       monAssert (source_ok, "'A' channel PutFull carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutFull carries invalid param" + extra)
@@ -122,7 +122,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.master.emitsPutPartial(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsPutPartial(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.emitsPutPartial(bundle.source, bundle.size) && edge.slave.supportsPutPartialFast(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
       monAssert (source_ok, "'A' channel PutPartial carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutPartial carries invalid param" + extra)
@@ -130,7 +130,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.master.emitsArithmetic(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsArithmetic(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.emitsArithmetic(bundle.source, bundle.size) && edge.slave.supportsArithmeticFast(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type which is unexpected using diplomatic parameters" + extra)
       monAssert (source_ok, "'A' channel Arithmetic carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
       monAssert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
@@ -138,7 +138,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.master.emitsLogical(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsLogical(edge.address(bundle), bundle.size), "'A' channel carries Logical type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.emitsLogical(bundle.source, bundle.size) && edge.slave.supportsLogicalFast(edge.address(bundle), bundle.size), "'A' channel carries Logical type which is unexpected using diplomatic parameters" + extra)
       monAssert (source_ok, "'A' channel Logical carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
       monAssert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
@@ -146,7 +146,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.master.emitsHint(bundle.source, bundle.size) && edge.slave.expectsVipCheckerSupportsHint(edge.address(bundle), bundle.size), "'A' channel carries Hint type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.emitsHint(bundle.source, bundle.size) && edge.slave.supportsHintFast(edge.address(bundle), bundle.size), "'A' channel carries Hint type which is unexpected using diplomatic parameters" + extra)
       monAssert (source_ok, "'A' channel Hint carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       monAssert (TLHints.isHints(bundle.param), "'A' channel Hint carries invalid opcode param" + extra)
@@ -167,7 +167,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
 
     when (bundle.opcode === TLMessages.Probe) {
-      assume (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsProbe(edge.address(bundle), bundle.size), "'B' channel carries Probe type which is unexpected using diplomatic parameters" + extra)
+      assume (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.emitsProbeFast(edge.address(bundle), bundle.size), "'B' channel carries Probe type which is unexpected using diplomatic parameters" + extra)
       assume (address_ok, "'B' channel Probe carries unmanaged address" + extra)
       assume (legal_source, "'B' channel Probe carries source that is not first source" + extra)
       assume (is_aligned, "'B' channel Probe address not aligned to size" + extra)
@@ -177,7 +177,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.master.supportsPutFull(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsPutFull(edge.address(bundle), bundle.size), "'B' channel carries Get type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.supportsPutFull(edge.source(bundle), bundle.size) && edge.slave.emitsPutFullFast(edge.address(bundle), bundle.size), "'B' channel carries Get type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel Get carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Get carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Get address not aligned to size" + extra)
@@ -187,7 +187,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.master.supportsPutFull(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsPutFull(edge.address(bundle), bundle.size), "'B' channel carries PutFull type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.supportsPutFull(edge.source(bundle), bundle.size) && edge.slave.emitsPutFullFast(edge.address(bundle), bundle.size), "'B' channel carries PutFull type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
@@ -196,7 +196,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.master.supportsPutPartial(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsPutPartial(edge.address(bundle), bundle.size), "'B' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.supportsPutPartial(edge.source(bundle), bundle.size) && edge.slave.emitsPutPartialFast(edge.address(bundle), bundle.size), "'B' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
@@ -205,7 +205,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.master.supportsArithmetic(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsArithmetic(edge.address(bundle), bundle.size), "'B' channel carries Arithmetic type unsupported by master" + extra)
+      monAssert (edge.master.supportsArithmetic(edge.source(bundle), bundle.size) && edge.slave.emitsArithmeticFast(edge.address(bundle), bundle.size), "'B' channel carries Arithmetic type unsupported by master" + extra)
       monAssert (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
@@ -214,7 +214,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.master.supportsLogical(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsLogical(edge.address(bundle), bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
+      monAssert (edge.master.supportsLogical(edge.source(bundle), bundle.size) && edge.slave.emitsLogicalFast(edge.address(bundle), bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Logical carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Logical carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Logical address not aligned to size" + extra)
@@ -223,7 +223,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.master.supportsHint(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsHint(edge.address(bundle), bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
+      monAssert (edge.master.supportsHint(edge.source(bundle), bundle.size) && edge.slave.emitsHintFast(edge.address(bundle), bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Hint carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
@@ -259,8 +259,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      monAssert (edge.master.emitsAcquireB(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerSupportsAcquireB(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
-      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsProbe(edge.address(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (edge.master.emitsAcquireB(edge.source(bundle), bundle.size) && edge.slave.supportsAcquireBFast(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.emitsProbeFast(edge.address(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel Release address not aligned to size" + extra)
@@ -269,8 +269,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      monAssert (edge.master.emitsAcquireB(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerSupportsAcquireB(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
-      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.expectsVipCheckerEmitsProbe(edge.address(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (edge.master.emitsAcquireB(edge.source(bundle), bundle.size) && edge.slave.supportsAcquireBFast(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      monAssert (edge.master.supportsProbe(edge.source(bundle), bundle.size) && edge.slave.emitsProbeFast(edge.address(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
