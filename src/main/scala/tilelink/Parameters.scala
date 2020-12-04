@@ -1387,38 +1387,6 @@ case class TLEdgeParameters(
 
   def diplomaticClaimsMasterToSlave = master.anyEmitClaims.intersect(slave.anySupportClaims)
 
-  // For emits, check that the source is allowed to send this transactions
-  //These A channel messages from MasterToSlave are:
-  //being routed to a slave based on address bits,
-  //    so they need to be passed to a helper that checks whether the slave that owns certain addresses
-  //    claimed to support transactions of this size/type
-  //being sent from a master using sourceId bits,
-  //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
-  //    claimed to emit transactions of this size/type
-  def expectsVipCheckerMasterToSlaveAcquireT   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsAcquireT      (sourceId, lgSize) && slave.expectsVipCheckerSupportsAcquireT   (address, lgSize, range)
-  def expectsVipCheckerMasterToSlaveAcquireB   (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsAcquireB      (sourceId, lgSize) && slave.expectsVipCheckerSupportsAcquireB   (address, lgSize, range)
-  def expectsVipCheckerMasterToSlaveArithmetic (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsArithmetic    (sourceId, lgSize) && slave.expectsVipCheckerSupportsArithmetic (address, lgSize, range)
-  def expectsVipCheckerMasterToSlaveLogical    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsLogical       (sourceId, lgSize) && slave.expectsVipCheckerSupportsLogical    (address, lgSize, range)
-  def expectsVipCheckerMasterToSlaveGet        (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsGet           (sourceId, lgSize) && slave.expectsVipCheckerSupportsGet        (address, lgSize, range)
-  def expectsVipCheckerMasterToSlavePutFull    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutFull       (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutFull    (address, lgSize, range)
-  def expectsVipCheckerMasterToSlavePutPartial (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsPutPartial    (sourceId, lgSize) && slave.expectsVipCheckerSupportsPutPartial (address, lgSize, range)
-  def expectsVipCheckerMasterToSlaveHint       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerEmitsHint          (sourceId, lgSize) && slave.expectsVipCheckerSupportsHint       (address, lgSize, range)
-
-  //Duality: these B channel messages from SlaveToMaster are:
-  //being routed to a master based on sourceId bits,
-  //    so they need to be passed to a helper that checks whether the master that owns certain sourceIds
-  //    claimed to support transactions of this size/type
-  //being sent from a slave owning certain addresses,
-  //    so they need to be passed to a helper that checks with the slave that owns certain addresses claimed
-  //    to emit transactions of this size/type
-  def expectsVipCheckerSlaveToMasterProbe      (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsProbe      (sourceId, lgSize) && slave.expectsVipCheckerEmitsProbe         (address, lgSize, range)
-  def expectsVipCheckerSlaveToMasterArithmetic (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsArithmetic (sourceId, lgSize) && slave.expectsVipCheckerEmitsArithmetic    (address, lgSize, range)
-  def expectsVipCheckerSlaveToMasterLogical    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsLogical    (sourceId, lgSize) && slave.expectsVipCheckerEmitsLogical       (address, lgSize, range)
-  def expectsVipCheckerSlaveToMasterGet        (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsGet        (sourceId, lgSize) && slave.expectsVipCheckerEmitsGet           (address, lgSize, range)
-  def expectsVipCheckerSlaveToMasterPutFull    (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsPutFull    (sourceId, lgSize) && slave.expectsVipCheckerEmitsPutFull       (address, lgSize, range)
-  def expectsVipCheckerSlaveToMasterPutPartial (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsPutPartial (sourceId, lgSize) && slave.expectsVipCheckerEmitsPutPartial    (address, lgSize, range)
-  def expectsVipCheckerSlaveToMasterHint       (sourceId: UInt, address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = master.expectsVipCheckerSupportsHint       (sourceId, lgSize) && slave.expectsVipCheckerEmitsHint          (address, lgSize, range)
-
   val bundle = TLBundleParameters(master, slave)
   def formatEdge = master.infoString + "\n" + slave.infoString
 }
