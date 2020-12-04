@@ -687,13 +687,13 @@ class TLSlavePortParameters private(
   def supportsPutPartialFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putPartial, address, lgSize, range)
   def supportsHintFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.hint,       address, lgSize, range)
 
-  def emitsProbeFast         (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.probe,         address, lgSize, range)
-  def emitsArithmeticFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.arithmetic,    address, lgSize, range)
-  def emitsLogicalFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.logical,       address, lgSize, range)
-  def emitsGetFast           (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.get,           address, lgSize, range)
-  def emitsPutFullFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.putFull,       address, lgSize, range)
-  def emitsPutPartialFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.putPartial,    address, lgSize, range)
-  def emitsHintFast          (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.emits.hint,          address, lgSize, range)
+  def emitsProbeSafe         (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.probe,         address, lgSize, range)
+  def emitsArithmeticSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.arithmetic,    address, lgSize, range)
+  def emitsLogicalSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.logical,       address, lgSize, range)
+  def emitsGetSafe           (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.get,           address, lgSize, range)
+  def emitsPutFullSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.putFull,       address, lgSize, range)
+  def emitsPutPartialSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.putPartial,    address, lgSize, range)
+  def emitsHintSafe          (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.emits.hint,          address, lgSize, range)
 
   def findTreeViolation() = slaves.flatMap(_.findTreeViolation()).headOption
   def isTree = !slaves.exists(!_.isTree)
