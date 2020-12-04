@@ -653,6 +653,9 @@ class TLSlavePortParameters private(
     // the right answer even if you give it an illegal address'
     // the not safe version is a cheaper circuit but if you give it an illegal address then it might produce the wrong answer
     // fast presumes address legality
+
+    // This groupByIntoSeq deterministically groups all address sets for which a given `member` transfer size applies.
+    // In the resulting Map of cases, the keys are transfer sizes and the values are all address sets which emit or support that size.
     val supportCases = groupByIntoSeq(slaves)(m => trim(member(m))).map { case (k: TransferSizes, vs: Seq[TLSlaveParameters]) =>
       k -> vs.flatMap(_.address)
     }
