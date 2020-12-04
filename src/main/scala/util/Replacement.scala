@@ -300,7 +300,9 @@ class SetAssocLRU(n_sets: Int, n_ways: Int, policy: String) extends SetAssocRepl
     case "lru"   => new TrueLRU(n_ways)
     case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
   }
-  val state_vec = Reg(Vec(n_sets, UInt(logic.nBits.W)))
+  val state_vec =
+    if (logic.nBits == 0) Reg(Vec(n_sets, UInt(logic.nBits.W))) // Work around elaboration error on following line
+    else RegInit(VecInit(Seq.fill(n_sets)(0.U(logic.nBits.W))))
 
   def access(set: UInt, touch_way: UInt) = {
     state_vec(set) := logic.get_next_state(state_vec(set), touch_way)
