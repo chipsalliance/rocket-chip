@@ -1159,22 +1159,14 @@ class TLMasterPortParameters private(
     }
   }
 
-  def supportsProbe      = expectsVipCheckerSupportsProbe
-  def supportsArithmetic = expectsVipCheckerSupportsArithmetic
-  def supportsLogical    = expectsVipCheckerSupportsLogical
-  def supportsGet        = expectsVipCheckerSupportsGet
-  def supportsPutFull    = expectsVipCheckerSupportsPutFull
-  def supportsPutPartial = expectsVipCheckerSupportsPutPartial
-  def supportsHint       = expectsVipCheckerSupportsHint
-
   // Check for support of a given operation at a specific id
-  val expectsVipCheckerSupportsProbe      = sourceIdHelper(_.supports.probe)      _
-  val expectsVipCheckerSupportsArithmetic = sourceIdHelper(_.supports.arithmetic) _
-  val expectsVipCheckerSupportsLogical    = sourceIdHelper(_.supports.logical)    _
-  val expectsVipCheckerSupportsGet        = sourceIdHelper(_.supports.get)        _
-  val expectsVipCheckerSupportsPutFull    = sourceIdHelper(_.supports.putFull)    _
-  val expectsVipCheckerSupportsPutPartial = sourceIdHelper(_.supports.putPartial) _
-  val expectsVipCheckerSupportsHint       = sourceIdHelper(_.supports.hint)       _
+  val supportsProbe      = sourceIdHelper(_.supports.probe)      _
+  val supportsArithmetic = sourceIdHelper(_.supports.arithmetic) _
+  val supportsLogical    = sourceIdHelper(_.supports.logical)    _
+  val supportsGet        = sourceIdHelper(_.supports.get)        _
+  val supportsPutFull    = sourceIdHelper(_.supports.putFull)    _
+  val supportsPutPartial = sourceIdHelper(_.supports.putPartial) _
+  val supportsHint       = sourceIdHelper(_.supports.hint)       _
 
   // TODO: Merge sourceIdHelper2 with sourceIdHelper
   private def sourceIdHelper2(
@@ -1193,14 +1185,14 @@ class TLMasterPortParameters private(
   }
 
   // Check for emit of a given operation at a specific id
-  def expectsVipCheckerEmitsAcquireT  (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.acquireT,   sourceId, lgSize)
-  def expectsVipCheckerEmitsAcquireB  (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.acquireB,   sourceId, lgSize)
-  def expectsVipCheckerEmitsArithmetic(sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.arithmetic, sourceId, lgSize)
-  def expectsVipCheckerEmitsLogical   (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.logical,    sourceId, lgSize)
-  def expectsVipCheckerEmitsGet       (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.get,        sourceId, lgSize)
-  def expectsVipCheckerEmitsPutFull   (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.putFull,    sourceId, lgSize)
-  def expectsVipCheckerEmitsPutPartial(sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.putPartial, sourceId, lgSize)
-  def expectsVipCheckerEmitsHint      (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.hint,       sourceId, lgSize)
+  def emitsAcquireT  (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.acquireT,   sourceId, lgSize)
+  def emitsAcquireB  (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.acquireB,   sourceId, lgSize)
+  def emitsArithmetic(sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.arithmetic, sourceId, lgSize)
+  def emitsLogical   (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.logical,    sourceId, lgSize)
+  def emitsGet       (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.get,        sourceId, lgSize)
+  def emitsPutFull   (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.putFull,    sourceId, lgSize)
+  def emitsPutPartial(sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.putPartial, sourceId, lgSize)
+  def emitsHint      (sourceId: UInt, lgSize: UInt) = sourceIdHelper2(_.emits.hint,       sourceId, lgSize)
 
   def infoString = masters.map(_.infoString).mkString
 
