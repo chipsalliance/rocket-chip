@@ -669,39 +669,23 @@ class TLSlavePortParameters private(
     }.foldLeft(Bool(false))(_||_)
   }
 
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of manager.supportsAcquireTSafe","")
   def supportsAcquireTSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireT,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of manager.supportsAcquireBSafe","")
   def supportsAcquireBSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireB,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of manager.supportsArithmeticSafe","")
-  def supportsArithmeticSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.arithmetic,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of manager.supportsLogicalSafe","")
-  def supportsLogicalSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.logical,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of manager.supportsGetSafe","")
-  def supportsGetSafe        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.get,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of manager.supportsPutFullSafe","")
-  def supportsPutFullSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putFull,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of manager.supportsPutPartialSafe","")
-  def supportsPutPartialSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putPartial,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of manager.supportsHintSafe","")
-  def supportsHintSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.hint,   address, lgSize, range)
+  def supportsArithmeticSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.arithmetic, address, lgSize, range)
+  def supportsLogicalSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.logical,    address, lgSize, range)
+  def supportsGetSafe        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.get,        address, lgSize, range)
+  def supportsPutFullSafe    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putFull,    address, lgSize, range)
+  def supportsPutPartialSafe (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.putPartial, address, lgSize, range)
+  def supportsHintSafe       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.hint,       address, lgSize, range)
 
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireT instead of manager.supportsAcquireTFast","")
   def supportsAcquireTFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireT,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveAcquireB instead of manager.supportsAcquireBFast","")
   def supportsAcquireBFast   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireB,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveArithmetic instead of manager.supportsArithmeticFast","")
-  def supportsArithmeticFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.arithmetic,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveLogical instead of manager.supportsLogicalFast","")
-  def supportsLogicalFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.logical,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveGet instead of manager.supportsGetFast","")
-  def supportsGetFast        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.get,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutFull instead of manager.supportsPutFullFast","")
-  def supportsPutFullFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putFull,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlavePutPartial instead of manager.supportsPutPartialFast","")
-  def supportsPutPartialFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putPartial,   address, lgSize, range)
-  @deprecated("Use edge.expectsVipCheckerMasterToSlaveHint instead of manager.supportsHintFast","")
-  def supportsHintFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.hint,   address, lgSize, range)
+  def supportsArithmeticFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.arithmetic, address, lgSize, range)
+  def supportsLogicalFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.logical,    address, lgSize, range)
+  def supportsGetFast        (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.get,        address, lgSize, range)
+  def supportsPutFullFast    (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putFull,    address, lgSize, range)
+  def supportsPutPartialFast (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.putPartial, address, lgSize, range)
+  def supportsHintFast       (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.hint,       address, lgSize, range)
 
   // Check for support of a given operation at a specific address
   def expectsVipCheckerSupportsAcquireT  (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(false, _.supports.acquireT,   address, lgSize, range)
@@ -1175,20 +1159,13 @@ class TLMasterPortParameters private(
     }
   }
 
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterProbe instead of clientPort.supportsProbe","")
-  def supportsProbe = expectsVipCheckerSupportsProbe
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterArithmetic instead of clientPort.supportsArithmetic","")
+  def supportsProbe      = expectsVipCheckerSupportsProbe
   def supportsArithmetic = expectsVipCheckerSupportsArithmetic
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterLogical instead of clientPort.supportsLogical","")
-  def supportsLogical = expectsVipCheckerSupportsLogical
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterGet instead of clientPort.supportsGet","")
-  def supportsGet = expectsVipCheckerSupportsGet
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterPutFull instead of clientPort.supportsPutFull","")
-  def supportsPutFull = expectsVipCheckerSupportsPutFull
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterPutPartial instead of clientPort.supportsPutPartial","")
+  def supportsLogical    = expectsVipCheckerSupportsLogical
+  def supportsGet        = expectsVipCheckerSupportsGet
+  def supportsPutFull    = expectsVipCheckerSupportsPutFull
   def supportsPutPartial = expectsVipCheckerSupportsPutPartial
-  @deprecated("Use edge.expectsVipCheckerSlaveToMasterHint instead of clientPort.supportsHint","")
-  def supportsHint = expectsVipCheckerSupportsHint
+  def supportsHint       = expectsVipCheckerSupportsHint
 
   // Check for support of a given operation at a specific id
   val expectsVipCheckerSupportsProbe      = sourceIdHelper(_.supports.probe)      _
