@@ -223,7 +223,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     val enc_tag = tECC.encode(Cat(refillError, refill_tag))
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
 
-    ccover(tl_out.d.bits.corrupt, "D_CORRUPT", "I$ D-channel corrupt")
+    ccover(refillError, "D_CORRUPT", "I$ D-channel corrupt")
   }
   io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
   io.errors.bus.bits  := (refill_paddr >> blockOffBits) << blockOffBits
