@@ -143,8 +143,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
         if (cacheParams.separateUncachedResp) (maxUncachedInFlight + 1) / 2
         else 2 min maxUncachedInFlight-1
       case SynchronousCrossing(BufferParams.none) => 1 // Need some buffering to guarantee livelock freedom
-      case SynchronousCrossing(_) => 0 // Adequate buffering within the crossing
+      case SynchronousCrossing(_)  => 0 // Adequate buffering within the crossing
       case _: AsynchronousCrossing => 0 // Adequate buffering within the crossing
+      case _: CreditedCrossing     => 0 // Adequate buffering within the crossing
     }
     Queue(tl_out_a, a_queue_depth, flow = true)
   }
@@ -1065,6 +1066,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       case SynchronousCrossing(_) => 2
       case RationalCrossing(_) => 1 // assumes 1 < ratio <= 2; need more bookkeeping for optimal handling of >2
       case _: AsynchronousCrossing => 1 // likewise
+      case _: CreditedCrossing     => 1 // likewise
     }
     val near_end_of_refill = if (cacheBlockBytes / beatBytes <= beatsBeforeEnd) tl_out.d.valid else {
       val refill_count = RegInit(0.U((cacheBlockBytes / beatBytes).log2.W))
