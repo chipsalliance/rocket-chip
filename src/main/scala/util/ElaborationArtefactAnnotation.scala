@@ -77,7 +77,6 @@ case class MemoryPathToken(target: ReferenceTarget) extends Token {
         many.tail.foldLeft(Seq[Token](MemoryPathToken(many.head.asInstanceOf[ReferenceTarget]))) {
           case (tokens, r: ReferenceTarget) => this.copy(target = r) +: StringToken(" ") +: tokens
         }.reverse
-      case Some(other) => throw new Exception(s"memory $target cannot be renamed to $other")
     }
   }
 }
