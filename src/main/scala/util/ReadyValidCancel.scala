@@ -4,7 +4,6 @@ package freechips.rocketchip.util
 
 import chisel3._
 import chisel3.util._
-import chisel3.experimental.chiselName
 
 /** A [[Bundle]] that adds `earlyValid` and `lateCancel` bits to some data.
   * This indicates that the user expects a "ValidCancel" interface between a producer and a consumer.
@@ -95,7 +94,6 @@ object ReadyValidCancel {
   * consumer.io.in <> arb.io.out
   * }}}
   */
-@chiselName
 class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends Module {
   val io = IO(new Bundle{
     val in  = Flipped(Vec(n, ReadyValidCancel(gen)))
