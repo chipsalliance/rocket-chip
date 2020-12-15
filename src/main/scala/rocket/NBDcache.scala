@@ -5,8 +5,8 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._

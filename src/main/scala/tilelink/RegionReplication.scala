@@ -3,8 +3,9 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy.config._
+import diplomacy._
+import freechips.rocketchip.diplomacy.AddressSet
 
 /* Address inside the 'local' space are replicated to fill the 'remote' space.
  */

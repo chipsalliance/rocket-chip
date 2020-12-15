@@ -3,11 +3,13 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.amba.axi4._
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.amba._
+import freechips.rocketchip.amba.axi4._
+import freechips.rocketchip.diplomacy.{IdMap, IdMapEntry, IdRange}
+import freechips.rocketchip.util._
+import freechips.rocketchip.util.DataToAugmentedData
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(width = 4)

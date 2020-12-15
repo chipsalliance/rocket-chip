@@ -4,13 +4,14 @@ package freechips.rocketchip.subsystem
 
 import Chisel._
 import chisel3.dontTouch
-import freechips.rocketchip.config.{Field, Parameters}
+import diplomacy.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, CanHavePeripheryCLINT, CanHavePeripheryPLIC, PLICKey}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AsynchronousCrossing, ClockCrossingType, CreditedCrossing, NoCrossing, RationalCrossing, SynchronousCrossing}
+import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
+import freechips.rocketchip.tile.{BaseTile, InstantiableTileParams, LookupByHartIdImpl, MaxHartIdBits, NMI, TilePRCIDomain, TileParams}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType}
 import freechips.rocketchip.util._

@@ -3,11 +3,12 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation}
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.{Field, Parameters}
+import freechips.rocketchip.subsystem.{BaseSubsystem, HasTiles, HierarchicalLocation, TLBusWrapperLocation}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, Resource, SimpleDevice, TransferSizes}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockSinkDomain}
+import freechips.rocketchip.prci.ClockSinkDomain
 
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}

@@ -4,7 +4,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 

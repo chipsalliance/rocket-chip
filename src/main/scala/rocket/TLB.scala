@@ -3,18 +3,17 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
 import Chisel.ImplicitConversions._
-
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.CacheBlockBytes
+import Chisel._
+import chisel3.internal.sourceinfo.SourceInfo
+import diplomacy.config.{Field, Parameters}
+import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.diplomacy.RegionType
-import freechips.rocketchip.tile.{CoreModule, CoreBundle}
+import freechips.rocketchip.subsystem.CacheBlockBytes
+import freechips.rocketchip.tile.{CoreBundle, CoreModule}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import freechips.rocketchip.devices.debug.DebugModuleKey
-import chisel3.internal.sourceinfo.SourceInfo
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)

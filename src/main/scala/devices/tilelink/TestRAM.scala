@@ -3,8 +3,9 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, MemoryDevice, RegionType, TransferSizes}
 import freechips.rocketchip.tilelink._
 
 // Do not use this for synthesis! Only for simulation.

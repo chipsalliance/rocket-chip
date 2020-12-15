@@ -4,8 +4,9 @@ package freechips.rocketchip.amba.axi4
 
 import Chisel._
 import chisel3.util.IrrevocableIO
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, TransferSizes}
 import freechips.rocketchip.util._
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")

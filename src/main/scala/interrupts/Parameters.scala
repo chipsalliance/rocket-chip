@@ -3,8 +3,9 @@
 package freechips.rocketchip.interrupts
 
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.Resource
 
 // A potentially empty half-open range; [start, end)
 case class IntRange(start: Int, end: Int)

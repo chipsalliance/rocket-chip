@@ -1,9 +1,9 @@
 // See LICENSE for license details.
 package freechips.rocketchip.prci
 
-import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{ResetCatchAndSync}
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.util.ResetCatchAndSync
 
 /**
   * Synchronizes the reset of a diplomatic clock-reset pair to its accompanying clock.

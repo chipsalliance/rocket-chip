@@ -3,8 +3,9 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.{Field, Parameters}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressMapEntry, AddressRange, BindingScope, DTB, DTS, DTSCompat, DTSModel, JSON, Resource, ResourceAnchors, ResourceBinding, ResourceInt, ResourceString}
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink.TLBusWrapper

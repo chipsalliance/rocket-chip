@@ -3,13 +3,13 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, Description, RegionType, ResourceBindings, SimpleDevice}
 import freechips.rocketchip.tilelink.TLMessages
-
 import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, HasLogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMZeroDevice, OMComponent}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMZeroDevice}
 
 /** This /dev/null device accepts single beat gets/puts, as well as atomics.
   * Response data is always 0. Reequests to write data have no effect.

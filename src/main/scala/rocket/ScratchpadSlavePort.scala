@@ -4,8 +4,10 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, SimpleDevice, TransferSizes}
+import freechips.rocketchip.util.DataToAugmentedData
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 

@@ -3,9 +3,9 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel.{defaultCompileOptions => _, _}
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
 /** This adapter prunes all user bit fields of the echo type from request messages,

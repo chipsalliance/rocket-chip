@@ -3,10 +3,10 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util.{Cat, isPow2, log2Ceil, ReadyValidIO,
-  log2Up, OHToUInt, Queue, QueueIO, UIntToOH}
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import chisel3.util._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{BufferParams, TransferSizes}
 import freechips.rocketchip.util.leftOR
 
 /** This adapter deinterleaves read responses on the R channel.

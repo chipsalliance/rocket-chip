@@ -2,12 +2,10 @@
 
 package freechips.rocketchip.util
 
-import firrtl.RenameMap
-import firrtl.annotations.{Annotation, HasSerializationHints}
-import firrtl.annotations.{IsModule, ReferenceTarget}
-
-import chisel3.{Data, SyncReadMem}
 import chisel3.experimental.{BaseModule, ChiselAnnotation}
+import chisel3.{Data, SyncReadMem}
+import firrtl.RenameMap
+import firrtl.annotations.{Annotation, HasSerializationHints, IsModule, ReferenceTarget}
 
 import scala.collection.mutable
 

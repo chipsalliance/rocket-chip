@@ -3,8 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util.property._
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
@@ -133,7 +133,7 @@ object TLFIFOFixer
   // Which slaves should have their FIFOness combined?
   // NOTE: this transformation is still only applied for masters with requestFifo
   type Policy = TLSlaveParameters => Boolean
-  import RegionType._
+  import freechips.rocketchip.diplomacy.RegionType._
 
   val all:            Policy = m => true
   val allFIFO:        Policy = m => m.fifoId.isDefined

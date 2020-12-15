@@ -6,10 +6,10 @@ import chisel3._
 import chisel3.experimental.{IntParam, noPrefix}
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
-import freechips.rocketchip.config.{Field, Parameters}
+import diplomacy.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.amba.apb._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._

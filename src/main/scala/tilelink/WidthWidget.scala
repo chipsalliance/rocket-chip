@@ -3,9 +3,10 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import chisel3.util.{DecoupledIO, log2Ceil, Cat, RegEnable}
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import chisel3.util.{Cat, DecoupledIO, RegEnable, log2Ceil}
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.util._
 
 // innBeatBytes => the new client-facing bus width

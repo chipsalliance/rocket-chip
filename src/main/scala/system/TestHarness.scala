@@ -3,9 +3,9 @@
 package freechips.rocketchip.system
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.devices.debug.Debug
-import freechips.rocketchip.diplomacy.LazyModule
+import diplomacy._
 import freechips.rocketchip.util.AsyncResetReg
 
 class TestHarness()(implicit p: Parameters) extends Module {

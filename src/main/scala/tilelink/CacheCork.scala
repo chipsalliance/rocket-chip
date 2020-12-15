@@ -3,10 +3,12 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util._
 import TLMessages._
+import freechips.rocketchip.diplomacy.{IdRange, RegionType, TransferSizes}
+import freechips.rocketchip.util.DataToAugmentedData
 
 case class TLCacheCorkParams(
   unsafe: Boolean = false,

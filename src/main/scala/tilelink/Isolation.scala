@@ -3,8 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util.AsyncBundle
 
 // READ the comments in the TLIsolation object before you instantiate this module

@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 
-import freechips.rocketchip.config._
+import diplomacy.config._
 import freechips.rocketchip.devices.debug.ExportDebug
 
 sealed trait OMDebugInterfaceType extends OMEnum

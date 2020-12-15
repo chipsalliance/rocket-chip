@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, HasClockDomainCrossing, RegionType, SimpleDevice, TransferSizes}
 import freechips.rocketchip.tilelink._
 
 case class DevNullParams(

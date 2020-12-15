@@ -3,10 +3,11 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AddressSet, CreditedCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) extends LazyModule

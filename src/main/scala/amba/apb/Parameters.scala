@@ -4,9 +4,11 @@ package freechips.rocketchip.amba.apb
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AddressSet, Device, RegionType, Resource, ResourceAddress, ResourcePermissions}
 import freechips.rocketchip.util._
+
 import scala.math.max
 
 case class APBSlaveParameters(

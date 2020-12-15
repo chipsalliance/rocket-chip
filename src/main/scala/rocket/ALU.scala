@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
 object ALU
@@ -44,7 +44,7 @@ object ALU
   def cmpEq(cmd: UInt) = !cmd(3)
 }
 
-import ALU._
+import freechips.rocketchip.rocket.ALU._
 
 class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {

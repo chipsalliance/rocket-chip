@@ -3,8 +3,9 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.IdRange
 import freechips.rocketchip.util._
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")

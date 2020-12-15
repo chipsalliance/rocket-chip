@@ -3,11 +3,12 @@
 package freechips.rocketchip.amba.ahb
 
 import Chisel._
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.{DataToAugmentedData, _}
 
 case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSlave, TLImp)(
   dFn = { case mp =>

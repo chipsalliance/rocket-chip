@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.system
 
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util.DontTouch

@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.tilelink
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 
 case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCustomNode
 {

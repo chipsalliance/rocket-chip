@@ -1,8 +1,9 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.FixedClockResource
 
 case class ClockGroupNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(

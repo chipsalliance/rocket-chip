@@ -3,8 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util.{BlockDuringReset, EnhancedChisel3Assign}
 
 /** BlockDuringReset ensures that no channel admits to be ready or valid while reset is raised. */

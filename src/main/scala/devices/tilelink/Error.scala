@@ -3,13 +3,13 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{Description, ResourceBindings, SimpleDevice}
 import freechips.rocketchip.tilelink._
-
 import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, HasLogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMErrorDevice, OMComponent}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMComponent, OMErrorDevice}
 
 /** Adds a /dev/null slave that generates TL error response messages */
 class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters)

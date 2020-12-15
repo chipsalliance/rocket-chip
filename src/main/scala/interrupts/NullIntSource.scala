@@ -3,8 +3,8 @@
 package freechips.rocketchip.interrupts
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 
 /** Useful for stubbing out parts of an interrupt interface where certain devices might be missing */
 class NullIntSource(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: Parameters) extends LazyModule

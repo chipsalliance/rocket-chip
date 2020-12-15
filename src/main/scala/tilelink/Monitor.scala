@@ -5,8 +5,8 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceLine
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util.PlusArg
 import freechips.rocketchip.formal._
 

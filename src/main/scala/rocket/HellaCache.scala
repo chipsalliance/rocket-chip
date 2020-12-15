@@ -6,12 +6,14 @@ package freechips.rocketchip.rocket
 import Chisel._
 import chisel3.dontTouch
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.{Field, Parameters}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{IdRange, RegionType, TransferSizes}
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+
 import scala.collection.mutable.ListBuffer
 
 case class DCacheParams(

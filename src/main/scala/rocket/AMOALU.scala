@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 
 class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
   val size = typ(log2Up(log2Up(maxSize)+1)-1,0)

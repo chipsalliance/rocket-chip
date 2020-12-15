@@ -3,10 +3,10 @@
 
 package freechips.rocketchip.util
 
-import chisel3.{Data, SyncReadMem, Vec}
 import chisel3.util.log2Ceil
+import chisel3.{Data, SyncReadMem, Vec}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMSRAM, OMRTLModule}
+import freechips.rocketchip.diplomaticobjectmodel.model.{OMRTLModule, OMSRAM}
 
 object DescribedSRAM {
   def apply[T <: Data](

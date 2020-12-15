@@ -10,8 +10,9 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.util._
 
 class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule

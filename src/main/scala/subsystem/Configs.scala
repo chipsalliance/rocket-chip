@@ -4,10 +4,11 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import freechips.rocketchip.config._
+import diplomacy.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, AsynchronousCrossing, BigIntHexContext, ClockCrossingType, DTSCompat, DTSModel, DTSTimebase, RationalCrossing, SynchronousCrossing}
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._

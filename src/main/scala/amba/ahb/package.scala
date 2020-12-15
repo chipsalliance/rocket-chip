@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba
 
-import freechips.rocketchip.diplomacy._
+import diplomacy._
 
 package object ahb
 {

@@ -3,13 +3,14 @@
 package freechips.rocketchip.subsystem
 
 import chisel3.util.isPow2
-import freechips.rocketchip.config._
+import diplomacy.config._
 import freechips.rocketchip.devices.tilelink.BuiltInDevices
-import freechips.rocketchip.diplomacy._
+import diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import CoherenceManagerWrapper._
+import freechips.rocketchip.diplomacy.AddressSet
 
 /** Global cache coherence granularity, which applies to all caches, for now. */
 case object CacheBlockBytes extends Field[Int](64)

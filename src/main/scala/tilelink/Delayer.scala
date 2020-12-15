@@ -3,8 +3,8 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 
 // q is the probability to delay a request
 class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule

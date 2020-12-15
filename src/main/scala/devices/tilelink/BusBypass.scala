@@ -3,8 +3,9 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.tilelink._
 
 abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false, bufferError: Boolean = true, maxAtomic: Int = 16, maxTransfer: Int = 4096)

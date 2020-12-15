@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import chisel3.SyncReadMem
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.{DescribedSRAM, Code}

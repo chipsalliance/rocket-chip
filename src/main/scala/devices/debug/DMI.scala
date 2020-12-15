@@ -4,9 +4,10 @@ package freechips.rocketchip.devices.debug
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
+import diplomacy.config._
 import freechips.rocketchip.util._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.tilelink._
 
 /** Constant values used by both Debug Bus Response & Request

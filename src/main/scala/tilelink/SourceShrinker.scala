@@ -3,8 +3,10 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.IdRange
+import freechips.rocketchip.util.DataToAugmentedData
 import freechips.rocketchip.util._
 
 class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyModule

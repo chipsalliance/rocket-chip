@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.amba
 
-import freechips.rocketchip.diplomacy.{HasClockDomainCrossing, _}
-import freechips.rocketchip.prci.{HasResetDomainCrossing}
+import diplomacy._
+import freechips.rocketchip.diplomacy.HasClockDomainCrossing
+import freechips.rocketchip.prci.HasResetDomainCrossing
 
 package object axi4
 {

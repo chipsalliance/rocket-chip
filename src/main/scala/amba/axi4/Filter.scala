@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.amba.axi4
 
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config._
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 
 class AXI4Filter(
   Sfilter: AXI4SlaveParameters  => Option[AXI4SlaveParameters]   = AXI4Filter.Sidentity,

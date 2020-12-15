@@ -3,8 +3,8 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.tilelink._
 
 case class TLBPermissions(

@@ -3,9 +3,10 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import scala.collection.immutable.ListMap
-import chisel3.internal.requireIsChiselType
 import chisel3.experimental.DataMirror.internal.chiselTypeClone
+import chisel3.internal.requireIsChiselType
+
+import scala.collection.immutable.ListMap
 
 final class RecordMap[T <: Data] private (eltMap: ListMap[String, T])
     extends Record {

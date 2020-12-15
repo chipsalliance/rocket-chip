@@ -5,8 +5,8 @@ package freechips.rocketchip.devices.debug
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy.config._
+import diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.rocket.{CSRs, Instructions}
 import freechips.rocketchip.tile.MaxHartIdBits
@@ -17,7 +17,8 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.devices.tilelink.TLBusBypass
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.DebugLogicalTreeNode
-import freechips.rocketchip.amba.apb.{APBToTL, APBFanout}
+import freechips.rocketchip.amba.apb.{APBFanout, APBToTL}
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, Description, Device, Resource, ResourceBindings, ResourceString, SimpleDevice}
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 object DsbBusConsts {

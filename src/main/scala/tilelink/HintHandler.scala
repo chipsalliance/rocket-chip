@@ -3,10 +3,11 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.devices.tilelink.TLROM
+import freechips.rocketchip.diplomacy.{AddressSet, IdRange, RegionType, TransferSizes}
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
 class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule

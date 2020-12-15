@@ -4,7 +4,8 @@ package freechips.rocketchip
 
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.Data
-import freechips.rocketchip.config.Parameters
+import _root_.diplomacy.config.Parameters
+
 import scala.language.implicitConversions
 
 

@@ -3,8 +3,8 @@
 package freechips.rocketchip.stage.phases
 
 import firrtl.AnnotationSeq
-import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
 import firrtl.options.Viewer.view
+import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.{ElaborationArtefacts, HasRocketChipStageUtils}
 

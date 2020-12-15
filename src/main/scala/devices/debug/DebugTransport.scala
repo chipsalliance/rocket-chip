@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.debug
 import chisel3._
 import chisel3.util._
 
-import freechips.rocketchip.config._
+import diplomacy.config._
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util.property._
 

@@ -4,8 +4,9 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, IdRange}
 
 /* A ProbePicker is used to unify multiple cache banks into one logical cache  */
 class ProbePicker(implicit p: Parameters) extends LazyModule

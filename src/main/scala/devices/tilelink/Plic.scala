@@ -5,16 +5,17 @@ package freechips.rocketchip.devices.tilelink
 import Chisel.{defaultCompileOptions => _, _}
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
-import freechips.rocketchip.config.{Field, Parameters}
+import diplomacy.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import freechips.rocketchip.prci.{ClockSinkDomain}
+import freechips.rocketchip.prci.ClockSinkDomain
 import chisel3.internal.sourceinfo.SourceInfo
+import freechips.rocketchip.diplomacy.{AddressSet, Description, Resource, ResourceBinding, ResourceBindings, ResourceInt, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 
 import scala.math.min

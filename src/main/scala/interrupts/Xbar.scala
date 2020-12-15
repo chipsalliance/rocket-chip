@@ -3,8 +3,8 @@
 package freechips.rocketchip.interrupts
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 
 class IntXbar()(implicit p: Parameters) extends LazyModule
 {

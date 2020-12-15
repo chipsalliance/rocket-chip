@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.interrupts
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AsynchronousCrossing, ClockCrossingType, CreditedCrossing, CrossingType, NoCrossing, RationalCrossing, SynchronousCrossing}
+import freechips.rocketchip.prci.{NoResetCrossing, ResetCrossingType, StretchedResetCrossing}
 import freechips.rocketchip.util.CreditedDelay
 
 trait IntOutwardCrossingHelper {

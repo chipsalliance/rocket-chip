@@ -4,11 +4,12 @@ package freechips.rocketchip.groundtest
 
 import Chisel._
 import chisel3.dontTouch
-import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
+import diplomacy.LazyModule
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
-import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, HasTiles, CanHaveMasterAXI4MemPort}
-import freechips.rocketchip.tilelink.{TLRAM, TLFragmenter}
+import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, CanHaveMasterAXI4MemPort, HasTiles}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLRAM}
 
 class GroundTestSubsystem(implicit p: Parameters)
   extends BaseSubsystem

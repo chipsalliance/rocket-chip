@@ -4,11 +4,10 @@
 package freechips.rocketchip.tile
 
 import chisel3._
-import chisel3.util._
-import chisel3.util.HasBlackBoxResource
 import chisel3.experimental.IntParam
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import chisel3.util.{HasBlackBoxResource, _}
+import diplomacy._
+import diplomacy.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.InOrderArbiter

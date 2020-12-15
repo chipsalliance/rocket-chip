@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.amba.axi4
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AsynchronousCrossing, ClockCrossingType, CreditedCrossing, CrossingType, NoCrossing, RationalCrossing, SynchronousCrossing}
+import freechips.rocketchip.prci.{NoResetCrossing, ResetCrossingType, StretchedResetCrossing}
 
 trait AXI4OutwardCrossingHelper {
   type HelperCrossingType <: CrossingType

@@ -5,12 +5,13 @@ package freechips.rocketchip.devices.debug.systembusaccess
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy.config._
+import diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.devices.debug._
+import freechips.rocketchip.diplomacy.TransferSizes
 
 object SystemBusAccessState extends scala.Enumeration {
    type SystemBusAccessState = Value

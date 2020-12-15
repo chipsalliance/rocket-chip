@@ -3,8 +3,9 @@
 package freechips.rocketchip
 
 import Chisel._
-import scala.math.min
+
 import scala.collection.{immutable, mutable}
+import scala.math.min
 
 package object util {
 

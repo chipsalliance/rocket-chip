@@ -3,14 +3,12 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import chisel3.internal.InstanceId
-import chisel3.experimental.{annotate, ChiselAnnotation}
 import chisel3.RawModule
+import chisel3.experimental.{ChiselAnnotation, annotate}
+import chisel3.internal.InstanceId
 import firrtl.annotations._
-
-import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomacy.{AddressMapEntry, AddressRange, AddressSet, ResourcePermissions}
 import freechips.rocketchip.regmapper._
-
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 

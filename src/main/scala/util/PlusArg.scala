@@ -65,7 +65,7 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
   }
 }
 
-import Doctypes._
+import freechips.rocketchip.util.Doctypes._
 
 object PlusArg
 {
