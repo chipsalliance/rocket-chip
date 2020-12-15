@@ -5,7 +5,6 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceLine
-import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.PlusArg
@@ -31,7 +30,6 @@ object TLMonitor {
   }
 }
 
-@chiselName
 class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirection.Monitor) extends TLMonitorBase(args)
 {
   require (args.edge.params(TLMonitorStrictMode) || (! args.edge.params(TestplanTestType).formal))

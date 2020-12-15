@@ -4,7 +4,6 @@ package freechips.rocketchip.devices.debug
 
 
 import chisel3._
-import chisel3.experimental.chiselName
 import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
@@ -283,7 +282,6 @@ object WNotifyVal {
   }
 }
 
-@chiselName
 class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyModule {
 
   // For Shorter Register Names
@@ -691,7 +689,6 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   }
 }
 
-@chiselName
 class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
 

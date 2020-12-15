@@ -7,7 +7,6 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import chisel3.experimental.IntParam
-import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
@@ -122,7 +121,6 @@ class AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Paramet
   override lazy val module = new AccumulatorExampleModuleImp(this)
 }
 
-@chiselName
 class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
   val regfile = Mem(outer.n, UInt(xLen.W))
@@ -193,7 +191,6 @@ class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends Laz
   override lazy val module = new TranslatorExampleModuleImp(this)
 }
 
-@chiselName
 class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
     with HasCoreParameters {
   val req_addr = Reg(UInt(coreMaxAddrBits.W))
@@ -242,7 +239,6 @@ class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends
   override val atlNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("CharacterCountRoCC")))))
 }
 
-@chiselName
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
   with HasCoreParameters
   with HasL1CacheParameters {
