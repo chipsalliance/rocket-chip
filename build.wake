@@ -11,17 +11,23 @@ global def hardfloatScalaModule =
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
   | addChisel3CompilerPlugin
 
-global def rocketchipMacros =
-  makeScalaModuleFromJSON here "rocketchipMacros"
-  | setScalaModuleRootDir "{rocketChipRoot}/macros"
-  | addMacrosParadiseCompilerPlugin
+def diplomacyRoot = findGitRepositoryWithFallback "diplomacy"
+
+global def diplomacyMacrosModule =
+  makeScalaModuleFromJSON here "diplomacyMacros"
+  | setScalaModuleRootDir "{diplomacyRoot}/diplomacy/macros"
+
+global def diplomacyModule =
+  def deps = diplomacyMacrosModule, Nil
+  makeScalaModuleFromJSON here "diplomacy"
+  | setScalaModuleRootDir "{diplomacyRoot}/diplomacy"
+  | setScalaModuleDeps (chisel3ScalaModule, diplomacyMacrosModule, Nil)
+  | addChisel3CompilerPlugin
 
 global def rocketchipScalaModule =
   def deps =
-    rocketchipMacros,
     hardfloatScalaModule,
-    hardfloatScalaModule,
-    apiConfigChipsallianceScalaModule,
+    diplomacyModule,
     Nil
   makeScalaModuleFromJSON here "rocketchip"
   | setScalaModuleRootDir rocketChipRoot
