@@ -6,8 +6,6 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import scala.math.min
 
 import freechips.rocketchip.diplomaticobjectmodel.{DiplomaticObjectModelAddressing, HasLogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalTreeNode

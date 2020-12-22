@@ -10,7 +10,6 @@ import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 class BaseSubsystemConfig extends Config ((site, here, up) => {
@@ -25,7 +24,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
-    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)))
+    errorDevice = Some(BuiltInErrorDeviceParams(
+      errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096))))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
@@ -37,7 +37,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
-  case BootROMParams => BootROMParams(contentFileName = "./bootrom/bootrom.img")
+  case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
+  case SubsystemExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
@@ -108,14 +109,16 @@ class WithNMedCores(n: Int, overrideIdOffset: Option[Int] = None) extends Config
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => med.copy(hartId = i + idOffset)) ++ prev
   }
@@ -132,14 +135,16 @@ class WithNSmallCores(n: Int, overrideIdOffset: Option[Int] = None) extends Conf
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => small.copy(hartId = i + idOffset)) ++ prev
   }
@@ -157,7 +162,8 @@ class With1TinyCore extends Config((site, here, up) => {
         rowBits = site(SystemBusKey).beatBits,
         nSets = 256, // 16Kb scratchpad
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes),
         scratch = Some(0x80000000L))),
@@ -165,7 +171,8 @@ class With1TinyCore extends Config((site, here, up) => {
         rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
-        nTLBEntries = 4,
+        nTLBSets = 1,
+        nTLBWays = 4,
         blockBytes = site(CacheBlockBytes)))))
   case RocketCrossingKey => List(RocketCrossingParams(
     crossingType = SynchronousCrossing(),
@@ -227,7 +234,10 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  */
 class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
-    r.copy(master = r.master.copy(cork = Some(true)))
+    r.copy(master = r.master match {
+      case x: TileMasterPortParams => x.copy(cork = Some(true))
+      case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
+    })
   }
   case BankedL2Key => up(BankedL2Key, site).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager
@@ -307,7 +317,7 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMParams => up(BootROMParams, site).copy(contentFileName = bootROMFile)
+  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
@@ -363,7 +373,7 @@ class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(_.copy(nMemoryChannels = n))
 })
 
-class WithExtMemSize(n: Long) extends Config((site, here, up) => {
+class WithExtMemSize(n: BigInt) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
 })
 

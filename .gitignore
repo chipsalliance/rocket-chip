@@ -1,7 +1,15 @@
+out/
 target/
 project/target
+docs/generated
+docs-target/
+*.fir
+*.v
+*.anno.json
 *.swp
 *~
 .addons-dont-touch
 /lib/
 /test_lib/
+/testbuild/
+rocketchip.jar

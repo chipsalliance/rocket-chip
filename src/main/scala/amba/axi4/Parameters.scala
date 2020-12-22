@@ -174,6 +174,35 @@ case class AXI4BufferParams(
   def copyInOut(x: BufferParams) = this.copyIn(x).copyOut(x)
 }
 
+case class AXI4CreditedDelay(
+  aw: CreditedDelay,
+  w:  CreditedDelay,
+  b:  CreditedDelay,
+  ar: CreditedDelay,
+  r:  CreditedDelay)
+{
+  def + (that: AXI4CreditedDelay): AXI4CreditedDelay = AXI4CreditedDelay(
+    aw = aw + that.aw,
+    w  = w  + that.w,
+    b  = b  + that.b,
+    ar = ar + that.ar,
+    r  = r  + that.r)
+
+  override def toString = s"(${aw}, ${w}, ${b}, ${ar}, ${r})"
+}
+
+object AXI4CreditedDelay {
+  def apply(delay: CreditedDelay): AXI4CreditedDelay = apply(delay, delay, delay.flip, delay, delay.flip)
+}
+
+case class AXI4CreditedSlavePortParameters(delay: AXI4CreditedDelay, base: AXI4SlavePortParameters)
+case class AXI4CreditedMasterPortParameters(delay: AXI4CreditedDelay, base: AXI4MasterPortParameters)
+case class AXI4CreditedEdgeParameters(master: AXI4CreditedMasterPortParameters, slave: AXI4CreditedSlavePortParameters, params: Parameters, sourceInfo: SourceInfo)
+{
+  val delay = master.delay + slave.delay
+  val bundle = AXI4BundleParameters(master.base, slave.base)
+}
+
 /** Pretty printing of AXI4 source id maps */
 class AXI4IdMap(axi4: AXI4MasterPortParameters) extends IdMap[AXI4IdMapEntry] {
   private val axi4Digits = String.valueOf(axi4.endId-1).length()
@@ -181,11 +210,13 @@ class AXI4IdMap(axi4: AXI4MasterPortParameters) extends IdMap[AXI4IdMapEntry] {
   private val sorted = axi4.masters.sortBy(_.id)
 
   val mapping: Seq[AXI4IdMapEntry] = sorted.map { case c =>
-    AXI4IdMapEntry(c.id, c.name)
+    // to conservatively state max number of transactions, assume every id has up to c.maxFlight and reuses ids between AW and AR channels
+    val maxTransactionsInFlight = c.maxFlight.map(_ * c.id.size * 2)
+    AXI4IdMapEntry(c.id, c.name, maxTransactionsInFlight)
   }
 }
 
-case class AXI4IdMapEntry(axi4Id: IdRange, name: String) extends IdMapEntry {
+case class AXI4IdMapEntry(axi4Id: IdRange, name: String, maxTransactionsInFlight: Option[Int] = None) extends IdMapEntry {
   val from = axi4Id
   val to = axi4Id
   val isCache = false

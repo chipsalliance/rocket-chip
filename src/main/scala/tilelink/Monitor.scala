@@ -4,11 +4,11 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.internal.sourceinfo.SourceLine
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{HeterogeneousBag, PlusArg}
+import freechips.rocketchip.util.PlusArg
 import freechips.rocketchip.formal._
 
 case class TLMonitorArgs(edge: TLEdge)
@@ -66,7 +66,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       c.visibility.map(_.contains(address)).reduce(_ || _)
     }.reduce(_ && _)
 
-  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge) {
+  def legalizeFormatA(bundle: TLBundleA, edge: TLEdge): Unit = {
+    //switch this flag to turn on diplomacy in error messages
+    def diplomacyInfo = if (true) "" else "\nThe diplomacy information for the edge is as follows:\n" + edge.formatEdge + "\n"
     monAssert (TLMessages.isA(bundle.opcode), "'A' channel has invalid opcode" + extra)
 
     // Reuse these subexpressions to save some firrtl lines
@@ -76,10 +78,12 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'A' channel carries an address illegal for the specified bank visibility")
 
+    //The monitor doesn’t check for acquire T vs acquire B, it assumes that acquire B implies acquire T and only checks for acquire B
+    //TODO: check for acquireT?
     when (bundle.opcode === TLMessages.AcquireBlock) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type unsupported by manager" + extra)
-      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + extra)
-      monAssert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveAcquireB(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), edge.address(bundle), bundle.size), "'A' channel carries AcquireBlock from a client which does not support Probe" + diplomacyInfo + extra)
+      monAssert (source_ok, "'A' channel AcquireBlock carries invalid source ID" + diplomacyInfo + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquireBlock smaller than a beat" + extra)
       monAssert (is_aligned, "'A' channel AcquireBlock address not aligned to size" + extra)
       monAssert (TLPermissions.isGrow(bundle.param), "'A' channel AcquireBlock carries invalid grow param" + extra)
@@ -88,9 +92,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.AcquirePerm) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type unsupported by manager" + extra)
-      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + extra)
-      monAssert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveAcquireB(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), edge.address(bundle), bundle.size), "'A' channel carries AcquirePerm from a client which does not support Probe" + diplomacyInfo + extra)
+      monAssert (source_ok, "'A' channel AcquirePerm carries invalid source ID" + diplomacyInfo + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'A' channel AcquirePerm smaller than a beat" + extra)
       monAssert (is_aligned, "'A' channel AcquirePerm address not aligned to size" + extra)
       monAssert (TLPermissions.isGrow(bundle.param), "'A' channel AcquirePerm carries invalid grow param" + extra)
@@ -100,8 +104,9 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.manager.supportsGetSafe(edge.address(bundle), bundle.size), "'A' channel carries Get type unsupported by manager" + extra)
-      monAssert (source_ok, "'A' channel Get carries invalid source ID" + extra)
+      monAssert (edge.master.expectsVipCheckerEmitsGet(bundle.source, bundle.size), "'A' channel carries Get type which master claims it can't emit" + diplomacyInfo + extra)
+      monAssert (edge.slave.expectsVipCheckerSupportsGet(edge.address(bundle), bundle.size, None), "'A' channel carries Get type which slave claims it can't support" + diplomacyInfo + extra)
+      monAssert (source_ok, "'A' channel Get carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Get address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel Get carries invalid param" + extra)
       monAssert (bundle.mask === mask, "'A' channel Get contains invalid mask" + extra)
@@ -109,40 +114,40 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.manager.supportsPutFullSafe(edge.address(bundle), bundle.size), "'A' channel carries PutFull type unsupported by manager" + extra)
-      monAssert (source_ok, "'A' channel PutFull carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlavePutFull(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries PutFull type which is unexpected using diplomatic parameters" + diplomacyInfo + extra)
+      monAssert (source_ok, "'A' channel PutFull carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel PutFull address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutFull carries invalid param" + extra)
       monAssert (bundle.mask === mask, "'A' channel PutFull contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.manager.supportsPutPartialSafe(edge.address(bundle), bundle.size), "'A' channel carries PutPartial type unsupported by manager" + extra)
-      monAssert (source_ok, "'A' channel PutPartial carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlavePutPartial(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
+      monAssert (source_ok, "'A' channel PutPartial carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel PutPartial address not aligned to size" + extra)
       monAssert (bundle.param === 0.U, "'A' channel PutPartial carries invalid param" + extra)
       monAssert ((bundle.mask & ~mask) === 0.U, "'A' channel PutPartial contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.manager.supportsArithmeticSafe(edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type unsupported by manager" + extra)
-      monAssert (source_ok, "'A' channel Arithmetic carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveArithmetic(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries Arithmetic type which is unexpected using diplomatic parameters" + extra)
+      monAssert (source_ok, "'A' channel Arithmetic carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Arithmetic address not aligned to size" + extra)
       monAssert (TLAtomics.isArithmetic(bundle.param), "'A' channel Arithmetic carries invalid opcode param" + extra)
       monAssert (bundle.mask === mask, "'A' channel Arithmetic contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.manager.supportsLogicalSafe(edge.address(bundle), bundle.size), "'A' channel carries Logical type unsupported by manager" + extra)
-      monAssert (source_ok, "'A' channel Logical carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveLogical(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries Logical type which is unexpected using diplomatic parameters" + extra)
+      monAssert (source_ok, "'A' channel Logical carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Logical address not aligned to size" + extra)
       monAssert (TLAtomics.isLogical(bundle.param), "'A' channel Logical carries invalid opcode param" + extra)
       monAssert (bundle.mask === mask, "'A' channel Logical contains invalid mask" + extra)
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.manager.supportsHintSafe(edge.address(bundle), bundle.size), "'A' channel carries Hint type unsupported by manager" + extra)
-      monAssert (source_ok, "'A' channel Hint carries invalid source ID" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveHint(bundle.source, edge.address(bundle), bundle.size), "'A' channel carries Hint type which is unexpected using diplomatic parameters" + extra)
+      monAssert (source_ok, "'A' channel Hint carries invalid source ID" + diplomacyInfo + extra)
       monAssert (is_aligned, "'A' channel Hint address not aligned to size" + extra)
       monAssert (TLHints.isHints(bundle.param), "'A' channel Hint carries invalid opcode param" + extra)
       monAssert (bundle.mask === mask, "'A' channel Hint contains invalid mask" + extra)
@@ -150,7 +155,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge) {
+  def legalizeFormatB(bundle: TLBundleB, edge: TLEdge): Unit = {
     monAssert (TLMessages.isB(bundle.opcode), "'B' channel has invalid opcode" + extra)
 
     monAssert (visible(edge.address(bundle), bundle.source, edge), "'B' channel carries an address illegal for the specified bank visibility")
@@ -162,17 +167,17 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val legal_source = Mux1H(edge.client.find(bundle.source), edge.client.clients.map(c => c.sourceId.start.U)) === bundle.source
 
     when (bundle.opcode === TLMessages.Probe) {
-      monAssert (edge.client.supportsProbe(bundle.source, bundle.size), "'B' channel carries Probe type unsupported by client" + extra)
-      monAssert (address_ok, "'B' channel Probe carries unmanaged address" + extra)
-      monAssert (legal_source, "'B' channel Probe carries source that is not first source" + extra)
-      monAssert (is_aligned, "'B' channel Probe address not aligned to size" + extra)
-      monAssert (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
-      monAssert (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
-      monAssert (!bundle.corrupt, "'B' channel Probe is corrupt" + extra)
+      assume (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries Probe type which is unexpected using diplomatic parameters" + extra)
+      assume (address_ok, "'B' channel Probe carries unmanaged address" + extra)
+      assume (legal_source, "'B' channel Probe carries source that is not first source" + extra)
+      assume (is_aligned, "'B' channel Probe address not aligned to size" + extra)
+      assume (TLPermissions.isCap(bundle.param), "'B' channel Probe carries invalid cap param" + extra)
+      assume (bundle.mask === mask, "'B' channel Probe contains invalid mask" + extra)
+      assume (!bundle.corrupt, "'B' channel Probe is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.client.supportsGet(bundle.source, bundle.size), "'B' channel carries Get type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterPutFull(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries Get type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel Get carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Get carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Get address not aligned to size" + extra)
@@ -182,7 +187,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutFullData) {
-      monAssert (edge.client.supportsPutFull(bundle.source, bundle.size), "'B' channel carries PutFull type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterPutFull(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries PutFull type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel PutFull carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel PutFull carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel PutFull address not aligned to size" + extra)
@@ -191,7 +196,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.PutPartialData) {
-      monAssert (edge.client.supportsPutPartial(bundle.source, bundle.size), "'B' channel carries PutPartial type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterPutPartial(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries PutPartial type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel PutPartial carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel PutPartial carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel PutPartial address not aligned to size" + extra)
@@ -200,7 +205,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.ArithmeticData) {
-      monAssert (edge.client.supportsArithmetic(bundle.source, bundle.size), "'B' channel carries Arithmetic type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterArithmetic(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries Arithmetic type unsupported by master" + extra)
       monAssert (address_ok, "'B' channel Arithmetic carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Arithmetic carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Arithmetic address not aligned to size" + extra)
@@ -209,7 +214,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.LogicalData) {
-      monAssert (edge.client.supportsLogical(bundle.source, bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterLogical(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries Logical type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Logical carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Logical carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Logical address not aligned to size" + extra)
@@ -218,7 +223,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Hint) {
-      monAssert (edge.client.supportsHint(bundle.source, bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterHint(edge.source(bundle), edge.address(bundle), bundle.size), "'B' channel carries Hint type unsupported by client" + extra)
       monAssert (address_ok, "'B' channel Hint carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Hint carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Hint address not aligned to size" + extra)
@@ -227,7 +232,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge) {
+  def legalizeFormatC(bundle: TLBundleC, edge: TLEdge): Unit = {
     monAssert (TLMessages.isC(bundle.opcode), "'C' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -254,22 +259,22 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Release) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
-      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveAcquireB(edge.source(bundle), edge.address(bundle), bundle.size), "'C' channel carries Release type unsupported by manager" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), edge.address(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel Release carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel Release smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel Release address not aligned to size" + extra)
-      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel Release carries invalid shrink param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel Release carries invalid report param" + extra)
       monAssert (!bundle.corrupt, "'C' channel Release is corrupt" + extra)
     }
 
     when (bundle.opcode === TLMessages.ReleaseData) {
-      monAssert (edge.manager.supportsAcquireBSafe(edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
-      monAssert (edge.client.supportsProbe(edge.source(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
+      monAssert (edge.expectsVipCheckerMasterToSlaveAcquireB(edge.source(bundle), edge.address(bundle), bundle.size), "'C' channel carries ReleaseData type unsupported by manager" + extra)
+      monAssert (edge.expectsVipCheckerSlaveToMasterProbe(edge.source(bundle), edge.address(bundle), bundle.size), "'C' channel carries Release from a client which does not support Probe" + extra)
       monAssert (source_ok, "'C' channel ReleaseData carries invalid source ID" + extra)
       monAssert (bundle.size >= log2Ceil(edge.manager.beatBytes).U, "'C' channel ReleaseData smaller than a beat" + extra)
       monAssert (is_aligned, "'C' channel ReleaseData address not aligned to size" + extra)
-      monAssert (TLPermissions.isShrink(bundle.param), "'C' channel ReleaseData carries invalid shrink param" + extra)
+      monAssert (TLPermissions.isReport(bundle.param), "'C' channel ReleaseData carries invalid report param" + extra)
     }
 
     when (bundle.opcode === TLMessages.AccessAck) {
@@ -296,7 +301,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge) {
+  def legalizeFormatD(bundle: TLBundleD, edge: TLEdge): Unit = {
     assume (TLMessages.isD(bundle.opcode), "'D' channel has invalid opcode" + extra)
 
     val source_ok = edge.client.contains(bundle.source)
@@ -357,7 +362,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge) {
+  def legalizeFormatE(bundle: TLBundleE, edge: TLEdge): Unit = {
     val sink_ok = bundle.sink < edge.manager.endSinkId.U
     monAssert (sink_ok, "'E' channels carries invalid sink ID" + extra)
   }
@@ -376,7 +381,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge) {
+  def legalizeMultibeatA(a: DecoupledIO[TLBundleA], edge: TLEdge): Unit = {
     val a_first = edge.first(a.bits, a.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -399,7 +404,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge) {
+  def legalizeMultibeatB(b: DecoupledIO[TLBundleB], edge: TLEdge): Unit = {
     val b_first = edge.first(b.bits, b.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -422,7 +427,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeADSourceFormal(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSourceFormal(bundle: TLBundle, edge: TLEdge): Unit = {
     // Symbolic variable
     val sym_source = Wire(UInt(edge.client.endSourceId.W))
     // TODO: Connect sym_source to a fixed value for simulation and to a
@@ -504,7 +509,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
             "request message" + extra)
   }
 
-  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge) {
+  def legalizeMultibeatC(c: DecoupledIO[TLBundleC], edge: TLEdge): Unit = {
     val c_first = edge.first(c.bits, c.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -527,7 +532,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge) {
+  def legalizeMultibeatD(d: DecoupledIO[TLBundleD], edge: TLEdge): Unit = {
     val d_first = edge.first(d.bits, d.fire())
     val opcode  = Reg(UInt())
     val param   = Reg(UInt())
@@ -553,7 +558,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge) {
+  def legalizeMultibeat(bundle: TLBundle, edge: TLEdge): Unit = {
     legalizeMultibeatA(bundle.a, edge)
     legalizeMultibeatD(bundle.d, edge)
     if (edge.client.anySupportProbe && edge.manager.anySupportAcquireB) {
@@ -564,7 +569,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
   //This is left in for almond which doesn't adhere to the tilelink protocol
   @deprecated("Use legalizeADSource instead if possible","")
-  def legalizeADSourceOld(bundle: TLBundle, edge: TLEdge) {
+  def legalizeADSourceOld(bundle: TLBundle, edge: TLEdge): Unit = {
     val inflight = RegInit(0.U(edge.client.endSourceId.W))
 
     val a_first = edge.first(bundle.a.bits, bundle.a.fire())
@@ -598,11 +603,11 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
-  def legalizeADSource(bundle: TLBundle, edge: TLEdge) {
-    val a_size_bus_size = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
-    val a_opcode_bus_size = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
+  def legalizeADSource(bundle: TLBundle, edge: TLEdge): Unit = {
+    val a_size_bus_size       = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
+    val a_opcode_bus_size     = 3 + 1 //opcode size is 3, but add so that 0 is not mapped to anything
     val log_a_opcode_bus_size = log2Ceil(a_opcode_bus_size)
-    val log_a_size_bus_size = log2Ceil(a_size_bus_size)
+    val log_a_size_bus_size   = log2Ceil(a_size_bus_size)
     def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
 
     val inflight = RegInit(0.U(edge.client.endSourceId.W))
@@ -617,8 +622,10 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
     d_first.suggestName("d_first")
 
-    val a_set = WireInit(0.U(edge.client.endSourceId.W))
+    val a_set          = WireInit(0.U(edge.client.endSourceId.W))
+    val a_set_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
     a_set.suggestName("a_set")
+    a_set_wo_ready.suggestName("a_set_wo_ready")
     val a_opcodes_set = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     a_opcodes_set.suggestName("a_opcodes_set")
     val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
@@ -632,7 +639,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     a_size_lookup.suggestName("a_size_lookup")
     a_size_lookup := ((inflight_sizes) >> (bundle.d.bits.source << log_a_size_bus_size.U) & size_to_numfullbits(1.U << log_a_size_bus_size.U)) >> 1.U
 
-    val responseMap =             VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant))
+    val responseMap             = VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.Grant,     TLMessages.Grant))
     val responseMapSecondOption = VecInit(Seq(TLMessages.AccessAck, TLMessages.AccessAck, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.AccessAckData, TLMessages.HintAck, TLMessages.GrantData, TLMessages.Grant))
 
     val a_opcodes_set_interm = WireInit(0.U(a_opcode_bus_size.W))
@@ -640,41 +647,58 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val a_sizes_set_interm = WireInit(0.U(a_size_bus_size.W))
     a_sizes_set_interm.suggestName("a_sizes_set_interm")
 
+    when (bundle.a.valid && a_first && edge.isRequest(bundle.a.bits)) {
+      a_set_wo_ready := UIntToOH(bundle.a.bits.source)
+    }
+
     when (bundle.a.fire() && a_first && edge.isRequest(bundle.a.bits)) {
-      a_set := UIntToOH(bundle.a.bits.source)
+      a_set                := UIntToOH(bundle.a.bits.source)
       a_opcodes_set_interm := (bundle.a.bits.opcode << 1.U) | 1.U
-      a_sizes_set_interm := (bundle.a.bits.size << 1.U) | 1.U
-      a_opcodes_set := (a_opcodes_set_interm) << (bundle.a.bits.source << log_a_opcode_bus_size.U)
-      a_sizes_set := (a_sizes_set_interm) << (bundle.a.bits.source << log_a_size_bus_size.U)
+      a_sizes_set_interm   := (bundle.a.bits.size << 1.U) | 1.U
+      a_opcodes_set        := (a_opcodes_set_interm) << (bundle.a.bits.source << log_a_opcode_bus_size.U)
+      a_sizes_set          := (a_sizes_set_interm) << (bundle.a.bits.source << log_a_size_bus_size.U)
       monAssert(!inflight(bundle.a.bits.source), "'A' channel re-used a source ID" + extra)
     }
 
-    val d_clr = WireInit(0.U(edge.client.endSourceId.W))
+    val d_clr          = WireInit(0.U(edge.client.endSourceId.W))
+    val d_clr_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
     d_clr.suggestName("d_clr")
+    d_clr_wo_ready.suggestName("d_clr_wo_ready")
     val d_opcodes_clr = WireInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     d_opcodes_clr.suggestName("d_opcodes_clr")
     val d_sizes_clr = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     d_sizes_clr.suggestName("d_sizes_clr")
 
     val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
+    when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
+      d_clr_wo_ready := UIntToOH(bundle.d.bits.source)
+    }
+
     when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
-      d_clr := UIntToOH(bundle.d.bits.source)
+      d_clr         := UIntToOH(bundle.d.bits.source)
       d_opcodes_clr := size_to_numfullbits(1.U << log_a_opcode_bus_size.U) << (bundle.d.bits.source << log_a_opcode_bus_size.U)
-      d_sizes_clr := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
+      d_sizes_clr   := size_to_numfullbits(1.U << log_a_size_bus_size.U) << (bundle.d.bits.source << log_a_size_bus_size.U)
     }
     when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && !d_release_ack) {
-      assume(((inflight)(bundle.d.bits.source)) || (bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && (bundle.a.bits.size === bundle.d.bits.size) && a_first), "'D' channel acknowledged for nothing inflight" + extra)
-      assume(((bundle.d.bits.opcode === responseMap(a_opcode_lookup)) || (bundle.d.bits.opcode === responseMapSecondOption(a_opcode_lookup)))
-              || (bundle.a.valid && ((bundle.d.bits.opcode === responseMap(bundle.a.bits.opcode)) || (bundle.d.bits.opcode === responseMapSecondOption(bundle.a.bits.opcode)))),
-        "'D' channel contains improper opcode response" + extra)
-      assume((bundle.d.bits.size === a_size_lookup) || (bundle.a.valid && (bundle.a.bits.size === bundle.d.bits.size)), "'D' channel contains improper response size" + extra)
+      val same_cycle_resp = bundle.a.valid && a_first && edge.isRequest(bundle.a.bits) && (bundle.a.bits.source === bundle.d.bits.source)
+      assume(((inflight)(bundle.d.bits.source)) || same_cycle_resp, "'D' channel acknowledged for nothing inflight" + extra)
+
+      when (same_cycle_resp) {
+        assume((bundle.d.bits.opcode === responseMap(bundle.a.bits.opcode)) ||
+                (bundle.d.bits.opcode === responseMapSecondOption(bundle.a.bits.opcode)), "'D' channel contains improper opcode response" + extra)
+        assume((bundle.a.bits.size === bundle.d.bits.size), "'D' channel contains improper response size" + extra)
+      } .otherwise {
+        assume((bundle.d.bits.opcode === responseMap(a_opcode_lookup)) ||
+               (bundle.d.bits.opcode === responseMapSecondOption(a_opcode_lookup)), "'D' channel contains improper opcode response" + extra)
+        assume((bundle.d.bits.size === a_size_lookup), "'D' channel contains improper response size" + extra)
+      }
     }
     when(bundle.d.valid && d_first && a_first && bundle.a.valid && (bundle.a.bits.source === bundle.d.bits.source) && !d_release_ack) {
       assume((!bundle.d.ready) || bundle.a.ready, "ready check")
     }
 
     if (edge.manager.minLatency > 0) {
-      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assume(a_set_wo_ready =/= d_clr_wo_ready || !a_set_wo_ready.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
@@ -690,7 +714,114 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     when (bundle.a.fire() || bundle.d.fire()) { watchdog := 0.U }
   }
 
-  def legalizeDESink(bundle: TLBundle, edge: TLEdge) {
+  def legalizeCDSource(bundle: TLBundle, edge: TLEdge): Unit = {
+    val c_size_bus_size   = edge.bundle.sizeBits + 1 //add one so that 0 is not mapped to anything (size 0 -> size 1 in map, size 0 in map means unset)
+    val c_opcode_bus_size = 3 + 1                    //opcode size is 3, but add so that 0 is not mapped to anything
+
+    val log_c_opcode_bus_size = log2Ceil(c_opcode_bus_size)
+    val log_c_size_bus_size   = log2Ceil(c_size_bus_size)
+    def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
+
+    val inflight         = RegInit(0.U(edge.client.endSourceId.W))
+    val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_c_opcode_bus_size).W))
+    val inflight_sizes   = RegInit(0.U((edge.client.endSourceId << log_c_size_bus_size).W))
+    inflight.suggestName("inflight")
+    inflight_opcodes.suggestName("inflight_opcodes")
+    inflight_sizes.suggestName("inflight_sizes")
+
+    val c_first = edge.first(bundle.c.bits, bundle.c.fire())
+    val d_first = edge.first(bundle.d.bits, bundle.d.fire())
+    c_first.suggestName("c_first")
+    d_first.suggestName("d_first")
+
+    val c_set          = WireInit(0.U(edge.client.endSourceId.W))
+    val c_set_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
+    val c_opcodes_set  = WireInit(0.U((edge.client.endSourceId << log_c_opcode_bus_size).W))
+    val c_sizes_set    = WireInit(0.U((edge.client.endSourceId << log_c_size_bus_size).W))
+    c_set.suggestName("c_set")
+    c_set_wo_ready.suggestName("c_set_wo_ready")
+    c_opcodes_set.suggestName("c_opcodes_set")
+    c_sizes_set.suggestName("c_sizes_set")
+
+    val c_opcode_lookup = WireInit(0.U((1 << log_c_opcode_bus_size).W))
+    val c_size_lookup   = WireInit(0.U((1 << log_c_size_bus_size).W))
+    c_opcode_lookup := ((inflight_opcodes) >> (bundle.d.bits.source << log_c_opcode_bus_size.U) & size_to_numfullbits(1.U << log_c_opcode_bus_size.U)) >> 1.U
+    c_size_lookup   := ((inflight_sizes) >> (bundle.d.bits.source << log_c_size_bus_size.U) & size_to_numfullbits(1.U << log_c_size_bus_size.U)) >> 1.U
+    c_opcode_lookup.suggestName("c_opcode_lookup")
+    c_size_lookup.suggestName("c_size_lookup")
+
+    val c_opcodes_set_interm = WireInit(0.U(c_opcode_bus_size.W))
+    val c_sizes_set_interm   = WireInit(0.U(c_size_bus_size.W))
+    c_opcodes_set_interm.suggestName("c_opcodes_set_interm")
+    c_sizes_set_interm.suggestName("c_sizes_set_interm")
+
+    when (bundle.c.valid && c_first && edge.isRequest(bundle.c.bits)) {
+      c_set_wo_ready := UIntToOH(bundle.c.bits.source)
+    }
+
+    when (bundle.c.fire() && c_first && edge.isRequest(bundle.c.bits)) {
+      c_set                := UIntToOH(bundle.c.bits.source)
+      c_opcodes_set_interm := (bundle.c.bits.opcode << 1.U) | 1.U
+      c_sizes_set_interm   := (bundle.c.bits.size << 1.U) | 1.U
+      c_opcodes_set        := (c_opcodes_set_interm) << (bundle.c.bits.source << log_c_opcode_bus_size.U)
+      c_sizes_set          := (c_sizes_set_interm) << (bundle.c.bits.source << log_c_size_bus_size.U)
+      monAssert(!inflight(bundle.c.bits.source), "'C' channel re-used a source ID" + extra)
+    }
+
+    val d_clr          = WireInit(0.U(edge.client.endSourceId.W))
+    val d_clr_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
+    val d_opcodes_clr  = WireInit(0.U((edge.client.endSourceId << log_c_opcode_bus_size).W))
+    val d_sizes_clr    = WireInit(0.U((edge.client.endSourceId << log_c_size_bus_size).W))
+    d_clr.suggestName("d_clr")
+    d_clr_wo_ready.suggestName("d_clr_wo_ready")
+    d_opcodes_clr.suggestName("d_opcodes_clr")
+    d_sizes_clr.suggestName("d_sizes_clr")
+
+    val d_release_ack = bundle.d.bits.opcode === TLMessages.ReleaseAck
+    when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && d_release_ack) {
+      d_clr_wo_ready := UIntToOH(bundle.d.bits.source)
+    }
+
+    when (bundle.d.fire() && d_first && edge.isResponse(bundle.d.bits) && d_release_ack) {
+      d_clr         := UIntToOH(bundle.d.bits.source)
+      d_opcodes_clr := size_to_numfullbits(1.U << log_c_opcode_bus_size.U) << (bundle.d.bits.source << log_c_opcode_bus_size.U)
+      d_sizes_clr   := size_to_numfullbits(1.U << log_c_size_bus_size.U) << (bundle.d.bits.source << log_c_size_bus_size.U)
+    }
+
+    when (bundle.d.valid && d_first && edge.isResponse(bundle.d.bits) && d_release_ack) {
+      val same_cycle_resp = bundle.c.valid && c_first && edge.isRequest(bundle.c.bits) && (bundle.c.bits.source === bundle.d.bits.source)
+      assume(((inflight)(bundle.d.bits.source)) || same_cycle_resp, "'D' channel acknowledged for nothing inflight" + extra)
+      when (same_cycle_resp) {
+        assume((bundle.d.bits.size === bundle.c.bits.size), "'D' channel contains improper response size" + extra)
+      } .otherwise {
+        assume((bundle.d.bits.size === c_size_lookup), "'D' channel contains improper response size" + extra)
+      }
+    }
+
+    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack) {
+      assume((!bundle.d.ready) || bundle.c.ready, "ready check")
+    }
+
+    if (edge.manager.minLatency > 0) {
+      when (c_set_wo_ready.orR) {
+        assume(c_set_wo_ready =/= d_clr_wo_ready, s"'C' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      }
+    }
+
+    inflight         := (inflight | c_set) & ~d_clr
+    inflight_opcodes := (inflight_opcodes | c_opcodes_set) & ~d_opcodes_clr
+    inflight_sizes   := (inflight_sizes | c_sizes_set) & ~d_sizes_clr
+
+    val watchdog = RegInit(0.U(32.W))
+    val limit = PlusArg("tilelink_timeout",
+      docstring="Kill emulation after INT waiting TileLink cycles. Off if 0.")
+    monAssert (!inflight.orR || limit === 0.U || watchdog < limit, "TileLink timeout expired" + extra)
+
+    watchdog := watchdog + 1.U
+    when (bundle.c.fire() || bundle.d.fire()) { watchdog := 0.U }
+  }
+
+  def legalizeDESink(bundle: TLBundle, edge: TLEdge): Unit = {
     val inflight = RegInit(0.U(edge.manager.endSinkId.W))
 
     val d_first = edge.first(bundle.d.bits, bundle.d.fire())
@@ -713,7 +844,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     inflight := (inflight | d_set) & ~e_clr
   }
 
-  def legalizeUnique(bundle: TLBundle, edge: TLEdge) {
+  def legalizeUnique(bundle: TLBundle, edge: TLEdge): Unit = {
     val sourceBits = log2Ceil(edge.client.endSourceId)
     val tooBig = 14 // >16kB worth of flight information gets to be too much
     if (sourceBits > tooBig) {
@@ -722,6 +853,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       if (args.edge.params(TestplanTestType).simulation) {
         if (args.edge.params(TLMonitorStrictMode)) {
           legalizeADSource(bundle, edge)
+          legalizeCDSource(bundle, edge)
         } else {
           legalizeADSourceOld(bundle, edge)
         }
@@ -741,7 +873,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
   }
 
-  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset) {
+  def legalize(bundle: TLBundle, edge: TLEdge, reset: Reset): Unit = {
     legalizeFormat    (bundle, edge)
     legalizeMultibeat (bundle, edge)
     legalizeUnique    (bundle, edge)

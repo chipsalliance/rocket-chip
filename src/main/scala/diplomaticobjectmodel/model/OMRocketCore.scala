@@ -23,6 +23,8 @@ case class OMRocketCore(
   interruptLatency: Int,
   nLocalInterrupts: Int,
   nBreakpoints: Int,
+  mcontextWidth: Int,
+  scontextWidth: Int,
   branchPredictor: Option[OMRocketBranchPredictor],
   dcache: Option[OMDCache],
   icache: Option[OMICache],
@@ -30,6 +32,7 @@ case class OMRocketCore(
   hasClockGate: Boolean,
   hasSCIE: Boolean,
   vmPresent: Boolean,
+  utlb: Option[OMUTLB],
   _types: Seq[String] = Seq("OMRocketCore", "OMCore", "OMComponent", "OMCompoundType")
 ) extends OMCore
 

@@ -6,7 +6,7 @@ package freechips.rocketchip.tile
 import Chisel.{defaultCompileOptions => _, _}
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
-import chisel3.withClock
+import chisel3.{DontCare, WireInit, withClock}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
@@ -28,7 +28,6 @@ object FPConstants
   val RM_SZ = 3
   val FLAGS_SZ = 5
 }
-import FPConstants._
 
 trait HasFPUCtrlSigs {
   val ldst = Bool()
@@ -136,6 +135,9 @@ class FPUDecoder(implicit p: Parameters) extends FPUModule()(p) {
 }
 
 class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
+  val hartid = Input(UInt(hartIdLen.W))
+  val time = Input(UInt(xLen.W))
+
   val inst = Bits(INPUT, 32)
   val fromint_data = Bits(INPUT, xLen)
 
@@ -728,6 +730,19 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
   val wb_ctrl = RegEnable(mem_ctrl, mem_reg_valid)
 
+  // CoreMonitorBundle to monitor fp register file writes
+  val frfWriteBundle = Seq.fill(2)(WireInit(new CoreMonitorBundle(xLen, fLen), DontCare))
+  frfWriteBundle.foreach { i =>
+    i.clock := clock
+    i.reset := reset
+    i.hartid := io.hartid
+    i.timer := io.time(31,0)
+    i.valid := false.B
+    i.wrenx := false.B
+    i.wrenf := false.B
+    i.excpt := false.B
+  }
+
   // regfile
   val regfile = Mem(32, Bits(width = fLen+1))
   when (load_wb) {
@@ -736,6 +751,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     assert(consistent(wdata))
     if (enableCommitLog)
       printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
+    frfWriteBundle(0).wrdst := load_wb_tag
+    frfWriteBundle(0).wrenf := true.B
+    frfWriteBundle(0).wrdata := ieee(wdata)
   }
 
   val ex_rs = ex_ra.map(a => regfile(a))
@@ -866,6 +884,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     if (enableCommitLog) {
       printf("f%d p%d 0x%x\n", waddr, waddr + 32, ieee(wdata))
     }
+    frfWriteBundle(1).wrdst := waddr
+    frfWriteBundle(1).wrenf := true.B
+    frfWriteBundle(1).wrdata := ieee(wdata)
   }
   when (wbInfo(0).cp && wen(0)) {
     io.cp_resp.bits.data := wdata

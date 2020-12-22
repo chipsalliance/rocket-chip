@@ -3,9 +3,8 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import chisel3.util.{IrrevocableIO,ReadyValidIO}
-import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams}
-import scala.reflect.ClassTag
+import chisel3.util.ReadyValidIO
+import freechips.rocketchip.util.{ShiftQueue, RationalDirection, FastToSlow, AsyncQueueParams, CreditedDelay}
 
 /** Options for describing the attributes of memory regions */
 object RegionType {
@@ -97,9 +96,10 @@ case class TransferSizes(min: Int, max: Int)
   def intersect(x: TransferSizes) =
     if (x.max < min || max < x.min) TransferSizes.none
     else TransferSizes(scala.math.max(min, x.min), scala.math.min(max, x.max))
-  
+
   // Not a union, because the result may contain sizes contained by neither term
-  def cover(x: TransferSizes) = {
+  // NOT TO BE CONFUSED WITH COVERPOINTS
+  def mincover(x: TransferSizes) = {
     if (none) {
       x
     } else if (x.none) {
@@ -116,7 +116,7 @@ object TransferSizes {
   def apply(x: Int) = new TransferSizes(x)
   val none = new TransferSizes(0)
 
-  def cover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ cover _)
+  def mincover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ mincover _)
   def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
   implicit def asBool(x: TransferSizes) = !x.none
@@ -316,6 +316,12 @@ case class AsynchronousCrossing(depth: Int = 8, sourceSync: Int = 3, sinkSync: I
 {
   def asSinkParams = AsyncQueueParams(depth, sinkSync, safe, narrow)
 }
+case class CreditedCrossing(sourceDelay: CreditedDelay, sinkDelay: CreditedDelay) extends ClockCrossingType
+
+object CreditedCrossing {
+  def apply(delay: CreditedDelay): CreditedCrossing = CreditedCrossing(delay, delay.flip)
+  def apply(): CreditedCrossing = CreditedCrossing(CreditedDelay(1, 1))
+}
 
 trait DirectedBuffers[T] {
   def copyIn(x: BufferParams): T
@@ -329,6 +335,7 @@ trait IdMapEntry {
   def to: IdRange
   def isCache: Boolean
   def requestFifo: Boolean
+  def maxTransactionsInFlight: Option[Int]
   def pretty(fmt: String) =
     if (from ne to) { // if the subclass uses the same reference for both from and to, assume its format string has an arity of 5
       fmt.format(to.start, to.end, from.start, from.end, s""""$name"""", if (isCache) " [CACHE]" else "", if (requestFifo) " [FIFO]" else "")

@@ -32,9 +32,17 @@ class APBRAM(
       supportsWrite = true)),
     beatBytes  = beatBytes)))
 
-  lazy val module = new LazyModuleImp(this) {
+  private val outer = this
+
+  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, _) = node.in(0)
-    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(size = BigInt(1) << mask.filter(b=>b).size)
+    val laneDataBits = 8
+    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
+      size = BigInt(1) << mask.filter(b=>b).size,
+      lanes = beatBytes,
+      bits = laneDataBits)
+    val eccCode = None
+    val address = outer.address
 
     parentLogicalTreeNode.map {
       case parentLTN =>

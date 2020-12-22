@@ -14,6 +14,7 @@ the RISC-V Rocket Core. For more information on Rocket Chip, please consult our 
     + [Pushing a Rocket core through the VLSI tools](#vlsi)
 + [How can I parameterize my Rocket chip?](#param)
 + [Debugging with GDB](#debug)
++ [Building Rocket Chip with an IDE](#ide)
 + [Contributors](#contributors)
 
 ## <a name="quick"></a> Quick Instructions
@@ -83,6 +84,19 @@ To generate FPGA- or VLSI-synthesizable Verilog (output will be in `vsim/generat
 
     $ cd vsim
     $ make verilog
+
+To run the Scala tests (`sbt test`) or linter (`sbt scalafix`):
+
+    $ cd regression
+
+    # Scala tests
+    $ make scalatest SUITE=foo
+
+    # Scala linter, automatically modifying files to correct issues
+    $ make scalafix SUITE=foo
+
+    # Scala linter, only printing out issues
+    $ make scalafix-check SUITE=foo
 
 
 ### Keeping Your Repo Up-to-Date
@@ -202,6 +216,8 @@ test the generated designs.
 Sources for the first-stage bootloader included in the BootROM.
 * **csrc**
 C sources for use with Verilator simulation.
+* **docs**
+Documentation, tutorials, etc for specific parts of the codebase.
 * **emulator**
 Directory in which Verilator simulations are compiled and run.
 * **project**
@@ -460,13 +476,13 @@ Then you can build as usual with `CONFIG=<MyConfigPackage>.MyConfig`.
 
 The objective of this section is to use GNU debugger to debug RISC-V programs running on the emulator in the same fashion as in [Spike](https://github.com/riscv/riscv-isa-sim#debugging-with-gdb).
 
-For that we need to add a Remote Bit-Bang client to the emulator. We can do so by extending our Config with JtagDTMSystem, which will add a DebugTransportModuleJTAG to the DUT and connect a SimJTAG module in the Test Harness. This will allow OpenOCD to interface with the emulator, and GDB can interface with OpenOCD. In the following example we added this Config extension to the Config.scala:
+For that we need to add a Remote Bit-Bang client to the emulator. We can do so by extending our Config with JtagDTMSystem, which will add a DebugTransportModuleJTAG to the DUT and connect a SimJTAG module in the Test Harness. This will allow OpenOCD to interface with the emulator, and GDB can interface with OpenOCD. In the following example we add this Config alteration to `src/main/scala/system/Configs.scala`:
 
     class DefaultConfigRBB extends Config(
-    new WithJtagDTMSystem ++ new WithNBigCores(1) ++ new BaseConfig)
+    new WithJtagDTMSystem ++ new WithNBigCores(1) ++ WithCoherentBusTopology ++ new BaseConfig)
 
     class QuadCoreConfigRBB extends Config(
-    new WithJtagDTMSystem ++ new WithNBigCores(4) ++ new BaseConfig)
+    new WithJtagDTMSystem ++ new WithNBigCores(4) ++ WithCoherentBusTopology ++ new BaseConfig)
 
 To build the emulator with `DefaultConfigRBB` configuration we use the command:
 
@@ -668,6 +684,25 @@ Now we can proceed as with Spike, debugging works in a similar way:
 	(gdb)
 
 Further information about GDB debugging is available [here](https://sourceware.org/gdb/onlinedocs/gdb/) and [here](https://sourceware.org/gdb/onlinedocs/gdb/Remote-Debugging.html#Remote-Debugging).
+
+## <a name="ide"></a> Building Rocket Chip with an IDE
+
+The Rocket Chip Scala build uses the standard Scala build tool SBT.
+IDEs like [IntelliJ](https://www.jetbrains.com/idea/) and [VSCode](https://code.visualstudio.com/)
+are popular in the Scala community and work with Rocket Chip.
+To use one of these IDEs, there is one minor peculiarity of the Rocket Chip build that must be addressed.
+
+If the file `.sbtopts` exists in the root of the repository, you need to expand the `$PWD` variable inside of the file to an absolute path pointing to the location of your Rocket Chip clone.
+You can do this in `bash` with:
+```bash
+sed -i "s|\$PWD|$PWD|" .sbtopts
+```
+
+_If the file `.sbtopts` does not exist, you do not need to do anything special._
+
+If `.sbtopts` does not exist or if you have expanded the `$PWD` variable inside of it, you can import Rocket Chip into your IDE of choice.
+
+For more information on what `.sbtopts` is for (when it exists), see [CONTRIBUTING.md](CONTRIBUTING.md#bumping-chisel).
 
 ## <a name="contributors"></a> Contributors
 

@@ -4,6 +4,7 @@ package freechips.rocketchip.interrupts
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.util.CreditedDelay
 
 case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwardNode) {
   def apply(xing: ClockCrossingType = NoCrossing, alreadyRegistered: Boolean = false)(implicit p: Parameters): IntInwardNode = {
@@ -14,6 +15,8 @@ case class IntInwardCrossingHelper(name: String, scope: LazyScope, node: IntInwa
         node :*=* scope { IntSyncRationalCrossingSink() :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
       case SynchronousCrossing(_) =>
         node :*=* scope { IntSyncSyncCrossingSink() :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered)
+      case CreditedCrossing(CreditedDelay(sourceDebit, _), CreditedDelay(sinkDebit, _)) =>
+        node :*=* scope { IntSyncSyncCrossingSink(/*sinkDebit==0*/) :*=* IntSyncNameNode(name) } :*=* IntSyncNameNode(name) :*=* IntSyncCrossingSource(sourceDebit==0)
     }
   }
 }
@@ -27,6 +30,8 @@ case class IntOutwardCrossingHelper(name: String, scope: LazyScope, node: IntOut
         IntSyncRationalCrossingSink() :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
       case SynchronousCrossing(buffer) =>
         IntSyncSyncCrossingSink() :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(alreadyRegistered) } :*=* node
+      case CreditedCrossing(CreditedDelay(sourceDebit, _), CreditedDelay(sinkDebit, _)) =>
+        IntSyncSyncCrossingSink(/*sinkDebit==0*/) :*=* IntSyncNameNode(name) :*=* scope { IntSyncNameNode(name) :*=* IntSyncCrossingSource(sourceDebit==0) } :*=* node
     }
   }
 }

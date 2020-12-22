@@ -25,7 +25,7 @@ class APBBundle(val params: APBBundleParameters) extends Bundle
   val prdata    = UInt(INPUT, width = params.dataBits)
   val pduser    = BundleMap(params.responseFields)
 
-  def tieoff() {
+  def tieoff(): Unit = {
     pready.dir match {
       case INPUT =>
         pready  := Bool(false)

@@ -20,4 +20,9 @@ object BlockDuringReset
     }
     res
   }
+
+  def apply(enq: Bool): Bool = {
+    val out_of_reset = RegNext(true.B, false.B)
+    enq && out_of_reset
+  }
 }

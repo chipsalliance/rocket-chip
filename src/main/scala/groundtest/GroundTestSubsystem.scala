@@ -24,14 +24,13 @@ class GroundTestSubsystem(implicit p: Parameters)
   // No PLIC in ground test; so just sink the interrupts to nowhere
   IntSinkNode(IntSinkPortSimple()) :=* ibus.toPLIC
 
+  val tileStatusNodes = tiles.collect { case t: GroundTestTile => t.statusNode.makeSink() }
+
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
   val success = IO(Bool(OUTPUT))
-
-  outer.tiles.zipWithIndex.map { case(t, i) => t.module.constants.hartid := UInt(i) }
-
-  val status = dontTouch(DebugCombiner(outer.tiles.collect { case t: GroundTestTile => t.module.status }))
+  val status = dontTouch(DebugCombiner(outer.tileStatusNodes.map(_.bundle)))
   success := outer.tileCeaseSinkNode.in.head._1.asUInt.andR
 }

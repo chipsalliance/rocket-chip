@@ -3,8 +3,7 @@
 package freechips.rocketchip.diplomaticobjectmodel.model
 
 
-import freechips.rocketchip.rocket.RocketCoreParams
-import freechips.rocketchip.tile.{CoreParams, RocketTile}
+import freechips.rocketchip.tile.RocketTile
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 trait OMExtensionType extends OMEnum
@@ -13,6 +12,7 @@ case object A extends OMExtensionType
 case object F extends OMExtensionType
 case object D extends OMExtensionType
 case object C extends OMExtensionType
+case object B extends OMExtensionType
 case object U extends OMExtensionType
 case object S extends OMExtensionType
 
@@ -40,6 +40,7 @@ case class OMISA(
   f: Option[OMSpecification],
   d: Option[OMSpecification],
   c: Option[OMSpecification],
+  b: Option[OMSpecification] = None,
   v: Option[OMVectorExtension] = None,
   u: Option[OMSpecification],
   s: Option[OMSpecification],
@@ -53,6 +54,7 @@ case class OMVectorExtension(
   vLen: Int,
   sLen: Int,
   eLen: Int,
+  vstartALU: Boolean, // whether non-memory/non-vsetvl instructions permit vstart != 0
   name: String = "V Standard Extension for Vector Operations",
   _types: Seq[String] = Seq("OMVectorExtension")
 )

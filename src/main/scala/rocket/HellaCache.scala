@@ -7,7 +7,6 @@ import Chisel._
 import chisel3.dontTouch
 import freechips.rocketchip.amba._
 import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._
@@ -19,7 +18,12 @@ case class DCacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
     rowBits: Int = 64,
-    nTLBEntries: Int = 32,
+    subWordBits: Option[Int] = None,
+    replacementPolicy: String = "random",
+    nTLBSets: Int = 1,
+    nTLBWays: Int = 32,
+    nTLBBasePageSectors: Int = 4,
+    nTLBSuperpages: Int = 4,
     tagECC: Option[String] = None,
     dataECC: Option[String] = None,
     dataECCBytes: Int = 1,
@@ -41,6 +45,8 @@ case class DCacheParams(
 
   def replacement = new RandomReplacement(nWays)
 
+  def silentDrop: Boolean = !acquireBeforeRelease
+
   require((!scratch.isDefined || nWays == 1),
     "Scratchpad only allowed in direct-mapped cache.")
   require((!scratch.isDefined || nMSHRs == 0),
@@ -55,6 +61,8 @@ trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParamet
 
   def wordBits = coreDataBits
   def wordBytes = coreDataBytes
+  def subWordBits = cacheParams.subWordBits.getOrElse(wordBits)
+  def subWordBytes = subWordBits / 8
   def wordOffBits = log2Up(wordBytes)
   def beatBytes = cacheBlockBytes / cacheDataBeats
   def beatWords = beatBytes / wordBytes
@@ -93,8 +101,9 @@ abstract class L1HellaCacheBundle(implicit val p: Parameters) extends Parameteri
 
 /** Bundle definitions for HellaCache interfaces */
 
-trait HasCoreMemOp extends HasCoreParameters {
+trait HasCoreMemOp extends HasL1HellaCacheParameters {
   val addr = UInt(width = coreMaxAddrBits)
+  val idx  = (usingVM && untagBits > pgIdxBits).option(UInt(coreMaxAddrBits.W))
   val tag  = Bits(width = coreParams.dcacheReqTagBits + log2Ceil(dcacheArbPorts))
   val cmd  = Bits(width = M_SZ)
   val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
@@ -175,17 +184,17 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
 
 /** Base classes for Diplomatic TL2 HellaCaches */
 
-abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModule
+abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule
     with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
   protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
-    name          = s"Core ${hartid} DCache",
+    name          = s"Core ${staticIdForMetadataUseOnly} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
     supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
 
   protected def mmioClientParameters = Seq(TLMasterParameters.v1(
-    name          = s"Core ${hartid} DCache MMIO",
+    name          = s"Core ${staticIdForMetadataUseOnly} DCache MMIO",
     sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
     requestFifo   = true))
 
@@ -195,6 +204,9 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
     clients = cacheClientParameters ++ mmioClientParameters,
     minLatency = 1,
     requestFields = tileParams.core.useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
+
+  val hartIdSinkNodeOpt = cfg.scratch.map(_ => BundleBridgeSink[UInt]())
+  val mmioAddressPrefixSinkNodeOpt = cfg.scratch.map(_ => BundleBridgeSink[UInt]())
 
   val module: HellaCacheModule
 
@@ -208,7 +220,6 @@ abstract class HellaCache(hartid: Int)(implicit p: Parameters) extends LazyModul
 }
 
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
-  val hartid = UInt(INPUT, hartIdLen)
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
@@ -219,6 +230,8 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   implicit val edge = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
+  val io_hartid = outer.hartIdSinkNodeOpt.map(_.bundle)
+  val io_mmio_address_prefix = outer.mmioAddressPrefixSinkNodeOpt.map(_.bundle)
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
   dontTouch(io.cpu.s1_data)
 
@@ -237,9 +250,9 @@ case object BuildHellaCache extends Field[BaseTile => Parameters => HellaCache](
 object HellaCacheFactory {
   def apply(tile: BaseTile)(p: Parameters): HellaCache = {
     if (tile.tileParams.dcache.get.nMSHRs == 0)
-      new DCache(tile.hartId, tile.crossing)(p)
+      new DCache(tile.staticIdForMetadataUseOnly, tile.crossing)(p)
     else
-      new NonBlockingDCache(tile.hartId)(p)
+      new NonBlockingDCache(tile.staticIdForMetadataUseOnly)(p)
   }
 }
 
@@ -252,6 +265,8 @@ trait HasHellaCache { this: BaseTile =>
   lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
   tlMasterXbar.node := dcache.node
+  dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
+  dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
 }
 
 trait HasHellaCacheModule {

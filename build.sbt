@@ -5,6 +5,9 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
+// This needs to stay in sync with the chisel3 and firrtl git submodules
+val chiselVersion = "3.4.0"
+
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2-SNAPSHOT",
@@ -14,7 +17,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
-  libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.0.8" % "test"),
+  libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.2.0" % "test"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
@@ -53,43 +56,40 @@ lazy val commonSettings = Seq(
   }
 )
 
-lazy val chisel = (project in file("chisel3")).settings(commonSettings)
-
-def dependOnChisel(prj: Project) = {
-  if (sys.props.contains("ROCKET_USE_MAVEN")) {
-    prj.settings(
-      libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % "3.2-SNAPSHOT")
-    )
-  } else {
-    prj.dependsOn(chisel)
-  }
-}
+lazy val chiselRef = ProjectRef(workspaceDirectory / "chisel3", "chisel")
+lazy val chiselLib = "edu.berkeley.cs" %% "chisel3" % chiselVersion
+// While not built from source, *must* be in sync with the chisel3 git submodule
+// Building from source requires extending sbt-sriracha or a similar plugin and
+//   keeping scalaVersion in sync with chisel3 to the minor version
+lazy val chiselPluginLib = "edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full
 
 lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
   .settings(commonSettings)
   .settings(publishArtifact := false)
-lazy val hardfloat  = dependOnChisel(project).settings(commonSettings)
+lazy val hardfloat  = (project in file("hardfloat"))
+  .sourceDependency(chiselRef, chiselLib)
+  .settings(addCompilerPlugin(chiselPluginLib))
+  .settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
-lazy val rocketchip = dependOnChisel(project in file("."))
+lazy val rocketchip = (project in file("."))
+  .sourceDependency(chiselRef, chiselLib)
+  .settings(addCompilerPlugin(chiselPluginLib))
   .settings(commonSettings, chipSettings)
-  .dependsOn(`api-config-chipsalliance` % "compile-internal;test-internal")
-  .dependsOn(hardfloat % "compile-internal;test-internal")
-  .dependsOn(`rocket-macros` % "compile-internal;test-internal")
-  .settings(
-      aggregate := false,
-      // Include macro classes, resources, and sources in main jar.
-      mappings in (Compile, packageBin) ++= (mappings in (`api-config-chipsalliance`, Compile, packageBin)).value,
-      mappings in (Compile, packageSrc) ++= (mappings in (`api-config-chipsalliance`, Compile, packageSrc)).value,
-      mappings in (Compile, packageBin) ++= (mappings in (hardfloat, Compile, packageBin)).value,
-      mappings in (Compile, packageSrc) ++= (mappings in (hardfloat, Compile, packageSrc)).value,
-      mappings in (Compile, packageBin) ++= (mappings in (`rocket-macros`, Compile, packageBin)).value,
-      mappings in (Compile, packageSrc) ++= (mappings in (`rocket-macros`, Compile, packageSrc)).value,
-      exportJars := true,
-      Test / unmanagedBase := baseDirectory.value / "test_lib"
+  .dependsOn(`api-config-chipsalliance`)
+  .dependsOn(hardfloat)
+  .dependsOn(`rocket-macros`)
+  .settings( // Assembly settings
+    assembly / test := {},
+    assembly / assemblyJarName := "rocketchip.jar",
+    assembly / assemblyOutputPath := baseDirectory.value / "rocketchip.jar"
   )
-
+  .settings( // Settings for scalafix
+    semanticdbEnabled := true,
+    semanticdbVersion := scalafixSemanticdb.revision,
+    scalacOptions += "-Ywarn-unused-import"
+  )
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")
 lazy val make = inputKey[Unit]("trigger backend-specific makefile command")
@@ -111,3 +111,19 @@ lazy val chipSettings = Seq(
   }
 )
 
+// mdoc documentation target
+lazy val docs = project
+  .in(file("docs-target"))
+  .dependsOn(rocketchip)
+  .enablePlugins(MdocPlugin)
+  .settings(commonSettings)
+  .settings(
+      scalacOptions += "-language:reflectiveCalls",
+      mdocIn := file("docs/src"),
+      mdocOut := file("docs/generated"),
+      mdocExtraArguments := Seq("--cwd", "docs"),
+      mdocVariables := Map(
+        // build dir for mdoc programs to dump temp files
+        "BUILD_DIR" -> "docs-target"
+      )
+  )

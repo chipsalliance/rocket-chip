@@ -3,8 +3,6 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.util.{ReadyValidIO}
-import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
 
@@ -212,6 +210,8 @@ final class TLBundleC(params: TLBundleParameters)
   val size    = UInt(width = params.sizeBits)
   val source  = UInt(width = params.sourceBits) // from
   val address = UInt(width = params.addressBits) // to
+  val user    = BundleMap(params.requestFields)
+  val echo    = BundleMap(params.echoFields)
   // variable fields during multibeat:
   val data    = UInt(width = params.dataBits)
   val corrupt = Bool() // only applies to *Data messages
@@ -263,7 +263,7 @@ class TLBundle(val params: TLBundleParameters) extends Record
     if (params.hasBCE) ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
     else ListMap("d" -> d, "a" -> a)
 
-  def tieoff() {
+  def tieoff(): Unit = {
     a.ready.dir match {
       case INPUT =>
         a.ready := Bool(false)
@@ -305,4 +305,13 @@ class TLRationalBundle(params: TLBundleParameters) extends TLBundleBase(params)
   val c = RationalIO(new TLBundleC(params))
   val d = RationalIO(new TLBundleD(params)).flip
   val e = RationalIO(new TLBundleE(params))
+}
+
+class TLCreditedBundle(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val a = CreditedIO(new TLBundleA(params))
+  val b = CreditedIO(new TLBundleB(params)).flip
+  val c = CreditedIO(new TLBundleC(params))
+  val d = CreditedIO(new TLBundleD(params)).flip
+  val e = CreditedIO(new TLBundleE(params))
 }

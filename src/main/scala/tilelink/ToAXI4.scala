@@ -8,7 +8,6 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.amba._
-import scala.math.{min, max}
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(width = 4)
@@ -24,16 +23,32 @@ case class AXI4TLStateField(sourceBits: Int) extends BundleField(AXI4TLState) {
   }
 }
 
-class TLtoAXI4IdMap(tl: TLMasterPortParameters, axi4: AXI4MasterPortParameters) 
-  extends IdMap[TLToAXI4IdMapEntry]
+/** TLtoAXI4IdMap serves as a record for the translation performed between id spaces.
+  *
+  * Its member [axi4Masters] is used as the new AXI4MasterParameters in diplomacy.
+  * Its member [mapping] is used as the template for the circuit generated in TLToAXI4Node.module.
+  */
+class TLtoAXI4IdMap(tlPort: TLMasterPortParameters) extends IdMap[TLToAXI4IdMapEntry]
 {
-  private val axiDigits = String.valueOf(axi4.endId-1).length()
-  private val tlDigits = String.valueOf(tl.endSourceId-1).length()
-  protected val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
-  private val sorted = tl.clients.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
+  val tlMasters = tlPort.masters.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
+  private val axi4IdSize = tlMasters.map { tl => if (tl.requestFifo) 1 else tl.sourceId.size }
+  private val axi4IdStart = axi4IdSize.scanLeft(0)(_+_).init
+  val axi4Masters = axi4IdStart.zip(axi4IdSize).zip(tlMasters).map { case ((start, size), tl) =>
+    AXI4MasterParameters(
+      name      = tl.name,
+      id        = IdRange(start, start+size),
+      aligned   = true,
+      maxFlight = Some(if (tl.requestFifo) tl.sourceId.size else 1),
+      nodePath  = tl.nodePath)
+  }
 
-  val mapping: Seq[TLToAXI4IdMapEntry] = (sorted zip axi4.masters) map { case (c, m) =>
-    TLToAXI4IdMapEntry(m.id, c.sourceId, c.name, c.supportsProbe, c.requestFifo)
+  private val axi4IdEnd = axi4Masters.map(_.id.end).max
+  private val axiDigits = String.valueOf(axi4IdEnd-1).length()
+  private val tlDigits = String.valueOf(tlPort.endSourceId-1).length()
+  protected val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
+
+  val mapping: Seq[TLToAXI4IdMapEntry] = tlMasters.zip(axi4Masters).map { case (tl, axi) =>
+    TLToAXI4IdMapEntry(axi.id, tl.sourceId, tl.name, tl.supports.probe, tl.requestFifo)
   }
 }
 
@@ -42,28 +57,13 @@ case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCa
 {
   val from = tlId
   val to = axi4Id
+  val maxTransactionsInFlight = Some(tlId.size)
 }
 
-case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
+case class TLToAXI4Node(wcorrupt: Boolean = true)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
-    p.clients.foreach { c =>
-      require (c.sourceId.start % (1 << stripBits) == 0 &&
-               c.sourceId.end   % (1 << stripBits) == 0,
-               s"Cannot strip bits of aligned client ${c.name}: ${c.sourceId}")
-    }
-    val clients = p.clients.sortWith(TLToAXI4.sortByType _)
-    val idSize = clients.map { c => if (c.requestFifo) 1 else (c.sourceId.size >> stripBits) }
-    val idStart = idSize.scanLeft(0)(_+_).init
-    val masters = ((idStart zip idSize) zip clients) map { case ((start, size), c) =>
-      AXI4MasterParameters(
-        name      = c.name,
-        id        = IdRange(start, start+size),
-        aligned   = true,
-        maxFlight = Some(if (c.requestFifo) c.sourceId.size else (1 << stripBits)),
-        nodePath  = c.nodePath)
-    }
     AXI4MasterPortParameters(
-      masters    = masters,
+      masters    = (new TLtoAXI4IdMap(p)).axi4Masters,
       requestFields = (if (wcorrupt) Seq(AMBACorruptField()) else Seq()) ++ p.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
       echoFields    = AXI4TLStateField(log2Ceil(p.endSourceId)) +: p.echoFields,
       responseKeys  = p.responseKeys)
@@ -91,7 +91,8 @@ case class TLToAXI4Node(stripBits: Int = 0, wcorrupt: Boolean = true)(implicit v
 // wcorrupt alone is not enough; a slave must include AMBACorrupt in the slave port's requestKeys
 class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0, val wcorrupt: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLToAXI4Node(stripBits, wcorrupt)
+  require(stripBits == 0, "stripBits > 0 is no longer supported on TLToAXI4")
+  val node = TLToAXI4Node(wcorrupt)
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
@@ -102,15 +103,15 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       slaves.foreach { s => require (s.interleavedId == slaves(0).interleavedId) }
 
       // Construct the source=>ID mapping table
-      val map = new TLtoAXI4IdMap(edgeIn.client, edgeOut.master)
+      val map = new TLtoAXI4IdMap(edgeIn.client)
       val sourceStall = Wire(Vec(edgeIn.client.endSourceId, Bool()))
       val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id))
       val idStall = Wire(init = Vec.fill(edgeOut.master.endId) { Bool(false) })
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
 
-      Annotated.idMapping(this, map.mapping).foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
+      map.mapping.foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
         for (i <- 0 until tlId.size) {
-          val id = axi4Id.start + (if (fifo) 0 else (i >> stripBits))
+          val id = axi4Id.start + (if (fifo) 0 else i)
           sourceStall(tlId.start + i) := idStall(id)
           sourceTable(tlId.start + i) := UInt(id)
         }
@@ -278,10 +279,10 @@ object TLToAXI4
   }
 
   def sortByType(a: TLMasterParameters, b: TLMasterParameters): Boolean = {
-    if ( a.supportsProbe && !b.supportsProbe) return false
-    if (!a.supportsProbe &&  b.supportsProbe) return true
-    if ( a.requestFifo   && !b.requestFifo  ) return false
-    if (!a.requestFifo   &&  b.requestFifo  ) return true
+    if ( a.supports.probe && !b.supports.probe) return false
+    if (!a.supports.probe &&  b.supports.probe) return true
+    if ( a.requestFifo    && !b.requestFifo   ) return false
+    if (!a.requestFifo    &&  b.requestFifo   ) return true
     return false
   }
 }

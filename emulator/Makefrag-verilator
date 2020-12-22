@@ -8,11 +8,11 @@ verilog = \
 
 .SECONDARY: $(firrtl) $(verilog)
 
-$(generated_dir)/%.fir $(generated_dir)/%.d: $(FIRRTL_JAR) $(chisel_srcs) $(bootrom_img)
+$(generated_dir)/%.fir $(generated_dir)/%.d: $(ROCKET_CHIP_JAR) $(bootrom_img)
 	mkdir -p $(dir $@)
-	cd $(base_dir) && $(SBT) "runMain $(PROJECT).Generator -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG) $(CHISEL_OPTIONS)"
+	cd $(base_dir) && $(GENERATOR) -td $(generated_dir) -T $(PROJECT).$(MODEL) -C $(CONFIG) $(CHISEL_OPTIONS)
 
-%.v %.conf: %.fir $(FIRRTL_JAR)
+%.v %.conf: %.fir $(ROCKET_CHIP_JAR)
 	mkdir -p $(dir $@)
 	$(FIRRTL) $(patsubst %,-i %,$(filter %.fir,$^)) \
     -o $*.v \

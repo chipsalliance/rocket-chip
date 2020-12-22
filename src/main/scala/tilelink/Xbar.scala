@@ -32,7 +32,7 @@ private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false,
 
 class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLNexusNode(
+  val node = new TLNexusNode(
     clientFn  = { seq =>
       seq(0).v1copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
@@ -62,7 +62,10 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
           )}
         }
       )
-    })
+    }
+  ){
+    override def circuitIdentity = outputs.size == 1 && inputs.size == 1
+  }
 
   lazy val module = new LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
@@ -77,7 +80,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
 
 class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLNexusNode_ACancel(
+  val node = new TLNexusNode_ACancel(
     clientFn  = { seq =>
       seq(0).v1copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
@@ -108,6 +111,9 @@ class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p
         }
       )
     })
+  {
+    override def circuitIdentity = outputs == 1 && inputs == 1
+  }
 
   lazy val module = new LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
@@ -122,7 +128,7 @@ class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p
 
 object TLXbar
 {
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]) {
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]): Unit = {
     val seqOut_ACancel = seqOut.map(sOut => (Wire(new TLBundle_ACancel(sOut._1.params)), sOut._2))
     val seqIn_ACancel = seqIn.map(sIn => (TLBundle_ACancel(sIn._1), sIn._2))
     TLXbar_ACancel.circuit(policy, seqIn_ACancel, seqOut_ACancel)
@@ -147,7 +153,7 @@ object TLXbar
     val ranges = (tuples zip starts) map { case ((sz, i), st) =>
       (if (sz == 0) IdRange(0,0) else IdRange(st, st+sz), i)
     }
-    ranges.sortBy(_._2).map(_._1) // Restore orignal order
+    ranges.sortBy(_._2).map(_._1) // Restore original order
   }
 
   def relabeler() = {
@@ -179,7 +185,7 @@ object TLXbar
 
 object TLXbar_ACancel
 {
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]) {
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]): Unit = {
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 

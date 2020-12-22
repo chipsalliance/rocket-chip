@@ -17,7 +17,7 @@ object DTS
   private val nodeStartChars = (('a' to 'z') ++ ('A' to 'Z')).toSet
   private val nodeChars = (('a' to 'z') ++ ('A' to 'Z') ++ ('0' to '9') ++ Seq(',', '.', '_', '+', '-', '@')).toSet
   def legalNode(x: String): Boolean =
-    x == "/" || (!x.isEmpty && x.size < 32 && nodeStartChars.contains(x(0)) && x.forall(nodeChars.contains(_)))
+    x == "/" || (!x.isEmpty && x.size < 48 && nodeStartChars.contains(x(0)) && x.forall(nodeChars.contains(_)))
 
   // the DTS spec does not list '-', but uses it everywhere ...
   private val propChars = (('a' to 'z') ++ ('A' to 'Z') ++ ('0' to '9') ++ Seq(',', '.', '_', '+', '?', '#', '-')).toSet

@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -14,8 +13,8 @@ case class SystemBusParams(
     blockBytes: Int,
     policy: TLArbiter.Policy = TLArbiter.roundRobin,
     dtsFrequency: Option[BigInt] = None,
-    zeroDevice: Option[AddressSet] = None,
-    errorDevice: Option[DevNullParams] = None,
+    zeroDevice: Option[BuiltInZeroDeviceParams] = None,
+    errorDevice: Option[BuiltInErrorDeviceParams] = None,
     replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams
@@ -33,7 +32,10 @@ class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p
     extends TLBusWrapper(params, name)
 {
   private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
-  val prefixNode = replicator.map(_.prefix)
+  val prefixNode = replicator.map { r =>
+    r.prefix := addressPrefixNexusNode
+    addressPrefixNexusNode
+  }
 
   private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
   val inwardNode: TLInwardNode = system_bus_xbar.node :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* replicator.map(_.node).getOrElse(TLTempNode())

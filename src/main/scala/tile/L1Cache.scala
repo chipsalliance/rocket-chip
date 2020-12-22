@@ -4,15 +4,14 @@ package freechips.rocketchip.tile
 
 import Chisel._
 
-import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.tilelink.ClientMetadata
-import freechips.rocketchip.util._
+import freechips.rocketchip.config.Parameters
 
 trait L1CacheParams {
   def nSets:         Int
   def nWays:         Int
   def rowBits:       Int
-  def nTLBEntries:   Int
+  def nTLBSets:      Int
+  def nTLBWays:      Int
   def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
@@ -31,7 +30,8 @@ trait HasL1CacheParameters extends HasTileParameters {
   def rowBits = cacheParams.rowBits
   def rowBytes = rowBits/8
   def rowOffBits = log2Up(rowBytes)
-  def nTLBEntries = cacheParams.nTLBEntries
+  def nTLBSets = cacheParams.nTLBSets
+  def nTLBWays = cacheParams.nTLBWays
 
   def cacheDataBits = tlBundleParams.dataBits
   def cacheDataBytes = cacheDataBits / 8

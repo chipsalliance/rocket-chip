@@ -1,7 +1,6 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -36,6 +35,16 @@ case class ClockAdapterNode(
 case class ClockIdentityNode()(implicit valName: ValName) extends IdentityNode(ClockImp)()
 
 case class ClockEphemeralNode()(implicit valName: ValName) extends EphemeralNode(ClockImp)()
+
+object ClockNameNode {
+  def apply(name: ValName) = ClockIdentityNode()(name)
+  def apply(name: Option[String]): ClockIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
+  def apply(name: String): ClockIdentityNode = apply(Some(name))
+}
+
+object ClockTempNode {
+  def apply(): ClockEphemeralNode = ClockEphemeralNode()(ValName("temp"))
+}
 
 object ClockSinkNode
 {

@@ -7,14 +7,16 @@ import chisel3.util.{DecoupledIO, log2Ceil, Cat, RegEnable}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLAdapterNode(
+  private def noChangeRequired(manager: TLManagerPortParameters) = manager.beatBytes == innerBeatBytes
+  val node = new TLAdapterNode(
     clientFn  = { case c => c },
-    managerFn = { case m => m.v1copy(beatBytes = innerBeatBytes) })
+    managerFn = { case m => m.v1copy(beatBytes = innerBeatBytes) }){
+    override def circuitIdentity = edges.out.map(_.manager).forall(noChangeRequired)
+  }
 
   lazy val module = new LazyModuleImp(this) {
     def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {

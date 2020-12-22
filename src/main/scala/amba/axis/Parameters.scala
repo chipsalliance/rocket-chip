@@ -1,7 +1,6 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.amba.axis
 
-import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
@@ -61,7 +60,7 @@ class AXISSlavePortParameters private (
   beatBytes.foreach { b => require(isPow2(b)) }
 
   val endDestinationId = slaves.map(_.destinationId).max + 1
-  val supportsCover = TransferSizes.cover(slaves.map(_.supportsSizes))
+  val supportsMinCover = TransferSizes.mincover(slaves.map(_.supportsSizes))
 
   def v1copy(
     slaves:        Seq[AXISSlaveParameters] = slaves,
@@ -146,7 +145,7 @@ class AXISMasterPortParameters private (
   beatBytes.foreach { b => require(isPow2(b)) }
 
   val endSourceId = masters.map(_.sourceId.end).max
-  val emitsCover = TransferSizes.cover(masters.map(_.emitsSizes))
+  val emitsMinCover = TransferSizes.mincover(masters.map(_.emitsSizes))
 
   def v1copy(
     masters:      Seq[AXISMasterParameters] = masters,
@@ -272,7 +271,7 @@ class AXISEdgeParameters private (
   require (!slave.reqContinuous || master.isContinuous, s"Slave port requires continuous stream data at ${sourceInfo}")
 
   val beatBytes = slave.beatBytes.getOrElse(master.beatBytes.get)
-  val transferSizes = master.emitsCover intersect slave.supportsCover
+  val transferSizes = master.emitsMinCover intersect slave.supportsMinCover
 
   val bundle = AXISBundleParameters.v1(
     idBits      = log2Ceil(master.endSourceId),

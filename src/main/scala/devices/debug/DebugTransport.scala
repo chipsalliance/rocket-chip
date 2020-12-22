@@ -9,7 +9,6 @@ import chisel3.experimental.chiselName
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
-import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 
 

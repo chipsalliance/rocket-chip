@@ -6,7 +6,6 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.random.LFSR
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
 object TLArbiter
@@ -15,6 +14,8 @@ object TLArbiter
   type Policy = (Integer, UInt, Bool) => UInt
 
   val lowestIndexFirst: Policy = (width, valids, select) => ~(leftOR(valids) << 1)(width-1, 0)
+
+  val highestIndexFirst: Policy = (width, valids, select) => ~((rightOR(valids) >> 1).pad(width))
 
   val roundRobin: Policy = (width, valids, select) => if (width == 1) 1.U(1.W) else {
     val valid = valids(width-1, 0)
@@ -29,31 +30,39 @@ object TLArbiter
     readys(width-1, 0)
   }
 
-  def lowestFromSeq[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: Seq[DecoupledIO[T]]) {
+  def lowestFromSeq[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: Seq[DecoupledIO[T]]): Unit = {
     apply(lowestIndexFirst)(sink, sources.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def lowestFromSeq[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: Seq[ReadyValidCancel[T]]) {
+  def lowestFromSeq[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: Seq[ReadyValidCancel[T]]): Unit = {
     applyCancel(lowestIndexFirst)(sink, sources.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def lowest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*) {
+  def lowest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*): Unit = {
     apply(lowestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def lowest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*) {
+  def lowest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*): Unit = {
     applyCancel(lowestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def robin[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*) {
+  def highest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*): Unit = {
+    apply(highestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
+  }
+
+  def highest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*): Unit = {
+    applyCancel(highestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
+  }
+
+  def robin[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*): Unit = {
     apply(roundRobin)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def robin[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*) {
+  def robin[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*): Unit = {
     applyCancel(roundRobin)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*) {
+  def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*): Unit = {
     val sink_ACancel = Wire(new ReadyValidCancel(chiselTypeOf(sink.bits)))
     val sources_ACancel = sources.map(s => (s._1, ReadyValidCancel(s._2)))
     applyCancel(policy = policy)(
@@ -62,7 +71,7 @@ object TLArbiter
     sink :<> sink_ACancel.asDecoupled()
   }
 
-  def applyCancel[T <: Data](policy: Policy)(sink: ReadyValidCancel[T], sources: (UInt, ReadyValidCancel[T])*) {
+  def applyCancel[T <: Data](policy: Policy)(sink: ReadyValidCancel[T], sources: (UInt, ReadyValidCancel[T])*): Unit = {
     if (sources.isEmpty) {
       sink.earlyValid := false.B
       sink.lateCancel := DontCare
@@ -123,28 +132,91 @@ object TLArbiter
 /** Synthesizeable unit tests */
 import freechips.rocketchip.unittest._
 
-class TestRobin(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val sources = Wire(Vec(6, DecoupledIO(UInt(3.W))))
-  val sink = Wire(DecoupledIO(UInt(3.W)))
-  val count = RegInit(0.U(8.W))
-
+abstract class DecoupledArbiterTest(
+    policy: TLArbiter.Policy,
+    txns: Int,
+    timeout: Int,
+    val numSources: Int,
+    beatsLeftFromIdx: Int => UInt)
+    (implicit p: Parameters) extends UnitTest(timeout)
+{
+  val sources = Wire(Vec(numSources, DecoupledIO(UInt(log2Ceil(numSources).W))))
+  dontTouch(sources.suggestName("sources"))
+  val sink = Wire(DecoupledIO(UInt(log2Ceil(numSources).W)))
+  dontTouch(sink.suggestName("sink"))
+  val count = RegInit(0.U(log2Ceil(txns).W))
   val lfsr = LFSR(16, true.B)
-  val valid = lfsr(0)
-  val ready = lfsr(15)
 
   sources.zipWithIndex.map { case (z, i) => z.bits := i.U }
-  sources(0).valid := valid
-  sources(1).valid := false.B
-  sources(2).valid := valid
-  sources(3).valid := valid
-  sources(4).valid := false.B
-  sources(5).valid := valid
-  sink.ready := ready
 
-  TLArbiter(TLArbiter.roundRobin)(sink, sources.zipWithIndex.map { case (z, i) => (i.U, z) }:_*)
-  when (sink.fire()) { printf("TestRobin: %d\n", sink.bits) }
-  when (!sink.fire()) { printf("TestRobin: idle (%d %d)\n", valid, ready) }
+  TLArbiter(policy)(sink, sources.zipWithIndex.map {
+    case (z, i) => (beatsLeftFromIdx(i), z)
+  }:_*)
 
   count := count + 1.U
   io.finished := count >= txns.U
+}
+
+/** This tests that when a specific pattern of source valids are driven,
+  * a new index from amongst that pattern is always selected,
+  * unless one of those sources takes multiple beats,
+  * in which case the same index should be selected until the arbiter goes idle.
+  */
+class TLDecoupledArbiterRobinTest(txns: Int = 128, timeout: Int = 500000, print: Boolean = false)
+                        (implicit p: Parameters)
+    extends DecoupledArbiterTest(TLArbiter.roundRobin, txns, timeout, 6, i => i.U)
+{
+  val lastWinner = RegInit((numSources+1).U)
+  val beatsLeft  = RegInit(0.U(log2Ceil(numSources).W))
+  val first = lastWinner > numSources.U
+  val valid = lfsr(0)
+  val ready = lfsr(15)
+  sink.ready := ready
+  sources.zipWithIndex.map { // pattern: every even-indexed valid is driven the same random way
+    case (s, i) => s.valid := (if (i % 2 == 1) false.B else valid)
+  }
+
+  when (sink.fire()) {
+    if (print) { printf("TestRobin: %d\n", sink.bits) }
+    when (beatsLeft === 0.U) {
+      assert(lastWinner =/= sink.bits, "Round robin did not pick a new idx despite one being valid.")
+      lastWinner := sink.bits
+      beatsLeft := sink.bits
+    } .otherwise {
+      assert(lastWinner === sink.bits, "Round robin did not pick the same index over multiple beats")
+      beatsLeft := beatsLeft - 1.U
+    }
+  }
+  if (print) {
+    when (!sink.fire()) { printf("TestRobin: idle (%d %d)\n", valid, ready) }
+  }
+}
+/** This tests that the lowest index is always selected across random single cycle transactions. */
+class TLDecoupledArbiterLowestTest(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters)
+    extends DecoupledArbiterTest(TLArbiter.lowestIndexFirst, txns, timeout, 15, _ => 0.U)
+{
+  def assertLowest(id: Int): Unit = {
+    when (sources(id).valid) {
+      assert((numSources-1 until id by -1).map(!sources(_).fire).foldLeft(true.B)(_&&_), s"$id was valid but a higher valid source was granted ready.")
+    }
+  }
+
+  sources.zipWithIndex.map { case (s, i) => s.valid := lfsr(i) }
+  sink.ready := lfsr(15)
+  when (sink.fire()) { (0 until numSources).foreach(assertLowest(_)) }
+}
+
+/** This tests that the highest index is always selected across random single cycle transactions. */
+class TLDecoupledArbiterHighestTest(txns: Int = 128, timeout: Int = 500000)(implicit p: Parameters)
+    extends DecoupledArbiterTest(TLArbiter.highestIndexFirst, txns, timeout, 15, _ => 0.U)
+{
+  def assertHighest(id: Int): Unit = {
+    when (sources(id).valid) {
+      assert((0 until id).map(!sources(_).fire).foldLeft(true.B)(_&&_), s"$id was valid but a lower valid source was granted ready.")
+    }
+  }
+
+  sources.zipWithIndex.map { case (s, i) => s.valid := lfsr(i) }
+  sink.ready := lfsr(15)
+  when (sink.fire()) { (0 until numSources).foreach(assertHighest(_)) }
 }

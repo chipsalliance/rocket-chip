@@ -6,12 +6,16 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.amba.AMBAProt
-import scala.math.{min,max}
 import TLMessages._
 
-class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters) extends LazyModule
+case class TLCacheCorkParams(
+  unsafe: Boolean = false,
+  sinkIds: Int = 8)
+
+class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: Parameters) extends LazyModule
 {
+  val unsafe = params.unsafe
+  val sinkIds = params.sinkIds
   val node = TLAdapterNode(
     clientFn  = { case cp =>
       cp.v1copy(clients = cp.clients.map { c => c.v1copy(
@@ -22,7 +26,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
         endSinkId = if (mp.managers.exists(_.regionType == RegionType.UNCACHED)) sinkIds else 0,
         managers = mp.managers.map { m => m.v1copy(
           supportsAcquireB = if (m.regionType == RegionType.UNCACHED) m.supportsGet     else m.supportsAcquireB,
-          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.supportsAcquireT,
+          supportsAcquireT = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull.intersect(m.supportsGet) else m.supportsAcquireT,
           alwaysGrantsT    = if (m.regionType == RegionType.UNCACHED) m.supportsPutFull else m.alwaysGrantsT)})})
 
   lazy val module = new LazyModuleImp(this) {
@@ -32,7 +36,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
         out <> in
       } else {
         val clients = edgeIn.client.clients
-        val caches = clients.filter(_.supportsProbe)
+        val caches = clients.filter(_.supports.probe)
         require (clients.size == 1 || caches.size == 0 || unsafe, s"Only one client can safely use a TLCacheCork; ${clients.map(_.name)}")
         require (caches.size <= 1 || unsafe, s"Only one caching client allowed; ${clients.map(_.name)}")
         edgeOut.manager.managers.foreach { case m =>
@@ -92,15 +96,7 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
           lgSize     = in.c.bits.size,
           data       = in.c.bits.data,
           corrupt    = in.c.bits.corrupt)._2
-        c_a.bits.user.lift(AMBAProt).foreach { x =>
-          x.fetch       := false.B
-          x.secure      := true.B
-          x.privileged  := true.B
-          x.bufferable  := true.B
-          x.modifiable  := true.B
-          x.readalloc   := true.B
-          x.writealloc  := true.B
-        }
+        c_a.bits.user :<= in.c.bits.user
 
         // Releases without Data succeed instantly
         val c_d = Wire(in.d)
@@ -176,9 +172,13 @@ class TLCacheCork(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Paramet
 
 object TLCacheCork
 {
+  def apply(params: TLCacheCorkParams)(implicit p: Parameters): TLNode =
+  {
+    val cork = LazyModule(new TLCacheCork(params))
+    cork.node
+  }
   def apply(unsafe: Boolean = false, sinkIds: Int = 8)(implicit p: Parameters): TLNode =
   {
-    val cork = LazyModule(new TLCacheCork(unsafe, sinkIds))
-    cork.node
+    apply(TLCacheCorkParams(unsafe, sinkIds))
   }
 }

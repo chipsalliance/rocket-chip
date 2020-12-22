@@ -4,7 +4,8 @@ package freechips.rocketchip.transforms.naming
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.propspec.AnyPropSpec
 
 import freechips.rocketchip.linting.rule.DesiredNameAnnotation
 
@@ -16,7 +17,7 @@ case class UnstableNameAnnotation(target: IsModule) extends SingleTargetAnnotati
   def duplicate(newTarget: IsModule): UnstableNameAnnotation = this.copy(target = newTarget)
 }
 
-class RenameDesiredNamesSpec extends FirrtlPropSpec with FirrtlMatchers {
+class RenameDesiredNamesSpec extends AnyPropSpec with Matchers {
   val transform = new RenameDesiredNames
 
   case class TestCase(

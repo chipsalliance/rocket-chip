@@ -9,9 +9,7 @@ import chisel3.{withClock,withReset}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -59,15 +57,15 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val perf = new FrontendPerfEvents().asInput
 }
 
-class Frontend(val icacheParams: ICacheParams, hartid: Int)(implicit p: Parameters) extends LazyModule {
+class Frontend(val icacheParams: ICacheParams, staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
-  val icache = LazyModule(new ICache(icacheParams, hartid))
+  val icache = LazyModule(new ICache(icacheParams, staticIdForMetadataUseOnly))
   val masterNode = icache.masterNode
   val slaveNode = icache.slaveNode
+  val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(masterNode.edges.out.head.bundle.addressBits.W)))
 }
 
-class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p)
-    with HasExternallyDrivenTileConstants {
+class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p) {
   val cpu = new FrontendIO().flip
   val ptw = new TLBPTWIO()
   val errors = new ICacheErrors
@@ -78,6 +76,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasRocketCoreParameters
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
+  val io_reset_vector = outer.resetVectorSinkNode.bundle
   implicit val edge = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
@@ -96,7 +95,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.clock_enabled := clock_en
   withClock (gated_clock) { // entering gated-clock domain
 
-  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBEntries)))
+  val tlb = Module(new TLB(true, log2Ceil(fetchBytes), TLBConfig(nTLBSets, nTLBWays, outer.icacheParams.nTLBBasePageSectors, outer.icacheParams.nTLBSuperpages)))
 
   val s1_valid = Reg(Bool())
   val s2_valid = RegInit(false.B)
@@ -108,7 +107,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   s1_valid := s0_valid
   val s1_pc = Reg(UInt(width=vaddrBitsExtended))
   val s1_speculative = Reg(Bool())
-  val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io.reset_vector))
+  val s2_pc = RegInit(t = UInt(width = vaddrBitsExtended), alignPC(io_reset_vector))
   val s2_btb_resp_valid = if (usingBTB) Reg(Bool()) else false.B
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_btb_taken = s2_btb_resp_valid && s2_btb_resp_bits.taken
@@ -117,7 +116,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_speculative = Reg(init=Bool(false))
   val s2_partial_insn_valid = RegInit(false.B)
   val s2_partial_insn = Reg(UInt(width = coreInstBits))
-  val wrong_path = Reg(Bool())
+  val wrong_path = RegInit(false.B)
 
   val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
   val ntpc = s1_base_pc + fetchBytes.U
@@ -153,7 +152,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.sfence := io.cpu.sfence
   tlb.io.kill := !s2_valid
 
-  icache.io.hartid := io.hartid
   icache.io.req.valid := s0_valid
   icache.io.req.bits.addr := io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
@@ -349,9 +347,12 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend(tileParams.icache.get, hartId))
+  val frontend = LazyModule(new Frontend(tileParams.icache.get, staticIdForMetadataUseOnly))
   tlMasterXbar.node := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
+  frontend.icache.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode }
+  frontend.icache.mmioAddressPrefixSinkNodeOpt.foreach { _ := mmioAddressPrefixNexusNode }
+  frontend.resetVectorSinkNode := resetVectorNexusNode
   nPTWPorts += 1
 
   // This should be a None in the case of not having an ITIM address, when we

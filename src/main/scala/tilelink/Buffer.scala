@@ -5,7 +5,6 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import scala.math.{min,max}
 
 class TLBufferNode (
   a: BufferParams,
@@ -17,7 +16,7 @@ class TLBufferNode (
     managerFn = { p => p.v1copy(minLatency = p.minLatency + a.latency + d.latency) }
 ) {
   override lazy val nodedebugstring = s"a:${a.toString}, b:${b.toString}, c:${c.toString}, d:${d.toString}, e:${e.toString}"
-
+  override def circuitIdentity = List(a,b,c,d,e).forall(_ == BufferParams.none)
 }
 
 class TLBuffer(
@@ -93,7 +92,7 @@ class TLBufferNodeAndNotCancel (
     managerFn = { p => p.v1copy(minLatency = p.minLatency + a.latency + d.latency) }
 ) {
   override lazy val nodedebugstring = s"a:${a.toString}, b:${b.toString}, c:${c.toString}, d:${d.toString}, e:${e.toString}"
-
+  override def circuitIdentity = List(a,b,c,d,e).forall(_ == BufferParams.none)
 }
 
 class TLBufferAndNotCancel(

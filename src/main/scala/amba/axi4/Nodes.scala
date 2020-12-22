@@ -16,7 +16,7 @@ object AXI4Imp extends SimpleNodeImp[AXI4MasterPortParameters, AXI4SlavePortPara
   def bundle(e: AXI4EdgeParameters) = AXI4Bundle(e.bundle)
   def render(e: AXI4EdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label  = (e.slave.beatBytes * 8).toString)
 
-  override def monitor(bundle: AXI4Bundle, edge: AXI4EdgeParameters) {
+  override def monitor(bundle: AXI4Bundle, edge: AXI4EdgeParameters): Unit = {
     edge.params.lift(AXI4MonitorBuilder).foreach { builder =>
       val monitor = Module(builder(AXI4MonitorArgs(edge)))
       monitor.io.in := bundle
@@ -77,4 +77,40 @@ object AXI4AsyncNameNode {
   def apply(name: ValName) = AXI4AsyncIdentityNode()(name)
   def apply(name: Option[String]): AXI4AsyncIdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
   def apply(name: String): AXI4AsyncIdentityNode = apply(Some(name))
+}
+
+object AXI4CreditedImp extends SimpleNodeImp[AXI4CreditedMasterPortParameters, AXI4CreditedSlavePortParameters, AXI4CreditedEdgeParameters, AXI4CreditedBundle]
+{
+  def edge(pd: AXI4CreditedMasterPortParameters, pu: AXI4CreditedSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXI4CreditedEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: AXI4CreditedEdgeParameters) = new AXI4CreditedBundle(e.bundle)
+  def render(e: AXI4CreditedEdgeParameters) = RenderedEdge(colour = "#ffff00" /* yellow */, label = e.delay.toString)
+
+  override def mixO(pd: AXI4CreditedMasterPortParameters, node: OutwardNode[AXI4CreditedMasterPortParameters, AXI4CreditedSlavePortParameters, AXI4CreditedBundle]): AXI4CreditedMasterPortParameters  =
+   pd.copy(base = pd.base.copy(masters = pd.base.masters.map  { c => c.copy (nodePath = node +: c.nodePath) }))
+  override def mixI(pu: AXI4CreditedSlavePortParameters, node: InwardNode[AXI4CreditedMasterPortParameters, AXI4CreditedSlavePortParameters, AXI4CreditedBundle]): AXI4CreditedSlavePortParameters =
+   pu.copy(base = pu.base.copy(slaves  = pu.base.slaves.map { m => m.copy (nodePath = node +: m.nodePath) }))
+}
+
+case class AXI4CreditedSourceNode(delay: AXI4CreditedDelay)(implicit valName: ValName)
+  extends MixedAdapterNode(AXI4Imp, AXI4CreditedImp)(
+    dFn = { p => AXI4CreditedMasterPortParameters(delay, p) },
+    uFn = { p => p.base.copy(minLatency = 1) })
+
+case class AXI4CreditedSinkNode(delay: AXI4CreditedDelay)(implicit valName: ValName)
+  extends MixedAdapterNode(AXI4CreditedImp, AXI4Imp)(
+    dFn = { p => p.base },
+    uFn = { p => AXI4CreditedSlavePortParameters(delay, p) })
+
+case class AXI4CreditedAdapterNode(
+  masterFn: AXI4CreditedMasterPortParameters => AXI4CreditedMasterPortParameters = { s => s },
+  slaveFn:  AXI4CreditedSlavePortParameters  => AXI4CreditedSlavePortParameters  = { s => s })(
+  implicit valName: ValName)
+  extends AdapterNode(AXI4CreditedImp)(masterFn, slaveFn)
+
+case class AXI4CreditedIdentityNode()(implicit valName: ValName) extends IdentityNode(AXI4CreditedImp)()
+
+object AXI4CreditedNameNode {
+  def apply(name: ValName) = AXI4CreditedIdentityNode()(name)
+  def apply(name: Option[String]): AXI4CreditedIdentityNode = apply((ValName(name.getOrElse("with_no_name"))))
+  def apply(name: String): AXI4CreditedIdentityNode = apply(Some(name))
 }

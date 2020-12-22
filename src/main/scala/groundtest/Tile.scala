@@ -6,12 +6,10 @@ package freechips.rocketchip.groundtest
 import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{DCache, ICacheParams, NonBlockingDCache, RocketCoreParams}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import scala.collection.mutable.ListBuffer
 
 trait GroundTestTileParams extends TileParams {
   val memStart: BigInt
@@ -38,17 +36,20 @@ abstract class GroundTestTile(
   val cpuDevice: SimpleDevice = new SimpleDevice("groundtest", Nil)
   val intOutwardNode: IntOutwardNode = IntIdentityNode()
   val slaveNode: TLInwardNode = TLIdentityNode()
+  val statusNode = BundleBridgeSource(() => new GroundTestStatus)
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(
-    if (dc.nMSHRs == 0) new DCache(hartId, crossing)
-    else new NonBlockingDCache(hartId))
-  }
+    if (dc.nMSHRs == 0) new DCache(staticIdForMetadataUseOnly, crossing)
+    else new NonBlockingDCache(staticIdForMetadataUseOnly)
+  )}
+
+  dcacheOpt.foreach { _.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode } }
 
   override lazy val module = new GroundTestTileModuleImp(this)
 }
 
 class GroundTestTileModuleImp(outer: GroundTestTile) extends BaseTileModuleImp(outer) {
-  val status = IO(new GroundTestStatus)
+  val status = outer.statusNode.bundle
   val halt_and_catch_fire = None
 
   outer.dcacheOpt foreach { dcache =>

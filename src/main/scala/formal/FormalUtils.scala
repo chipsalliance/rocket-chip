@@ -130,7 +130,7 @@ object SourceGet {
 object ResetUtils {
   def inactive_output_override[T <: Data](inactive_length: Int)
                                          (sigs: T,
-                                          override_assn: (T)=>Unit) {
+                                          override_assn: (T)=>Unit): Unit = {
     require(inactive_length >= 0)
 
     if(inactive_length>0) {

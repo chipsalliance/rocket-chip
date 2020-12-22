@@ -1,8 +1,6 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -10,6 +8,9 @@ case class ClockGroupNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(
     dFn = { _ => ClockSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq) })
+{
+  override def circuitIdentity = outputs.size == 1
+}
 
 class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 {
@@ -22,7 +23,7 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
     require (node.in.size == 1)
     require (in.member.size == out.size)
 
-    (in.member zip out) foreach { case (i, o) => o := i }
+    (in.member.data zip out) foreach { case (i, o) => o := i }
   }
 }
 
@@ -35,6 +36,9 @@ case class ClockGroupAggregateNode(groupName: String)(implicit valName: ValName)
   extends NexusNode(ClockGroupImp)(
     dFn = { _ => ClockGroupSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq.flatMap(_.members))})
+{
+  override def circuitIdentity = outputs.size == 1
+}
 
 class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends LazyModule
 {
@@ -43,11 +47,11 @@ class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends La
   lazy val module = new LazyRawModuleImp(this) {
     val (in, _) = node.in.unzip
     val (out, _) = node.out.unzip
-    val outputs = out.flatMap(_.member)
+    val outputs = out.flatMap(_.member.data)
 
     require (node.in.size == 1)
     require (in.head.member.size == outputs.size)
-    in.head.member.zip(outputs).foreach { case (i, o) => o := i }
+    in.head.member.data.zip(outputs).foreach { case (i, o) => o := i }
   }
 }
 
@@ -61,9 +65,12 @@ class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extend
   val node = ClockGroupSourceNode(List.fill(numSources) { ClockGroupSourceParameters() })
 
   lazy val module = new LazyModuleImp(this) {
+
     val (out, _) = node.out.unzip
-    val outputs = out.flatMap(_.member)
-    outputs.foreach { o => o.clock := clock; o.reset := reset }
+    out.map { out: ClockGroupBundle =>
+      out.member.data.foreach { o =>
+        o.clock := clock; o.reset := reset }
+    }
   }
 }
 
@@ -82,12 +89,14 @@ case class FixedClockBroadcastNode(fixedClockOpt: Option[ClockParameters])(impli
 
 class FixedClockBroadcast(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters) extends LazyModule
 {
-  val node = FixedClockBroadcastNode(fixedClockOpt)
+  val node = new FixedClockBroadcastNode(fixedClockOpt) {
+    override def circuitIdentity = outputs.size == 1
+  }
 
   lazy val module = new LazyRawModuleImp(this) {
     val (in, _) = node.in(0)
     val (out, _) = node.out.unzip
-    require (node.in.size == 1)
+    require (node.in.size == 1, "FixedClockBroadcast can only broadcast a single clock")
     out.foreach { _ := in }
   }
 }

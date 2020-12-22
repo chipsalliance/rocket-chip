@@ -16,7 +16,7 @@ import freechips.rocketchip.util._
   */
 
 class TLClockBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
-    extends TLBusBypassBase(params.deviceBeatBytes, params.deadlock)
+    extends TLBusBypassBase(params.blockedBeatBytes, params.deadlock)
 {
   val device = new SimpleDevice("clock-blocker", Seq("sifive,clock-blocker0"))
 

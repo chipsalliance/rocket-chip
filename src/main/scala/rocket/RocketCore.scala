@@ -12,7 +12,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import freechips.rocketchip.scie._
-import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(
@@ -29,6 +28,8 @@ case class RocketCoreParams(
   nLocalInterrupts: Int = 0,
   nBreakpoints: Int = 1,
   useBPWatch: Boolean = false,
+  mcontextWidth: Int = 0,
+  scontextWidth: Int = 0,
   nPMPs: Int = 8,
   nPerfCounters: Int = 0,
   haveBasicCounters: Boolean = true,
@@ -319,6 +320,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   bpu.io.bp := csr.io.bp
   bpu.io.pc := ibuf.io.pc
   bpu.io.ea := mem_reg_wdata
+  bpu.io.mcontext := csr.io.mcontext
+  bpu.io.scontext := csr.io.scontext
 
   val id_xcpt0 = ibuf.io.inst(0).bits.xcpt0
   val id_xcpt1 = ibuf.io.inst(0).bits.xcpt1
@@ -681,6 +684,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.hartid := io.hartid
   io.fpu.fcsr_rm := csr.io.fcsr_rm
   csr.io.fcsr_flags := io.fpu.fcsr_flags
+  io.fpu.time := csr.io.time(31,0)
+  io.fpu.hartid := io.hartid
   csr.io.rocc_interrupt := io.rocc.interrupt
   csr.io.pc := wb_reg_pc
   val tval_valid = wb_xcpt && wb_cause.isOneOf(Causes.illegal_instruction, Causes.breakpoint,
@@ -832,6 +837,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.signed := !ex_reg_inst(14)
   io.dmem.req.bits.phys := Bool(false)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
+  io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := csr.io.status.dprv
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
@@ -847,7 +853,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
   // gate the clock
-  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || io.dmem.perf.release || take_pc
+  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || csr.io.inhibit_cycle || io.dmem.perf.release || take_pc
   when (unpause) { id_reg_pause := false }
   io.cease := csr.io.status.cease && !clock_en_reg
   io.wfi := csr.io.status.wfi
@@ -869,7 +875,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
-  val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen))
+  val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 
   coreMonitorBundle.clock := clock
   coreMonitorBundle.reset := reset
@@ -930,6 +936,27 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
          coreMonitorBundle.inst, coreMonitorBundle.inst)
     }
   }
+
+  // CoreMonitorBundle for late latency writes
+  val xrfWriteBundle = Wire(new CoreMonitorBundle(xLen, fLen))
+
+  xrfWriteBundle.clock := clock
+  xrfWriteBundle.reset := reset
+  xrfWriteBundle.hartid := io.hartid
+  xrfWriteBundle.timer := csr.io.time(31,0)
+  xrfWriteBundle.valid := false.B
+  xrfWriteBundle.pc := 0.U
+  xrfWriteBundle.wrdst := rf_waddr
+  xrfWriteBundle.wrenx := rf_wen && !(csr.io.trace(0).valid && wb_wen && (wb_waddr === rf_waddr))
+  xrfWriteBundle.wrenf := false.B
+  xrfWriteBundle.wrdata := rf_wdata
+  xrfWriteBundle.rd0src := 0.U
+  xrfWriteBundle.rd0val := 0.U
+  xrfWriteBundle.rd1src := 0.U
+  xrfWriteBundle.rd1val := 0.U
+  xrfWriteBundle.inst := 0.U
+  xrfWriteBundle.excpt := false.B
+  xrfWriteBundle.priv_mode := csr.io.trace(0).priv
 
   PlusArg.timeout(
     name = "max_core_cycles",

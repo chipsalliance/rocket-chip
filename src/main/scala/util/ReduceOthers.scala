@@ -35,7 +35,7 @@ object ReduceOthers {
     }
   }
   // Take pairs of (output_wire, input_bool)
-  def apply(x: Seq[(Bool, Bool)]) {
+  def apply(x: Seq[(Bool, Bool)]): Unit = {
     (x.map(_._1) zip apply(x.map(_._2))) foreach { case (w, x) => w := x }
   }
   private def helper(x: Seq[Bool]): (Seq[Bool], Bool) = {

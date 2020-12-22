@@ -3,7 +3,6 @@
 
 package freechips.rocketchip.groundtest
 
-import Chisel._
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.devices.tilelink.{CLINTKey, PLICKey}
 import freechips.rocketchip.devices.debug.{DebugModuleKey}
@@ -31,6 +30,7 @@ class GroundTestBaseConfig extends Config(
     case DebugModuleKey => None
     case CLINTKey => None
     case PLICKey => None
+    case SubsystemExternalResetVectorKey => true
   })
 )
 

@@ -31,11 +31,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - id: cache
-        # We use an unreleased version of the cache action that adds support for
-        # multiple paths to cache. This can be changed to a normal version
-        # number (likely v2) once it is released. See
-        # https://github.com/actions/cache/pull/212
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ./regression/install
@@ -44,24 +40,7 @@ jobs:
 
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            autotools-dev \
-            bison \
-            build-essential \
-            device-tree-compiler \
-            flex \
-            g++-4.8 \
-            gawk \
-            gcc-4.8 \
-            gperf \
-            libgmp-dev \
-            libmpc-dev \
-            libmpfr-dev \
-            libusb-1.0-0-dev \
-            texinfo
+        run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
 
       - if: steps.cache.outputs.cache-hit != 'true'
         env:
@@ -76,9 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-      - uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+      - uses: actions/cache@v2
         with:
           path: ./emulator/verilator
           key: verilator-${{ hashFiles('./verilator.hash') }}-v1
@@ -88,7 +65,7 @@ jobs:
       # some C struct not being ABI-compatible across gcc 4 and 5, which we have
       # not debugged yet.
       - name: Install Dependencies
-        run: sudo apt-get install -y autoconf bison flex g++-4.8 gcc-4.8
+        run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
 
       - env:
           CXX: g++-4.8
@@ -103,9 +80,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Use SBT Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ~/.cache/coursier
@@ -123,14 +98,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        bucket: [1, 2, 3, 4, 5, 6, 7, 8]
+        bucket: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v2
 
       - name: Use riscv-tools Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ./regression/install
@@ -138,17 +111,13 @@ jobs:
           key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
 
       - name: Use Verilator Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: ./emulator/verilator
           key: verilator-${{ hashFiles('./verilator.hash') }}-v1
 
       - name: Use SBT Cache
-        # TODO: Use v2 once it is released. See the first occurrance of
-        # actions/cache in this file for more details.
-        uses: actions/cache@9ab95382c899bf0953a0c6c1374373fc40456ffe
+        uses: actions/cache@v2
         with:
           path: |
             ~/.cache/coursier
@@ -157,10 +126,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get install -y \
-            device-tree-compiler \
-            g++-4.8 \
-            gcc-4.8
+          sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
           python3 -m pip install pexpect==4.3.1
 
       - env:

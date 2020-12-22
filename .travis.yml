@@ -104,3 +104,7 @@ jobs:
       name: Scala tests
       script:
         - ./regression/run-test-bucket 8
+    - <<: *test*
+      name: Scala tests
+      script:
+        - ./regression/run-test-bucket 9

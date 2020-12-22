@@ -8,6 +8,7 @@ Thank you for your interest in contributing to Rocket Chip!
 + [Submitting a PR](#submitting)
 + [Conditions for Merging a PR](#merging)
 + [Bumping Submodules](#bumping)
++ [Bumping Chisel and FIRRTL](#bumping-chisel)
 
 ### <a name="submitting"></a> Submitting a PR
 
@@ -28,15 +29,13 @@ Currently, the requirements for merging a PR are:
 
 Several projects are managed as git submodules as well as [Wit](https://github.com/sifive/wit) dependencies.
 
-### When to bump
+#### When to bump
 
 Most projects will be bumped by developers as needed; however,
 sometimes users may wish to speed up the bumping process.
-For more stable projects like Chisel 3 and FIRRTL,
-please only bump to stable branches as defined by the specific subproject.
-As of March 2020 these branches are `3.2.x` in Chisel 3 and `1.2.x` in FIRRTL.
+For Chisel 3 and FIRRTL, please see the instructions in [Bumping Chisel and FIRRTL](#bumping-chisel).
 
-### How to bump
+#### How to bump
 
 1. Bump the Git submodule
 
@@ -72,3 +71,40 @@ major feature or performance improvements in your commit message.
 4. Open a Pull Request on Github
 
 Please see the Github documentation for [Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/proposing-changes-to-your-work-with-pull-requests)
+
+### <a name="bumping-chisel"></a> Bumping Chisel and FIRRTL
+
+Because Chisel and FIRRTL have mature release processes, Rocket Chip uses the published artifacts when possible.
+However, Rocket Chip maintains the ability to easily switch to building Chisel and FIRRTL from source.
+This support is useful for long-lived tapeout branches and forks that may stuck on old versions of Chisel or FIRRTL with tapeout-specific bugfixes or hacks.
+
+_Whether Rocket Chip is building Chisel and FIRRTL from published artifacts or from source is a property of a given commit_.
+Users should *not* be changing this behavior locally; it should only be changed as part of bumping the dependencies.
+
+In order to support switching between building against both source and published version of Chisel 3 and FIRRTL,
+Rocket Chip uses an SBT plugin that it configures via JVM system properties.
+This flow is described in the [Chisel README](https://github.com/freechipsproject/chisel3#building-chisel-with-firrtl-in-the-same-sbt-project).
+
+When a file named `.sbtopts` exists in the root of this repository, it means Rocket Chip is configured to build Chisel 3 and FIRRTL from source.
+When this file does not exist, Rocket Chip is configured to use published artifacts for Chisel 3 and FIRRTL.
+
+### How to bump
+
+Due to supporting both published artifacts and building from source, we must bump both approaches.
+To bump the source dependencies, bump the git submodules as described in the previous section: [Bumping Submodules](#bumping).
+To bump the published dependencies, bump the versions at the top of the SBT build file: [build.sbt](build.sbt).
+Typically, the SBT dependency will only list a version for Chisel 3 which itself depends on FIRRTL.
+
+Imporantly, the git submodule dependency and published dependency should be kept in sync.
+Each published version corresponds to a tag in the respective git repository.
+For example, Chisel version `"3.4.0"` in `build.sbt` corresponds to tag `v3.4.0` in the `chisel3` git submodule.
+Due to how Wit dependencies work, we do *not* want the submodules to point to release tags; rather, we want them to point to the merge-base with the stable release branch.
+
+For Chisel `v3.4.0`, the stable release branch is `3.4.x`.
+Thus, in bumping to Chisel `v3.4.0`, we would want to bump the submodule to the commit given by the command:
+
+```bash
+git merge-base v3.4.0 origin/3.4.x
+```
+
+Note that `origin/` is necessary for `3.4.x` because it is a branch so will not exist in your local clone by default.

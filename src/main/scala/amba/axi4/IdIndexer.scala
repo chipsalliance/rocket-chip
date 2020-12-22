@@ -6,14 +6,21 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
 case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(UInt(OUTPUT, width = width), UInt(0))
 
+/** This adapter limits the set of FIFO domain ids used by outbound transactions.
+  *
+  * Extra AWID and ARID bits from upstream transactions are stored in a User Bits field called AXI4ExtraId,
+  * which values are expected to be echoed back to this adapter alongside any downstream response messages,
+  * and are then prepended to the RID and BID field to restore the original identifier.
+  *
+  * @param idBits is the desired number of A[W|R]ID bits to be used
+  */
 class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
 {
-  require (idBits >= 0)
+  require (idBits >= 0, s"AXI4IdIndexer: idBits must be > 0, not $idBits")
 
   val node = AXI4AdapterNode(
     masterFn = { mp =>
@@ -30,19 +37,19 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
       mp.masters.foreach { m =>
         for (i <- m.id.start until m.id.end) {
           val j = i % (1 << idBits)
-          val old = masters(j)
+          val accumulated = masters(j)
           names(j) += m.name
-          masters(j) = old.copy(
-            aligned   = old.aligned && m.aligned,
-            maxFlight = old.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
+          masters(j) = accumulated.copy(
+            aligned   = accumulated.aligned && m.aligned,
+            maxFlight = accumulated.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
         }
       }
-      names.foreach { n => if (n.isEmpty) n += "<unused>" }
+      val finalNameStrings = names.map { n => if (n.isEmpty) "(unused)" else n.toList.mkString(", ") }
       val bits = log2Ceil(mp.endId) - idBits
       val field = if (bits > 0) Seq(AXI4ExtraIdField(bits)) else Nil
       mp.copy(
         echoFields = field ++ mp.echoFields,
-        masters    = masters.zipWithIndex.map { case (m,i) => m.copy(name = names(i).toList.mkString(", "))})
+        masters    = masters.zip(finalNameStrings).map { case (m, n) => m.copy(name = n) })
     },
     slaveFn = { sp => sp
     })

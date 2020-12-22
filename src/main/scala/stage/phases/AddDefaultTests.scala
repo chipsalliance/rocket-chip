@@ -4,14 +4,13 @@ package freechips.rocketchip.stage.phases
 
 
 import chipsalliance.rocketchip.config.Parameters
-import chisel3.stage.phases.Elaborate
 import firrtl.AnnotationSeq
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.{Dependency, Phase, PreservesAll, Unserializable}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.subsystem.RocketTilesKey
-import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, RocketTestSuite, TestGeneration}
+import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, RocketTestSuite}
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.util.HasRocketChipStageUtils
 import freechips.rocketchip.system.DefaultTestSuites._

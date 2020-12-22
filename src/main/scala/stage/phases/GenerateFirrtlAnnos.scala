@@ -2,11 +2,10 @@
 
 package freechips.rocketchip.stage.phases
 
-import chisel3.stage.phases.{Convert, Elaborate, MaybeAspectPhase}
 import firrtl.AnnotationSeq
-import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
+import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
 import firrtl.options.Viewer.view
-import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions, TargetDirAnnotation, Unserializable}
+import firrtl.options._
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
 
@@ -19,18 +18,14 @@ class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketC
     val targetDir = view[StageOptions](annotations).targetDir
     val fileName = s"${view[RocketChipOptions](annotations).longName.get}.anno.json"
 
-    val annos = scala.collection.mutable.Buffer[Annotation]()
-    annotations.flatMap {
-      case a: Unserializable =>
-        Some(a)
-      case a: TargetDirAnnotation =>
-        /** Don't serialize, in case of downstream FIRRTL call */
-        Some(a)
-      case a @ DeletedAnnotation(_, _: Unserializable) =>
-        /** [[DeletedAnnotation]]s of unserializable annotations cannot be serialized */
-        Some(a)
+    val annos = annotations.view.flatMap {
+      // Remove TargetDirAnnotation so that we can pass as argument to FIRRTL
+      // Remove CustomFileEmission, those are serialized automatically by Stages
+      case (_: Unserializable | _: TargetDirAnnotation | _: CustomFileEmission) =>
+        None
+      case DeletedAnnotation(_, (_: Unserializable | _: CustomFileEmission)) =>
+        None
       case a =>
-        annos += a
         Some(a)
     }
 

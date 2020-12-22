@@ -9,6 +9,7 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
 case object XLen extends Field[Int]
+case object MaxHartIdBits extends Field[Int]
 
 // These parameters can be varied per-core
 trait CoreParams {
@@ -20,6 +21,7 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
+  val useBitManip: Boolean = false
   val useVector: Boolean = false
   val useSCIE: Boolean
   val useRVE: Boolean
@@ -34,6 +36,8 @@ trait CoreParams {
   val pmpGranularity: Int
   val nBreakpoints: Int
   val useBPWatch: Boolean
+  val mcontextWidth: Int
+  val scontextWidth: Int
   val nPerfCounters: Int
   val haveBasicCounters: Boolean
   val haveFSDirty: Boolean
@@ -70,6 +74,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
+  val usingBitManip = coreParams.useBitManip
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
 
@@ -103,6 +108,14 @@ trait HasCoreParameters extends HasTileParameters {
     require(vMemDataBits >= eLen && vLen % vMemDataBits == 0, s"vMemDataBits ($vMemDataBits) must divide vLen ($vLen) and be no less than eLen ($eLen)")
   }
 
+  lazy val hartIdLen: Int = p(MaxHartIdBits)
+  lazy val resetVectorLen: Int = {
+    val externalLen = paddrBits
+    require(externalLen <= xLen, s"External reset vector length ($externalLen) must be <= XLEN ($xLen)")
+    require(externalLen <= vaddrBitsExtended, s"External reset vector length ($externalLen) must be <= virtual address bit width ($vaddrBitsExtended)")
+    externalLen
+  }
+
   // Print out log of committed instructions and their writeback values.
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
@@ -121,7 +134,9 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
 
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
-  val io = new CoreBundle()(p) with HasExternallyDrivenTileConstants {
+  val io = new CoreBundle()(p) {
+    val hartid = UInt(hartIdLen.W).asInput
+    val reset_vector = UInt(resetVectorLen.W).asInput
     val interrupts = new CoreInterrupts().asInput
     val imem  = new FrontendIO
     val dmem = new HellaCacheIO

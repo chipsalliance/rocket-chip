@@ -60,7 +60,7 @@ trait SinksExternalInterrupts { this: BaseTile =>
   }
 
   // go from flat diplomatic Interrupts to bundled TileInterrupts
-  def decodeCoreInterrupts(core: TileInterrupts) {
+  def decodeCoreInterrupts(core: TileInterrupts): Unit = {
     val async_ips = Seq(core.debug)
     val periph_ips = Seq(
       core.msip,
@@ -80,19 +80,19 @@ trait SourcesExternalNotifications { this: BaseTile =>
   // Report unrecoverable error conditions
   val haltNode = IntSourceNode(IntSourcePortSimple())
 
-  def reportHalt(could_halt: Option[Bool]) {
+  def reportHalt(could_halt: Option[Bool]): Unit = {
     val (halt_and_catch_fire, _) = haltNode.out(0)
-    halt_and_catch_fire(0) := could_halt.map(RegEnable(true.B, false.B, _)).getOrElse(false.B)
+    halt_and_catch_fire(0) := could_halt.map(h => RegEnable(true.B, false.B, BlockDuringReset(h))).getOrElse(false.B)
   }
 
-  def reportHalt(errors: Seq[CanHaveErrors]) {
+  def reportHalt(errors: Seq[CanHaveErrors]): Unit = {
     reportHalt(errors.flatMap(_.uncorrectable).map(_.valid).reduceOption(_||_))
   }
 
   // Report when the tile has ceased to retire instructions
   val ceaseNode = IntSourceNode(IntSourcePortSimple())
 
-  def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8) {
+  def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8): Unit = {
     def waitForQuiescence(cease: Bool): Bool = {
       // don't report cease until signal is stable for longer than any pipeline depth
       val count = RegInit(0.U(log2Ceil(quiescenceCycles + 1).W))
@@ -114,8 +114,8 @@ trait SourcesExternalNotifications { this: BaseTile =>
   // Report when the tile is waiting for an interrupt
   val wfiNode = IntSourceNode(IntSourcePortSimple())
 
-  def reportWFI(could_wfi: Option[Bool]) {
+  def reportWFI(could_wfi: Option[Bool]): Unit = {
     val (wfi, _) = wfiNode.out(0)
-    wfi(0) := could_wfi.map(RegNext(_, init=false.B)).getOrElse(false.B)
+    wfi(0) := could_wfi.map(w => RegNext(BlockDuringReset(w), init=false.B)).getOrElse(false.B)
   }
 }

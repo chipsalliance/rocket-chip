@@ -6,7 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import scala.math.{min,max}
+import scala.math.min
 
 object EarlyAck {
   sealed trait T
@@ -39,11 +39,14 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     require (x.max >= minSize, s"TLFragmenter (with parent $parent) max transfer size $op(${x.max}) must be >= min transfer size (${minSize})")
     TransferSizes(x.min, maxSize)
   }
-  def shrinkTransfer(x: TransferSizes) =
-    if (!alwaysMin) x else
-    if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max)) else
-    TransferSizes.none
-  def mapManager(m: TLSlaveParameters) = m.v1copy(
+
+  private def noChangeRequired = minSize == maxSize
+  private def shrinkTransfer(x: TransferSizes) =
+    if (!alwaysMin) x
+    else if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max))
+    else TransferSizes.none
+
+  private def mapManager(m: TLSlaveParameters) = m.v1copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = shrinkTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet, "Get"),
@@ -51,29 +54,34 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     supportsPutPartial = expandTransfer(m.supportsPutPartial, "PutParital"),
     supportsHint       = expandTransfer(m.supportsHint, "Hint"))
 
-  val node = TLAdapterNode(
+  val node = new TLAdapterNode(
     // We require that all the responses are mutually FIFO
     // Thus we need to compact all of the masters into one big master
-    clientFn  = { c => c.v1copy(
-      clients = Seq(TLMasterParameters.v1(
+    clientFn  = { c => (if (noChangeRequired) c else c.v2copy(
+      masters = Seq(TLMasterParameters.v2(
         name        = "TLFragmenter",
         sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
-        requestFifo = true))),
-        // This master can only produce:
-        // emitsAcquireT = c.clients.map(_.knownToEmit.get.emitsAcquireT).reduce(_ smallestintervalcover _),
-        // emitsAcquireB = c.clients.map(_.knownToEmit.get.emitsAcquireB).reduce(_ smallestintervalcover _),
-        // emitsArithmetic = c.clients.map(_.knownToEmit.get.emitsArithmetic).reduce(_ smallestintervalcover _),
-        // emitsLogical = c.clients.map(_.knownToEmit.get.emitsLogical).reduce(_ smallestintervalcover _),
-        // emitsGet = c.clients.map(_.knownToEmit.get.emitsGet).reduce(_ smallestintervalcover _),
-        // emitsPutFull = c.clients.map(_.knownToEmit.get.emitsPutFull).reduce(_ smallestintervalcover _),
-        // emitsPutPartial = c.clients.map(_.knownToEmit.get.emitsPutPartial).reduce(_ smallestintervalcover _),
-        // emitsHint = c.clients.map(_.knownToEmit.get.emitsHint).reduce(_ smallestintervalcover _)
-    },
-    managerFn = { m => m.v1copy(managers = m.managers.map(mapManager)) })
+        requestFifo = true,
+        emits       = TLMasterToSlaveTransferSizes(
+          acquireT    = shrinkTransfer(c.masters.map(_.emits.acquireT)  .reduce(_ mincover _)),
+          acquireB    = shrinkTransfer(c.masters.map(_.emits.acquireB)  .reduce(_ mincover _)),
+          arithmetic  = shrinkTransfer(c.masters.map(_.emits.arithmetic).reduce(_ mincover _)),
+          logical     = shrinkTransfer(c.masters.map(_.emits.logical)   .reduce(_ mincover _)),
+          get         = shrinkTransfer(c.masters.map(_.emits.get)       .reduce(_ mincover _)),
+          putFull     = shrinkTransfer(c.masters.map(_.emits.putFull)   .reduce(_ mincover _)),
+          putPartial  = shrinkTransfer(c.masters.map(_.emits.putPartial).reduce(_ mincover _)),
+          hint        = shrinkTransfer(c.masters.map(_.emits.hint)      .reduce(_ mincover _))
+        )
+      ))
+    ))},
+    managerFn = { m => if (noChangeRequired) m else m.v2copy(slaves = m.slaves.map(mapManager)) }
+  ) {
+    override def circuitIdentity = noChangeRequired
+  }
 
   lazy val module = new LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      if (minSize == maxSize) {
+      if (noChangeRequired) {
         out <> in
       } else {
         // All managers must share a common FIFO domain (responses might end up interleaved)

@@ -6,9 +6,18 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
+case class BuiltInZeroDeviceParams(
+  addr: AddressSet,
+  cacheCork: Option[TLCacheCorkParams] = None,
+  buffer: Option[BufferParams] = Some(BufferParams.default))
+
+case class BuiltInErrorDeviceParams(
+  errorParams: DevNullParams,
+  buffer: Option[BufferParams] = Some(BufferParams.default))
+
 trait HasBuiltInDeviceParams {
-  val zeroDevice: Option[AddressSet]
-  val errorDevice: Option[DevNullParams]
+  val zeroDevice: Option[BuiltInZeroDeviceParams]
+  val errorDevice: Option[BuiltInErrorDeviceParams]
 }
 
 sealed trait BuiltInDevices {
@@ -25,20 +34,26 @@ object BuiltInDevices {
   def attach(
     params: HasBuiltInDeviceParams with HasTLBusParams,
     outwardNode: TLOutwardNode)(implicit p: Parameters) = new BuiltInDevices {
-    val errorOpt = params.errorDevice.map { dnp => LazyScope("wrapped_error_device") {
+    val errorOpt = params.errorDevice.map { dnp => LazyScope("wrapped_error_device", "ErrorDeviceWrapper") {
       val error = LazyModule(new TLError(
-        params = dnp,
+        params = dnp.errorParams,
         beatBytes = params.beatBytes))
 
-      error.node := TLBuffer() := outwardNode
+      (error.node
+        := dnp.buffer.map { params => TLBuffer(params) }.getOrElse{ TLTempNode() }
+        := outwardNode)
       error
     }}
 
-    val zeroOpt = params.zeroDevice.map { addr => LazyScope("wrapped_zero_device") {
+    val zeroOpt = params.zeroDevice.map { zeroParams => LazyScope("wrapped_zero_device", "ZeroDeviceWrapper") {
       val zero = LazyModule(new TLZero(
-        address = addr,
+        address = zeroParams.addr,
         beatBytes = params.beatBytes))
-      zero.node := TLFragmenter(params.beatBytes, params.blockBytes) := TLBuffer() := outwardNode
+      (zero.node
+        := TLFragmenter(params.beatBytes, params.blockBytes)
+        := zeroParams.buffer.map { params => TLBuffer(params) }.getOrElse { TLTempNode() }
+        := zeroParams.cacheCork.map { params => TLCacheCork(params) }.getOrElse { TLTempNode() }
+        := outwardNode)
       zero
     }}
   }

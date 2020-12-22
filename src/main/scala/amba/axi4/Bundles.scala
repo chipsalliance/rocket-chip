@@ -75,7 +75,7 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val ar = Irrevocable(new AXI4BundleAR(params))
   val r  = Irrevocable(new AXI4BundleR (params)).flip
 
-  def tieoff() {
+  def tieoff(): Unit = {
     ar.ready.dir match {
       case INPUT =>
         ar.ready := Bool(false)
@@ -108,4 +108,13 @@ class AXI4AsyncBundle(params: AXI4AsyncBundleParameters) extends AXI4AsyncBundle
   val b  = new AsyncBundle(new AXI4BundleB (params.base), params.async).flip
   val ar = new AsyncBundle(new AXI4BundleAR(params.base), params.async)
   val r  = new AsyncBundle(new AXI4BundleR (params.base), params.async).flip
+}
+
+class AXI4CreditedBundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
+{
+  val aw = CreditedIO(new AXI4BundleAW(params))
+  val w  = CreditedIO(new AXI4BundleW (params))
+  val b  = CreditedIO(new AXI4BundleB (params)).flip
+  val ar = CreditedIO(new AXI4BundleAR(params))
+  val r  = CreditedIO(new AXI4BundleR (params)).flip
 }

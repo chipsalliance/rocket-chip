@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.regmapper
 
+import scala.util.matching.Regex
+
 // This information is not used internally by the regmap(...) function.
 // However, the author of a RegField may be the best person to provide this
 // information which is likely to be needed by downstream SW and Documentation
@@ -64,10 +66,28 @@ case class RegFieldDesc (
   // IP-XACT or similar outputs. 
   addressBlock: Option[AddressBlockInfo] = None
   // TODO: registerFiles
-)
+) {
+  require(RegFieldDesc.nameAcceptable(name),
+    s"RegFieldDesc.name of '$name' is not of the form '${RegFieldDesc.nameRegex.toString}'")
+
+  // We could also check for group name here, but that can have a
+  // significant runtime overhead because every RegField can be
+  // annotated with the group name,
+  // so we put the check in the RegFieldGroup helper function instead.
+
+}
 
 object RegFieldDesc {
   def reserved: RegFieldDesc = RegFieldDesc("reserved", "", access=RegFieldAccessType.R, reset=Some(0))
+
+  // This Regex is more limited than the IP-XACT standard,
+  // which allows some unicode characters as well.
+  val nameRegex: Regex = """^[_:A-Za-z][-._:A-Za-z0-9]*$""".r
+
+  def nameAcceptable(name: String): Boolean = name match {
+    case RegFieldDesc.nameRegex(_*) => true
+    case _ => false
+  }
 }
 
 // Our descriptions are in terms of RegFields only, which is somewhat
@@ -78,6 +98,8 @@ object RegFieldDesc {
 
 object RegFieldGroup {
   def apply (name: String, desc: Option[String], regs: Seq[RegField], descFirstOnly: Boolean = true): Seq[RegField] = {
+    require(RegFieldDesc.nameAcceptable(name),
+      s"RegFieldDesc.group of '$name' is not of the form '${RegFieldDesc.nameRegex.toString}'")
     regs.zipWithIndex.map {case (r, i) =>
       val gDesc = if ((i > 0) & descFirstOnly) None else desc
       r.desc.map { d =>

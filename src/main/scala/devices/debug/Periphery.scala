@@ -3,16 +3,14 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.experimental.IntParam
+import chisel3.experimental.{IntParam, noPrefix}
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
-import freechips.rocketchip.diplomaticobjectmodel.model.OMComponent
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink._
@@ -111,7 +109,8 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     resetctrl
   }
 
-  val debug = outer.debugOpt.map { outerdebug =>
+  // noPrefix is workaround https://github.com/freechipsproject/chisel3/issues/1603
+  val debug = noPrefix(outer.debugOpt.map { outerdebug =>
     val debug = IO(new DebugIO)
 
     require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
@@ -147,7 +146,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
 
     debug
-  }
+  })
 
   val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
 
@@ -271,25 +270,26 @@ object Debug {
     }
   }
 
-  def connectDebugClockAndReset(debugOpt: Option[DebugIO], c: Clock)(implicit p: Parameters): Unit = {
+  def connectDebugClockAndReset(debugOpt: Option[DebugIO], c: Clock, sync: Boolean = true)(implicit p: Parameters): Unit = {
     debugOpt.foreach { debug =>
       val dmi_reset = debug.clockeddmi.map(_.dmiReset.asBool).getOrElse(false.B) |
         debug.systemjtag.map(_.reset.asBool).getOrElse(false.B) |
         debug.apb.map(_.reset.asBool).getOrElse(false.B)
-      connectDebugClockHelper(debug, dmi_reset, c)
+      connectDebugClockHelper(debug, dmi_reset, c, sync)
     }
   }
 
-  def connectDebugClockHelper(debug: DebugIO, dmi_reset: Reset, c: Clock)(implicit p: Parameters): Unit = {
+  def connectDebugClockHelper(debug: DebugIO, dmi_reset: Reset, c: Clock, sync: Boolean = true)(implicit p: Parameters): Unit = {
     val debug_reset = Wire(Bool())
     withClockAndReset(c, dmi_reset) {
-      debug_reset := ~AsyncResetSynchronizerShiftReg(in=true.B, sync=3, name=Some("debug_reset_sync"))
+      val debug_reset_syncd = if(sync) ~AsyncResetSynchronizerShiftReg(in=true.B, sync=3, name=Some("debug_reset_sync")) else dmi_reset
+      debug_reset := debug_reset_syncd
     }
     // Need to clock DM during debug_reset because of synchronous reset, so keep
     // the clock alive for one cycle after debug_reset asserts to action this behavior.
     // The unit should also be clocked when dmactive is high.
     withClockAndReset(c, debug_reset.asAsyncReset) {
-      val dmactiveAck = ResetSynchronizerShiftReg(in=debug.dmactive, sync=3, name=Some("dmactiveAck"))
+      val dmactiveAck = if (sync) ResetSynchronizerShiftReg(in=debug.dmactive, sync=3, name=Some("dmactiveAck")) else debug.dmactive
       val clock_en = RegNext(next=dmactiveAck, init=true.B)
       val gated_clock =
         if (!p(DebugModuleKey).get.clockGate) c

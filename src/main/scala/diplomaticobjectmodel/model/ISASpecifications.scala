@@ -2,8 +2,6 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.model
 
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
-import freechips.rocketchip.tile.CoreParams
 
 sealed trait PrivilegedArchitectureExtension extends OMEnum
 case object MachineLevelISA extends PrivilegedArchitectureExtension
@@ -36,6 +34,7 @@ object ISAExtensions {
     F -> "F Standard Extension for Single-Precision Floating-Point",
     D -> "D Standard Extension for Double-Precision Floating-Point",
     C -> "C Standard Extension for Compressed Instruction",
+    B -> "B Standard Extension for Bit Manipulation",
     U -> "The RISC‑V Instruction Set Manual, Volume II: Privileged Architecture",
     S -> "Supervisor-Level ISA"
   )

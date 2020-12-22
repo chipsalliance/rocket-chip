@@ -10,6 +10,7 @@ import freechips.rocketchip.util.property.cover
 
 abstract class ReplacementPolicy {
   def nBits: Int
+  def perSet: Boolean
   def way: UInt
   def miss: Unit
   def hit: Unit
@@ -36,6 +37,7 @@ class RandomReplacement(n_ways: Int) extends ReplacementPolicy {
   private val replace = Wire(Bool())
   replace := false.B
   def nBits = 16
+  def perSet = false
   private val lfsr = LFSR(nBits, replace)
   def state_read = WireDefault(lfsr)
 
@@ -52,6 +54,12 @@ abstract class SeqReplacementPolicy {
   def access(set: UInt): Unit
   def update(valid: Bool, hit: Bool, set: UInt, way: UInt): Unit
   def way: UInt
+}
+
+abstract class SetAssocReplacementPolicy {
+  def access(set: UInt, touch_way: UInt): Unit
+  def access(sets: Seq[UInt], touch_ways: Seq[Valid[UInt]]): Unit
+  def way(set: UInt): UInt
 }
 
 class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
@@ -73,6 +81,7 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   // [1] - 2 more recent than 0
   // [0] - 1 more recent than 0
   def nBits = (n_ways * (n_ways-1)) / 2
+  def perSet = true
   private val state_reg = RegInit(0.U(nBits.W))
   def state_read = WireDefault(state_reg)
 
@@ -101,10 +110,10 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
     nextState.zipWithIndex.tail.foldLeft((nextState.head.apply(n_ways-1,1),0)) { case ((pe,pi),(ce,ci)) => (Cat(ce.apply(n_ways-1,ci+1), pe), ci) }._1
   }
 
-  def access(touch_way: UInt) {
+  def access(touch_way: UInt): Unit = {
     state_reg := get_next_state(state_reg, touch_way)
   }
-  def access(touch_ways: Seq[Valid[UInt]]) {
+  def access(touch_ways: Seq[Valid[UInt]]): Unit = {
     when (touch_ways.map(_.valid).orR) {
       state_reg := get_next_state(state_reg, touch_ways)
     }
@@ -155,13 +164,14 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
   //     bit[4]: way 7>6    bit[3]: way 5>4    bit[1]: way 3>2    bit[0]: way 1>0
 
   def nBits = n_ways - 1
-  private val state_reg = Reg(UInt(nBits.W))
+  def perSet = true
+  private val state_reg = if (nBits == 0) Reg(UInt(0.W)) else RegInit(0.U(nBits.W))
   def state_read = WireDefault(state_reg)
 
-  def access(touch_way: UInt) {
+  def access(touch_way: UInt): Unit = {
     state_reg := get_next_state(state_reg, touch_way)
   }
-  def access(touch_ways: Seq[Valid[UInt]]) {
+  def access(touch_ways: Seq[Valid[UInt]]): Unit = {
     when (touch_ways.map(_.valid).orR) {
       state_reg := get_next_state(state_reg, touch_ways)
     }
@@ -281,6 +291,34 @@ class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
   }
 
   def way = plru_way
+}
+
+
+class SetAssocLRU(n_sets: Int, n_ways: Int, policy: String) extends SetAssocReplacementPolicy {
+  val logic = policy.toLowerCase match {
+    case "plru"  => new PseudoLRU(n_ways)
+    case "lru"   => new TrueLRU(n_ways)
+    case t => throw new IllegalArgumentException(s"unknown Replacement Policy type $t")
+  }
+  val state_vec = Reg(Vec(n_sets, UInt(logic.nBits.W)))
+
+  def access(set: UInt, touch_way: UInt) = {
+    state_vec(set) := logic.get_next_state(state_vec(set), touch_way)
+  }
+
+  def access(sets: Seq[UInt], touch_ways: Seq[Valid[UInt]]) = {
+    require(sets.size == touch_ways.size, "internal consistency check: should be same number of simultaneous updates for sets and touch_ways")
+    for (set <- 0 until n_sets) {
+      val set_touch_ways = (sets zip touch_ways).map { case (touch_set, touch_way) =>
+        Pipe(touch_way.valid && (touch_set === set.U), touch_way.bits, 0)}
+      when (set_touch_ways.map(_.valid).orR) {
+        state_vec(set) := logic.get_next_state(state_vec(set), set_touch_ways)
+      }
+    }
+  }
+
+  def way(set: UInt) = logic.get_replace_way(state_vec(set))
+
 }
 
 /** Synthesizeable unit tests */

@@ -5,7 +5,6 @@ package freechips.rocketchip.jtag
 import scala.collection.SortedMap
 
 import chisel3._
-import chisel3.util._
 import freechips.rocketchip.config.Parameters
 
 /** JTAG signals, viewed from the master side
@@ -245,7 +244,7 @@ object JtagTapGenerator {
       controllerInternal.io.dataChainIn := bypassChain.io.chainOut
     }
 
-    def mapInSelect(x: (Chain, Bool)) {
+    def mapInSelect(x: (Chain, Bool)): Unit = {
       val (chain, select) = x
       when (select) {
         chain.io.chainIn := controllerInternal.io.dataChainOut

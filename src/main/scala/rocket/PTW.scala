@@ -14,6 +14,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -40,6 +41,9 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
 
 class PTWPerfEvents extends Bundle {
   val l2miss = Bool()
+  val l2hit = Bool()
+  val pte_miss = Bool()
+  val pte_hit = Bool()
 }
 
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
@@ -99,16 +103,19 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val dpath = new DatapathPTWIO
   }
 
+  val omSRAMs = collection.mutable.ListBuffer[OMSRAM]()
+
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
+  val l2_refill_wire = Wire(Bool())
 
   val arb = Module(new Arbiter(Valid(new PTWReq), n))
   arb.io.in <> io.requestor.map(_.req)
-  arb.io.out.ready := state === s_ready
+  arb.io.out.ready := (state === s_ready) && !l2_refill_wire
 
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
 
-  val clock_en = state =/= s_ready || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
+  val clock_en = state =/= s_ready || l2_refill_wire || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   io.dpath.clock_enabled := usingVM && clock_en
   val gated_clock =
     if (!usingVM || !tileParams.dcache.get.clockGate) clock
@@ -185,9 +192,16 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     (hit && count < pgLevels-1, Mux1H(hits, data))
   }
+  val pte_hit = RegNext(false.B)
+  io.dpath.perf.pte_miss := false
+  io.dpath.perf.pte_hit := pte_hit && (state === s_req) && !io.dpath.perf.l2hit
+  assert(!(io.dpath.perf.l2hit && (io.dpath.perf.pte_miss || io.dpath.perf.pte_hit)),
+    "PTE Cache Hit/Miss Performance Monitor Events are lower priority than L2TLB Hit event")
 
   val l2_refill = RegNext(false.B)
+  l2_refill_wire := l2_refill
   io.dpath.perf.l2miss := false
+  io.dpath.perf.l2hit := false
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
     require(isPow2(coreParams.nL2TLBEntries))
@@ -231,6 +245,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val s2_entry = s2_rdata.uncorrected.asTypeOf(new L2TLBEntry)
     val s2_hit = s2_valid && s2_valid_bit && r_tag === s2_entry.tag
     io.dpath.perf.l2miss := s2_valid && !(s2_valid_bit && r_tag === s2_entry.tag)
+    io.dpath.perf.l2hit := s2_hit
     val s2_pte = Wire(new PTE)
     s2_pte := s2_entry
     s2_pte.g := s2_g
@@ -238,6 +253,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     ccover(s2_hit, "L2_TLB_HIT", "L2 TLB hit")
 
+    omSRAMs += omSRAM
     (s2_hit, s2_rdata.error, s2_pte, Some(ram))
   }
 
@@ -250,6 +266,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.size := log2Ceil(xLen/8)
   io.mem.req.bits.signed := false
   io.mem.req.bits.addr := pte_addr
+  io.mem.req.bits.idx.foreach(_ := pte_addr)
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
   io.mem.s1_kill := l2_hit || state =/= s_wait1
   io.mem.s2_kill := Bool(false)
@@ -295,6 +312,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_req) {
       when (pte_cache_hit) {
         count := count + 1
+        pte_hit := true
       }.otherwise {
         next_state := Mux(io.mem.req.ready, s_wait1, s_req)
       }
@@ -305,6 +323,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     is (s_wait2) {
       next_state := s_wait3
+      io.dpath.perf.pte_miss := count < pgLevels-1
       when (io.mem.s2_xcpt.ae.ld) {
         resp_ae := true
         next_state := s_ready
@@ -385,6 +404,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 /** Mix-ins for constructing tiles that might have a PTW */
 trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
+  val utlbOMSRAMs = collection.mutable.ListBuffer[OMSRAM]()
   var nPTWPorts = 1
   nDCachePorts += usingPTW.toInt
 }
@@ -393,6 +413,8 @@ trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
   val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
-  if (outer.usingPTW)
+  if (outer.usingPTW) {
     dcachePorts += ptw.io.mem
+    outer.utlbOMSRAMs ++= ptw.omSRAMs
+  }
 }
