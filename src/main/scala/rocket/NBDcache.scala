@@ -51,6 +51,7 @@ class WritebackReq(params: TLBundleParameters)(implicit p: Parameters) extends L
   override def cloneType = new WritebackReq(params)(p).asInstanceOf[this.type]
 }
 
+/** MSHR for uncacheable addresses. */
 class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new HellaCacheReq).flip
@@ -133,41 +134,74 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   }
 }
 
+/** MSHR for cacheable addresses. */
 class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
+    /** @todo */
     val req_pri_val    = Bool(INPUT)
+    /** @todo */
     val req_pri_rdy    = Bool(OUTPUT)
+    /** @todo */
     val req_sec_val    = Bool(INPUT)
+    /** @todo */
     val req_sec_rdy    = Bool(OUTPUT)
+    /** Request. */
     val req_bits       = new MSHRReqInternal().asInput
 
+    /** @todo */
     val idx_match       = Bool(OUTPUT)
+    /** tag processing by this MSHR. */
     val tag             = Bits(OUTPUT, tagBits)
 
+    /** Interface to TileLink manager Channel A.
+      * @todo only send AcquireBlock.
+      */
     val mem_acquire  = Decoupled(new TLBundleA(edge.bundle))
+    /** Interface from TileLink manager Channel D.
+      * @todo only respond Grant.
+      */
     val mem_grant = Valid(new TLBundleD(edge.bundle)).flip
+    /** Interface to TileLink manager Channel E.
+      * @todo only send GrantAck.
+      */
     val mem_finish = Decoupled(new TLBundleE(edge.bundle))
 
+    /** @todo access data SRAM. */
     val refill = new L1RefillReq().asOutput // Data is bypassed
+    /** @todo read meta data. */
     val meta_read = Decoupled(new L1MetaReadReq)
+    /** @todo write meta data. */
     val meta_write = Decoupled(new L1MetaWriteReq)
+    /** @todo */
     val replay = Decoupled(new ReplayInternal)
+    /** @todo write back request. */
     val wb_req = Decoupled(new WritebackReq(edge.bundle))
+    /** @todo nested probe ready. */
     val probe_rdy = Bool(OUTPUT)
   }
 
+  /** State Machine. */
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(UInt(), 9)
   val state = Reg(init=s_invalid)
 
+  /** latch [[io.req_bits]]. */
   val req = Reg(new MSHRReqInternal)
+  /** index of address processed by this MSHR.*/
   val req_idx = req.addr(untagBits-1,blockOffBits)
+  /** tag of address processed by this MSHR.*/
   val req_tag = req.addr >> untagBits
+  /** truncate offset. */
   val req_block_addr = (req.addr >> blockOffBits) << blockOffBits
+  /** index match between current address and address from IO. */
   val idx_match = req_idx === io.req_bits.addr(untagBits-1,blockOffBits)
 
+  /** @todo new metadata. */
   val new_coh = Reg(init=ClientMetadata.onReset)
+  /** @todo metadata LUT */
   val (_, shrink_param, coh_on_clear)    = req.old_meta.coh.onCacheControl(M_FLUSH)
+  /** @todo metadata LUT */
   val grow_param                                  = new_coh.onAccess(req.cmd)._2
+  /** @todo metadata LUT */
   val coh_on_grant                                = new_coh.onGrant(req.cmd, io.mem_grant.bits.param)
   // We only accept secondary misses if we haven't yet sent an Acquire to outer memory
   // or if the Acquire that was sent will obtain a Grant with sufficient permissions
@@ -178,11 +212,17 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 
   val states_before_refill = Seq(s_wb_req, s_wb_resp, s_meta_clear)
   val (_, _, refill_done, refill_address_inc) = edge.addr_inc(io.mem_grant)
+  /**
+    *
+    */
   val sec_rdy = idx_match &&
                   (state.isOneOf(states_before_refill) ||
                     (state.isOneOf(s_refill_req, s_refill_resp) &&
                       !cmd_requires_second_acquire && !refill_done))
 
+  /**
+    *
+    */
   val rpq = Module(new Queue(new ReplayInternal, cfg.nRPQ))
   rpq.io.enq.valid := (io.req_pri_val && io.req_pri_rdy || io.req_sec_val && sec_rdy) && !isPrefetch(io.req_bits.cmd)
   rpq.io.enq.bits := io.req_bits
@@ -230,6 +270,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
     req := io.req_bits
     acked := false
     val old_coh = io.req_bits.old_meta.coh
+    // if Branch
     val needs_wb = old_coh.onCacheControl(M_FLUSH)._1
     val (is_hit, _, coh_on_hit) = old_coh.onAccess(io.req_bits.cmd)
     when (io.req_bits.tag_match) {
@@ -302,6 +343,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   }
 }
 
+/** MSHR & Scheduler. */
 class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
   val io = new Bundle {
     val req = Decoupled(new MSHRReq).flip
@@ -689,12 +731,16 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   require(cacheParams.tagCode.isInstanceOf[IdentityCode])
   val dECC = cacheParams.dataCode
 
+  /** Data Eviction. */
   val wb = Module(new WritebackUnit)
+  /** Probe by manager. */
   val prober = Module(new ProbeUnit)
+  /** MSHR */
   val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := Bool(true)
   val s1_valid = Reg(next=io.cpu.req.fire(), init=Bool(false))
+  // @notice not RegInit, just get the type.
   val s1_req = Reg(io.cpu.req.bits)
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_replay = Reg(init=Bool(false))
@@ -702,6 +748,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s1_sfence = s1_req.cmd === M_SFENCE
 
   val s2_valid = Reg(next=s1_valid_masked && !s1_sfence, init=Bool(false)) && !io.cpu.s2_xcpt.asUInt.orR
+
+  // @notice not RegInit, just get the type.
   val s2_req = Reg(io.cpu.req.bits)
   val s2_replay = Reg(next=s1_replay, init=Bool(false)) && s2_req.cmd =/= M_FLUSH_ALL
   val s2_recycle = Wire(Bool())
