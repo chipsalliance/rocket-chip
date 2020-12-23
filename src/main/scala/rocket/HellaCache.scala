@@ -219,6 +219,7 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
   def getOMSRAMs(): Seq[OMSRAM]
 }
 
+/** Interaction between CPU and PTW. */
 class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
   val cpu = (new HellaCacheIO).flip
   val ptw = new TLBPTWIO()
