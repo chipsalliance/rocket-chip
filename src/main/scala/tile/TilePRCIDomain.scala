@@ -11,6 +11,8 @@ import freechips.rocketchip.rocket.{TracedInstruction}
 import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CrossesToOnlyOneResetDomain}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{TraceCoreInterface}
+import freechips.rocketchip.util.Blockable._
+
 
 /** A wrapper containing all logic within a managed reset domain for a tile.
   *

@@ -358,6 +358,12 @@ package object diplomacy
   @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
   implicit def moduleValue[T](value: ModuleValue[T]): T = _root_.diplomacy.moduleValue(value)
 
+  val AddressDecoder = _root_.org.chipsalliance.utils.addressing.AddressDecoder
+  val AddressRange = _root_.org.chipsalliance.utils.addressing.AddressRange
+  type AddressRange = _root_.org.chipsalliance.utils.addressing.AddressRange
+  val AddressSet = _root_.org.chipsalliance.utils.addressing.AddressSet
+  type AddressSet = _root_.org.chipsalliance.utils.addressing.AddressSet
+
   def bitIndexes(x: BigInt, tail: Seq[Int] = Nil): Seq[Int] = {
     require (x >= 0)
     if (x == 0) {

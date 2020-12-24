@@ -3,6 +3,8 @@
 package freechips.rocketchip
 
 import Chisel._
+import chisel3.util.ReadyValidIO
+
 import scala.math.min
 import scala.collection.{immutable, mutable}
 
@@ -12,6 +14,66 @@ package object util {
   type HeterogeneousBag[T <: Data] = _root_.diplomacy.HeterogeneousBag[T]
   @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
   val HeterogeneousBag = _root_.diplomacy.HeterogeneousBag
+
+  def GrayCounter(bits: Int, increment: Bool = true.B, clear: Bool = false.B, name: String = "binary"): UInt =
+    _root_.org.chipsalliance.utils.crossing.GrayCounter(bits, increment, clear, name)
+  def ToAsyncBundle[T <: Data](x: ReadyValidIO[T], params: AsyncQueueParams = AsyncQueueParams()): AsyncBundle[T] =
+    _root_.org.chipsalliance.utils.crossing.ToAsyncBundle(x, params)
+  def FromAsyncBundle[T <: Data](x: AsyncBundle[T]): DecoupledIO[T] =
+    _root_.org.chipsalliance.utils.crossing.FromAsyncBundle(x)
+  def ToRational[T <: Data](x: DecoupledIO[T], direction: RationalDirection = Symmetric): RationalIO[T] =
+    _root_.org.chipsalliance.utils.crossing.ToRational(x, direction)
+  def FromRational[T <: Data](x: RationalIO[T], direction: RationalDirection = Symmetric): DecoupledIO[T] =
+    _root_.org.chipsalliance.utils.crossing.FromRational(x, direction)
+  def FromAsyncBundle[T <: Data](x: AsyncBundle[T], sync: Int): DecoupledIO[T] =
+    _root_.org.chipsalliance.utils.crossing.FromAsyncBundle(x, sync)
+  def ShiftRegInit[T <: Data](in: T, n: Int, init: T, name: Option[String] = None): T =
+    _root_.org.chipsalliance.utils.crossing.ShiftRegInit(in, n, init, name)
+  def BlockDuringReset[T <: Data : Blockable](data: T, stretchCycles: Int = 0): T =
+    _root_.org.chipsalliance.utils.crossing.BlockDuringReset(data, stretchCycles)
+  val SynchronizerResetType = _root_.org.chipsalliance.utils.crossing.SynchronizerResetType
+  type AbstractPipelineReg = _root_.org.chipsalliance.utils.crossing.AbstractPipelineReg
+  val AbstractPipelineReg = _root_.org.chipsalliance.utils.crossing.AbstractPipelineReg
+  type AsyncBundle[T <: Data] = _root_.org.chipsalliance.utils.crossing.AsyncBundle[T]
+  type AsyncBundleSafety = _root_.org.chipsalliance.utils.crossing.AsyncBundleSafety
+  type AsyncQueue[T <: Data] = _root_.org.chipsalliance.utils.crossing.AsyncQueue[T]
+  type AsyncQueueParams = _root_.org.chipsalliance.utils.crossing.AsyncQueueParams
+  val AsyncQueueParams = _root_.org.chipsalliance.utils.crossing.AsyncQueueParams
+  type AsyncQueueSink[T <: Data] = _root_.org.chipsalliance.utils.crossing.AsyncQueueSink[T]
+  type AsyncQueueSource[T <: Data] = _root_.org.chipsalliance.utils.crossing.AsyncQueueSource[T]
+  type AsyncResetReg = _root_.org.chipsalliance.utils.crossing.AsyncResetReg
+  val AsyncResetReg = _root_.org.chipsalliance.utils.crossing.AsyncResetReg
+  type AsyncResetRegVec = _root_.org.chipsalliance.utils.crossing.AsyncResetRegVec
+  type AsyncResetShiftReg = _root_.org.chipsalliance.utils.crossing.AsyncResetShiftReg
+  val AsyncResetShiftReg = _root_.org.chipsalliance.utils.crossing.AsyncResetShiftReg
+  type AsyncResetSynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.AsyncResetSynchronizerShiftReg
+  val AsyncResetSynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.AsyncResetSynchronizerShiftReg
+  type AsyncValidSync = _root_.org.chipsalliance.utils.crossing.AsyncValidSync
+  type Blockable[T <: Data] = _root_.org.chipsalliance.utils.crossing.Blockable[T]
+  type ClockCrossingReg = _root_.org.chipsalliance.utils.crossing.ClockCrossingReg
+  val ClockCrossingReg = _root_.org.chipsalliance.utils.crossing.ClockCrossingReg
+  type CrossingIO[T <: Data] = _root_.org.chipsalliance.utils.crossing.CrossingIO[T]
+  type RationalCrossingFull[T <: Data] = _root_.org.chipsalliance.utils.crossing.RationalCrossingFull[T]
+  type RationalCrossingSink[T <: Data] = _root_.org.chipsalliance.utils.crossing.RationalCrossingSink[T]
+  type RationalCrossingSource[T <: Data] = _root_.org.chipsalliance.utils.crossing.RationalCrossingSource[T]
+  type RationalDirection = _root_.org.chipsalliance.utils.crossing.RationalDirection
+  val Symmetric = _root_.org.chipsalliance.utils.crossing.Symmetric
+  val Flexible = _root_.org.chipsalliance.utils.crossing.Flexible
+  val FastToSlow = _root_.org.chipsalliance.utils.crossing.FastToSlow
+  val SlowToFast = _root_.org.chipsalliance.utils.crossing.SlowToFast
+  type ResetSynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.ResetSynchronizerShiftReg
+  val ResetSynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.ResetSynchronizerShiftReg
+  type RationalIO[T <: Data] = _root_.org.chipsalliance.utils.crossing.RationalIO[T]
+  val RationalIO = _root_.org.chipsalliance.utils.crossing.RationalIO
+  type ShiftQueue[T <: Data] = _root_.org.chipsalliance.utils.crossing.ShiftQueue[T]
+  val ShiftQueue = _root_.org.chipsalliance.utils.crossing.ShiftQueue
+  type SimpleRegIO = _root_.org.chipsalliance.utils.crossing.SimpleRegIO
+  //  type SynchronizerPrimitiveShiftReg = _root_.org.chipsalliance.utils.crossing.SynchronizerPrimitiveShiftReg
+  //  val SynchronizerPrimitiveShiftReg = _root_.org.chipsalliance.utils.crossing.SynchronizerPrimitiveShiftReg
+  type SynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.SynchronizerShiftReg
+  val SynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.SynchronizerShiftReg
+  type SyncResetSynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.SyncResetSynchronizerShiftReg
+  val SyncResetSynchronizerShiftReg = _root_.org.chipsalliance.utils.crossing.SyncResetSynchronizerShiftReg
 
   implicit class UnzippableOption[S, T](val x: Option[(S, T)]) {
     def unzip = (x.map(_._1), x.map(_._2))
