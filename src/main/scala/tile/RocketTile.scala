@@ -36,6 +36,14 @@ case class RocketTileParams(
   }
 }
 
+/** Top of Rocket Tile contains these diplomatic modules:
+  * 1. Sink Interrupt
+  * 2. Source Interrupt
+  * 3. DCache
+  * 4. Frontend
+  *
+  *
+  */
 class RocketTile private(
       val rocketParams: RocketTileParams,
       crossing: ClockCrossingType,

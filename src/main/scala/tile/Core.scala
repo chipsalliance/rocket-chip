@@ -132,24 +132,40 @@ abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundl
   with HasCoreParameters
 
 class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
+  /** bus error interrupt
+    * trigger from [[BusErrorUnit]]
+    */
   val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
   val io = new CoreBundle()(p) {
+    /** Hard ID, will be tie to a constant. */
     val hartid = UInt(hartIdLen.W).asInput
+    /** address jump to after reset. */
     val reset_vector = UInt(resetVectorLen.W).asInput
+    /** Interrupt. */
     val interrupts = new CoreInterrupts().asInput
+    /** Interface to ICache. */
     val imem  = new FrontendIO
+    /** Interface to DCache. */
     val dmem = new HellaCacheIO
+    /** Page Table Walker Interface. */
     val ptw = new DatapathPTWIO().flip
+    /** Float Point Unit Interface. */
     val fpu = new FPUCoreIO().flip
+    /** Rocket Custom Coprocessor Interface. */
     val rocc = new RoCCCoreIO().flip
+    /** Trace Interface. */
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    /** Break Point Watch. */
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
+    /** Core is Gated. */
     val cease = Bool().asOutput
+    /** Wait for interrupt. */
     val wfi = Bool().asOutput
+    /** trace stall. @todo */
     val traceStall = Bool().asInput
   }
 }

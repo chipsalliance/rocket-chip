@@ -56,6 +56,7 @@ trait HasNonDiplomaticTileParameters {
   def xLen: Int = p(XLen)
   def xBytes: Int = xLen / 8
   def iLen: Int = 32
+  /*× page table index bits. */
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
   def pgLevels: Int = p(PgLevels)
