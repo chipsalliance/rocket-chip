@@ -14,3 +14,7 @@
 	path = diplomacy
 	# currently in sequencer's private repository, move to chipsalliance after review.
 	url = https://github.com/sequencer/diplomacy.git
+[submodule "utility"]
+	path = utility
+	# currently in sequencer's private repository, move to chipsalliance after review.
+	url = https://github.com/sequencer/utility.git

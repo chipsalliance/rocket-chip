@@ -77,6 +77,12 @@ lazy val diplomacy = project
   .settings(addCompilerPlugin(chiselPluginLib))
   .settings(commonSettings)
 
+lazy val utility = project
+  .in(file("utility/utility"))
+  .sourceDependency(chiselRef, chiselLib)
+  .settings(addCompilerPlugin(chiselPluginLib))
+  .settings(commonSettings)
+
 lazy val hardfloat  = (project in file("hardfloat"))
   .sourceDependency(chiselRef, chiselLib)
   .settings(addCompilerPlugin(chiselPluginLib))
@@ -88,6 +94,7 @@ lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings)
   .dependsOn(hardfloat)
   .dependsOn(diplomacy)
+  .dependsOn(utility)
   .settings( // Assembly settings
     assembly / test := {},
     assembly / assemblyJarName := "rocketchip.jar",

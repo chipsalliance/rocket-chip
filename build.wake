@@ -24,10 +24,19 @@ global def diplomacyModule =
   | setScalaModuleDeps (chisel3ScalaModule, diplomacyMacrosModule, Nil)
   | addChisel3CompilerPlugin
 
+def utilityRoot = findGitRepositoryWithFallback "utility"
+
+global def utilityModule =
+  makeScalaModuleFromJSON here "utility"
+  | setScalaModuleRootDir "{diplomacyRoot}/utility"
+  | setScalaModuleDeps (chisel3ScalaModule, Nil)
+  | addChisel3CompilerPlugin
+
 global def rocketchipScalaModule =
   def deps =
     hardfloatScalaModule,
     diplomacyModule,
+    utilityModule,
     Nil
   makeScalaModuleFromJSON here "rocketchip"
   | setScalaModuleRootDir rocketChipRoot

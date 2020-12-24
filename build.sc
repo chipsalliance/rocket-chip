@@ -35,6 +35,17 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
   def chisel3Module: Option[PublishModule] = Some(chisel3Rocket)
 }
 
+
+object utilityRocket extends hardfloat.build.hardfloat {
+  override def millSourcePath = os.pwd / "utility"
+
+  override def scalaVersion = T {
+    rocketchip.scalaVersion()
+  }
+
+  def chisel3Module: Option[PublishModule] = Some(chisel3Rocket)
+}
+
 object rocketchip extends common.CommonRocketChip {
   m =>
   override def scalaVersion: T[String] = T {
@@ -46,6 +57,8 @@ object rocketchip extends common.CommonRocketChip {
   def hardfloatModule = hardfloatRocket
 
   def diplomacyModule = diplomacyRocket
+
+  def diplomacyModule = utilityRocket
 
   def scalacPluginClasspath = super.scalacPluginClasspath() ++ Agg(
     chisel3Rocket.plugin.jar()

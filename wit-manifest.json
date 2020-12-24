@@ -30,6 +30,11 @@
         "source": "git@github.com:sequencer/diplomacy.git"
     },
     {
+        "commit": "a37167fce640ff2d13ba0f043346ebecf949c233",
+        "name": "utility",
+        "source": "git@github.com:sequencer/utility.git"
+    },
+    {
         "commit": "1c3539138f71d38f007e19870bcf5f69d9713307",
         "name": "api-scala-sifive",
         "source": "git@github.com:sifive/api-scala-sifive.git"

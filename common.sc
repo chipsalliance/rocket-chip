@@ -54,6 +54,8 @@ trait CommonRocketChip extends SbtModule with PublishModule {
 
   def diplomacyModule: PublishModule
 
+  def utilityModule: PublishModule
+
   def chisel3IvyDeps = if (chisel3Module.isEmpty) Agg(
     getVersion("chisel3")
   ) else Agg.empty[Dep]
@@ -62,7 +64,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     Some("freechips.rocketchip.system.Generator")
   }
 
-  override def moduleDeps = Seq() ++ chisel3Module :+ hardfloatModule :+ diplomacyModule
+  override def moduleDeps = Seq() ++ chisel3Module :+ hardfloatModule :+ diplomacyModule :+ utilityModule
 
   override def scalacOptions = T {
     Seq("-deprecation", "-unchecked", "-Xsource:2.11")

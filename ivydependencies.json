@@ -2,6 +2,9 @@
   "hardfloat": {
     "scalaVersion": "2.12.8"
   },
+  "utility": {
+    "scalaVersion": "2.12.8"
+  },
   "diplomacyMacros": {
     "scalaVersion": "2.12.8",
     "dependencies": [
