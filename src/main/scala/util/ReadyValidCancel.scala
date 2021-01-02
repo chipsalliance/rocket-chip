@@ -119,7 +119,7 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
     grantVecVec(i)(i) := true.B
     for (j <- 1 until n) {
       val k = (i + j) % n
-      grantVecVec(i)(k) := !inputEarlyValidVec.rotateRight(i).take(j).orR
+      grantVecVec(i)(k) := !(inputEarlyValidVec.rotate(i).take(j).orR)
     }
   }
 
@@ -129,17 +129,19 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
     grantVec := grantVecVec(0)
   }
 
-  selectDcd := inputEarlyValidVec & grantVec
-  when (io.out.earlyValid) {
-    assert(PopCount(selectDcd) === 1.U, "arbiter select should be one-hot when earlyValid")
-  }
-
   io.out.earlyValid := inputEarlyValidVec.orR
   io.out.lateCancel := PriorityMux(grantVec.reverse, io.in.reverse.map(_.lateCancel))
   io.out.bits       := PriorityMux(grantVec.reverse, io.in.reverse.map(_.bits))
 
   for (i <- 0 until n) {
     io.in(i).ready := io.out.ready && grantVec(i)
+  }
+
+  selectDcd := inputEarlyValidVec & grantVec
+  when (io.out.earlyValid) {
+    assert(PopCount(selectDcd) === 1.U, "arbiter select should be one-hot when earlyValid")
+    assert(Mux1H(selectDcd, io.in.map(_.lateCancel))  === io.out.lateCancel,  "arbiter output should be from selected input lateCancel")
+    assert(Mux1H(selectDcd, io.in.map(_.bits.asUInt)) === io.out.bits.asUInt, "arbiter output should be from selected input bits")
   }
 }
 
