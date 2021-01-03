@@ -106,42 +106,58 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
 
   inputEarlyValidVec := io.in.map(_.earlyValid)
 
-  private val prevSelectEnc_in = Wire(UInt(log2Ceil(n).W))
-  private val prevSelectEnc_en = Wire(Bool())
-  val prevSelectEnc_q = RegEnable(prevSelectEnc_in, 0.U, prevSelectEnc_en)
-  prevSelectEnc_en := inputEarlyValidVec.orR || prevSelectEnc_q.orR
-  prevSelectEnc_in := Mux(io.out.ready || !io.out.earlyValid,
-                          OHToUInt(selectDcd),
-                          prevSelectEnc_q)
+  private val nextSelectEnc = Wire(UInt(log2Ceil(n).W))
+  private val selectEnc_in  = Wire(UInt(log2Ceil(n).W))
+  private val selectEnc_en  = Wire(Bool())
+  val selectEnc_q = RegEnable(selectEnc_in, 0.U, selectEnc_en)
+  selectEnc_en := inputEarlyValidVec.orR || selectEnc_q.orR
+  selectEnc_in := Mux(io.out.earlyValid,
+                      Mux(io.out.ready,
+                          nextSelectEnc,
+                          selectEnc_q),
+                      0.U)
 
-  private val grantVecVec = Wire(Vec(n, Vec(n, Bool())))
+  private val grantVecVec      = Wire(Vec(n, Vec(n, Bool())))
+  private val nextSelectEncVec = Wire(Vec(n, UInt(log2Ceil(n).W)))
   for (i <- 0 until n) {
     grantVecVec(i)(i) := true.B
     for (j <- 1 until n) {
       val k = (i + j) % n
       grantVecVec(i)(k) := !(inputEarlyValidVec.rotate(i).take(j).orR)
     }
+    nextSelectEncVec(i) := i.U +& PriorityEncoder(inputEarlyValidVec.rotate(i) & ~1.U(n.W).asBools)
   }
 
   if (rr) {
-    grantVec := grantVecVec(prevSelectEnc_q)
+    grantVec          := grantVecVec(selectEnc_q)
+    io.out.lateCancel := Mux1H(selectDcd, io.in.map(_.lateCancel))
+    io.out.bits       := Mux1H(selectDcd, io.in.map(_.bits))
+    nextSelectEnc     := nextSelectEncVec(selectEnc_q)
   } else {
-    grantVec := grantVecVec(0)
+    grantVec          := grantVecVec.head
+    io.out.lateCancel := PriorityMux(grantVec.reverse, io.in.reverse.map(_.lateCancel))
+    io.out.bits       := PriorityMux(grantVec.reverse, io.in.reverse.map(_.bits))
+    nextSelectEnc     := 0.U
   }
 
-  io.out.earlyValid := inputEarlyValidVec.orR
-  io.out.lateCancel := PriorityMux(grantVec.reverse, io.in.reverse.map(_.lateCancel))
-  io.out.bits       := PriorityMux(grantVec.reverse, io.in.reverse.map(_.bits))
+  selectDcd := inputEarlyValidVec & grantVec
 
+  io.out.earlyValid := inputEarlyValidVec.orR
   for (i <- 0 until n) {
     io.in(i).ready := io.out.ready && grantVec(i)
   }
 
-  selectDcd := inputEarlyValidVec & grantVec
+  // assertions
   when (io.out.earlyValid) {
     assert(PopCount(selectDcd) === 1.U, "arbiter select should be one-hot when earlyValid")
-    assert(Mux1H(selectDcd, io.in.map(_.lateCancel))  === io.out.lateCancel,  "arbiter output should be from selected input lateCancel")
-    assert(Mux1H(selectDcd, io.in.map(_.bits.asUInt)) === io.out.bits.asUInt, "arbiter output should be from selected input bits")
+  }
+  if (rr) {
+    when (io.out.earlyValid) {
+      assert(selectEnc_q < n.U, "arbiter round-robin select out of range")
+    }
+    when (io.in(selectEnc_q).mightFire && io.in.map(i => i.earlyValid && !i.ready).orR) {
+      assert(selectEnc_in =/= selectEnc_q, "arbiter round-robin select did not advance")
+    }
   }
 }
 
