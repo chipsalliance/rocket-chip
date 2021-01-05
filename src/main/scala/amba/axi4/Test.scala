@@ -9,11 +9,11 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
 
-class RRTest0(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, 0, 32, 0, 4)(
+class RRTest0(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, "test0", Nil, 0, 32, 0, 4)(
   new AXI4RegBundle((), _)    with RRTest0Bundle)(
   new AXI4RegModule((), _, _) with RRTest0Module)
 
-class RRTest1(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, 0, 32, 6, 4, false)(
+class RRTest1(address: BigInt)(implicit p: Parameters) extends AXI4RegisterRouter(address, "test1", Nil, 0, 32, 6, 4, false)(
   new AXI4RegBundle((), _)    with RRTest1Bundle)(
   new AXI4RegModule((), _, _) with RRTest1Module)
 
