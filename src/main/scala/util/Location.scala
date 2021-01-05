@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.util
 
-import scala.language.dynamics
 import scala.collection.mutable.Map
+import scala.language.dynamics
 
 class Location[T](val name: String) extends Dynamic {
   def selectDynamic[A](portname: String): Location[A] = new Location[A](s"${name}_${portname}")

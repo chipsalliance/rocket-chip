@@ -3,12 +3,13 @@
 package freechips.rocketchip.amba.ahb
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AddressSet, DiplomaticSRAM, HasJustOneSeqMem, RegionType, TransferSizes}
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.AHB_Lite
-import freechips.rocketchip.util._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
+import freechips.rocketchip.util.{DataToAugmentedData, _}
 
 class AHBRAM(
     address: AddressSet,

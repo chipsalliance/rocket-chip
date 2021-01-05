@@ -3,8 +3,8 @@
 package freechips.rocketchip.amba.axis
 
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
 
 object AXISImp extends SimpleNodeImp[AXISMasterPortParameters, AXISSlavePortParameters, AXISEdgeParameters, AXISBundle]
 {

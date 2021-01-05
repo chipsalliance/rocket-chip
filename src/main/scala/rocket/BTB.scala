@@ -3,11 +3,11 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.internal.InstanceId
+import Chisel._
 import chisel3.WireInit
-import freechips.rocketchip.config.Parameters
+import chisel3.internal.InstanceId
+import diplomacy.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._

@@ -20,14 +20,14 @@
 package freechips.rocketchip.groundtest
  
 import Chisel._
-import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.diplomacy.{ClockCrossingType}
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.ClockCrossingType
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CanAttachTile}
 import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters}
+import freechips.rocketchip.prci.ClockSinkParameters
 
 // =======
 // Outline

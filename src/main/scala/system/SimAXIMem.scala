@@ -5,8 +5,9 @@ package freechips.rocketchip.system // TODO this should really be in a testharne
 import chisel3._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.subsystem.{CanHaveMasterAXI4MMIOPort, CanHaveMasterAXI4MemPort, ExtBus, ExtMem}
 
 /** Memory with AXI port for use in elaboratable test harnesses. */

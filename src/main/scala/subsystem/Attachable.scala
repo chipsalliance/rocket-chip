@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.{LazyModule, LazyScope}
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.diplomaticobjectmodel.HasLogicalTreeNode
 import freechips.rocketchip.prci.ClockGroupEphemeralNode
 import freechips.rocketchip.tilelink.TLBusWrapper

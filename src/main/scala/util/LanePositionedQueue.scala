@@ -509,8 +509,8 @@ case class OnePortLanePositionedQueue(ecc: Code) extends LanePositionedQueue {
 
 /////////////////////////////// Black Box Unit Testing /////////////////////////////
 
-import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink.LFSR64
+import freechips.rocketchip.unittest._
 
 class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: Int, rewind: Boolean, abort: Boolean, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val ids = (cycles+1) * lanes

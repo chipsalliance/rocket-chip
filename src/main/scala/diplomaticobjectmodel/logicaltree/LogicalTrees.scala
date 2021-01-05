@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.diplomaticobjectmodel.logicaltree
 
-import freechips.rocketchip.config._
+import diplomacy.config._
 import freechips.rocketchip.devices.debug._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import freechips.rocketchip.diplomacy.{Binding, Description, Device, ResourceBindings, ResourceInt, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.tile.MaxHartIdBits

@@ -3,8 +3,10 @@
 package freechips.rocketchip.devices.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.{Field, Parameters}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, SimpleDevice, TransferSizes}
+import freechips.rocketchip.util.DataToAugmentedData
 import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._

@@ -2,10 +2,10 @@
 
 package freechips.rocketchip.jtag
 
-import scala.collection.SortedMap
-
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
+
+import scala.collection.SortedMap
 
 /** JTAG signals, viewed from the master side
   */

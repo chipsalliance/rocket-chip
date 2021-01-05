@@ -2,9 +2,8 @@
 
 package freechips.rocketchip.util
 
-import chisel3._
-import chisel3.withClock
 import chisel3.util.HasBlackBoxResource
+import chisel3.{withClock, _}
 
 /** This black-boxes a Clock Divider by 2.
   * The output clock is phase-aligned to the input clock.

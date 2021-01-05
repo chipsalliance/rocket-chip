@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.Field
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Field
+import diplomacy._
+import freechips.rocketchip.diplomacy.{ClockCrossingType, NoCrossing, SynchronousCrossing}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.Location
 

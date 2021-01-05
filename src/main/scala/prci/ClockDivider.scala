@@ -3,8 +3,8 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.util.isPow2
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.util.{ClockDivider3, Pow2ClockDivider}
 
 /* An example clock adapter that divides all clocks passed through this node by an integer factor

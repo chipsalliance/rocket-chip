@@ -3,8 +3,9 @@
 package freechips.rocketchip.amba.ahb
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.AddressDecoder
 import freechips.rocketchip.util._
 
 class AHBFanout()(implicit p: Parameters) extends LazyModule {

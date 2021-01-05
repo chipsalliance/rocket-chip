@@ -4,8 +4,9 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.RawModule
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, Description, Device, Resource, ResourceBindings, ResourceValue, SimpleDevice, TransferSizes}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._

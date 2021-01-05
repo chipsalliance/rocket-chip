@@ -3,7 +3,7 @@
 package freechips.rocketchip.tile
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.PriorityMux
 
 abstract class LookupByHartIdImpl {
   def apply[T <: Data](f: TileParams => Option[T], hartId: UInt): T

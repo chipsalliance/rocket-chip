@@ -4,8 +4,9 @@
 package freechips.rocketchip.groundtest
 
 import Chisel._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy.config._
+import diplomacy._
+import freechips.rocketchip.diplomacy.{ClockCrossingType, SimpleDevice}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{DCache, ICacheParams, NonBlockingDCache, RocketCoreParams}
 import freechips.rocketchip.tile._

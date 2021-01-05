@@ -3,9 +3,9 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.experimental.IO
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
-import freechips.rocketchip.util.{RecordMap}
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.util.RecordMap
 
 /** Used to parameterize the creation of simple clock group drivers */
 case class ClockGroupDriverParameters(

@@ -3,11 +3,10 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, NexusNode, RenderedEdge,
-  SimpleNodeImp, SinkNode, SourceNode, ValName}
-import freechips.rocketchip.config.Parameters
+import chisel3.util._
+import diplomacy._
+import diplomacy.config.Parameters
 
 case class DebugCustomParams(
   addrs: List[Int],
@@ -30,7 +29,6 @@ class DebugCustomImp extends SimpleNodeImp[DebugCustomParams, DebugCustomNull, D
   def edge(pd: DebugCustomParams, pu: DebugCustomNull, p: Parameters, sourceInfo: SourceInfo) = pd
   def bundle(e: DebugCustomParams) = new DebugCustomBundle(e)
   def render(e: DebugCustomParams) = RenderedEdge(colour = "#20B2AA" /* lightseagreen */)
-
 }
 
 // The Sink is the Debug Module

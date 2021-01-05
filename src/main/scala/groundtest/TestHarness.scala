@@ -3,8 +3,8 @@
 package freechips.rocketchip.groundtest
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy.LazyModule
+import diplomacy.config.Parameters
+import diplomacy.LazyModule
 import freechips.rocketchip.system.SimAXIMem
 
 class TestHarness(implicit p: Parameters) extends Module {

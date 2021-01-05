@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.amba.axis
 
-import freechips.rocketchip.config._
+import diplomacy._
+import diplomacy.config._
+import freechips.rocketchip.diplomacy.BufferParams
 import freechips.rocketchip.util._
-import freechips.rocketchip.diplomacy._
 
 class AXISBuffer(val params: BufferParams)(implicit p: Parameters) extends LazyModule
 {

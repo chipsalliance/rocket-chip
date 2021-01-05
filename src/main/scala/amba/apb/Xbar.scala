@@ -3,8 +3,9 @@
 package freechips.rocketchip.amba.apb
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.AddressDecoder
 import freechips.rocketchip.util._
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {

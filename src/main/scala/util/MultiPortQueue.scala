@@ -68,8 +68,8 @@ object MultiPortQueue {
   }
 }
 
-import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink.LFSR64
+import freechips.rocketchip.unittest._
 
 class MultiPortQueueTest(lanes: Int, wlanes: Int, rows: Int, cycles: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val ids = (cycles+1) * lanes

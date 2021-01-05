@@ -5,7 +5,8 @@ package freechips.rocketchip.util
 
 import Chisel._
 import chisel3.util.random.LFSR
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
+
 import scala.math._
 
 class ParameterizedBundle(implicit p: Parameters) extends Bundle

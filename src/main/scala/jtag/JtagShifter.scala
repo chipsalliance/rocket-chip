@@ -6,8 +6,7 @@ import chisel3._
 import chisel3.experimental.DataMirror
 import chisel3.internal.firrtl.KnownWidth
 import chisel3.util.{Cat, Valid}
-
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.util.property._
 
 /** Base JTAG shifter IO, viewed from input to shift register chain.

@@ -4,7 +4,8 @@ package freechips.rocketchip.prci
 
 import Chisel._
 import chisel3.experimental.IO
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import freechips.rocketchip.diplomacy.{ClockCrossingType, SynchronousCrossing}
 
 object IOHelper {
 

@@ -3,8 +3,9 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy.config._
+import diplomacy._
+import freechips.rocketchip.diplomacy.AddressSet
 
 class TLJbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {

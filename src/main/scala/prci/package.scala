@@ -2,7 +2,8 @@
 
 package freechips.rocketchip
 
-import freechips.rocketchip.diplomacy._
+import _root_.diplomacy._
+import freechips.rocketchip.diplomacy.{AsynchronousCrossing, ClockCrossingType}
 
 package object prci
 {

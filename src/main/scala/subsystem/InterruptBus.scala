@@ -3,10 +3,11 @@
 package freechips.rocketchip.subsystem
 
 import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.{Field, Parameters}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AsynchronousCrossing, ClockCrossingType, Description, Device, DeviceInterrupts, RationalCrossing, ResourceBindings}
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci.{ClockSinkDomain}
+import freechips.rocketchip.prci.ClockSinkDomain
 
 /** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
 class InterruptBusWrapper(implicit p: Parameters) extends ClockSinkDomain {

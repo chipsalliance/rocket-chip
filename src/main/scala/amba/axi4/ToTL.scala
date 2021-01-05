@@ -3,9 +3,10 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomacy.{IdMapEntry, IdRange, TransferSizes}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 

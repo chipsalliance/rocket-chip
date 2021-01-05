@@ -3,9 +3,9 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomacy.BundleBridgeNexus.fillN
+import diplomacy.BundleBridgeNexus.fillN
+import diplomacy._
+import diplomacy.config.Parameters
 import freechips.rocketchip.util.{BlockDuringReset, Blockable}
 
 object BundleBridgeBlockDuringReset {

@@ -5,13 +5,16 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba.AMBAProt
-import scala.math.{min,max}
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, IdRange, RegionType, SimpleDevice, TransferSizes}
+import freechips.rocketchip.util.DataToAugmentedData
+
+import scala.math.{max, min}
 
 case class TLBroadcastControlParams(
   address:   AddressSet,

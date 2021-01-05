@@ -3,8 +3,8 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config._
 import freechips.rocketchip.util._
 
 class ResetWrangler(debounceNs: Double = 100000)(implicit p: Parameters) extends LazyModule

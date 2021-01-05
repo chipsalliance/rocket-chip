@@ -4,11 +4,12 @@ package freechips.rocketchip.amba.axi4
 
 import Chisel._
 import chisel3.util.IrrevocableIO
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.unittest._
+import diplomacy._
+import diplomacy.config._
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, BufferParams}
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.unittest._
+import freechips.rocketchip.util._
 
 class AXI4Xbar(
   arbitrationPolicy: TLArbiter.Policy = TLArbiter.roundRobin,

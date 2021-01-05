@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.system
 
-import freechips.rocketchip.config.Config
+import diplomacy.config.Config
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.groundtest.WithTraceGen
 

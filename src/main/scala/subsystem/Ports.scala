@@ -2,10 +2,11 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.Field
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Field
+import diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.amba.axi4._
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, IdRange, MemoryDevice, RegionType, SimpleBus, TransferSizes}
 import freechips.rocketchip.util._
 
 /** Specifies the size and width of external memory ports */

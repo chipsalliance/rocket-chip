@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
 import Chisel.ImplicitConversions._
-import freechips.rocketchip.config.Parameters
+import Chisel._
+import diplomacy.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 

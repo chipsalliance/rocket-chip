@@ -3,18 +3,18 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
 import Chisel.ImplicitConversions._
-import chisel3.withClock
+import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.chiselName
-import freechips.rocketchip.config.Parameters
+import chisel3.withClock
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
+
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -95,7 +95,6 @@ class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
   override def cloneType = new L2TLBEntry(nSets).asInstanceOf[this.type]
 }
 
-@chiselName
 class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     val requestor = Vec(n, new TLBPTWIO).flip

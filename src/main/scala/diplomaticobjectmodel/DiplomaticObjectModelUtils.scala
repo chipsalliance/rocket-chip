@@ -3,9 +3,9 @@
 package freechips.rocketchip.diplomaticobjectmodel
 
 import java.io.{File, FileWriter}
-
 import Chisel.{Data, Vec, log2Ceil}
-import freechips.rocketchip.diplomacy.{ AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, Binding, Device, DiplomacyUtils, ResourceAddress, ResourceBindings, ResourceInt, ResourceMapping, ResourcePermissions, ResourceValue, SimpleDevice}
 import freechips.rocketchip.diplomaticobjectmodel.model._
 import org.json4s.jackson.JsonMethods.pretty
 import org.json4s.jackson.Serialization

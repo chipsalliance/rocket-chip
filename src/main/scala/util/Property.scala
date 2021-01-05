@@ -4,7 +4,7 @@ package freechips.rocketchip.util.property
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.util.{ReadyValidIO}
+import chisel3.util.ReadyValidIO
 
 sealed abstract class PropertyType(name: String) {
   override def toString: String = name

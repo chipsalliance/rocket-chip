@@ -63,23 +63,31 @@ lazy val chiselLib = "edu.berkeley.cs" %% "chisel3" % chiselVersion
 //   keeping scalaVersion in sync with chisel3 to the minor version
 lazy val chiselPluginLib = "edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full
 
-lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
+// create a standalone sbt project for diplomacy.
+// after moving to chipsalliance, depend it with ivy
+lazy val macros = project
+  .in(file("diplomacy/diplomacy/macros"))
   .settings(commonSettings)
   .settings(publishArtifact := false)
+
+lazy val diplomacy = project
+  .in(file("diplomacy/diplomacy"))
+  .sourceDependency(chiselRef, chiselLib)
+  .dependsOn(macros)
+  .settings(addCompilerPlugin(chiselPluginLib))
+  .settings(commonSettings)
+
 lazy val hardfloat  = (project in file("hardfloat"))
   .sourceDependency(chiselRef, chiselLib)
   .settings(addCompilerPlugin(chiselPluginLib))
   .settings(commonSettings)
   .settings(publishArtifact := false)
-lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
-  .settings(publishArtifact := false)
 lazy val rocketchip = (project in file("."))
   .sourceDependency(chiselRef, chiselLib)
   .settings(addCompilerPlugin(chiselPluginLib))
   .settings(commonSettings, chipSettings)
-  .dependsOn(`api-config-chipsalliance`)
   .dependsOn(hardfloat)
-  .dependsOn(`rocket-macros`)
+  .dependsOn(diplomacy)
   .settings( // Assembly settings
     assembly / test := {},
     assembly / assemblyJarName := "rocketchip.jar",

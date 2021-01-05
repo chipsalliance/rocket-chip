@@ -4,8 +4,8 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.MultiIOModule
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.util.{Pow2ClockDivider}

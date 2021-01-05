@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {

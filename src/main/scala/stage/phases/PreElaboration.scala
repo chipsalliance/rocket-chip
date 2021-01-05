@@ -4,11 +4,11 @@ package freechips.rocketchip.stage.phases
 
 import chisel3.RawModule
 import chisel3.stage.ChiselGeneratorAnnotation
+import diplomacy._
+import diplomacy.config.{Field, Parameters}
 import firrtl.AnnotationSeq
 import firrtl.options.Viewer.view
 import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils
 

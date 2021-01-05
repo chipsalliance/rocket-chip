@@ -3,10 +3,11 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
+import freechips.rocketchip.regmapper._
 import freechips.rocketchip.util._
 
 case object AXI4RRId extends ControlKey[UInt]("extra_id")

@@ -5,10 +5,11 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.amba.ahb._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
 import freechips.rocketchip.util._
 import AHBParameters._
+import freechips.rocketchip.diplomacy.TransferSizes
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { cp =>

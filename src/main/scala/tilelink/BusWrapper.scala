@@ -3,8 +3,9 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, ClockCrossingType, NoCrossing}
 
 // TODO This class should be moved to package subsystem to resolve
 //      the dependency awkwardness of the following imports

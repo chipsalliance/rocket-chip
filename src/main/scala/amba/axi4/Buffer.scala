@@ -4,8 +4,10 @@ package freechips.rocketchip.amba.axi4
 
 import Chisel._
 import chisel3.util.IrrevocableIO
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.BufferParams
+
 import scala.math.min
 
 // pipe is only used if a queue has depth = 1

@@ -10,6 +10,7 @@
 [submodule "firrtl"]
 	path = firrtl
 	url = https://github.com/freechipsproject/firrtl.git
-[submodule "api-config-chipsalliance"]
-	path = api-config-chipsalliance
-	url = https://github.com/chipsalliance/api-config-chipsalliance.git
+[submodule "diplomacy"]
+	path = diplomacy
+	# currently in sequencer's private repository, move to chipsalliance after review.
+	url = https://github.com/sequencer/diplomacy.git

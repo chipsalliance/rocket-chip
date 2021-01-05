@@ -4,9 +4,11 @@ package freechips.rocketchip.amba.axi4
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, Device, DirectedBuffers, IdMap, IdMapEntry, IdRange, RegionType, Resource, ResourceAddress, ResourcePermissions, TransferSizes}
 import freechips.rocketchip.util._
+
 import scala.math.max
 
 case class AXI4SlaveParameters(

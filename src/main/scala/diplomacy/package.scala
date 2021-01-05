@@ -2,9 +2,10 @@
 
 package freechips.rocketchip
 
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.Data
-import freechips.rocketchip.config.Parameters
+import _root_.diplomacy.config.Parameters
+
 import scala.language.implicitConversions
 
 
@@ -178,13 +179,185 @@ import scala.language.implicitConversions
   */
 package object diplomacy
 {
-  type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = NodeHandle[D, U, E, B, D, U, E, B]
-  type AnyMixedNode = MixedNode[_, _, _, _ <: Data, _, _, _, _ <: Data]
-
-  def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
-    case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
-    case _ => ""
-  }
+  /* compatibility mode to stand alone diplomacy. */
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type LazyModule = _root_.diplomacy.LazyModule
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val LazyModule = _root_.diplomacy.LazyModule
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type LazyModuleImpLike = _root_.diplomacy.LazyModuleImpLike
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type LazyModuleImp = _root_.diplomacy.LazyModuleImp
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type LazyRawModuleImp = _root_.diplomacy.LazyRawModuleImp
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type SimpleLazyModule = _root_.diplomacy.SimpleLazyModule
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type LazyScope = _root_.diplomacy.LazyScope
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val LazyScope = _root_.diplomacy.LazyScope
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type HalfEdge = _root_.diplomacy.HalfEdge
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val HalfEdge = _root_.diplomacy.HalfEdge
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type Dangle = _root_.diplomacy.Dangle
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val Dangle = _root_.diplomacy.Dangle
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type AutoBundle = _root_.diplomacy.AutoBundle
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type ModuleValue[T] = _root_.diplomacy.ModuleValue[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val InModuleBody = _root_.diplomacy.InModuleBody
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val MonitorsEnabled = _root_.diplomacy.MonitorsEnabled
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val RenderFlipped = _root_.diplomacy.RenderFlipped
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val RenderedEdge = _root_.diplomacy.RenderedEdge
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type RenderedEdge = _root_.diplomacy.RenderedEdge
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type InwardNodeImp[DI, UI, EI, BI <: Data] = _root_.diplomacy.InwardNodeImp[DI, UI, EI, BI]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type OutwardNodeImp[DO, UO, EO, BO <: Data] = _root_.diplomacy.OutwardNodeImp[DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type NodeImp[D, U, EO, EI, B <: Data] = _root_.diplomacy.NodeImp[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type SimpleNodeImp[D, U, E, B <: Data] = _root_.diplomacy.SimpleNodeImp[D, U, E, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BaseNode = _root_.diplomacy.BaseNode
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BaseNode = _root_.diplomacy.BaseNode
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type FormatEdge = _root_.diplomacy.FormatEdge
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type FormatNode[I <: FormatEdge, O <: FormatEdge] = _root_.diplomacy.FormatNode[I, O]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type NoHandle = _root_.diplomacy.NoHandle
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val NoHandleObject = _root_.diplomacy.NoHandleObject
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val NodeHandle = _root_.diplomacy.NodeHandle
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type NodeHandlePair[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.NodeHandlePair[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type InwardNodeHandle[DI, UI, EI, BI <: Data] = _root_.diplomacy.InwardNodeHandle[DI, UI, EI, BI]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type NodeBinding = _root_.diplomacy.NodeBinding
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BIND_ONCE = _root_.diplomacy.BIND_ONCE
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BIND_QUERY = _root_.diplomacy.BIND_QUERY
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BIND_STAR = _root_.diplomacy.BIND_STAR
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BIND_FLEX = _root_.diplomacy.BIND_FLEX
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type InwardNode[DI, UI, BI <: Data] = _root_.diplomacy.InwardNode[DI, UI, BI]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type OutwardNodeHandle[DO, UO, EO, BO <: Data] = _root_.diplomacy.OutwardNodeHandle[DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type OutwardNode[DO, UO, BO <: Data] = _root_.diplomacy.OutwardNode[DO, UO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type CycleException = _root_.diplomacy.CycleException
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type StarCycleException = _root_.diplomacy.StarCycleException
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type DownwardCycleException = _root_.diplomacy.DownwardCycleException
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type UpwardCycleException = _root_.diplomacy.UpwardCycleException
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val Edges = _root_.diplomacy.Edges
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type Edges[EI, EO] = _root_.diplomacy.Edges[EI, EO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.MixedNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.MixedCustomNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type CustomNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.CustomNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.MixedJunctionNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type JunctionNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.JunctionNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.MixedAdapterNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type AdapterNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.AdapterNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type IdentityNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.IdentityNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type EphemeralNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.EphemeralNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] = _root_.diplomacy.MixedNexusNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type NexusNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.NexusNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type SourceNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.SourceNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type SinkNode[D, U, EO, EI, B <: Data] = _root_.diplomacy.SinkNode[D, U, EO, EI, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeParams[T <: Data] = _root_.diplomacy.BundleBridgeParams[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeParams = _root_.diplomacy.BundleBridgeParams
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeEdgeParams[T <: Data] = _root_.diplomacy.BundleBridgeEdgeParams[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeImp[T <: Data] = _root_.diplomacy.BundleBridgeImp[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeSink[T <: Data] = _root_.diplomacy.BundleBridgeSink[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeSink = _root_.diplomacy.BundleBridgeSink
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeSource[T <: Data] = _root_.diplomacy.BundleBridgeSource[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeSource = _root_.diplomacy.BundleBridgeSource
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeIdentityNode[T <: Data] = _root_.diplomacy.BundleBridgeIdentityNode[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeIdentityNode = _root_.diplomacy.BundleBridgeIdentityNode
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeEphemeralNode[T <: Data] = _root_.diplomacy.BundleBridgeEphemeralNode[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeEphemeralNode = _root_.diplomacy.BundleBridgeEphemeralNode
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeNameNode = _root_.diplomacy.BundleBridgeNameNode
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeNexusNode[T <: Data] = _root_.diplomacy.BundleBridgeNexusNode[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeNexus[T <: Data] = _root_.diplomacy.BundleBridgeNexus[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBridgeNexus = _root_.diplomacy.BundleBridgeNexus
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val BundleBroadcast = _root_.diplomacy.BundleBroadcast
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type ValName = _root_.diplomacy.ValName
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  val ValName = _root_.diplomacy.ValName
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = _root_.diplomacy.SimpleNodeHandle[D, U, E, B]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type AnyMixedNode = _root_.diplomacy.AnyMixedNode
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeInwardNode[T <: Data] = _root_.diplomacy.BundleBridgeInwardNode[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeOutwardNode[T <: Data] = _root_.diplomacy.BundleBridgeOutwardNode[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  type BundleBridgeNode[T <: Data] = _root_.diplomacy.BundleBridgeNode[T]
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = _root_.diplomacy.sourceLine(sourceInfo, prefix, suffix)
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = _root_.diplomacy.EnableMonitors(body)(p)
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = _root_.diplomacy.DisableMonitors(body)(p)
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) = _root_.diplomacy.FlipRendering(body)(p)
+  @deprecated("diplomacy and config is moved from rocket-chip to standalone package.", "1.2")
+  implicit def moduleValue[T](value: ModuleValue[T]): T = _root_.diplomacy.moduleValue(value)
 
   def bitIndexes(x: BigInt, tail: Seq[Int] = Nil): Seq[Int] = {
     require (x >= 0)
@@ -222,21 +395,5 @@ package object diplomacy
     def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
   }
 
-  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case MonitorsEnabled => true
-  })
-  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case MonitorsEnabled => false
-  })
-  def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case RenderFlipped => !p(RenderFlipped)
-  })
-
-  implicit def moduleValue[T](value: ModuleValue[T]): T = value.getWrappedValue
-
   implicit def noCrossing(value: NoCrossing.type): ClockCrossingType = SynchronousCrossing(BufferParams.none)
-
-  type BundleBridgeInwardNode[T <: Data] = InwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
-  type BundleBridgeOutwardNode[T <: Data] = OutwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
-  type BundleBridgeNode[T <: Data] = NodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T, BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
 }

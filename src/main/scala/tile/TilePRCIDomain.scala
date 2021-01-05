@@ -3,14 +3,15 @@
 package freechips.rocketchip.tile
 
 import chisel3.Vec
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.ClockCrossingType
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
-import freechips.rocketchip.rocket.{TracedInstruction}
-import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CrossesToOnlyOneResetDomain}
+import freechips.rocketchip.rocket.TracedInstruction
+import freechips.rocketchip.subsystem.{CrossesToOnlyOneResetDomain, TileCrossingParamsLike}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{TraceCoreInterface}
+import freechips.rocketchip.util.TraceCoreInterface
 
 /** A wrapper containing all logic within a managed reset domain for a tile.
   *

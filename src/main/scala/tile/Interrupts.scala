@@ -3,9 +3,9 @@
 package freechips.rocketchip.tile
 
 import Chisel._
-
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import diplomacy.config.Parameters
+import freechips.rocketchip.diplomacy.{Description, Device, DeviceSnippet, IntToProperty, ResourceBinding, ResourceInt, StringToProperty}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 

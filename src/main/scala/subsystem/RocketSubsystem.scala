@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing}
+import diplomacy.config.{Field, Parameters}
+import diplomacy._
+import freechips.rocketchip.diplomacy.{ClockCrossingType, SynchronousCrossing}
+import freechips.rocketchip.prci.{NoResetCrossing, ResetCrossingType}
 import freechips.rocketchip.tile._
 
 case class RocketCrossingParams(

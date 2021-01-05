@@ -3,7 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import diplomacy.config.Parameters
 import freechips.rocketchip.regmapper._
 
 case class ExampleParams(num: Int, address: BigInt)

@@ -4,8 +4,9 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
-import freechips.rocketchip.diplomacy._
+import diplomacy.config._
+import diplomacy._
+import freechips.rocketchip.diplomacy.AddressSet
 
 class AddressAdjuster(
     val params: ReplicatedRegion, // only devices in this region get adjusted

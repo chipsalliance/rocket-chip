@@ -3,6 +3,7 @@ package freechips.rocketchip.util
 
 import chisel3._
 import chisel3.experimental.DataMirror
+
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.HashMap
 

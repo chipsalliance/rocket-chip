@@ -4,9 +4,11 @@ package freechips.rocketchip.tilelink
 
 import Chisel._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomacy._
+import diplomacy.config.Parameters
+import diplomacy._
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, BufferParams, DirectedBuffers, IdMap, IdMapEntry, IdRange, RegionType, Resource, ResourceAddress, ResourcePermissions, TransferSizes}
 import freechips.rocketchip.util._
+
 import scala.math.max
 
 //These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel

@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.{Parameters}
+import diplomacy.config.Parameters
 import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
+import diplomacy._
+import freechips.rocketchip.diplomacy.BufferParams
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
