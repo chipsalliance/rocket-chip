@@ -5,16 +5,17 @@ package freechips.rocketchip.amba.apb
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._
 
-class RRTest0(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter(address, 0, 32, 0, 4)(
-  new APBRegBundle((), _)    with RRTest0Bundle)(
-  new APBRegModule((), _, _) with RRTest0Module)
+class APBRRTest0(address: BigInt)(implicit p: Parameters) 
+  extends RRTest0(address)
+  with HasAPBControlRegMap
 
-class RRTest1(address: BigInt)(implicit p: Parameters) extends APBRegisterRouter(address, 0, 32, 1, 4, false)(
-  new APBRegBundle((), _)    with RRTest1Bundle)(
-  new APBRegModule((), _, _) with RRTest1Module)
+class APBRRTest1(address: BigInt)(implicit p: Parameters)
+  extends RRTest1(address, concurrency = 1, undefZero = false)
+  with HasAPBControlRegMap
 
 class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule
 {
@@ -22,7 +23,7 @@ class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   val model = LazyModule(new TLRAMModel("APBFuzzMaster"))
   val xbar  = LazyModule(new APBFanout)
   val ram   = LazyModule(new APBRAM(AddressSet(0x0, 0xff), fuzzReady = true, fuzzError = true))
-  val gpio  = LazyModule(new RRTest0(0x100))
+  val gpio  = LazyModule(new APBRRTest0(0x100))
 
   ram.node  := xbar.node
   gpio.node := xbar.node
