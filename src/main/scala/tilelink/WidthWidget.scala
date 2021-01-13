@@ -50,11 +50,15 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       }
 
       def helper(idata: UInt): UInt = {
+        val rdata_written_once = RegInit(false.B)
+        val masked_enable = enable.map(_ || !rdata_written_once)
+
         val odata = Seq.fill(ratio) { WireInit(idata) }
         val rdata = Reg(Vec(ratio-1, chiselTypeOf(idata)))
         val pdata = rdata :+ idata
-        val mdata = (enable zip (odata zip pdata)) map { case (e, (o, p)) => Mux(e, o, p) }
+        val mdata = (masked_enable zip (odata zip pdata)) map { case (e, (o, p)) => Mux(e, o, p) }
         when (in.fire() && !last) {
+          rdata_written_once := true.B
           (rdata zip mdata) foreach { case (r, m) => r := m }
         }
         Cat(mdata.reverse)
