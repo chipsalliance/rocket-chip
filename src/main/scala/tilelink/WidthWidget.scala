@@ -50,6 +50,9 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       }
 
       def helper(idata: UInt): UInt = {
+        // rdata is X until the first time a multi-beat write occurs.
+        // Prevent the X from leaking outside by jamming the mux control until
+        // the first time rdata is written (and hence no longer X).
         val rdata_written_once = RegInit(false.B)
         val masked_enable = enable.map(_ || !rdata_written_once)
 
