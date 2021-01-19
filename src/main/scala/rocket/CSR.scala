@@ -140,8 +140,7 @@ object CSR
     require(!(Causes.all contains res))
     res
   }
-  def unmiIntCause = 15  // NMI: Higher numbers = higher priority, must not reuse debugIntCause
-  def rnmiIntCause = 13
+  def rnmiIntCause = 13  // NMI: Higher numbers = higher priority, must not reuse debugIntCause
   def rnmiBEUCause = 12
 
   val firstCtr = CSRs.cycle
@@ -405,8 +404,7 @@ class CSRFile(
   val reg_mncause = RegInit(0.U(xLen.W))
   val reg_mnstatus = Reg(init=reset_mnstatus)
   val reg_rnmie = RegInit(true.B)
-  val reg_unmie = RegInit(true.B)
-  val nmie = reg_rnmie && reg_unmie
+  val nmie = reg_rnmie
 
   val delegable_counters = ((BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1).U
   val (reg_mcounteren, read_mcounteren) = {
@@ -457,10 +455,9 @@ class CSRFile(
   val pending_interrupts = high_interrupts | (read_mip & reg_mie)
   val d_interrupts = io.interrupts.debug << CSR.debugIntCause
   val (nmi_interrupts, nmiFlag) = io.interrupts.nmi.map(nmi =>
-    (((nmi.unmi && reg_unmie) << CSR.unmiIntCause) |
-    ((nmi.rnmi && reg_rnmie) << CSR.rnmiIntCause) |
+    (((nmi.rnmi && reg_rnmie) << CSR.rnmiIntCause) |
     io.interrupts.buserror.map(_ << CSR.rnmiBEUCause).getOrElse(0.U),
-    !io.interrupts.debug && (nmi.unmi && reg_unmie || nmi.rnmi && reg_rnmie))).getOrElse(0.U, false.B)
+    !io.interrupts.debug && nmi.rnmi && reg_rnmie)).getOrElse(0.U, false.B)
   val m_interrupts = Mux(nmie && (reg_mstatus.prv <= PRV.S || reg_mstatus.mie), ~(~pending_interrupts | read_mideleg), UInt(0))
   val s_interrupts = Mux(nmie && (reg_mstatus.prv < PRV.S || (reg_mstatus.prv === PRV.S && reg_mstatus.sie)), pending_interrupts & read_mideleg, UInt(0))
   val (anyInterrupt, whichInterrupt) = chooseInterrupt(Seq(s_interrupts, m_interrupts, nmi_interrupts, d_interrupts))
@@ -709,12 +706,11 @@ class CSRFile(
     Mux(doVector, interruptVec, base >> mtvecBaseAlign << mtvecBaseAlign)
   }
 
-  val causeIsUnmiInt = cause(xLen-1) && cause(xLen-2) && cause_lsbs === CSR.unmiIntCause
   val causeIsRnmiInt = cause(xLen-1) && cause(xLen-2) && (cause_lsbs === CSR.rnmiIntCause || cause_lsbs === CSR.rnmiBEUCause)
   val causeIsRnmiBEU = cause(xLen-1) && cause(xLen-2) && cause_lsbs === CSR.rnmiBEUCause
-  val causeIsNmi = causeIsUnmiInt || causeIsRnmiInt
-  val nmiTVecInt = io.interrupts.nmi.map(nmi => Mux(causeIsRnmiInt, nmi.rnmi_interrupt_vector, nmi.unmi_interrupt_vector)).getOrElse(0.U)
-  val nmiTVecXcpt = io.interrupts.nmi.map(nmi => Mux(reg_unmie, nmi.rnmi_exception_vector, nmi.unmi_exception_vector)).getOrElse(0.U)
+  val causeIsNmi = causeIsRnmiInt
+  val nmiTVecInt = io.interrupts.nmi.map(nmi => nmi.rnmi_interrupt_vector).getOrElse(0.U)
+  val nmiTVecXcpt = io.interrupts.nmi.map(nmi => nmi.rnmi_exception_vector).getOrElse(0.U)
   val trapToNmiInt = usingNMI.B && causeIsNmi
   val trapToNmiXcpt = usingNMI.B && !nmie
   val trapToNmi = trapToNmiInt || trapToNmiXcpt
@@ -740,7 +736,7 @@ class CSRFile(
 
   when (insn_wfi && !io.singleStep && !reg_debug) { reg_wfi := true }
   when (pending_interrupts.orR || io.interrupts.debug || exception) { reg_wfi := false }
-  io.interrupts.nmi.map(nmi => when (nmi.unmi || nmi.rnmi) { reg_wfi := false } )
+  io.interrupts.nmi.map(nmi => when (nmi.rnmi) { reg_wfi := false } )
 
   when (io.retire(0) || exception) { reg_singleStepped := true }
   when (!io.singleStep) { reg_singleStepped := false }
@@ -761,11 +757,10 @@ class CSRFile(
         new_prv := PRV.M
       }
     }.elsewhen (trapToNmiInt) {
-      when (reg_rnmie || reg_unmie && causeIsUnmiInt) {
+      when (reg_rnmie) {
         reg_rnmie := false.B
-        reg_unmie := !causeIsUnmiInt
         reg_mnepc := epc
-        reg_mncause := (BigInt(1) << (xLen-1)).U | Mux(causeIsUnmiInt, 1.U, Mux(causeIsRnmiBEU, 3.U, 2.U))
+        reg_mncause := (BigInt(1) << (xLen-1)).U | Mux(causeIsRnmiBEU, 3.U, 2.U)
         reg_mnstatus.mpp := trimPrivilege(reg_mstatus.prv)
         new_prv := PRV.M
       }
@@ -825,7 +820,6 @@ class CSRFile(
     }.elsewhen (Bool(usingNMI) && io.rw.addr(10) && !io.rw.addr(7)) {
       ret_prv := reg_mnstatus.mpp
       reg_rnmie := true.B
-      reg_unmie := true.B
       io.evec := readEPC(reg_mnepc)
     }.otherwise {
       reg_mstatus.mie := reg_mstatus.mpie
