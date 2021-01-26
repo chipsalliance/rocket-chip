@@ -513,6 +513,7 @@ class CSRFile(
 
   val read_mnstatus = WireInit(0.U.asTypeOf(new MStatus()))
   read_mnstatus.mpp := io.status.mpp
+  read_mnstatus.mie := reg_rnmie
   val nmi_csrs = if (!usingNMI) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.mnscratch -> reg_mnscratch,
     CSRs.mnepc -> readEPC(reg_mnepc).sextTo(xLen),
@@ -951,7 +952,10 @@ class CSRFile(
       when (decoded_addr(CSRs.mnscratch)) { reg_mnscratch := wdata }
       when (decoded_addr(CSRs.mnepc))     { reg_mnepc := formEPC(wdata) }
       when (decoded_addr(CSRs.mncause))   { reg_mncause := wdata & UInt((BigInt(1) << (xLen-1)) + BigInt(3)) }
-      when (decoded_addr(CSRs.mnstatus))  { reg_mnstatus.mpp := legalizePrivilege(new_mnstatus.mpp) }
+      when (decoded_addr(CSRs.mnstatus))  {
+        reg_mnstatus.mpp := legalizePrivilege(new_mnstatus.mpp)
+        reg_rnmie := reg_rnmie | new_mnstatus.mie  // mnie bit settable but not clearable from software
+      }
     }
 
     for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
