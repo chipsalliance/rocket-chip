@@ -856,7 +856,7 @@ class CSRFile(
 
   // cover access to register
   val coverable_counters = read_mapping.filterNot { case (k, _) =>
-    k >= CSR.firstHPM + nPerfCounters && k < CSR.firstHPM + CSR.nHPM
+    k >= CSR.firstHPC + nPerfCounters && k < CSR.firstHPC + CSR.nHPM
   }
   coverable_counters.foreach( {case (k, v) => {
     when (!k(11,10).andR) {  // Cover points for RW CSR registers
