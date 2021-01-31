@@ -11,5 +11,5 @@ if [ -f $sbt_opts ]; then
 else
   echo ".sbtopts does not exist so chisel3 and firrtl are currently built from published artifacts, swapping to build from source..."
   echo "-Dsbt.sourcemode=true"  > $sbt_opts
-  echo "-Dsbt.workspace=\$PWD" >> $sbt_opts
+  echo "-Dsbt.workspace=$(PWD)" >> $sbt_opts
 fi
