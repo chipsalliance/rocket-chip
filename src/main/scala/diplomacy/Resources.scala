@@ -440,9 +440,11 @@ object ResourceAnchors
   val cpus = new Device {
     def describe(resources: ResourceBindings): Description = {
       val width = resources("width").map(_.value)
+      val hertz = resources("hertz").map(_.value)
       Description("cpus", Map(
-        "#address-cells" -> width,
-        "#size-cells"    -> Seq(ResourceInt(0))))
+        "#address-cells"     -> width,
+        "#size-cells"        -> Seq(ResourceInt(0)),
+        "timebase-frequency" -> hertz))
     }
   }
 

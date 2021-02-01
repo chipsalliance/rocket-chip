@@ -99,6 +99,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
     val width = ResourceInt((log2Ceil(max)+31) / 32)
     val model = p(DTSModel)
     val compat = p(DTSCompat)
+    var hertz = p(DTSTimebase) // add for timebase-frequency
     val devCompat = (model +: compat).map(s => ResourceString(s + "-dev"))
     val socCompat = (model +: compat).map(s => ResourceString(s + "-soc"))
     devCompat.foreach { Resource(ResourceAnchors.root, "compat").bind(_) }
@@ -107,6 +108,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
     Resource(ResourceAnchors.root, "width").bind(width)
     Resource(ResourceAnchors.soc,  "width").bind(width)
     Resource(ResourceAnchors.cpus, "width").bind(ResourceInt(1))
+    Resource(ResourceAnchors.cpus, "hertz").bind(ResourceInt(hertz))
 
     managers.foreach { case manager =>
       val value = manager.toResource
