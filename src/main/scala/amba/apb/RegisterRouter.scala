@@ -51,21 +51,26 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
 // These convenience methods below combine to make it possible to create a APB
 // register mapped device from a totally abstract register mapped device.
 
+@deprecated("Use HasAPBControlRegMap+HasInterruptSources traits in place of APBRegisterRouter+APBRegBundle+APBRegModule", "rocket-chip 1.3")
 abstract class APBRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = APBRegisterNode(address, concurrency, beatBytes, undefZero, executable)
   val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
 }
 
+@deprecated("APBRegBundleArg is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 case class APBRegBundleArg()(implicit val p: Parameters)
 
+@deprecated("AXI4RegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 class APBRegBundleBase(arg: APBRegBundleArg) extends Bundle
 {
   implicit val p = arg.p
 }
 
+@deprecated("Use HasAPBControlRegMap+HasInterruptSources traits in place of APBRegisterRouter+APBRegBundle+APBRegModule", "rocket-chip 1.3")
 class APBRegBundle[P](val params: P, arg: APBRegBundleArg) extends APBRegBundleBase(arg)
 
+@deprecated("Use HasAPBControlRegMap+HasInterruptSources traits in place of APBRegisterRouter+APBRegBundle+APBRegModule", "rocket-chip 1.3")
 class APBRegModule[P, B <: APBRegBundleBase](val params: P, bundleBuilder: => B, router: APBRegisterRouterBase)
   extends LazyModuleImp(router) with HasRegMap
 {
@@ -74,6 +79,7 @@ class APBRegModule[P, B <: APBRegBundleBase](val params: P, bundleBuilder: => B,
   def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
 }
 
+@deprecated("Use HasAPBControlRegMap+HasInterruptSources traits in place of APBRegisterRouter+APBRegBundle+APBRegModule", "rocket-chip 1.3")
 class APBRegisterRouter[B <: APBRegBundleBase, M <: LazyModuleImp]
    (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
    (bundleBuilder: APBRegBundleArg => B)
@@ -95,6 +101,9 @@ trait HasAPBControlRegMap { this: RegisterRouter =>
     beatBytes = beatBytes,
     undefZero = undefZero,
     executable = executable)
+
+  // Backwards-compatibility default node accessor with no clock crossing
+  lazy val node: APBInwardNode = controlNode
 
   // Internally, this function should be used to populate the control port with registers
   protected def regmap(mapping: RegField.Map*): Unit = { controlNode.regmap(mapping:_*) }
