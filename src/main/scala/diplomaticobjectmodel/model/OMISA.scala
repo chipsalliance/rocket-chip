@@ -102,7 +102,7 @@ object OMISA {
       a = coreParams.useAtomics.option(isaExtSpec(A, "2.0")),
       f = coreParams.fpu.map(x => isaExtSpec(F, "2.0")),
       d = coreParams.fpu.filter(_.fLen > 32).map(x => isaExtSpec(D, "2.0")),
-      c = coreParams.useCompressed.option(isaExtSpec(C, " 2.0")),
+      c = coreParams.useCompressed.option(isaExtSpec(C, "2.0")),
       u = (coreParams.hasSupervisorMode || coreParams.useUser).option(isaExtSpec(U, "1.10")),
       s = coreParams.hasSupervisorMode.option(isaExtSpec(S, "1.10")),
       addressTranslationModes = Seq(addressTranslationModes),
