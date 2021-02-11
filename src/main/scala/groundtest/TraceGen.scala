@@ -214,6 +214,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
     val timeout = Bool(OUTPUT)
     val mem = new HellaCacheIO
     val hartid = UInt(INPUT, log2Up(numGens))
+    val fence_rdy = Bool(INPUT)
   }
 
   val totalNumAddrs = addressBag.size + numExtraAddrs
@@ -401,7 +402,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
         opInProgress := UInt(1)
       }
       // Wait until all requests have had a response
-      .elsewhen (reqCount === respCount) {
+      .elsewhen (reqCount === respCount && io.fence_rdy) {
         // Emit fence response
         printf("%d: fence-resp @%d\n", tid, cycleCount)
         // Move on to a new operation
@@ -619,6 +620,7 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
     val dcacheIF = Module(new SimpleHellaCacheIF())
     dcacheIF.io.requestor <> tracegen.io.mem
     dcache.module.io.cpu <> dcacheIF.io.cache
+    tracegen.io.fence_rdy := dcache.module.io.cpu.ordered
   }
 
   outer.reportCease(Some(tracegen.io.finished))
