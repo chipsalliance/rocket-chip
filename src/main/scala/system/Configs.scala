@@ -82,5 +82,5 @@ class MMIOPortOnlyConfig extends Config(
   new DefaultConfig
 )
 
-class BaseFPGAConfig extends Config(new BaseConfig)
+class BaseFPGAConfig extends Config(new BaseConfig ++ new WithCoherentBusTopology)
 class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
