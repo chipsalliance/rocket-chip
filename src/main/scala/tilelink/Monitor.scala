@@ -175,7 +175,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     when (bundle.opcode === TLMessages.Get) {
-      monAssert (edge.master.supportsPutFull(edge.source(bundle), bundle.size) && edge.slave.emitsPutFullSafe(edge.address(bundle), bundle.size), "'B' channel carries Get type which is unexpected using diplomatic parameters" + extra)
+      monAssert (edge.master.supportsGet(edge.source(bundle), bundle.size) && edge.slave.emitsGetSafe(edge.address(bundle), bundle.size), "'B' channel carries Get type which is unexpected using diplomatic parameters" + extra)
       monAssert (address_ok, "'B' channel Get carries unmanaged address" + extra)
       monAssert (legal_source, "'B' channel Get carries source that is not first source" + extra)
       monAssert (is_aligned, "'B' channel Get address not aligned to size" + extra)
