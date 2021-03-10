@@ -512,7 +512,7 @@ class CSRFile(
     reg_dscratch1.map(r => CSRs.dscratch1 -> r)
 
   val read_mnstatus = WireInit(0.U.asTypeOf(new MStatus()))
-  read_mnstatus.mpp := io.status.mpp
+  read_mnstatus.mpp := reg_mnstatus.mpp
   read_mnstatus.mie := reg_rnmie
   val nmi_csrs = if (!usingNMI) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.mnscratch -> reg_mnscratch,
