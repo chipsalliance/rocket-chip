@@ -72,12 +72,13 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
           TLAtomics.SWAP          -> M_XA_SWAP)),
         TLMessages.Get            -> M_XRD))
 
-      // Convert full PutPartial into PutFull to work around RMWs causing X-prop problems
+      // Convert full PutPartial into PutFull to work around RMWs causing X-prop problems.
+      // Also prevent cmd becoming X out of reset by checking for s_init.
       val mask_full = {
         val desired_mask = new StoreGen(a.size, a.address, 0.U, coreDataBytes).mask
         (a.mask | ~desired_mask).andR
       }
-      when (a.opcode === TLMessages.PutPartialData && mask_full) {
+      when (state === s_init || (a.opcode === TLMessages.PutPartialData && mask_full)) {
         req.cmd := M_XWR
       }
 
@@ -101,7 +102,6 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     io.dmem.req.valid := dmem_req_valid_likely
     tl_in.a.ready := io.dmem.req.ready && ready
     io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
-    when (state === s_init) { io.dmem.req.bits.cmd := M_XRD } // To fix an X-pessimism problem, don't let cmd become X
     io.dmem.s1_data.data := acq.data
     io.dmem.s1_data.mask := acq.mask
     io.dmem.s1_kill := state =/= s_wait1
