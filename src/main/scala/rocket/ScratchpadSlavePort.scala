@@ -71,6 +71,16 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
           TLAtomics.AND           -> M_XA_AND,
           TLAtomics.SWAP          -> M_XA_SWAP)),
         TLMessages.Get            -> M_XRD))
+
+      // Convert full PutPartial into PutFull to work around RMWs causing X-prop problems
+      val mask_full = {
+        val desired_mask = new StoreGen(a.size, a.address, 0.U, coreDataBytes).mask
+        (a.mask | ~desired_mask).andR
+      }
+      when (a.opcode === TLMessages.PutPartialData && mask_full) {
+        req.cmd := M_XWR
+      }
+
       req.size := a.size
       req.signed := false
       req.addr := a.address
