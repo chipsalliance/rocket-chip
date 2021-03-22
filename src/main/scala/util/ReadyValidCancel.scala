@@ -125,7 +125,11 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
       val k = (i + j) % n
       grantVecVec(i)(k) := !(inputEarlyValidVec.rotate(i).take(j).orR)
     }
-    nextSelectEncVec(i) := i.U +& PriorityEncoder(inputEarlyValidVec.rotate(i) & ~1.U(n.W).asBools)
+    if (isPow2(n)) {
+      nextSelectEncVec(i) := i.U +& PriorityEncoder(inputEarlyValidVec.rotate(i) & ~1.U(n.W).asBools)
+    } else {
+      nextSelectEncVec(i) := (i.U +& PriorityEncoder(inputEarlyValidVec.rotate(i) & ~1.U(n.W).asBools)) % n.U
+    }
   }
 
   if (rr) {
