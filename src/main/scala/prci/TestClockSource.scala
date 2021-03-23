@@ -76,9 +76,9 @@ class TestClockSource(freqs: Seq[Option[Double]])(implicit p: Parameters) extend
 
   lazy val module = new LazyModuleImp(this) {
     node.out.zipWithIndex.foreach { case ((bundle, edge), i) =>
-      val source = Module(edge.source.give.map(f =>
-        new ClockSourceAtFreq(f.freqMHz)
-      ).getOrElse(new ClockSourceAtFreqFromPlusArg(s"CLOCKFREQMHZ$i"))).io
+      val source = edge.source.give.map(f =>
+        Module(new ClockSourceAtFreq(f.freqMHz)).io
+      ).getOrElse(Module(new ClockSourceAtFreqFromPlusArg(s"CLOCKFREQMHZ$i")).io)
       source.power := true.B
       source.gate  := false.B
       bundle.clock := source.clk
