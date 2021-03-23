@@ -33,7 +33,7 @@ object CloneModule
     val mod = Module(new CloneModule(model.asInstanceOf[RawModule]))
     // Rewrite the instance definition to be the original module
     // (this is needed because the original module gets clobbered by DCE + constant prop)
-    val method = classOf[Module].getDeclaredMethod("_commands")
+    val method = classOf[RawModule].getDeclaredMethod("_commands")
     method.setAccessible(true)
     val commands = method.invoke(Builder.forcedUserModule).asInstanceOf[ArrayBuffer[Command]]
     val victimIdx = commands.lastIndexWhere {
