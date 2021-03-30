@@ -59,7 +59,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   val isHi = Reg(Bool())
   val resHi = Reg(Bool())
   val divisor = Reg(Bits((w+1).W)) // div only needs w bits
-  val remainder = Reg(Bits((2*mulw+2).W)) // div only needs 2*w+1 bits
+  val remainder = Reg(Bits((2*w+2).W)) // div only needs 2*w+1 bits
 
   val mulDecode = List(
     FN_MUL    -> List(Y, N, X, X),
