@@ -456,7 +456,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (s1_probe) { lrscCount := 0 }
 
   // don't perform data correction if it might clobber a recent store
-  val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid) && Bool(usingDataScratchpad)
+  val s2_correct = s2_data_error && !any_pstore_valid && !RegNext(any_pstore_valid || s2_valid) && Bool(usingDataScratchpad)
   // pending store buffer
   val s2_valid_correct = s2_valid_hit_pre_data_ecc_and_waw && s2_correct && !io.cpu.s2_kill
   def s2_store_valid_pre_kill = s2_valid_hit && s2_write && !s2_sc_fail
