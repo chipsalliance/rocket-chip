@@ -1175,7 +1175,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     res
   }
   def acquire(vaddr: UInt, paddr: UInt, param: UInt): TLBundleA = {
-    if (!edge.manager.anySupportAcquireT) Wire(new TLBundleA(edge.bundle))
+    if (!edge.manager.anySupportAcquireB) Wire(new TLBundleA(edge.bundle))
     else edge.AcquireBlock(UInt(0), paddr >> lgCacheBlockBytes << lgCacheBlockBytes, lgCacheBlockBytes, param)._2
   }
 

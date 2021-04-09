@@ -66,6 +66,7 @@ object TLBPageLookup
       require (!m.supportsAcquireT   || m.supportsAcquireT  .contains(xferSizes), s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsAcquireT} AcquireT, but must support ${xferSizes}")
       require (!m.supportsLogical    || m.supportsLogical   .contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsLogical} Logical, but must support ${amoSizes}")
       require (!m.supportsArithmetic || m.supportsArithmetic.contains(amoSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsArithmetic} Arithmetic, but must support ${amoSizes}")
+      require (!(m.supportsAcquireB && m.supportsPutFull && !m.supportsAcquireT), s"Memory region '${m.name}' supports AcquireB (cached read) and PutFull (un-cached write) but not AcquireT (cached write)")
     }
 
     val grouped = groupRegions(managers)
