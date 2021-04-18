@@ -3,7 +3,7 @@
 package freechips.rocketchip.amba.axi4
 
 import Chisel._
-import chisel3.chiselTypeOf
+import chisel3.DontCare
 import chisel3.util.Irrevocable
 import freechips.rocketchip.util._
 
@@ -83,16 +83,16 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
         aw.ready := Bool(false)
         w.ready  := Bool(false)
         r.valid  := Bool(false)
-        r.bits := 0.U.asTypeOf(chiselTypeOf(b.bits))
+        r.bits   := DontCare
         b.valid  := Bool(false)
-        b.bits := 0.U.asTypeOf(chiselTypeOf(b.bits))
+        b.bits   := DontCare
       case OUTPUT =>
         ar.valid := Bool(false)
-        ar.bits  := 0.U.asTypeOf(chiselTypeOf(ar.bits))
+        ar.bits  := DontCare
         aw.valid := Bool(false)
-        aw.bits  := 0.U.asTypeOf(chiselTypeOf(aw.bits))
+        aw.bits  := DontCare
         w.valid  := Bool(false)
-        w.bits   := 0.U.asTypeOf(chiselTypeOf(w.bits))
+        w.bits   := DontCare
         r.ready  := Bool(false)
         b.ready  := Bool(false)
       case _ =>
