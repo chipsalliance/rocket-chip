@@ -41,10 +41,11 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
 
     val (tl_in, edge) = node.in(0)
 
-    val s_ready :: s_wait1 :: s_wait2 :: s_replay :: s_grant :: Nil = Enum(UInt(), 5)
-    val state = Reg(init = s_ready)
+    val s_ready :: s_wait1 :: s_wait2 :: s_replay :: s_init :: s_grant :: Nil = Enum(UInt(), 6)
+    val state = Reg(init = s_init)
     val dmem_req_valid = Wire(Bool())
     when (state === s_wait1) { state := s_wait2 }
+    when (state === s_init && tl_in.a.valid) { state := s_ready }
     when (io.dmem.resp.valid) { state := s_grant }
     when (tl_in.d.fire()) { state := s_ready }
     when (io.dmem.s2_nack) { state := s_replay }
@@ -82,7 +83,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     // ready_likely assumes that a valid response in s_wait2 is the vastly
     // common case.  In the uncommon case, we'll erroneously send a request,
     // then s1_kill it the following cycle.
-    val ready_likely = state === s_ready || state === s_wait2
+    val ready_likely = state.isOneOf(s_ready, s_wait2)
     val ready = state === s_ready || state === s_wait2 && io.dmem.resp.valid && tl_in.d.ready
     dmem_req_valid := (tl_in.a.valid && ready) || state === s_replay
     val dmem_req_valid_likely = (tl_in.a.valid && ready_likely) || state === s_replay
@@ -90,6 +91,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     io.dmem.req.valid := dmem_req_valid_likely
     tl_in.a.ready := io.dmem.req.ready && ready
     io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
+    when (state === s_init) { io.dmem.req.bits.cmd := M_XRD } // To fix an X-pessimism problem, don't let cmd become X
     io.dmem.s1_data.data := acq.data
     io.dmem.s1_data.mask := acq.mask
     io.dmem.s1_kill := state =/= s_wait1
