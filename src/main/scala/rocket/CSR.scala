@@ -855,7 +855,10 @@ class CSRFile(
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
   // cover access to register
-  read_mapping.foreach( {case (k, v) => {
+  val coverable_counters = read_mapping.filterNot { case (k, _) =>
+    k >= CSR.firstHPC + nPerfCounters && k < CSR.firstHPC + CSR.nHPM
+  }
+  coverable_counters.foreach( {case (k, v) => {
     when (!k(11,10).andR) {  // Cover points for RW CSR registers
       cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
     } .otherwise { // Cover points for RO CSR registers
