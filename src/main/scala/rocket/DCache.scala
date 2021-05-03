@@ -735,7 +735,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // Handle an incoming TileLink Probe message
   val block_probe_for_core_progress = blockProbeAfterGrantCount > 0 || lrscValid
-  val block_probe_for_pending_release_ack = release_ack_wait && (tl_out.b.bits.address ^ release_ack_addr)(idxMSB, idxLSB) === 0
+  val block_probe_for_pending_release_ack = release_ack_wait && (tl_out.b.bits.address ^ release_ack_addr)(((pgIdxBits + pgLevelBits) min paddrBits) - 1, idxLSB) === 0
   val block_probe_for_ordering = releaseInFlight || block_probe_for_pending_release_ack || grantInProgress
   metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe_for_core_progress || lrscBackingOff)
   tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid)
