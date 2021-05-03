@@ -202,7 +202,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val resetting = RegInit(false.B)
   val flushCounter = Reg(init=UInt(nSets * (nWays-1), log2Ceil(nSets * nWays)))
   val release_ack_wait = Reg(init=Bool(false))
-  val release_ack_dirty = Reg(Bool())
   val release_ack_addr = Reg(UInt(paddrBits.W))
   val release_state = Reg(init=s_ready)
   val refill_way = Reg(UInt())
@@ -575,7 +574,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out_a.valid := !io.cpu.s2_kill &&
     (s2_valid_uncached_pending ||
       (s2_valid_cached_miss &&
-       !(release_ack_wait && release_ack_dirty) &&
+       !release_ack_wait &&
        (cacheParams.acquireBeforeRelease && !release_ack_wait && release_queue_empty || !s2_victim_dirty)))
   tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param),
     Mux(!s2_write, get,
@@ -736,7 +735,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // Handle an incoming TileLink Probe message
   val block_probe_for_core_progress = blockProbeAfterGrantCount > 0 || lrscValid
-  val block_probe_for_pending_release_ack = release_ack_wait && release_ack_dirty && (tl_out.b.bits.address ^ release_ack_addr)(idxMSB, idxLSB) === 0
+  val block_probe_for_pending_release_ack = release_ack_wait && (tl_out.b.bits.address ^ release_ack_addr)(idxMSB, idxLSB) === 0
   val block_probe_for_ordering = releaseInFlight || block_probe_for_pending_release_ack || grantInProgress
   metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe_for_core_progress || lrscBackingOff)
   tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid)
@@ -850,7 +849,6 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       when (releaseDone) { release_state := s_voluntary_write_meta }
       when (tl_out_c.fire() && c_first) {
         release_ack_wait := true
-        release_ack_dirty := inWriteback
         release_ack_addr := probe_bits.address
       }
     }
