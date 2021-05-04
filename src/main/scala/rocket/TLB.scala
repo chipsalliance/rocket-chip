@@ -100,8 +100,7 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
       valid(idx) && sectorTagMatch(vpn)
     }
   }
-  def ppn(vpn: UInt) = {
-    val data = getData(vpn)
+  def ppn(vpn: UInt, data: TLBEntryData) = {
     if (superpage && usingVM) {
       var res = data.ppn >> pgLevelBits*(pgLevels - 1)
       for (j <- 1 until pgLevels) {
@@ -187,7 +186,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate) || io.sfence.valid
   val mpu_ppn = Mux(do_refill, refill_ppn,
-                Mux(vm_enabled && special_entry.nonEmpty, special_entry.map(_.ppn(vpn)).getOrElse(0.U), io.req.bits.vaddr >> pgIdxBits))
+                Mux(vm_enabled && special_entry.nonEmpty, special_entry.map(e => e.ppn(vpn, e.getData(vpn))).getOrElse(0.U), io.req.bits.vaddr >> pgIdxBits))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val mpu_priv = Mux[UInt](Bool(usingVM) && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S, Cat(io.ptw.status.debug, priv))
   val pmp = Module(new PMPChecker(lgMaxSize))
@@ -214,7 +213,6 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val hitsVec = all_entries.map(vm_enabled && _.hit(vpn))
   val real_hits = hitsVec.asUInt
   val hits = Cat(!vm_enabled, real_hits)
-  val ppn = Mux1H(hitsVec :+ !vm_enabled, all_entries.map(_.ppn(vpn)) :+ vpn(ppnBits-1, 0))
 
   // permission bit arrays
   when (do_refill) {
@@ -259,7 +257,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   }
 
   val entries = all_entries.map(_.getData(vpn))
-  val normal_entries = ordinary_entries.map(_.getData(vpn))
+  val normal_entries = entries.take(ordinary_entries.size)
+  val ppn = Mux1H(hitsVec :+ !vm_enabled, (all_entries zip entries).map{ case (entry, data) => entry.ppn(vpn, data) } :+ vpn(ppnBits-1, 0))
+
   val nPhysicalEntries = 1 + special_entry.size
   val ptw_ae_array = Cat(false.B, entries.map(_.ae).asUInt)
   val priv_rw_ok = Mux(!priv_s || io.ptw.status.sum, entries.map(_.u).asUInt, 0.U) | Mux(priv_s, ~entries.map(_.u).asUInt, 0.U)
