@@ -574,7 +574,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tl_out_a.valid := !io.cpu.s2_kill &&
     (s2_valid_uncached_pending ||
       (s2_valid_cached_miss &&
-       !release_ack_wait &&
+       !(release_ack_wait && (tl_out_a.bits.address ^ release_ack_addr)(((pgIdxBits + pgLevelBits) min paddrBits) - 1, idxLSB) === 0) &&
        (cacheParams.acquireBeforeRelease && !release_ack_wait && release_queue_empty || !s2_victim_dirty)))
   tl_out_a.bits := Mux(!s2_uncached, acquire(s2_vaddr, s2_req.addr, s2_grow_param),
     Mux(!s2_write, get,
