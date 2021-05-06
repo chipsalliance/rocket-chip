@@ -5,10 +5,19 @@ Thank you for your interest in contributing to Rocket Chip!
 
 ## Table of Contents
 
++ [Contributing](#submitting)
 + [Submitting a PR](#submitting)
 + [Conditions for Merging a PR](#merging)
 + [Bumping Submodules](#bumping)
 + [Bumping Chisel and FIRRTL](#bumping-chisel)
+
+### <a name="contributing"></a> Contributing to this repo
+This repository is managed by EasyCLA. Project participants must sign the free [CHIPS Alliance Contributer License Agreement](https://github.com/chipsalliance/tsc/tree/main/cla) before making a contribution. You only need to do this one time, and it can be signed by [individual](https://github.com/chipsalliance/tsc/tree/main/cla#sign-as-an-individual) contributors or their [employers](https://github.com/chipsalliance/tsc/tree/main/cla#have-your-company-sign-for-you).
+
+To initiate the signature process please open a PR against this repo. The EasyCLA bot will block the merge if we still need a membership agreement from you.
+You can find [detailed information here](https://github.com/chipsalliance/tsc/tree/main/cla). If you have issues, please email [operations@chipsalliance.org](mailto:operations@chipsalliance.org).
+
+If your company benefits from CHIPS Alliance projects and you would like to provide essential financial support for the systems and people that power our community, please also consider [membership in the CHIPS Alliance](https://chipsalliance.org/join/).
 
 ### <a name="submitting"></a> Submitting a PR
 
