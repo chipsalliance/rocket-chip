@@ -22,16 +22,23 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
+  /** access exception. */
   val ae = Bool()
+  /** page table entry. */
   val pte = new PTE
+  /** page leve. */
   val level = UInt(width = log2Ceil(pgLevels))
+  /** @todo for huge page */
   val fragmented_superpage = Bool()
+  /** @todo for huge page */
   val homogeneous = Bool()
 }
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
+  /** request from PTW. */
   val req = Decoupled(Valid(new PTWReq))
+  /** */
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
   val status = new MStatus().asInput
@@ -58,15 +65,25 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
+  /** @todo why hardcoded? */
   val ppn = UInt(width = 54)
+  /** RSW */
   val reserved_for_software = Bits(width = 2)
+  /** Dirty. */
   val d = Bool()
+  /** Accessed */
   val a = Bool()
+  /** Global */
   val g = Bool()
+  /** User */
   val u = Bool()
+  /** Executable */
   val x = Bool()
+  /** Writeable */
   val w = Bool()
+  /** Readable */
   val r = Bool()
+  /** Valid */
   val v = Bool()
 
   def table(dummy: Int = 0) = v && !r && !w && !x
