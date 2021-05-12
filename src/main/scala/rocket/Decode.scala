@@ -3,18 +3,16 @@
 package freechips.rocketchip.rocket
 
 import Chisel._
-import scala.collection.mutable.{ArrayBuffer, Map}
+import chisel3.util.experimental.decode._
 
 object DecodeLogic
 {
-	def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt = {???}
+  def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt =
+    chisel3.util.experimental.decode.decoder(QMCMinimizer, addr, TruthTable(mapping, default))
   def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])]): Seq[UInt] = {
-    val mapping = ArrayBuffer.fill(default.size)(ArrayBuffer[(BitPat, BitPat)]())
-    for ((key, values) <- mappingIn)
-      for ((value, i) <- values zipWithIndex)
-        mapping(i) += key -> value
-    for ((thisDefault, thisMapping) <- default zip mapping)
-      yield apply(addr, thisDefault, thisMapping)
+    val elementIndexes = default.map(_.getWidth).scan(default.map(_.getWidth).sum - 1) { case (l, r) => l - r }
+    val decoded = apply(addr, default.reduce(_ ## _), mappingIn.map { case (in, out) => (in, out.reduce(_ ## _)) })
+    elementIndexes.zip(elementIndexes.drop(1)).map { case (msb, lsb) => decoded(msb, lsb + 1)}
   }
   def apply(addr: UInt, default: Seq[BitPat], mappingIn: List[(UInt, Seq[BitPat])]): Seq[UInt] =
     apply(addr, default, mappingIn.map(m => (BitPat(m._1), m._2)).asInstanceOf[Iterable[(BitPat, Seq[BitPat])]])
