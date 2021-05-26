@@ -109,6 +109,7 @@ trait HasCoreMemOp extends HasL1HellaCacheParameters {
   val size = Bits(width = log2Ceil(coreDataBytes.log2 + 1))
   val signed = Bool()
   val dprv = UInt(width = PRV.SZ)
+  val dv = Bool()
 }
 
 trait HasCoreData extends HasCoreParameters {
@@ -142,6 +143,7 @@ class AlignmentExceptions extends Bundle {
 class HellaCacheExceptions extends Bundle {
   val ma = new AlignmentExceptions
   val pf = new AlignmentExceptions
+  val gf = new AlignmentExceptions
   val ae = new AlignmentExceptions
 }
 

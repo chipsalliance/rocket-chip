@@ -19,11 +19,17 @@ import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
+  val vstage1 = Bool()
+  val stage2 = Bool()
 }
 
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae_ptw = Bool()
   val ae_final = Bool()
+  val gf = Bool()
+  val hr = Bool()
+  val hw = Bool()
+  val hx = Bool()
   val pte = new PTE
   val level = UInt(width = log2Ceil(pgLevels))
   val fragmented_superpage = Bool()
@@ -35,7 +41,11 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val req = Decoupled(Valid(new PTWReq))
   val resp = Valid(new PTWResp).flip
   val ptbr = new PTBR().asInput
+  val hgatp = new PTBR().asInput
+  val vsatp = new PTBR().asInput
   val status = new MStatus().asInput
+  val hstatus = new HStatus().asInput
+  val gstatus = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
   val customCSRs = coreParams.customCSRs.asInput
 }
@@ -50,8 +60,12 @@ class PTWPerfEvents extends Bundle {
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val ptbr = new PTBR().asInput
+  val hgatp = new PTBR().asInput
+  val vsatp = new PTBR().asInput
   val sfence = Valid(new SFenceReq).flip
   val status = new MStatus().asInput
+  val hstatus = new HStatus().asInput
+  val gstatus = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
   val perf = new PTWPerfEvents().asOutput
   val customCSRs = coreParams.customCSRs.asInput
@@ -83,7 +97,7 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
 class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val idxBits = log2Ceil(nSets)
-  val tagBits = vpnBits - idxBits
+  val tagBits = maxSVAddrBits - pgIdxBits - idxBits + (if (usingHypervisor) 1 else 0)
   val tag = UInt(width = tagBits)
   val ppn = UInt(width = ppnBits)
   val d = Bool()
@@ -124,14 +138,30 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   withClock (gated_clock) { // entering gated-clock domain
 
   val invalidated = Reg(Bool())
-  val count = Reg(UInt(width = log2Up(pgLevels)))
-  val resp_ae_ptw = RegNext(false.B)
-  val resp_ae_final = RegNext(false.B)
-  val resp_fragmented_superpage = RegNext(false.B)
+  val count = Reg(UInt(width = log2Ceil(pgLevels)))
+  val resp_ae_ptw = Reg(Bool())
+  val resp_ae_final = Reg(Bool())
+  val resp_gf = Reg(Bool())
+  val resp_hr = Reg(Bool())
+  val resp_hw = Reg(Bool())
+  val resp_hx = Reg(Bool())
+  val resp_fragmented_superpage = Reg(Bool())
 
   val r_req = Reg(new PTWReq)
   val r_req_dest = Reg(Bits())
   val r_pte = Reg(new PTE)
+  val r_hgatp = Reg(new PTBR)
+
+  val aux_count = Reg(UInt(log2Ceil(pgLevels).W))
+  val aux_pte = Reg(new PTE)
+  val stage2 = Reg(Bool())
+  val stage2_final = Reg(Bool())
+
+  val satp = Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp, io.dpath.ptbr)
+  val r_hgatp_initial_count = pgLevels - minPgLevels - r_hgatp.additionalPgLevels
+  val do_both_stages = r_req.vstage1 && r_req.stage2
+  val max_count = count max aux_count
+  val vpn = Mux(r_req.vstage1 && stage2, aux_pte.ppn, r_req.addr)
 
   val mem_resp_valid = RegNext(io.mem.resp.valid)
   val mem_resp_data = RegNext(io.mem.resp.bits.data)
@@ -147,53 +177,73 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val (pte, invalid_paddr) = {
     val tmp = new PTE().fromBits(mem_resp_data)
     val res = Wire(init = tmp)
-    res.ppn := tmp.ppn(ppnBits-1, 0)
+    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits-1, 0), tmp.ppn(ppnBits-1, 0))
     when (tmp.r || tmp.w || tmp.x) {
       // for superpage mappings, make sure PPN LSBs are zero
       for (i <- 0 until pgLevels-1)
         when (count <= i && tmp.ppn((pgLevels-1-i)*pgLevelBits-1, (pgLevels-2-i)*pgLevelBits) =/= 0) { res.v := false }
     }
-    (res, (tmp.ppn >> ppnBits) =/= 0)
+    (res, Mux(do_both_stages && !stage2, (tmp.ppn >> vpnBits) =/= 0, (tmp.ppn >> ppnBits) =/= 0))
   }
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
   val pte_addr = if (!usingVM) 0.U else {
-    val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+    val vpn_idxs = (0 until pgLevels).map(i => (vpn >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
     val vpn_idx = vpn_idxs(count)
-    Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+    val size = if (usingHypervisor) vaddrBits else paddrBits
+    (Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8))(size-1, 0)
   }
+  val pte_cache_addr = if (!usingHypervisor) pte_addr else {
+    val vpn_idxs = (0 until pgLevels-1).map(i => (aux_pte.ppn >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+    val vpn_idx = vpn_idxs(count)
+    (Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8))(vaddrBits-1, 0)
+  }
+  val stage2_pte_cache_addr = if (!usingHypervisor) 0.U else {
+    val vpn_idxs = (0 until pgLevels-1).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+    val vpn_idx = vpn_idxs(count)
+    (Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen/8))(vaddrBits-1, 0)
+  }
+
   val fragmented_superpage_ppn = {
     val choices = (pgLevels-1 until 0 by -1).map(i => Cat(r_pte.ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
     choices(count)
   }
 
-  when (arb.io.out.fire()) {
-    r_req := arb.io.out.bits.bits
-    r_req_dest := arb.io.chosen
-  }
+  def makePTECache(s2: Boolean): (Bool, UInt) = {
+    val plru = new PseudoLRU(coreParams.nPTECacheEntries)
+    val valid = RegInit(0.U(coreParams.nPTECacheEntries.W))
+    val tags = Reg(Vec(coreParams.nPTECacheEntries, UInt((if (usingHypervisor) 1 + vaddrBits else paddrBits).W)))
+    val data = Reg(Vec(coreParams.nPTECacheEntries, UInt(width = ppnBits)))
+    val can_hit =
+      if (s2) count === r_hgatp_initial_count && aux_count < pgLevels-1 && r_req.vstage1 && stage2 && !stage2_final
+      else count < pgLevels-1 && Mux(r_req.vstage1, stage2, !r_req.stage2)
+    val can_refill =
+      if (s2) do_both_stages && !stage2 && !stage2_final
+      else can_hit
+    val tag =
+      if (s2) Cat(true.B, stage2_pte_cache_addr)
+      else Cat(r_req.vstage1, pte_cache_addr)
 
-  val (pte_cache_hit, pte_cache_data) = {
-    val size = 1 << log2Up(pgLevels * 2)
-    val plru = new PseudoLRU(size)
-    val valid = RegInit(0.U(size.W))
-    val tags = Reg(Vec(size, UInt(width = paddrBits)))
-    val data = Reg(Vec(size, UInt(width = ppnBits)))
-
-    val hits = tags.map(_ === pte_addr).asUInt & valid
-    val hit = hits.orR
-    when (mem_resp_valid && traverse && !hit && !invalidated) {
+    val hits = tags.map(_ === tag).asUInt & valid
+    val hit = hits.orR && can_hit
+    when (mem_resp_valid && traverse && can_refill && !hits.orR && !invalidated) {
       val r = Mux(valid.andR, plru.way, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
-      tags(r) := pte_addr
+      tags(r) := tag
       data(r) := pte.ppn
+      plru.access(r)
     }
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
-    when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0.U }
+    when (io.dpath.sfence.valid && (!io.dpath.sfence.bits.rs1 || usingHypervisor && io.dpath.sfence.bits.hg)) { valid := 0.U }
 
     for (i <- 0 until pgLevels-1)
       ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
 
-    (hit && count < pgLevels-1, Mux1H(hits, data))
+    (hit, Mux1H(hits, data))
   }
+
+  val (pte_cache_hit, pte_cache_data) = makePTECache(false)
+  val (stage2_pte_cache_hit, stage2_pte_cache_data) = makePTECache(true)
+
   val pte_hit = RegNext(false.B)
   io.dpath.perf.pte_miss := false
   io.dpath.perf.pte_hit := pte_hit && (state === s_req) && !io.dpath.perf.l2hit
@@ -224,7 +274,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val g = Reg(Vec(coreParams.nL2TLBWays, UInt(width = nL2TLBSets)))
     val valid = RegInit(Vec(Seq.fill(coreParams.nL2TLBWays)(0.U(nL2TLBSets.W))))
-    val (r_tag, r_idx) = Split(r_req.addr, idxBits)
+    val (r_tag, r_idx) = Split(Cat(r_req.vstage1, r_req.addr(maxSVAddrBits-pgIdxBits-1, 0)), idxBits)
     val r_valid_vec = valid.map(_(r_idx)).asUInt
     val r_valid_vec_q = Reg(UInt(coreParams.nL2TLBWays.W))
     val r_l2_plru_way = Reg(UInt(log2Ceil(coreParams.nL2TLBWays max 1).W))
@@ -246,16 +296,20 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         }
       }
     }
+
     when (io.dpath.sfence.valid) {
+      val hg = usingHypervisor && io.dpath.sfence.bits.hg
       for (way <- 0 until coreParams.nL2TLBWays) {
         valid(way) :=
-          Mux(io.dpath.sfence.bits.rs1, valid(way) & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
-          Mux(io.dpath.sfence.bits.rs2, valid(way) & g(way), 0.U))
+          Mux(!hg && io.dpath.sfence.bits.rs1, valid(way) & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
+          Mux(!hg && io.dpath.sfence.bits.rs2, valid(way) & g(way),
+          0.U))
       }
     }
 
     val s0_valid = !l2_refill && arb.io.out.fire()
-    val s1_valid = RegNext(s0_valid && arb.io.out.bits.valid)
+    val s0_suitable = arb.io.out.bits.bits.vstage1 === arb.io.out.bits.bits.stage2
+    val s1_valid = RegNext(s0_valid && s0_suitable && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
     val s1_rdata = ram.read(arb.io.out.bits.bits.addr(idxBits-1, 0), s0_valid)
     val s2_rdata = s1_rdata.map(s1_rdway => code.decode(RegEnable(s1_rdway, s1_valid)))
@@ -298,50 +352,83 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.addr := pte_addr
   io.mem.req.bits.idx.foreach(_ := pte_addr)
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
+  io.mem.req.bits.dv := false
   io.mem.s1_kill := l2_hit || state =/= s_wait1
   io.mem.s2_kill := Bool(false)
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
+  require(!usingHypervisor || pageGranularityPMPs, s"hypervisor requires pmpGranularity >= ${1<<pgIdxBits}")
+
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>
     val pgSize = BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits))
     if (pageGranularityPMPs && i == pgLevels - 1) {
       require(TLBPageLookup.homogeneous(edge.manager.managers, pgSize), s"All memory regions must be $pgSize-byte aligned")
       true.B
     } else {
-      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize)(pte_addr).homogeneous
+      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize)(r_pte.ppn << pgIdxBits).homogeneous
     }
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
-  val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(pte_addr >> pgIdxBits << pgIdxBits, count)
+  val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(r_pte.ppn << pgIdxBits, count)
   val homogeneous = pmaHomogeneous && pmpHomogeneous
 
   for (i <- 0 until io.requestor.size) {
     io.requestor(i).resp.valid := resp_valid(i)
     io.requestor(i).resp.bits.ae_ptw := resp_ae_ptw
     io.requestor(i).resp.bits.ae_final := resp_ae_final
+    io.requestor(i).resp.bits.gf := resp_gf
+    io.requestor(i).resp.bits.hr := resp_hr
+    io.requestor(i).resp.bits.hw := resp_hw
+    io.requestor(i).resp.bits.hx := resp_hx
     io.requestor(i).resp.bits.pte := r_pte
-    io.requestor(i).resp.bits.level := count
+    io.requestor(i).resp.bits.level := max_count
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).ptbr := io.dpath.ptbr
+    io.requestor(i).hgatp := io.dpath.hgatp
+    io.requestor(i).vsatp := io.dpath.vsatp
     io.requestor(i).customCSRs := io.dpath.customCSRs
     io.requestor(i).status := io.dpath.status
+    io.requestor(i).hstatus := io.dpath.hstatus
+    io.requestor(i).gstatus := io.dpath.gstatus
     io.requestor(i).pmp := io.dpath.pmp
   }
 
   // control state machine
   val next_state = Wire(init = state)
   state := OptimizationBarrier(next_state)
+  val do_switch = Wire(init = false.B)
 
   switch (state) {
     is (s_ready) {
       when (arb.io.out.fire()) {
+        val satp_initial_count = pgLevels - minPgLevels - satp.additionalPgLevels
+        val hgatp_initial_count = pgLevels - minPgLevels - io.dpath.hgatp.additionalPgLevels
+
+        r_req := arb.io.out.bits.bits
+        r_req_dest := arb.io.chosen
         next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
+        stage2 := arb.io.out.bits.bits.stage2
+        stage2_final := false
+        count := Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
+        aux_count := satp_initial_count
+        aux_pte.ppn := Mux(arb.io.out.bits.bits.vstage1, satp.ppn, arb.io.out.bits.bits.addr)
+        resp_ae_ptw := false
+        resp_ae_final := false
+        resp_gf := false
+        resp_hr := true
+        resp_hw := true
+        resp_hx := true
+        resp_fragmented_superpage := false
+        r_hgatp := io.dpath.hgatp
       }
-      count := pgLevels - minPgLevels - io.dpath.ptbr.additionalPgLevels
     }
     is (s_req) {
-      when (pte_cache_hit) {
+      when (stage2_pte_cache_hit) {
+        aux_count := aux_count + 1
+        aux_pte.ppn := stage2_pte_cache_data
+        pte_hit := true
+      }.elsewhen (pte_cache_hit) {
         count := count + 1
         pte_hit := true
       }.otherwise {
@@ -357,7 +444,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       io.dpath.perf.pte_miss := count < pgLevels-1
       when (io.mem.s2_xcpt.ae.ld) {
         resp_ae_ptw := true
-        resp_ae_final := false
         next_state := s_ready
         resp_valid(r_req_dest) := true
       }
@@ -365,8 +451,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_fragment_superpage) {
       next_state := s_ready
       resp_valid(r_req_dest) := true
-      resp_ae_ptw := false
-      resp_ae_final := false
       when (!homogeneous) {
         count := pgLevels-1
         resp_fragmented_superpage := true
@@ -374,48 +458,82 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
   }
 
-  def makePTE(ppn: UInt, default: PTE) = {
-    val pte = Wire(init = default)
-    pte.ppn := ppn
-    pte
+  val merged_pte = {
+    val superpage_masks = (0 until pgLevels).map(i => ((BigInt(1) << pte.ppn.getWidth) - (BigInt(1) << (pgLevels-1-i)*pgLevelBits)).U)
+    val superpage_mask = superpage_masks(Mux(stage2_final, max_count, (pgLevels-1).U))
+    val stage1_ppns = (0 until pgLevels-1).map(i => Cat(pte.ppn(pte.ppn.getWidth-1, (pgLevels-i-1)*pgLevelBits), aux_pte.ppn((pgLevels-i-1)*pgLevelBits-1,0))) :+ pte.ppn
+    val stage1_ppn = stage1_ppns(count)
+    makePTE(stage1_ppn & superpage_mask, aux_pte)
   }
+
   r_pte := OptimizationBarrier(
-    Mux(mem_resp_valid, pte,
     Mux(l2_hit && !l2_error, l2_pte,
+    Mux(state === s_req && !stage2_pte_cache_hit && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
+    Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),
+    Mux(mem_resp_valid, Mux(!traverse && (r_req.vstage1 && stage2), merged_pte, pte),
     Mux(state === s_fragment_superpage && !homogeneous, makePTE(fragmented_superpage_ppn, r_pte),
-    Mux(state === s_req && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
-    Mux(arb.io.out.fire(), makePTE(io.dpath.ptbr.ppn, r_pte),
-    r_pte))))))
+    Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, satp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
+    r_pte)))))))
 
   when (l2_hit && !l2_error) {
     assert(state === s_req || state === s_wait1)
     next_state := s_ready
     resp_valid(r_req_dest) := true
-    resp_ae_ptw := false
-    resp_ae_final := false
     count := pgLevels-1
   }
   when (mem_resp_valid) {
     assert(state === s_wait3)
+    next_state := s_req
     when (traverse) {
-      next_state := s_req
+      when (do_both_stages && !stage2) { do_switch := true }
       count := count + 1
     }.otherwise {
-      l2_refill := pte.v && !invalid_paddr && count === pgLevels-1
-      val ae = pte.v && invalid_paddr
-      resp_ae_final := ae
-      resp_ae_ptw := false
-      when (pageGranularityPMPs && count =/= pgLevels-1 && !ae) {
-        next_state := s_fragment_superpage
+      val gf = stage2 && !stage2_final && !pte.ur()
+
+      when (do_both_stages && !stage2_final && !gf) {
+        when (stage2) {
+          stage2 := false
+          count := aux_count
+        }.otherwise {
+          stage2_final := true
+          do_switch := true
+        }
       }.otherwise {
-        next_state := s_ready
-        resp_valid(r_req_dest) := true
+        val ae = pte.v && invalid_paddr
+        val success = pte.v && !ae && !gf
+        l2_refill := success && count === pgLevels-1 &&
+          (!r_req.vstage1 && !r_req.stage2 ||
+           do_both_stages && aux_count === pgLevels-1 && isFullPermPTE(pte))
+        count := max_count
+
+        when (pageGranularityPMPs && !(count === pgLevels-1 && (!do_both_stages || aux_count === pgLevels-1))) {
+          next_state := s_fragment_superpage
+        }.otherwise {
+          next_state := s_ready
+          resp_valid(r_req_dest) := true
+        }
+
+        resp_ae_final := ae
+        resp_gf := gf
+        resp_hr := !stage2 || !gf && pte.ur()
+        resp_hw := !stage2 || !gf && pte.uw()
+        resp_hx := !stage2 || !gf && pte.ux()
       }
     }
   }
   when (io.mem.s2_nack) {
     assert(state === s_wait2)
     next_state := s_req
+  }
+
+  when (do_switch) {
+    aux_count := Mux(traverse, count + 1, count)
+    count := r_hgatp_initial_count
+    aux_pte := Mux(traverse, pte, {
+      val s1_ppns = (0 until pgLevels-1).map(i => Cat(pte.ppn(pte.ppn.getWidth-1, (pgLevels-i-1)*pgLevelBits), r_req.addr((pgLevels-i-1)*pgLevelBits-1,0))) :+ pte.ppn
+      makePTE(s1_ppns(count), pte)
+    })
+    stage2 := true
   }
 
   for (i <- 0 until pgLevels) {
@@ -434,6 +552,25 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   private def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     if (usingVM) cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
+
+  private def isFullPermPTE(p: PTE) = {
+    p.uw() && p.ux() && !p.g
+  }
+
+  private def makePTE(ppn: UInt, default: PTE) = {
+    val pte = Wire(init = default)
+    pte.ppn := ppn
+    pte
+  }
+
+  private def makeHypervisorRootPTE(hgatp: PTBR, vpn: UInt, default: PTE) = {
+    val count = pgLevels - minPgLevels - hgatp.additionalPgLevels
+    val idxs = (0 to pgLevels-minPgLevels).map(i => (vpn >> (pgLevels-i)*pgLevelBits))
+    val lsbs = Wire(t = UInt(maxHypervisorExtraAddrBits.W), init = idxs(count))
+    val pte = Wire(init = default)
+    pte.ppn := Cat(hgatp.ppn >> maxHypervisorExtraAddrBits, lsbs)
+    pte
+  }
 }
 
 /** Mix-ins for constructing tiles that might have a PTW */
