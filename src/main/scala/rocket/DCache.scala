@@ -182,8 +182,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     s0_tlb_req.vaddr := s0_req.addr
     s0_tlb_req.size := s0_req.size
     s0_tlb_req.cmd := s0_req.cmd
-    s0_tlb_req.dprv := s0_req.dprv
-    s0_tlb_req.dv := s0_req.dv
+    s0_tlb_req.prv := s0_req.dprv
+    s0_tlb_req.v := s0_req.dv
   }
   val s1_tlb_req = RegEnable(s0_tlb_req, s0_clk_en || tlb_port.req.valid)
 

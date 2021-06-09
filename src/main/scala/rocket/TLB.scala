@@ -35,8 +35,8 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val passthrough = Bool()
   val size = UInt(width = log2Ceil(lgMaxSize + 1))
   val cmd  = Bits(width = M_SZ)
-  val dprv = UInt(PRV.SZ.W)
-  val dv = Bool()
+  val prv = UInt(PRV.SZ.W)
+  val v = Bool()
 
   override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
@@ -202,8 +202,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_vstage1_en = Reg(Bool())
   val r_stage2_en = Reg(Bool())
 
-  val priv = io.req.bits.dprv
-  val priv_v = usingHypervisor && io.req.bits.dv
+  val priv = io.req.bits.prv
+  val priv_v = usingHypervisor && io.req.bits.v
   val priv_s = priv(0)
   val priv_uses_vm = priv <= PRV.S
   val satp = Mux(priv_v, io.ptw.vsatp, io.ptw.ptbr)
