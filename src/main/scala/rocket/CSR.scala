@@ -96,9 +96,8 @@ class DCSR extends Bundle {
 class MIP(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
-  val zero2 = Bool()
-  val debug = Bool() // keep in sync with CSR.debugIntCause
   val zero1 = Bool()
+  val debug = Bool() // keep in sync with CSR.debugIntCause
   val rocc = Bool()
   val sgeip = Bool()
   val meip = Bool()
@@ -383,9 +382,8 @@ class CSRFile(
     sup.meip := true
     sup.sgeip := Bool(usingHypervisor)
     sup.rocc := usingRoCC
-    sup.zero1 := false
     sup.debug := false
-    sup.zero2 := false
+    sup.zero1 := false
     sup.lip foreach { _ := true }
     val supported_high_interrupts = if (io.interrupts.buserror.nonEmpty && !usingNMI) UInt(BigInt(1) << CSR.busErrorIntCause) else 0.U
 
