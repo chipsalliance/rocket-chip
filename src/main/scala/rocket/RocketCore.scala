@@ -704,7 +704,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   // hook up control/status regfile
   csr.io.ungated_clock := clock
-  csr.io.decode(0).inst := id_raw_inst(0)
+  csr.io.decode(0).inst := id_inst(0)
   csr.io.exception := wb_xcpt
   csr.io.cause := wb_cause
   csr.io.retire := wb_valid
