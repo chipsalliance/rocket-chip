@@ -57,12 +57,6 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     def testFrameworks = T {
       Seq("org.scalatest.tools.Framework")
     }
-
-    // a sbt-like testOnly command.
-    // for example, mill -i "chisel3[2.12.12].test.testOnly" "chiselTests.BitwiseOpsSpec"
-    def testOnly(args: String*) = T.command {
-      super.runMain("org.scalatest.run", args: _*)
-    }
   }
 
   override def millSourcePath = super.millSourcePath / os.up
