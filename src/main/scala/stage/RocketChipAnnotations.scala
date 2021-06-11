@@ -50,3 +50,19 @@ private[stage] object OutputBaseNameAnnotation extends HasShellOptions {
     )
   )
 }
+
+/** Optionally use ProtoBuf as the output format for Chisel */
+case object DumpProtoBufAnnotation 
+  extends NoTargetAnnotation
+  with RocketChipOption
+  with HasShellOptions {
+
+  override val options = Seq(
+    new ShellOption[Unit](
+      longOption = "dump-protobuf",
+      toAnnotationSeq = _ => Seq(DumpProtoBufAnnotation),
+      helpText = "Change the Chisel output format to ProtoBuf and name the generated FIRRTL output with a .pb extension",
+      shortOption = Some("dpb")
+    )
+  )
+}

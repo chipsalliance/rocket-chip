@@ -19,7 +19,7 @@ private[freechips] final class RocketChiselStage extends ChiselStage {
     Dependency[chisel3.stage.phases.AddImplicitOutputFile],
     Dependency[chisel3.stage.phases.AddImplicitOutputAnnotationFile],
     Dependency[chisel3.stage.phases.MaybeAspectPhase],
-    Dependency[chisel3.stage.phases.Emitter],
+    Dependency[chisel3.stage.phases.AddSerializationAnnotations],
     Dependency[chisel3.stage.phases.Convert]
   )
 

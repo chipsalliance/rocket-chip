@@ -13,13 +13,14 @@ import scala.collection.mutable
 class Checks extends Phase with PreservesAll[Phase] {
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    val targetDir, topModule, configNames, outputBaseName = mutable.ListBuffer[Annotation]()
+    val targetDir, topModule, configNames, outputBaseName, dumpPb = mutable.ListBuffer[Annotation]()
 
     annotations.foreach {
       case a: TargetDirAnnotation      => a +=: targetDir
       case a: TopModuleAnnotation      => a +=: topModule
       case a: ConfigsAnnotation        => a +=: configNames
       case a: OutputBaseNameAnnotation => a +=: outputBaseName
+      case a: DumpProtoBufAnnotation.type  => a +=: dumpPb
       case _ =>
     }
 
@@ -40,6 +41,7 @@ class Checks extends Phase with PreservesAll[Phase] {
     required(configNames, "configs string (','-delimited)")
 
     optional(outputBaseName, "output base name")
+    optional(dumpPb, "dump Chisel to ProtoBuf format")
 
     annotations
   }

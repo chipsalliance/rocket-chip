@@ -16,6 +16,7 @@ package object stage {
           case TopModuleAnnotation(a)         => c.copy(topModule = Some(a))
           case ConfigsAnnotation(a)           => c.copy(configNames = Some(a))
           case OutputBaseNameAnnotation(a)    => c.copy(outputBaseName = Some(a))
+          case _: DumpProtoBufAnnotation.type => c.copy(dumpProtobuf = true)
         }
       }
 

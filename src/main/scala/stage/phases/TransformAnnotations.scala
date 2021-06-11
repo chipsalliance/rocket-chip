@@ -17,6 +17,9 @@ class TransformAnnotations extends Phase with PreservesAll[Phase] with HasRocket
 
   override def transform(annotations: AnnotationSeq): AnnotationSeq = {
     /** Construct output file annotation for emission */
-    new ChiselOutputFileAnnotation(view[RocketChipOptions](annotations).longName.get) +: annotations
+    new ChiselOutputFileAnnotation(
+      view[RocketChipOptions](annotations).longName.get +
+      view[RocketChipOptions](annotations).chiselFileExtension.getOrElse("")
+    ) +: annotations
   }
 }

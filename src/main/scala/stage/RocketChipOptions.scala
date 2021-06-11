@@ -5,18 +5,21 @@ package freechips.rocketchip.stage
 class RocketChipOptions private[stage] (
                                          val topModule:         Option[Class[_ <: Any]] = None,
                                          val configNames:       Option[Seq[String]] = None,
-                                         val outputBaseName:    Option[String] = None) {
+                                         val outputBaseName:    Option[String] = None,
+                                         val dumpProtobuf:      Boolean = false) {
 
   private[stage] def copy(
                            topModule:         Option[Class[_ <: Any]] = topModule,
                            configNames:       Option[Seq[String]] = configNames,
                            outputBaseName:    Option[String] = outputBaseName,
+                           dumpProtobuf:      Boolean = dumpProtobuf
                          ): RocketChipOptions = {
 
     new RocketChipOptions(
       topModule=topModule,
       configNames=configNames,
       outputBaseName=outputBaseName,
+      dumpProtobuf=dumpProtobuf,
     )
   }
 
@@ -37,5 +40,7 @@ class RocketChipOptions private[stage] (
     case _ =>
       if (!topPackage.isEmpty && !configClass.isEmpty) Some(s"${topPackage.get}.${configClass.get}") else None
   }
+
+  lazy val chiselFileExtension: Option[String] = if (dumpProtobuf) Some(".pb") else Some(".fir")
 }
 
