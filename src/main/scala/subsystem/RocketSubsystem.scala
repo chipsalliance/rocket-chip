@@ -12,10 +12,9 @@ case class RocketCrossingParams(
   master: TilePortParamsLike = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
-  resetCrossingType: ResetCrossingType = NoResetCrossing()
-) extends TileCrossingParamsLike {
-  def forceSeparateClockReset: Boolean = false
-}
+  resetCrossingType: ResetCrossingType = NoResetCrossing(),
+  forceSeparateClockReset: Boolean = false
+) extends TileCrossingParamsLike
 
 case class RocketTileAttachParams(
   tileParams: RocketTileParams,
