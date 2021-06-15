@@ -530,7 +530,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     aux_count := Mux(traverse, count + 1, count)
     count := r_hgatp_initial_count
     aux_pte := Mux(traverse, pte, {
-      val s1_ppns = (0 until pgLevels-1).map(i => Cat(pte.ppn(pte.ppn.getWidth-1, (pgLevels-i-1)*pgLevelBits), r_req.addr((pgLevels-i-1)*pgLevelBits-1,0))) :+ pte.ppn
+      val s1_ppns = (0 until pgLevels-1).map(i => Cat(pte.ppn(pte.ppn.getWidth-1, (pgLevels-i-1)*pgLevelBits), r_req.addr(((pgLevels-i-1)*pgLevelBits min vpnBits)-1,0).padTo((pgLevels-i-1)*pgLevelBits))) :+ pte.ppn
       makePTE(s1_ppns(count), pte)
     })
     stage2 := true
