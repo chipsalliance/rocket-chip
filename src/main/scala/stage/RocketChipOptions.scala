@@ -41,6 +41,5 @@ class RocketChipOptions private[stage] (
       if (!topPackage.isEmpty && !configClass.isEmpty) Some(s"${topPackage.get}.${configClass.get}") else None
   }
 
-  lazy val chiselFileExtension: Option[String] = if (dumpProtobuf) Some(".pb") else Some(".fir")
+  lazy val chiselFileExtension: String = if (dumpProtobuf) ".pb" else ".fir"
 }
-

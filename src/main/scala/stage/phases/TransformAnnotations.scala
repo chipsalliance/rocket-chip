@@ -19,7 +19,7 @@ class TransformAnnotations extends Phase with PreservesAll[Phase] with HasRocket
     /** Construct output file annotation for emission */
     new ChiselOutputFileAnnotation(
       view[RocketChipOptions](annotations).longName.get +
-      view[RocketChipOptions](annotations).chiselFileExtension.getOrElse("")
+      view[RocketChipOptions](annotations).chiselFileExtension
     ) +: annotations
   }
 }

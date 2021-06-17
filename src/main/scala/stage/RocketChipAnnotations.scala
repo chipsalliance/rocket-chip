@@ -62,7 +62,7 @@ case object DumpProtoBufAnnotation
       longOption = "dump-protobuf",
       toAnnotationSeq = _ => Seq(DumpProtoBufAnnotation),
       helpText = "Change the Chisel output format to ProtoBuf and name the generated FIRRTL output with a .pb extension",
-      shortOption = Some("dpb")
+      shortOption = Some("pb")
     )
   )
 }
