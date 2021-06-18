@@ -16,14 +16,6 @@ on:
 
 
 jobs:
-  check-wit:
-    name: Check Wit Manifest
-    runs-on: ubuntu-16.04
-    steps:
-      - uses: actions/checkout@v2
-      - run: ci-tests/check_submodules
-
-
   prepare-riscv-tools-cache:
     name: Prepare riscv-tools Cache
     runs-on: ubuntu-16.04
@@ -71,23 +63,6 @@ jobs:
           CXX: g++-4.8
           CC: gcc-4.8
         run: make verilator -C regression SUITE=none
-
-
-  check-wake-compilation:
-    name: Check Wake Compilation
-    runs-on: ubuntu-16.04
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Use SBT Cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cache/coursier
-            ~/.sbt
-          key: sbt-${{ hashFiles('**/build.sbt') }}-v1
-
-      - run: ci-tests/wake_scala_compilation
 
   # This job is defined as a matrix job, where the definitions of each test
   # bucket is located in a shell script at ./regression/run-test-bucket.
