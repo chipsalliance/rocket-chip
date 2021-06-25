@@ -738,7 +738,9 @@ class CSRFile(
     read_mapping += CSRs.mtinst -> 0.U
     read_mapping += CSRs.mtval2 -> 0.U
 
-    read_mapping += CSRs.hstatus -> reg_hstatus.asUInt()
+    val read_hstatus = io.hstatus.asUInt()(xLen-1,0)
+
+    read_mapping += CSRs.hstatus -> read_hstatus
     read_mapping += CSRs.hedeleg -> read_hedeleg
     read_mapping += CSRs.hideleg -> read_hideleg
     read_mapping += CSRs.hcounteren-> reg_hcounteren
@@ -754,19 +756,15 @@ class CSRFile(
     val read_vsie = (read_hie & read_hideleg) >> 1
     val read_vsip = (read_hip & read_hideleg) >> 1
     val read_vsepc = readEPC(reg_vsepc).sextTo(xLen)
-    val read_vsstatus = {
-      val res = WireInit(reg_vsstatus)
-      res.sd := res.fs.andR || res.xs.andR || res.vs.andR
-      res.sd_rv32 := xLen == 32 && res.sd
-      res.asUInt()(xLen-1, 0)
-    }
+    val read_vstval = reg_vstval.sextTo(xLen)
+    val read_vsstatus = io.gstatus.asUInt()(xLen-1,0)
 
     read_mapping += CSRs.vsstatus -> read_vsstatus
     read_mapping += CSRs.vsip -> read_vsip
     read_mapping += CSRs.vsie -> read_vsie
     read_mapping += CSRs.vsscratch -> reg_vsscratch
     read_mapping += CSRs.vscause -> reg_vscause
-    read_mapping += CSRs.vstval -> reg_vstval.sextTo(xLen)
+    read_mapping += CSRs.vstval -> read_vstval
     read_mapping += CSRs.vsatp -> reg_vsatp.asUInt
     read_mapping += CSRs.vsepc -> read_vsepc
     read_mapping += CSRs.vstvec -> read_vstvec
@@ -925,7 +923,12 @@ class CSRFile(
   io.status.mpv := reg_mstatus.mpv
   io.status.gva := reg_mstatus.gva
   io.hstatus := reg_hstatus
+  io.hstatus.vsxl := (if (usingSupervisor) log2Ceil(xLen) - 4 else 0)
   io.gstatus := reg_vsstatus
+  io.gstatus.sd := io.gstatus.fs.andR || io.gstatus.xs.andR || io.gstatus.vs.andR
+  io.gstatus.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
+  io.gstatus.sxl := (if (usingSupervisor) log2Ceil(xLen) - 4 else 0)
+  io.gstatus.sd_rv32 := xLen == 32 && io.gstatus.sd
 
   val exception = insn_call || insn_break || io.exception
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
