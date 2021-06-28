@@ -1278,7 +1278,6 @@ class CSRFile(
         reg_hstatus.spv := new_hstatus.spv
         reg_hstatus.spvp := new_hstatus.spvp
         reg_hstatus.hu := new_hstatus.hu
-        reg_hstatus.vgein := new_hstatus.vgein
         reg_hstatus.vtvm := new_hstatus.vtvm
         reg_hstatus.vtw := new_hstatus.vtw
         reg_hstatus.vtsr := new_hstatus.vtsr
