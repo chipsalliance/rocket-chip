@@ -501,13 +501,11 @@ class CSRFile(
   val reg_hstatus = RegInit(0.U.asTypeOf(new HStatus))
   val reg_hgatp = Reg(new PTBR)
   val read_hvip = reg_mip.asUInt & hs_delegable_interrupts
-  val reg_hgeip = Reg(UInt(xLen.W))
-  val reg_hgeie = Reg(UInt(xLen.W))
   val read_hie = reg_mie & hs_delegable_interrupts
 
   val (reg_vstvec, read_vstvec) = {
-      val reg = Reg(UInt(width = vaddrBits))
-      (reg, formTVec(reg).sextTo(xLen))
+    val reg = Reg(UInt(width = vaddrBits))
+    (reg, formTVec(reg).sextTo(xLen))
   }
   val reg_vsstatus = Reg(new MStatus)
   val reg_vsscratch = Reg(Bits(width = xLen))
@@ -748,8 +746,8 @@ class CSRFile(
     read_mapping += CSRs.hip -> read_hip
     read_mapping += CSRs.hie -> read_hie
     read_mapping += CSRs.hvip -> read_hvip
-    read_mapping += CSRs.hgeie -> reg_hgeie
-    read_mapping += CSRs.hgeip -> reg_hgeip
+    read_mapping += CSRs.hgeie -> 0.U
+    read_mapping += CSRs.hgeip -> 0.U
     read_mapping += CSRs.htval -> 0.U
     read_mapping += CSRs.htinst -> 0.U
 
