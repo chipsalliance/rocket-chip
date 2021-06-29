@@ -380,7 +380,7 @@ class CSRFile(
     sup.seip := Bool(usingSupervisor)
     sup.vseip := Bool(usingHypervisor)
     sup.meip := true
-    sup.sgeip := Bool(usingHypervisor)
+    sup.sgeip := false
     sup.rocc := usingRoCC
     sup.debug := false
     sup.zero1 := false
@@ -681,7 +681,11 @@ class CSRFile(
     }
   }
 
-  val sie_mask = read_mideleg & ~hs_delegable_interrupts
+  val sie_mask = {
+    val sgeip_mask = WireInit(0.U.asTypeOf(new MIP))
+    sgeip_mask.sgeip := true
+    read_mideleg & ~(hs_delegable_interrupts | sgeip_mask.asUInt)
+  }
   if (usingSupervisor) {
     val read_sie = reg_mie & sie_mask
     val read_sip = read_mip & sie_mask
