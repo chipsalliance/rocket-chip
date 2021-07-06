@@ -796,7 +796,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       }
     }
 
-    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack) {
+    val c_release = bundle.c.bits.opcode === TLMessages.Release || bundle.c.bits.opcode === TLMessages.ReleaseData
+    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack && c_release) {
       assume((!bundle.d.ready) || bundle.c.ready, "ready check")
     }
 
