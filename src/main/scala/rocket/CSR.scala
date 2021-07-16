@@ -929,7 +929,6 @@ class CSRFile(
   io.gstatus := reg_vsstatus
   io.gstatus.sd := io.gstatus.fs.andR || io.gstatus.xs.andR || io.gstatus.vs.andR
   io.gstatus.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
-  io.gstatus.sxl := (if (usingSupervisor) log2Ceil(xLen) - 4 else 0)
   io.gstatus.sd_rv32 := xLen == 32 && io.gstatus.sd
 
   val exception = insn_call || insn_break || io.exception
