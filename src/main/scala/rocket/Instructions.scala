@@ -225,6 +225,19 @@ object Instructions {
   def CSRRCI             = BitPat("b?????????????????111?????1110011")
   def HFENCE_VVMA        = BitPat("b0010001??????????000000001110011")
   def HFENCE_GVMA        = BitPat("b0110001??????????000000001110011")
+  def HLV_B              = BitPat("b011000000000?????100?????1110011")
+  def HLV_BU             = BitPat("b011000000001?????100?????1110011")
+  def HLV_H              = BitPat("b011001000000?????100?????1110011")
+  def HLV_HU             = BitPat("b011001000001?????100?????1110011")
+  def HLVX_HU            = BitPat("b011001000011?????100?????1110011")
+  def HLV_W              = BitPat("b011010000000?????100?????1110011")
+  def HLVX_WU            = BitPat("b011010000011?????100?????1110011")
+  def HSV_B              = BitPat("b0110001??????????100000001110011")
+  def HSV_H              = BitPat("b0110011??????????100000001110011")
+  def HSV_W              = BitPat("b0110101??????????100000001110011")
+  def HLV_WU             = BitPat("b011010000001?????100?????1110011")
+  def HLV_D              = BitPat("b011011000000?????100?????1110011")
+  def HSV_D              = BitPat("b0110111??????????100000001110011")
   def FADD_S             = BitPat("b0000000??????????????????1010011")
   def FSUB_S             = BitPat("b0000100??????????????????1010011")
   def FMUL_S             = BitPat("b0001000??????????????????1010011")
@@ -874,11 +887,15 @@ object Causes {
   val store_access = 0x7
   val user_ecall = 0x8
   val supervisor_ecall = 0x9
-  val hypervisor_ecall = 0xa
+  val virtual_supervisor_ecall = 0xa
   val machine_ecall = 0xb
   val fetch_page_fault = 0xc
   val load_page_fault = 0xd
   val store_page_fault = 0xf
+  val fetch_guest_page_fault = 0x14
+  val load_guest_page_fault = 0x15
+  val virtual_instruction = 0x16
+  val store_guest_page_fault = 0x17
   val all = {
     val res = collection.mutable.ArrayBuffer[Int]()
     res += misaligned_fetch
@@ -891,11 +908,15 @@ object Causes {
     res += store_access
     res += user_ecall
     res += supervisor_ecall
-    res += hypervisor_ecall
+    res += virtual_supervisor_ecall
     res += machine_ecall
     res += fetch_page_fault
     res += load_page_fault
     res += store_page_fault
+    res += fetch_guest_page_fault
+    res += load_guest_page_fault
+    res += virtual_instruction
+    res += store_guest_page_fault
     res.toArray
   }
 }
@@ -972,8 +993,16 @@ object CSRs {
   val hstatus = 0x600
   val hedeleg = 0x602
   val hideleg = 0x603
+  val hie = 0x604
+  val htimedelta = 0x605
   val hcounteren = 0x606
+  val hgeie = 0x607
+  val htval = 0x643
+  val hip = 0x644
+  val hvip = 0x645
+  val htinst = 0x64a
   val hgatp = 0x680
+  val hgeip = 0xe12
   val utvt = 0x7
   val unxti = 0x45
   val uintstatus = 0x46
@@ -1005,6 +1034,8 @@ object CSRs {
   val mnepc = 0x351
   val mncause = 0x352
   val mnstatus = 0x353
+  val mtinst = 0x34a
+  val mtval2 = 0x34b
   val pmpcfg0 = 0x3a0
   val pmpcfg1 = 0x3a1
   val pmpcfg2 = 0x3a2
@@ -1101,6 +1132,7 @@ object CSRs {
   val marchid = 0xf12
   val mimpid = 0xf13
   val mhartid = 0xf14
+  val htimedeltah = 0x615
   val cycleh = 0xc80
   val timeh = 0xc81
   val instreth = 0xc82
@@ -1237,8 +1269,16 @@ object CSRs {
     res += hstatus
     res += hedeleg
     res += hideleg
+    res += hie
+    res += htimedelta
     res += hcounteren
+    res += hgeie
+    res += htval
+    res += hip
+    res += hvip
+    res += htinst
     res += hgatp
+    res += hgeip
     res += utvt
     res += unxti
     res += uintstatus
@@ -1266,6 +1306,12 @@ object CSRs {
     res += mcause
     res += mtval
     res += mip
+    res += mnscratch
+    res += mnepc
+    res += mncause
+    res += mnstatus
+    res += mtinst
+    res += mtval2
     res += pmpcfg0
     res += pmpcfg1
     res += pmpcfg2
@@ -1366,6 +1412,7 @@ object CSRs {
   }
   val all32 = {
     val res = collection.mutable.ArrayBuffer(all:_*)
+    res += htimedeltah
     res += cycleh
     res += timeh
     res += instreth

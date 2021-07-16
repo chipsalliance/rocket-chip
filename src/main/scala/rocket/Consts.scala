@@ -71,14 +71,17 @@ trait MemoryOpConstants {
   def M_PWR     = UInt("b10001") // partial (masked) store
   def M_PRODUCE = UInt("b10010") // write back dirty data and cede W permissions
   def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
-  def M_SFENCE  = UInt("b10100") // flush TLB
+  def M_SFENCE  = UInt("b10100") // SFENCE.VMA
+  def M_HFENCEV = UInt("b10101") // HFENCE.VVMA
+  def M_HFENCEG = UInt("b10110") // HFENCE.GVMA
   def M_WOK     = UInt("b10111") // check write permissions but don't perform a write
+  def M_HLVX    = UInt("b10000") // HLVX instruction
 
   def isAMOLogical(cmd: UInt) = cmd.isOneOf(M_XA_SWAP, M_XA_XOR, M_XA_OR, M_XA_AND)
   def isAMOArithmetic(cmd: UInt) = cmd.isOneOf(M_XA_ADD, M_XA_MIN, M_XA_MAX, M_XA_MINU, M_XA_MAXU)
   def isAMO(cmd: UInt) = isAMOLogical(cmd) || isAMOArithmetic(cmd)
   def isPrefetch(cmd: UInt) = cmd === M_PFR || cmd === M_PFW
-  def isRead(cmd: UInt) = cmd === M_XRD || cmd === M_XLR || cmd === M_XSC || isAMO(cmd)
+  def isRead(cmd: UInt) = cmd.isOneOf(M_XRD, M_HLVX, M_XLR, M_XSC) || isAMO(cmd)
   def isWrite(cmd: UInt) = cmd === M_XWR || cmd === M_PWR || cmd === M_XSC || isAMO(cmd)
   def isWriteIntent(cmd: UInt) = isWrite(cmd) || cmd === M_PFW || cmd === M_XLR
 }

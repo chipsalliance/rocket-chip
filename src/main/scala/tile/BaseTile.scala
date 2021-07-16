@@ -47,6 +47,7 @@ trait HasNonDiplomaticTileParameters {
   def usingVM: Boolean = tileParams.core.useVM
   def usingUser: Boolean = tileParams.core.useUser || usingSupervisor
   def usingSupervisor: Boolean = tileParams.core.hasSupervisorMode
+  def usingHypervisor: Boolean = usingVM && tileParams.core.useHypervisor
   def usingDebug: Boolean = tileParams.core.useDebug
   def usingRoCC: Boolean = !p(BuildRoCC).isEmpty
   def usingBTB: Boolean = tileParams.btb.isDefined && tileParams.btb.get.nEntries > 0
@@ -60,12 +61,19 @@ trait HasNonDiplomaticTileParameters {
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
   def pgLevels: Int = p(PgLevels)
   def maxSVAddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
+  def maxHypervisorExtraAddrBits: Int = 2
+  def hypervisorExtraAddrBits: Int = {
+    if (usingHypervisor) maxHypervisorExtraAddrBits
+    else 0
+  }
+  def maxHVAddrBits: Int = maxSVAddrBits + hypervisorExtraAddrBits
   def minPgLevels: Int = {
     val res = xLen match { case 32 => 2; case 64 => 3 }
     require(pgLevels >= res)
     res
   }
   def asIdBits: Int = p(ASIdBits)
+  def vmIdBits: Int = p(VMIdBits)
   lazy val maxPAddrBits: Int = {
     require(xLen == 32 || xLen == 64, s"Only XLENs of 32 or 64 are supported, but got $xLen")
     xLen match { case 32 => 34; case 64 => 56 }
@@ -152,7 +160,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
   }
   def vaddrBits: Int =
     if (usingVM) {
-      val v = maxSVAddrBits
+      val v = maxHVAddrBits
       require(v == xLen || xLen > v && v > paddrBits)
       v
     } else {

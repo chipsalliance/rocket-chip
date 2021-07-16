@@ -15,6 +15,7 @@ case object MaxHartIdBits extends Field[Int]
 trait CoreParams {
   val bootFreqHz: BigInt
   val useVM: Boolean
+  val useHypervisor: Boolean
   val useUser: Boolean
   val useSupervisor: Boolean
   val useDebug: Boolean
@@ -46,6 +47,7 @@ trait CoreParams {
   val haveCFlush: Boolean
   val nL2TLBEntries: Int
   val nL2TLBWays: Int
+  val nPTECacheEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
