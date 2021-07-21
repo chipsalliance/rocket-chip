@@ -228,7 +228,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val mem_reg_pc = Reg(UInt())
   val mem_reg_inst = Reg(Bits())
   val mem_reg_mem_size = Reg(UInt())
-  val mem_reg_hls = Reg(Bool())
+  val mem_reg_hls_or_dv = Reg(Bool())
   val mem_reg_raw_inst = Reg(UInt())
   val mem_scie_unpipelined = Reg(Bool())
   val mem_scie_pipelined = Reg(Bool())
@@ -246,7 +246,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wb_reg_sfence = Reg(Bool())
   val wb_reg_pc = Reg(UInt())
   val wb_reg_mem_size = Reg(UInt())
-  val wb_reg_hls = Reg(Bool())
+  val wb_reg_hls_or_dv = Reg(Bool())
   val wb_reg_hfence_v = Reg(Bool())
   val wb_reg_hfence_g = Reg(Bool())
   val wb_reg_inst = Reg(Bits())
@@ -566,7 +566,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_inst := ex_reg_inst
     mem_reg_raw_inst := ex_reg_raw_inst
     mem_reg_mem_size := ex_reg_mem_size
-    mem_reg_hls := ex_reg_hls
+    mem_reg_hls_or_dv := io.dmem.req.bits.dv
     mem_reg_pc := ex_reg_pc
     mem_reg_wdata := Mux(ex_scie_unpipelined, ex_scie_unpipelined_wdata, alu.io.out)
     mem_br_taken := alu.io.cmp_out
@@ -624,7 +624,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_inst := mem_reg_inst
     wb_reg_raw_inst := mem_reg_raw_inst
     wb_reg_mem_size := mem_reg_mem_size
-    wb_reg_hls := mem_reg_hls
+    wb_reg_hls_or_dv := mem_reg_hls_or_dv
     wb_reg_hfence_v := mem_ctrl.mem_cmd === M_HFENCEV
     wb_reg_hfence_g := mem_ctrl.mem_cmd === M_HFENCEG
     wb_reg_pc := mem_reg_pc
@@ -722,7 +722,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_cause.isOneOf(Causes.breakpoint, Causes.fetch_access, Causes.fetch_page_fault, Causes.fetch_guest_page_fault)
   val tval_inst = wb_reg_cause === Causes.illegal_instruction
   val tval_valid = wb_xcpt && (tval_any_addr || tval_inst)
-  csr.io.gva := wb_xcpt && (tval_any_addr && csr.io.status.v || tval_dmem_addr && wb_reg_hls)
+  csr.io.gva := wb_xcpt && (tval_any_addr && csr.io.status.v || tval_dmem_addr && wb_reg_hls_or_dv)
   csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.hgatp := csr.io.hgatp
@@ -876,7 +876,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
   io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
-  io.dmem.req.bits.dv := Mux(ex_reg_hls, true.B, csr.io.status.dv)
+  io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
   io.dmem.s2_kill := false
