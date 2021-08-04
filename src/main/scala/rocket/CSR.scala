@@ -849,7 +849,7 @@ class CSRFile(
       val addr_m = addr | (PRV.M << CSR.modeLSB)
       !(addr_m >= CSRs.mscratch && addr_m <= CSRs.mtval)
     }
-    io_dec.system_illegal := !csr_addr_legal ||
+    io_dec.system_illegal := !csr_addr_legal && !is_hlsv ||
       is_wfi && !allow_wfi ||
       is_ret && !allow_sret ||
       is_ret && addr(10) && addr(7) && !reg_debug ||
