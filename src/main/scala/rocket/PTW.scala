@@ -226,7 +226,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val r_valid_vec = valid.map(_(r_idx)).asUInt
     when (l2_refill && !invalidated) {
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
-      val wmask = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec.andR, UIntToOH(l2_plru.way(r_idx)), PriorityEncoderOH(~r_valid_vec)) else 1.U(1.W)
+      val wmask = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec.andR, UIntToOH(RegNext(l2_plru.way(r_idx)), coreParams.nL2TLBWays), PriorityEncoderOH(~r_valid_vec)) else 1.U(1.W)
 
       entry := r_pte
       entry.tag := r_tag
