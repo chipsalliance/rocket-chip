@@ -212,6 +212,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val idxBits = log2Ceil(nL2TLBSets)
 
     val l2_plru = new SetAssocLRU(nL2TLBSets, coreParams.nL2TLBWays, "plru")
+    val r_l2_plru_way = Wire(UInt(log2Ceil(coreParams.nL2TLBWays max 1).W))
 
     val (ram, omSRAM) =  DescribedSRAM(
       name = "l2_tlb_ram",
@@ -224,12 +225,15 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val valid = RegInit(Vec(Seq.fill(coreParams.nL2TLBWays)(0.U(nL2TLBSets.W))))
     val (r_tag, r_idx) = Split(r_req.addr, idxBits)
     val r_valid_vec = valid.map(_(r_idx)).asUInt
+    r_l2_plru_way := (if (coreParams.nL2TLBWays > 1) RegNext(l2_plru.way(r_idx)) else 0.U)
     when (l2_refill && !invalidated) {
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
-      val wmask = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec.andR, UIntToOH(RegNext(l2_plru.way(r_idx)), coreParams.nL2TLBWays), PriorityEncoderOH(~r_valid_vec)) else 1.U(1.W)
 
       entry := r_pte
       entry.tag := r_tag
+
+      val wrWay = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec.andR, r_l2_plru_way,                                  PriorityEncoder  (~r_valid_vec)) else 0.U(1.W)
+      val wmask = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec.andR, UIntToOH(r_l2_plru_way, coreParams.nL2TLBWays), PriorityEncoderOH(~r_valid_vec)) else 1.U(1.W)
       ram.write(r_idx, Vec(Seq.fill(coreParams.nL2TLBWays)(code.encode(entry.asUInt))), wmask.asBools)
 
       val mask = UIntToOH(r_idx)
@@ -239,6 +243,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           g(way) := Mux(r_pte.g, g(way) | mask, g(way) & ~mask)
         }
       }
+
+      l2_plru.access(r_idx, wrWay)
     }
     when (io.dpath.sfence.valid) {
       for (way <- 0 until coreParams.nL2TLBWays) {
