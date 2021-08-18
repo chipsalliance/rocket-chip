@@ -224,10 +224,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val valid = RegInit(Vec(Seq.fill(coreParams.nL2TLBWays)(0.U(nL2TLBSets.W))))
     val (r_tag, r_idx) = Split(r_req.addr, idxBits)
     val r_valid_vec = valid.map(_(r_idx)).asUInt
-    val r_valid_vec_q = Wire(UInt(coreParams.nL2TLBWays.W))
-    val r_l2_plru_way = Wire(UInt(log2Ceil(coreParams.nL2TLBWays max 1).W))
-    r_valid_vec_q := RegNext(r_valid_vec)
-    r_l2_plru_way := (if (coreParams.nL2TLBWays > 1) RegNext(l2_plru.way(r_idx)) else 0.U)
+    val r_valid_vec_q = Reg(UInt(coreParams.nL2TLBWays.W))
+    val r_l2_plru_way = Reg(UInt(log2Ceil(coreParams.nL2TLBWays max 1).W))
+    r_valid_vec_q := r_valid_vec
+    r_l2_plru_way := (if (coreParams.nL2TLBWays > 1) l2_plru.way(r_idx) else 0.U)
     when (l2_refill && !invalidated) {
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
       entry := r_pte
