@@ -40,6 +40,9 @@ object rocketchip extends common.CommonRocketChip {
   override def scalaVersion: T[String] = T {
     "2.12.10"
   }
+  override def ammoniteVersion: T[String] = T {
+    "2.4.0"
+  }
 
   def hardfloatModule = hardfloatRocket
 
