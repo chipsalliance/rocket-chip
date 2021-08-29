@@ -49,7 +49,7 @@ class plusarg_reader(val format: String, val default: BigInt, val docstring: Str
   )) with HasBlackBoxResource {
   val io = IO(new Bundle {
     val out = Output(UInt(width.W))
-  })
+  }).suggestName("io")
 
   addResource("/vsrc/plusarg_reader.v")
 }
