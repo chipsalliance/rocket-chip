@@ -187,10 +187,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
   val pte_addr = if (!usingVM) 0.U else {
-    val vpn_idxs = (0 until pgLevels).map(i => (vpn >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
-    val vpn_idx = vpn_idxs(count)
+    val vpn_idxs = (0 until pgLevels).map { i =>
+      val width = pgLevelBits + (if (i <= pgLevels - minPgLevels) hypervisorExtraAddrBits else 0)
+      (vpn >> (pgLevels - i - 1) * pgLevelBits)(width - 1, 0)
+    }
+    val mask     = Mux(stage2 && count === r_hgatp_initial_count, ((1 << (hypervisorExtraAddrBits + pgLevelBits)) - 1).U, ((1 << pgLevelBits) - 1).U)
+    val vpn_idx  = vpn_idxs(count) & mask
     val size = if (usingHypervisor) vaddrBits else paddrBits
-    (Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8))(size-1, 0)
+    (((r_pte.ppn << pgLevelBits) | vpn_idx) << log2Ceil(xLen / 8))(size - 1, 0)
   }
   val pte_cache_addr = if (!usingHypervisor) pte_addr else {
     val vpn_idxs = (0 until pgLevels-1).map(i => (aux_pte.ppn >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
