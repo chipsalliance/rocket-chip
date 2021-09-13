@@ -326,12 +326,13 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   def badVA(guestPA: Boolean): Bool = {
     val additionalPgLevels = (if (guestPA) io.ptw.hgatp else satp).additionalPgLevels
     val extraBits = if (guestPA) hypervisorExtraAddrBits else 0
+    val signed = !guestPA
     val nPgLevelChoices = pgLevels - minPgLevels + 1
     val minVAddrBits = pgIdxBits + minPgLevels * pgLevelBits + extraBits
     (for (i <- 0 until nPgLevelChoices) yield {
-      val mask = ((BigInt(1) << vaddrBitsExtended) - (BigInt(1) << (minVAddrBits + i * pgLevelBits - 1))).U
+      val mask = ((BigInt(1) << vaddrBitsExtended) - (BigInt(1) << (minVAddrBits + i * pgLevelBits - signed.toInt))).U
       val maskedVAddr = io.req.bits.vaddr & mask
-      additionalPgLevels === i && !(maskedVAddr === 0 || !guestPA && maskedVAddr === mask)
+      additionalPgLevels === i && !(maskedVAddr === 0 || signed && maskedVAddr === mask)
     }).orR
   }
   val bad_gpa =
