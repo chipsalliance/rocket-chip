@@ -202,10 +202,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     (Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8))(vaddrBits-1, 0)
   }
   val stage2_pte_cache_addr = if (!usingHypervisor) 0.U else {
-    val vpn_idxs = (0 until pgLevels-1).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits))
-    val mask = Mux(count === r_hgatp_initial_count, ((1 << (maxHypervisorExtraAddrBits+pgLevelBits))-1).U, ((1 << pgLevelBits)-1).U)
-    val vpn_idx = vpn_idxs(count) & mask
-    (((aux_pte.ppn << pgLevelBits) | vpn_idx) << log2Ceil(xLen/8))(vaddrBits-1, 0)
+    val vpn_idxs = (0 until pgLevels - 1).map(i => (r_req.addr >> (pgLevels - i - 1) * pgLevelBits)(pgLevelBits - 1, 0))
+    val vpn_idx  = vpn_idxs(aux_count)
+    (Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen / 8))(vaddrBits - 1, 0)
   }
 
   val fragmented_superpage_ppn = {
