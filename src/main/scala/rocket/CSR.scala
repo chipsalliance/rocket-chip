@@ -858,7 +858,7 @@ class CSRFile(
 
     io_dec.virtual_access_illegal := reg_mstatus.v && csr_exists && (
       CSR.mode(addr) === PRV.H ||
-      is_counter && read_mcounteren(counter_addr) && !read_hcounteren(counter_addr) ||
+      is_counter && read_mcounteren(counter_addr) && (!read_hcounteren(counter_addr) || !reg_mstatus.prv(0) && !read_scounteren(counter_addr)) ||
       CSR.mode(addr) === PRV.S && !reg_mstatus.prv(0) ||
       addr === CSRs.satp && reg_mstatus.prv(0) && reg_hstatus.vtvm)
 
