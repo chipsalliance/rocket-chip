@@ -211,6 +211,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val stage2_en = Bool(usingHypervisor) && priv_v && io.ptw.hgatp.mode(io.ptw.hgatp.mode.getWidth-1)
   val vm_enabled = (stage1_en || stage2_en) && priv_uses_vm && !io.req.bits.passthrough
 
+  // flush guest entries on vsatp.MODE Bare <-> SvXX transitions
+  val v_entries_use_stage1 = RegInit(false.B)
+  val vsatp_mode_mismatch  = priv_v && stage1_en =/= v_entries_use_stage1
+
   // share a single physical memory attribute checker (unshare if critical path)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
@@ -377,7 +381,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val gf_inst_array = Mux(priv_v, ~(hx_array | ptw_ae_array), 0.U)
 
   val tlb_hit = real_hits.orR
-  val tlb_miss = vm_enabled && !bad_va && !tlb_hit
+  val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
 
   val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries(0).size, "plru")
   val superpage_plru = new PseudoLRU(superpage_entries.size)
@@ -409,7 +413,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.cacheable := (c_array & hits).orR
   io.resp.must_alloc := (must_alloc_array & hits).orR
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint)
-  io.resp.miss := do_refill || tlb_miss || multipleHits
+  io.resp.miss := do_refill || vsatp_mode_mismatch || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
 
   io.ptw.req.valid := state === s_request
@@ -452,6 +456,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         .elsewhen (!hg && io.sfence.bits.rs2) { e.invalidateNonGlobal(hv) }
         .otherwise { e.invalidate(hv, hg) }
       }
+    }
+    when(io.req.fire() && vsatp_mode_mismatch) {
+      all_real_entries.foreach(_.invalidate(true, false))
+      v_entries_use_stage1 := stage1_en
     }
     when (multipleHits || reset) {
       all_real_entries.foreach(_.invalidate())
