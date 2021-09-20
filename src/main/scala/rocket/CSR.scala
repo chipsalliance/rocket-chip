@@ -796,20 +796,20 @@ class CSRFile(
 
   val system_insn = io.rw.cmd === CSR.I
   val hlsv = Seq(HLV_B, HLV_BU, HLV_H, HLV_HU, HLV_W, HLV_WU, HLV_D, HSV_B, HSV_H, HSV_W, HSV_D, HLVX_HU, HLVX_WU)
-  val decode_table = Seq(        SCALL->       List(Y,N,N,N,N,N,N,N),
-                                 SBREAK->      List(N,Y,N,N,N,N,N,N),
-                                 MRET->        List(N,N,Y,N,N,N,N,N),
-                                 CEASE->       List(N,N,N,Y,N,N,N,N),
-                                 WFI->         List(N,N,N,N,Y,N,N,N)) ++
-    usingDebug.option(           DRET->        List(N,N,Y,N,N,N,N,N)) ++
-    usingNMI.option(             MNRET->       List(N,N,Y,N,N,N,N,N)) ++
-    coreParams.haveCFlush.option(CFLUSH_D_L1-> List(N,N,N,N,N,N,N,N)) ++
-    usingSupervisor.option(      SRET->        List(N,N,Y,N,N,N,N,N)) ++
-    usingVM.option(              SFENCE_VMA->  List(N,N,N,N,N,Y,N,N)) ++
-    usingHypervisor.option(      HFENCE_VVMA-> List(N,N,N,N,N,N,Y,N)) ++
-    usingHypervisor.option(      HFENCE_GVMA-> List(N,N,N,N,N,N,Y,N)) ++
-    (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,Y)) else Seq())
-  val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: Nil =
+  val decode_table = Seq(        SCALL->       List(Y,N,N,N,N,N,N,N,N),
+                                 SBREAK->      List(N,Y,N,N,N,N,N,N,N),
+                                 MRET->        List(N,N,Y,N,N,N,N,N,N),
+                                 CEASE->       List(N,N,N,Y,N,N,N,N,N),
+                                 WFI->         List(N,N,N,N,Y,N,N,N,N)) ++
+    usingDebug.option(           DRET->        List(N,N,Y,N,N,N,N,N,N)) ++
+    usingNMI.option(             MNRET->       List(N,N,Y,N,N,N,N,N,N)) ++
+    coreParams.haveCFlush.option(CFLUSH_D_L1-> List(N,N,N,N,N,N,N,N,N)) ++
+    usingSupervisor.option(      SRET->        List(N,N,Y,N,N,N,N,N,N)) ++
+    usingVM.option(              SFENCE_VMA->  List(N,N,N,N,N,Y,N,N,N)) ++
+    usingHypervisor.option(      HFENCE_VVMA-> List(N,N,N,N,N,N,Y,N,N)) ++
+    usingHypervisor.option(      HFENCE_GVMA-> List(N,N,N,N,N,N,N,Y,N)) ++
+    (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,N,Y)) else Seq())
+  val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil =
     DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
 
   for (io_dec <- io.decode) {
@@ -818,12 +818,13 @@ class CSRFile(
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => addr === k }.reduce(_||_)
     def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
 
-    val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: is_hfence :: is_hlsv :: Nil =
+    val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: is_hfence_vvma :: is_hfence_gvma :: is_hlsv :: Nil =
       DecodeLogic(io_dec.inst, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
     val is_counter = (addr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || addr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr))
 
     val allow_wfi = Bool(!usingSupervisor) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw && (!reg_mstatus.v || !reg_hstatus.vtw)
     val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !Mux(reg_mstatus.v, reg_hstatus.vtvm, reg_mstatus.tvm)
+    val allow_hfence_vvma = Bool(!usingHypervisor) || !reg_mstatus.v && (reg_mstatus.prv >= PRV.S)
     val allow_hlsv = Bool(!usingHypervisor) || !reg_mstatus.v && (reg_mstatus.prv >= PRV.S || reg_hstatus.hu)
     val allow_sret = Bool(!usingSupervisor) || reg_mstatus.prv > PRV.S || !Mux(reg_mstatus.v, reg_hstatus.vtsr, reg_mstatus.tsr)
     val counter_addr = addr(log2Ceil(read_mcounteren.getWidth)-1, 0)
@@ -853,7 +854,8 @@ class CSRFile(
       is_wfi && !allow_wfi ||
       is_ret && !allow_sret ||
       is_ret && addr(10) && addr(7) && !reg_debug ||
-      (is_sfence || is_hfence) && !allow_sfence_vma ||
+      (is_sfence || is_hfence_gvma) && !allow_sfence_vma ||
+      is_hfence_vvma && !allow_hfence_vvma ||
       is_hlsv && !allow_hlsv
 
     io_dec.virtual_access_illegal := reg_mstatus.v && csr_exists && (
@@ -863,7 +865,8 @@ class CSRFile(
       addr === CSRs.satp && reg_mstatus.prv(0) && reg_hstatus.vtvm)
 
     io_dec.virtual_system_illegal := reg_mstatus.v && (
-      is_hfence ||
+      is_hfence_vvma ||
+      is_hfence_gvma ||
       is_hlsv ||
       is_wfi && (!reg_mstatus.prv(0) || !reg_mstatus.tw && reg_hstatus.vtw) ||
       is_ret && CSR.mode(addr) === PRV.S && (!reg_mstatus.prv(0) || reg_hstatus.vtsr) ||
