@@ -18,7 +18,7 @@ on:
 jobs:
   prepare-riscv-tools-cache:
     name: Prepare riscv-tools Cache
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
@@ -28,7 +28,7 @@ jobs:
           path: |
             ./regression/install
             ./regression/stamps/rocket-tools_checkout.stamp
-          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
+          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v2
 
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
@@ -36,21 +36,21 @@ jobs:
 
       - if: steps.cache.outputs.cache-hit != 'true'
         env:
-          CXX: g++-4.8
-          CC: gcc-4.8
+          CXX: g++
+          CC: gcc
         run: make tools -C regression SUITE=none
 
 
   prepare-verilator-cache:
     name: Prepare Verilator Cache
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
       - uses: actions/cache@v2
         with:
           path: ./emulator/verilator
-          key: verilator-${{ hashFiles('./verilator.hash') }}-v1
+          key: verilator-${{ hashFiles('./verilator.hash') }}-v2
 
       # WARNING: The version of gcc used to compile Verilator MUST match the
       # version of gcc used to compile the fesvr. There is some bug related to
@@ -60,15 +60,15 @@ jobs:
         run: sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
 
       - env:
-          CXX: g++-4.8
-          CC: gcc-4.8
+          CXX: g++
+          CC: gcc
         run: make verilator -C regression SUITE=none
 
   # This job is defined as a matrix job, where the definitions of each test
   # bucket is located in a shell script at ./regression/run-test-bucket.
   test:
     name: Test
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-latest
     needs: [prepare-riscv-tools-cache, prepare-verilator-cache]
     strategy:
       fail-fast: false
@@ -83,13 +83,13 @@ jobs:
           path: |
             ./regression/install
             ./regression/stamps/rocket-tools_checkout.stamp
-          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v1
+          key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v2
 
       - name: Use Verilator Cache
         uses: actions/cache@v2
         with:
           path: ./emulator/verilator
-          key: verilator-${{ hashFiles('./verilator.hash') }}-v1
+          key: verilator-${{ hashFiles('./verilator.hash') }}-v2
 
       - name: Use SBT Cache
         uses: actions/cache@v2
@@ -97,7 +97,7 @@ jobs:
           path: |
             ~/.cache/coursier
             ~/.sbt
-          key: sbt-${{ hashFiles('**/build.sbt') }}-v1
+          key: sbt-${{ hashFiles('**/build.sbt') }}-v2
 
       - name: Install Dependencies
         run: |
@@ -105,8 +105,8 @@ jobs:
           python3 -m pip install pexpect==4.3.1
 
       - env:
-          CXX: g++-4.8
-          CC: gcc-4.8
+          CXX: g++
+          CC: gcc
         run: ./regression/run-test-bucket ${{ matrix.bucket }}
 
       - if: failure()
