@@ -3,20 +3,8 @@ import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 import $file.common
-import $file.firrtl.build
-import $file.chisel3.build
 import $file.hardfloat.build
 import $file.`api-config-chipsalliance`.`build-rules`.mill.build
-
-object firrtlRocket extends firrtl.build.firrtlCrossModule("2.12.11") {
-  override def millSourcePath = os.pwd / "firrtl"
-}
-
-object chisel3Rocket extends chisel3.build.chisel3CrossModule("2.12.12") {
-  override def millSourcePath = os.pwd / "chisel3"
-
-  def firrtlModule: Option[PublishModule] = Some(firrtlRocket)
-}
 
 object configRocket extends `api-config-chipsalliance`.`build-rules`.mill.build.config with PublishModule {
   override def millSourcePath = os.pwd / "api-config-chipsalliance" / "design" / "craft"
@@ -41,7 +29,10 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
     rocketchip.scalaVersion()
   }
 
-  def chisel3Module: Option[PublishModule] = Some(chisel3Rocket)
+  // use same chisel version with RocketChip
+  def chisel3IvyDeps = if(chisel3Module.isEmpty) Agg(
+    common.getVersion("chisel3")
+  ) else Agg.empty[Dep]
 }
 
 object rocketchip extends common.CommonRocketChip {
@@ -49,14 +40,11 @@ object rocketchip extends common.CommonRocketChip {
   override def scalaVersion: T[String] = T {
     "2.12.10"
   }
-
-  def chisel3Module = Some(chisel3Rocket)
+  override def ammoniteVersion: T[String] = T {
+    "2.4.0"
+  }
 
   def hardfloatModule = hardfloatRocket
 
   def configModule = configRocket
-
-  def scalacPluginClasspath = super.scalacPluginClasspath() ++ Agg(
-    chisel3Rocket.plugin.jar()
-  )
 }

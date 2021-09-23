@@ -6,7 +6,7 @@ import scala.sys.process._
 enablePlugins(PackPlugin)
 
 // This needs to stay in sync with the chisel3 and firrtl git submodules
-val chiselVersion = "3.4.1"
+val chiselVersion = "3.4.3"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
@@ -56,27 +56,21 @@ lazy val commonSettings = Seq(
   }
 )
 
-lazy val chiselRef = ProjectRef(workspaceDirectory / "chisel3", "chisel")
-lazy val chiselLib = "edu.berkeley.cs" %% "chisel3" % chiselVersion
-// While not built from source, *must* be in sync with the chisel3 git submodule
-// Building from source requires extending sbt-sriracha or a similar plugin and
-//   keeping scalaVersion in sync with chisel3 to the minor version
-lazy val chiselPluginLib = "edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full
+lazy val chiselSettings = Seq(
+  libraryDependencies ++= Seq("edu.berkeley.cs" %% "chisel3" % chiselVersion),
+  addCompilerPlugin("edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full)
+)
 
 lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
   .settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val hardfloat  = (project in file("hardfloat"))
-  .sourceDependency(chiselRef, chiselLib)
-  .settings(addCompilerPlugin(chiselPluginLib))
-  .settings(commonSettings)
+  .settings(commonSettings, chiselSettings)
   .settings(publishArtifact := false)
 lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val rocketchip = (project in file("."))
-  .sourceDependency(chiselRef, chiselLib)
-  .settings(addCompilerPlugin(chiselPluginLib))
-  .settings(commonSettings, chipSettings)
+  .settings(commonSettings, chipSettings, chiselSettings)
   .dependsOn(`api-config-chipsalliance`)
   .dependsOn(hardfloat)
   .dependsOn(`rocket-macros`)

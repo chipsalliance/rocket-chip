@@ -5,10 +5,9 @@ bison
 build-essential
 device-tree-compiler
 flex
-g++-4.8
 gawk
-gcc-4.8
 gperf
+libfl-dev
 libgmp-dev
 libmpc-dev
 libmpfr-dev
