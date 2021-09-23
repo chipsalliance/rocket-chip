@@ -127,7 +127,7 @@ class RVCDecoder(x: UInt, xLen: Int) {
       else sdsp
     }
     def jalr = {
-      val mv = inst(Cat(rs2, x0, 0.U(3.W), rd, 0x33.U(7.W)), rd, x0, rs2)
+      val mv = inst(Cat(rs2, 0.U(3.W), rd, 0x13.U(7.W)), rd, rs2, x0)
       val add = inst(Cat(rs2, rd, 0.U(3.W), rd, 0x33.U(7.W)), rd, rd, rs2)
       val jr = Cat(rs2, rd, 0.U(3.W), x0, 0x67.U(7.W))
       val reserved = Cat(jr >> 7, 0x1F.U(7.W))
