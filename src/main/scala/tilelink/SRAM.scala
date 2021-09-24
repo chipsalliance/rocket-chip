@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMECC, TL_UL}
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property.{cover, CoverBoolean, CrossProperty}
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
   val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))

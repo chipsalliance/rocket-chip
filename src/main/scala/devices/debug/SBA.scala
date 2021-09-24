@@ -9,7 +9,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property.cover
 import freechips.rocketchip.devices.debug._
 
 object SystemBusAccessState extends scala.Enumeration {

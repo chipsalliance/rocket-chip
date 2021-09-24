@@ -4,8 +4,8 @@ package freechips.rocketchip.jtag
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.{Parameters}
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.util.property.cover
 
 object JtagState {
   sealed abstract class State(val id: Int) {

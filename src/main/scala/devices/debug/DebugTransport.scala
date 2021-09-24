@@ -7,7 +7,7 @@ import chisel3.util._
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property.cover
 
 
 case class JtagDTMConfig (
