@@ -709,7 +709,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
     when (!(cmd_fma || cmd_addsub)) { in.in3 := zero }
   }
 
-  val fma = Module(new MulAddRecFNPipe((latency-1) min 2, t.exp, t.sig))
+  val fma = Module(new MulAddRecFNPipe(0, t.exp, t.sig))
   fma.io.validin := valid
   fma.io.op := in.fmaCmd
   fma.io.roundingMode := in.rm
@@ -722,7 +722,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   res.data := sanitizeNaN(fma.io.out, t)
   res.exc := fma.io.exceptionFlags
 
-  io.out := Pipe(fma.io.validout, res, (latency-3) max 0)
+  io.out := Pipe(fma.io.validout, res, (latency-1) max 0)
 }
 
 @chiselName
