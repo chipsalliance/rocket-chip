@@ -9,7 +9,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.devices.debug._
 
 object SystemBusAccessState extends scala.Enumeration {
@@ -240,19 +240,19 @@ object SystemBusAccessModule
       SBCSRdData := 0.U.asTypeOf(new SBCSFields())
     }
 
-    cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
-    cover(SBCSFieldsReg.sbbusy === 3.U, "SBCS Cover", "sbbusyerror alignment error")
+    property.cover(SBCSFieldsReg.sbbusyerror,    "SBCS Cover", "sberror set")
+    property.cover(SBCSFieldsReg.sbbusy === 3.U, "SBCS Cover", "sbbusyerror alignment error")
 
-    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 0.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "8-bit access")
-    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 1.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "16-bit access")
-    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 2.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "32-bit access")
-    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 3.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "64-bit access")
-    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 4.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "128-bit access")
+    property.cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 0.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "8-bit access")
+    property.cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 1.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "16-bit access")
+    property.cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 2.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "32-bit access")
+    property.cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 3.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "64-bit access")
+    property.cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess === 4.U && !sbAccessError && !sbAlignmentError, "SBCS Cover", "128-bit access")
 
-    cover(SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy,  "SBCS Cover", "Access with autoincrement set")
-    cover(!SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy, "SBCS Cover", "Access without autoincrement set")
+    property.cover(SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy,  "SBCS Cover", "Access with autoincrement set")
+    property.cover(!SBCSFieldsReg.sbautoincrement && SBCSFieldsReg.sbbusy, "SBCS Cover", "Access without autoincrement set")
 
-    cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess > 4.U, "SBCS Cover", "Invalid sbaccess value")
+    property.cover((sb2tl.module.io.wrEn || sb2tl.module.io.rdEn) && SBCSFieldsReg.sbaccess > 4.U, "SBCS Cover", "Invalid sbaccess value")
 
     (sbcsfields, sbaddrfields, sbdatafields)
   }
@@ -372,14 +372,14 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
             sbState === SBReadResponse.id.U ||          
             sbState === SBWriteResponse.id.U, "SBA state machine in undefined state")
 
-    cover (sbState === Idle.id.U,            "SBA State Cover", "SBA Access Idle")
-    cover (sbState === SBReadRequest.id.U,   "SBA State Cover", "SBA Access Read Req")
-    cover (sbState === SBWriteRequest.id.U,  "SBA State Cover", "SBA Access Write Req")
-    cover (sbState === SBReadResponse.id.U,  "SBA State Cover", "SBA Access Read Resp")
-    cover (sbState === SBWriteResponse.id.U, "SBA State Cover", "SBA Access Write Resp")
+    property.cover (sbState === Idle.id.U,            "SBA State Cover", "SBA Access Idle")
+    property.cover (sbState === SBReadRequest.id.U,   "SBA State Cover", "SBA Access Read Req")
+    property.cover (sbState === SBWriteRequest.id.U,  "SBA State Cover", "SBA Access Write Req")
+    property.cover (sbState === SBReadResponse.id.U,  "SBA State Cover", "SBA Access Read Resp")
+    property.cover (sbState === SBWriteResponse.id.U, "SBA State Cover", "SBA Access Write Resp")
 
-    cover (io.rdEn && !io.rdLegal, "SB Legality Cover", "SBA Rd Address Illegal")
-    cover (io.wrEn && !io.wrLegal, "SB Legality Cover", "SBA Wr Address Illegal")
+    property.cover (io.rdEn && !io.rdLegal, "SB Legality Cover", "SBA Rd Address Illegal")
+    property.cover (io.wrEn && !io.wrLegal, "SB Legality Cover", "SBA Wr Address Illegal")
  
   }
 }
