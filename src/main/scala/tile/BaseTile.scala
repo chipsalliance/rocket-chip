@@ -134,9 +134,16 @@ trait HasNonDiplomaticTileParameters {
       "i-tlb-size"           -> (i.nTLBWays * i.nTLBSets).asProperty,
       "i-tlb-sets"           -> i.nTLBSets.asProperty)).getOrElse(Nil)
 
-    val mmu = if (!tileParams.core.useVM) Nil else Map(
-        "tlb-split" -> Nil,
-        "mmu-type"  -> s"riscv,sv$maxSVAddrBits".asProperty)
+    val mmu =
+      if (tileParams.core.useVM) {
+        if (tileParams.core.useHypervisor) {
+          Map("tlb-split" -> Nil, "mmu-type" -> s"riscv,sv${maxSVAddrBits},sv${maxSVAddrBits}x4".asProperty)
+        } else {
+          Map("tlb-split" -> Nil, "mmu-type" -> s"riscv,sv$maxSVAddrBits".asProperty)
+        }
+      } else {
+        Nil
+      }
 
     val pmp = if (tileParams.core.nPMPs > 0) Map(
       "riscv,pmpregions" -> tileParams.core.nPMPs.asProperty,
