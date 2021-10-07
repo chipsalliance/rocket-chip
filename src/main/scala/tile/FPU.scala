@@ -13,7 +13,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 case class FPUParams(
   minFLen: Int = 32,
@@ -1020,5 +1020,5 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val fpuImpl = withClock (gated_clock) { new FPUImpl }
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"FPU_$label", "Core;;" + desc)
+    property.cover(cond, s"FPU_$label", "Core;;" + desc)
 }

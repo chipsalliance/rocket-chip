@@ -10,7 +10,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import scala.collection.mutable.LinkedHashMap
 import Instructions._
 
@@ -1025,8 +1025,8 @@ class CSRFile(
   for (i <- 0 until supported_interrupts.getWidth) {
     val en = exception && (supported_interrupts & (BigInt(1) << i).U) =/= 0 && cause === (BigInt(1) << (xLen - 1)).U + i
     val delegable = (delegable_interrupts & (BigInt(1) << i).U) =/= 0
-    cover(en && !delegate, s"INTERRUPT_M_$i")
-    cover(en && delegable && delegate, s"INTERRUPT_S_$i")
+    property.cover(en && !delegate, s"INTERRUPT_M_$i")
+    property.cover(en && delegable && delegate, s"INTERRUPT_S_$i")
   }
   for (i <- 0 until xLen) {
     val supported_exceptions: BigInt = 0x8fe |
@@ -1037,8 +1037,8 @@ class CSRFile(
     if (((supported_exceptions >> i) & 1) != 0) {
       val en = exception && cause === i
       val delegable = (delegable_exceptions & (BigInt(1) << i).U) =/= 0
-      cover(en && !delegate, s"EXCEPTION_M_$i")
-      cover(en && delegable && delegate, s"EXCEPTION_S_$i")
+      property.cover(en && !delegate, s"EXCEPTION_M_$i")
+      property.cover(en && delegable && delegate, s"EXCEPTION_S_$i")
     }
   }
 
@@ -1106,9 +1106,9 @@ class CSRFile(
   }
   coverable_counters.foreach( {case (k, v) => {
     when (!k(11,10).andR) {  // Cover points for RW CSR registers
-      cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
+      property.cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
     } .otherwise { // Cover points for RO CSR registers
-      cover(io.rw.cmd===CSR.R && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
+      property.cover(io.rw.cmd===CSR.R && io.rw.addr===k, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
     }
   }})
 

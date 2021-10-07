@@ -5,7 +5,7 @@ package freechips.rocketchip.tilelink
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
 {
@@ -102,7 +102,7 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
 
 //Functional cover properties
      
-      cover(in.a.valid && stall, "COVER FIFOFIXER STALL", "Cover: Stall occured for a valid transaction")
+      property.cover(in.a.valid && stall, "COVER FIFOFIXER STALL", "Cover: Stall occured for a valid transaction")
 
       val SourceIdFIFOed = RegInit(UInt(0, width = edgeIn.client.endSourceId))
       val SourceIdSet = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
@@ -118,11 +118,11 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       SourceIdFIFOed := SourceIdFIFOed | SourceIdSet
       val allIDs_FIFOed = SourceIdFIFOed===Fill(SourceIdFIFOed.getWidth, 1.U)
 
-      cover(allIDs_FIFOed, "COVER all sources", "Cover: FIFOFIXER covers all Source IDs")
-    //cover(flight.reduce(_ && _), "COVER full", "Cover: FIFO is full with all Source IDs")
-      cover(!(flight.reduce(_ || _)), "COVER empty", "Cover: FIFO is empty")
-      cover(SourceIdSet > 0.U, "COVER at least one push", "Cover: At least one Source ID is pushed")
-      cover(SourceIdClear > 0.U, "COVER at least one pop", "Cover: At least one Source ID is popped")
+      property.cover(allIDs_FIFOed, "COVER all sources", "Cover: FIFOFIXER covers all Source IDs")
+    //property.cover(flight.reduce(_ && _), "COVER full", "Cover: FIFO is full with all Source IDs")
+      property.cover(!(flight.reduce(_ || _)), "COVER empty", "Cover: FIFO is empty")
+      property.cover(SourceIdSet > 0.U, "COVER at least one push", "Cover: At least one Source ID is pushed")
+      property.cover(SourceIdClear > 0.U, "COVER at least one pop", "Cover: At least one Source ID is popped")
 
     }
   }
