@@ -13,7 +13,7 @@ import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import scala.collection.mutable.ListBuffer
 
@@ -573,7 +573,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   } // leaving gated-clock domain
 
   private def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    if (usingVM) cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
+    if (usingVM) property.cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
 
   private def makePTE(ppn: UInt, default: PTE) = {
     val pte = Wire(init = default)
