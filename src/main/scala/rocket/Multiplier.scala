@@ -15,13 +15,11 @@ class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
   val in1 = Bits(dataBits.W)
   val in2 = Bits(dataBits.W)
   val tag = UInt(tagBits.W)
-  override def cloneType = new MultiplierReq(dataBits, tagBits).asInstanceOf[this.type]
 }
 
 class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
   val data = Bits(dataBits.W)
   val tag = UInt(tagBits.W)
-  override def cloneType = new MultiplierResp(dataBits, tagBits).asInstanceOf[this.type]
 }
 
 class MultiplierIO(val dataBits: Int, val tagBits: Int) extends Bundle {

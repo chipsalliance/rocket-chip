@@ -9,15 +9,11 @@ class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val data = dType.cloneType
   val tag = UInt(width = tagWidth)
 
-  override def cloneType =
-    new ReorderQueueWrite(dType, tagWidth).asInstanceOf[this.type]
 }
 
 class ReorderEnqueueIO[T <: Data](dType: T, tagWidth: Int)
   extends DecoupledIO(new ReorderQueueWrite(dType, tagWidth)) {
 
-  override def cloneType =
-    new ReorderEnqueueIO(dType, tagWidth).asInstanceOf[this.type]
 }
 
 class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
@@ -26,8 +22,6 @@ class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val data = dType.cloneType.asOutput
   val matches = Bool(OUTPUT)
 
-  override def cloneType =
-    new ReorderDequeueIO(dType, tagWidth).asInstanceOf[this.type]
 }
 
 class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)

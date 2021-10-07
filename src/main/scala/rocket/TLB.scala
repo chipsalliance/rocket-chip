@@ -38,7 +38,6 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val prv = UInt(PRV.SZ.W)
   val v = Bool()
 
-  override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
 
 class TLBExceptions(implicit p: Parameters) extends CoreBundle()(p) {
