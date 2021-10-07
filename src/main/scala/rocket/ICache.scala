@@ -104,7 +104,6 @@ class ICacheResp(outer: ICache) extends Bundle {
   val replay = Bool()
   val ae = Bool()
 
-  override def cloneType = new ICacheResp(outer).asInstanceOf[this.type]
 }
 
 class ICachePerfEvents extends Bundle {
