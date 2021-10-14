@@ -493,7 +493,7 @@ class CSRFile(
     val reg = Reg(UInt(xLen.W))
     (reg, Mux(usingHypervisor, reg & hs_delegable_exceptions, 0.U))
   }
-  val hs_delegable_counters = ((BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1).U
+  val hs_delegable_counters = delegable_counters
   val (reg_hcounteren, read_hcounteren) = {
     val reg = Reg(UInt(32.W))
     (reg, Mux(usingHypervisor, reg & hs_delegable_counters, 0.U))
@@ -745,7 +745,7 @@ class CSRFile(
     read_mapping += CSRs.hstatus -> read_hstatus
     read_mapping += CSRs.hedeleg -> read_hedeleg
     read_mapping += CSRs.hideleg -> read_hideleg
-    read_mapping += CSRs.hcounteren-> reg_hcounteren
+    read_mapping += CSRs.hcounteren-> read_hcounteren
     read_mapping += CSRs.hgatp -> reg_hgatp.asUInt
     read_mapping += CSRs.hip -> read_hip
     read_mapping += CSRs.hie -> read_hie
