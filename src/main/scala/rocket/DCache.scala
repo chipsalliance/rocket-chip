@@ -894,6 +894,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.resp.bits.replay := false
   io.cpu.s2_uncached := s2_uncached && !s2_hit
   io.cpu.s2_paddr := s2_req.addr
+  io.cpu.s2_gpa := s2_tlb_xcpt.gpa
 
   // report whether there are any outstanding accesses.  disregard any
   // slave-port accesses, since they don't affect local memory ordering.
