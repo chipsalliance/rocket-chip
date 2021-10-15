@@ -52,6 +52,7 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   // lookup responses
   val miss = Bool()
   val paddr = UInt(width = paddrBits)
+  val gpa = UInt(vaddrBitsExtended.W)
   val pf = new TLBExceptions
   val gf = new TLBExceptions
   val ae = new TLBExceptions
@@ -201,6 +202,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_sectored_hit = Reg(Bool())
   val r_vstage1_en = Reg(Bool())
   val r_stage2_en = Reg(Bool())
+  val r_need_gpa = Reg(Bool())
+  val r_gpa_valid = Reg(Bool())
+  val r_gpa = Reg(UInt(vaddrBits.W))
+  val r_gpa_gf = Reg(Bool())
 
   val priv = io.req.bits.prv
   val priv_v = usingHypervisor && io.req.bits.v
@@ -208,6 +213,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val priv_uses_vm = priv <= PRV.S
   val satp = Mux(priv_v, io.ptw.vsatp, io.ptw.ptbr)
   val stage1_en = Bool(usingVM) && satp.mode(satp.mode.getWidth-1)
+  val vstage1_en = priv_v && io.ptw.vsatp.mode(satp.mode.getWidth-1)
   val stage2_en = Bool(usingHypervisor) && priv_v && io.ptw.hgatp.mode(io.ptw.hgatp.mode.getWidth-1)
   val vm_enabled = (stage1_en || stage2_en) && priv_uses_vm && !io.req.bits.passthrough
 
@@ -291,6 +297,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         when (invalidate_refill) { e.invalidate() }
       }
     }
+
+    r_gpa_valid := io.ptw.resp.bits.gpa.valid
+    r_gpa := io.ptw.resp.bits.gpa.bits
+    r_gpa_gf := io.ptw.resp.bits.gf
   }
 
   val entries = all_entries.map(_.getData(vpn))
@@ -380,7 +390,15 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val gf_st_array = Mux(priv_v && cmd_write_perms, ~(hw_array | ptw_ae_array), 0.U)
   val gf_inst_array = Mux(priv_v, ~(hx_array | ptw_ae_array), 0.U)
 
-  val tlb_hit = real_hits.orR
+  val gpa_hits = {
+    val need_gpa_mask = if (instruction) gf_inst_array else gf_ld_array | gf_st_array
+    val hit_mask = Fill(sectored_entries.head.size, r_gpa_valid && r_refill_tag === vpn) | Fill(all_entries.size, !vstage1_en)
+    hit_mask | ~need_gpa_mask(all_entries.size-1, 0)
+  }
+
+  val tlb_hit_if_not_gpa_miss = real_hits.orR
+  val tlb_hit = (real_hits & gpa_hits).orR
+
   val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
 
   val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries(0).size, "plru")
@@ -415,20 +433,35 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint)
   io.resp.miss := do_refill || vsatp_mode_mismatch || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
+  io.resp.gpa := {
+    val page = Mux(!vstage1_en, Cat(bad_gpa, vpn), r_gpa >> pgIdxBits)
+    val offset = Mux(!vstage1_en || !r_gpa_gf, io.req.bits.vaddr(pgIdxBits-1, 0), r_gpa(pgIdxBits-1, 0))
+    Cat(page, offset)
+  }
 
   io.ptw.req.valid := state === s_request
   io.ptw.req.bits.valid := !io.kill
   io.ptw.req.bits.bits.addr := r_refill_tag
   io.ptw.req.bits.bits.vstage1 := r_vstage1_en
   io.ptw.req.bits.bits.stage2 := r_stage2_en
+  io.ptw.req.bits.bits.need_gpa := r_need_gpa
 
   if (usingVM) {
     val sfence = io.sfence.valid
     when (io.req.fire() && tlb_miss) {
       state := s_request
       r_refill_tag := vpn
+      r_gpa_valid := false
+      r_need_gpa := tlb_hit_if_not_gpa_miss
 
-      r_vstage1_en := priv_v && stage1_en
+      when(tlb_hit_if_not_gpa_miss) {
+        // the GPA will come back as a fragmented superpage entry, so zap
+        // superpage hit to prevent a future multi-hit
+        for ((e, h) <- superpage_entries.zip(superpage_hits))
+          when(h) { e.invalidate() }
+      }
+
+      r_vstage1_en := vstage1_en
       r_stage2_en := stage2_en
       r_superpage_repl_addr := replacementEntry(superpage_entries, superpage_plru.way)
       r_sectored_repl_addr := replacementEntry(sectored_entries(memIdx), sectored_plru.way(memIdx))

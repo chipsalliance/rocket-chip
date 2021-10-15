@@ -19,6 +19,7 @@ import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
+  val need_gpa = Bool()
   val vstage1 = Bool()
   val stage2 = Bool()
 }
@@ -34,6 +35,7 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val level = UInt(width = log2Ceil(pgLevels))
   val fragmented_superpage = Bool()
   val homogeneous = Bool()
+  val gpa = Valid(UInt(vaddrBits.W))
 }
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
@@ -154,6 +156,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val aux_count = Reg(UInt(log2Ceil(pgLevels).W))
   val aux_pte = Reg(new PTE)
+  val gpa_pgoff = Reg(UInt(pgIdxBits.W)) // only valid in resp_gf case
   val stage2 = Reg(Bool())
   val stage2_final = Reg(Bool())
 
@@ -207,8 +210,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     (Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen / 8))(vaddrBits - 1, 0)
   }
 
-  val fragmented_superpage_ppn = {
-    val choices = (pgLevels-1 until 0 by -1).map(i => Cat(r_pte.ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
+  def makeFragmentedSuperpagePPN(ppn: UInt): UInt = {
+    val choices = (pgLevels-1 until 0 by -1).map(i => Cat(ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
     choices(count)
   }
 
@@ -312,7 +315,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
 
     val s0_valid = !l2_refill && arb.io.out.fire()
-    val s0_suitable = arb.io.out.bits.bits.vstage1 === arb.io.out.bits.bits.stage2
+    val s0_suitable = arb.io.out.bits.bits.vstage1 === arb.io.out.bits.bits.stage2 && !arb.io.out.bits.bits.need_gpa
     val s1_valid = RegNext(s0_valid && s0_suitable && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
     val s1_rdata = ram.read(arb.io.out.bits.bits.addr(idxBits-1, 0), s0_valid)
@@ -374,7 +377,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
   val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(r_pte.ppn << pgIdxBits, count)
-  val homogeneous = pmaHomogeneous && pmpHomogeneous
+  val homogeneous = !r_req.need_gpa && pmaHomogeneous && pmpHomogeneous
 
   for (i <- 0 until io.requestor.size) {
     io.requestor(i).resp.valid := resp_valid(i)
@@ -388,6 +391,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.level := max_count
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
+    io.requestor(i).resp.bits.gpa.valid := r_req.need_gpa
+    io.requestor(i).resp.bits.gpa.bits := Cat(aux_pte.ppn, gpa_pgoff)
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).hgatp := io.dpath.hgatp
     io.requestor(i).vsatp := io.dpath.vsatp
@@ -425,9 +430,15 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         resp_hx := true
         resp_fragmented_superpage := false
         r_hgatp := io.dpath.hgatp
+
+        assert(!arb.io.out.bits.bits.need_gpa || arb.io.out.bits.bits.stage2)
       }
     }
     is (s_req) {
+      when(stage2 && count === r_hgatp_initial_count) {
+        gpa_pgoff := Mux(aux_count === pgLevels-1, r_req.addr << (xLen/8).log2, stage2_pte_cache_addr)
+      }
+
       when (stage2_pte_cache_hit) {
         aux_count := aux_count + 1
         aux_pte.ppn := stage2_pte_cache_data
@@ -458,6 +469,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (!homogeneous) {
         count := pgLevels-1
         resp_fragmented_superpage := true
+        when(!resp_gf) {
+          aux_pte.ppn := makeFragmentedSuperpagePPN(aux_pte.ppn)
+        }
       }
     }
   }
@@ -475,7 +489,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Mux(state === s_req && !stage2_pte_cache_hit && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
     Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),
     Mux(mem_resp_valid, Mux(!traverse && (r_req.vstage1 && stage2), merged_pte, pte),
-    Mux(state === s_fragment_superpage && !homogeneous, makePTE(fragmented_superpage_ppn, r_pte),
+    Mux(state === s_fragment_superpage && !homogeneous, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn), r_pte),
     Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, satp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte)))))))
 
@@ -505,7 +519,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       }.otherwise {
         val ae = pte.v && invalid_paddr
         val success = pte.v && !ae && !gf
-        l2_refill := success && count === pgLevels-1 &&
+        l2_refill := success && count === pgLevels-1 && !r_req.need_gpa &&
           (!r_req.vstage1 && !r_req.stage2 ||
            do_both_stages && aux_count === pgLevels-1 && isFullPermPTE(pte))
         count := max_count
