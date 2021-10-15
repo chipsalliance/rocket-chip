@@ -1436,10 +1436,30 @@ class CSRFile(
     }
   }
 
-  reg_satp.asid := 0
+  when(reset.asBool) {
+    reg_satp.mode  := 0.U
+    reg_vsatp.mode := 0.U
+    reg_hgatp.mode := 0.U
+  }
   if (!usingVM) {
-    reg_satp.mode := 0
-    reg_satp.ppn := 0
+    reg_satp.mode := 0.U
+    reg_satp.ppn  := 0.U
+    reg_satp.asid := 0.U
+  }
+  if (!usingHypervisor) {
+    reg_vsatp.mode := 0.U
+    reg_vsatp.ppn  := 0.U
+    reg_vsatp.asid := 0.U
+    reg_hgatp.mode := 0.U
+    reg_hgatp.ppn  := 0.U
+    reg_hgatp.asid := 0.U
+  }
+  if (!(asIdBits > 0)) {
+    reg_satp.asid  := 0.U
+    reg_vsatp.asid := 0.U
+  }
+  if (!(vmIdBits > 0)) {
+    reg_hgatp.asid := 0.U
   }
 
   if (nBreakpoints <= 1) reg_tselect := 0
