@@ -258,6 +258,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
   val tval = UInt(INPUT, vaddrBitsExtended)
+  val htval = UInt(INPUT, vaddrBitsExtended)
   val gva = Bool(INPUT)
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
@@ -459,6 +460,7 @@ class CSRFile(
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
   val reg_mcause = RegInit(0.U(xLen.W))
   val reg_mtval = Reg(UInt(width = vaddrBitsExtended))
+  val reg_mtval2 = Reg(UInt(((maxSVAddrBits + 1) min xLen).W))
   val reg_mscratch = Reg(Bits(width = xLen))
   val mtvecWidth = paddrBits min xLen
   val reg_mtvec = mtvecInit match {
@@ -500,6 +502,7 @@ class CSRFile(
   }
   val reg_hstatus = RegInit(0.U.asTypeOf(new HStatus))
   val reg_hgatp = Reg(new PTBR)
+  val reg_htval = Reg(reg_mtval2.cloneType)
   val read_hvip = reg_mip.asUInt & hs_delegable_interrupts
   val read_hie = reg_mie & hs_delegable_interrupts
 
@@ -738,7 +741,7 @@ class CSRFile(
 
   if (usingHypervisor) {
     read_mapping += CSRs.mtinst -> 0.U
-    read_mapping += CSRs.mtval2 -> 0.U
+    read_mapping += CSRs.mtval2 -> reg_mtval2
 
     val read_hstatus = io.hstatus.asUInt()(xLen-1,0)
 
@@ -752,7 +755,7 @@ class CSRFile(
     read_mapping += CSRs.hvip -> read_hvip
     read_mapping += CSRs.hgeie -> 0.U
     read_mapping += CSRs.hgeip -> 0.U
-    read_mapping += CSRs.htval -> 0.U
+    read_mapping += CSRs.htval -> reg_htval
     read_mapping += CSRs.htinst -> 0.U
 
     val read_vsie = (read_hie & read_hideleg) >> 1
@@ -985,6 +988,7 @@ class CSRFile(
       reg_sepc := epc
       reg_scause := cause
       reg_stval := io.tval
+      reg_htval := io.htval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false
@@ -996,6 +1000,7 @@ class CSRFile(
       reg_mepc := epc
       reg_mcause := cause
       reg_mtval := io.tval
+      reg_mtval2 := io.htval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false
@@ -1310,6 +1315,8 @@ class CSRFile(
         reg_mip.vseip := new_sip.vseip
       }
       when (decoded_addr(CSRs.hcounteren)) { reg_hcounteren := wdata }
+      when (decoded_addr(CSRs.htval))      { reg_htval := wdata }
+      when (decoded_addr(CSRs.mtval2))     { reg_mtval2 := wdata }
 
       when (decoded_addr(CSRs.vsstatus)) {
         val new_vsstatus = new MStatus().fromBits(wdata)
