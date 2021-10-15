@@ -52,6 +52,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
+  val gpa = Flipped(Valid(UInt(vaddrBitsExtended.W)))
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
@@ -328,6 +329,21 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   }
 
   io.cpu.resp <> fq.io.deq
+
+  // supply guest physical address to commit stage
+  val gpa_valid = Reg(Bool())
+  val gpa = Reg(UInt(vaddrBitsExtended.W))
+  when (fq.io.enq.fire() && s2_tlb_resp.gf.inst) {
+    when (!gpa_valid) {
+      gpa := s2_tlb_resp.gpa
+    }
+    gpa_valid := true
+  }
+  when (io.cpu.req.valid) {
+    gpa_valid := false
+  }
+  io.cpu.gpa.valid := gpa_valid
+  io.cpu.gpa.bits := gpa
 
   // performance events
   io.cpu.perf := icache.io.perf
