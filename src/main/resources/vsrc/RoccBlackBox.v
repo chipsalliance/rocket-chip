@@ -10,6 +10,7 @@ module RoccBlackBox
      coreDataBits,
      coreDataBytes,
      paddrBits,
+     vaddrBitsExtended,
      FPConstants_RM_SZ,
      fLen,
      FPConstants_FLAGS_SZ )
@@ -90,6 +91,7 @@ module RoccBlackBox
     output rocc_mem_s2_kill,
     input rocc_mem_s2_uncached,
     input [paddrBits-1:0] rocc_mem_s2_paddr,
+    input [vaddrBitsExtended-1:0] rocc_mem_s2_gpa,
     input rocc_mem_resp_valid,
     input [coreMaxAddrBits-1:0] rocc_mem_resp_bits_addr,
     input [dcacheReqTagBits-1:0] rocc_mem_resp_bits_tag,

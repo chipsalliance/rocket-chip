@@ -352,6 +352,7 @@ class BlackBoxExampleModuleImp(outer: BlackBoxExample, blackBoxFile: String)(imp
                          "coreDataBits" -> IntParam(coreDataBits),
                          "coreDataBytes" -> IntParam(coreDataBytes),
                          "paddrBits" -> IntParam(paddrBits),
+                         "vaddrBitsExtended" -> IntParam(vaddrBitsExtended),
                          "FPConstants_RM_SZ" -> IntParam(FPConstants.RM_SZ),
                          "fLen" -> IntParam(fLen),
                          "FPConstants_FLAGS_SZ" -> IntParam(FPConstants.FLAGS_SZ)
