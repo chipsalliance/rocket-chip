@@ -213,8 +213,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val priv_uses_vm = priv <= PRV.S
   val satp = Mux(priv_v, io.ptw.vsatp, io.ptw.ptbr)
   val stage1_en = Bool(usingVM) && satp.mode(satp.mode.getWidth-1)
-  val vstage1_en = priv_v && io.ptw.vsatp.mode(satp.mode.getWidth-1)
-  val stage2_en = Bool(usingHypervisor) && priv_v && io.ptw.hgatp.mode(io.ptw.hgatp.mode.getWidth-1)
+  val vstage1_en = Bool(usingHypervisor) && priv_v && io.ptw.vsatp.mode(io.ptw.vsatp.mode.getWidth-1)
+  val stage2_en  = Bool(usingHypervisor) && priv_v && io.ptw.hgatp.mode(io.ptw.hgatp.mode.getWidth-1)
   val vm_enabled = (stage1_en || stage2_en) && priv_uses_vm && !io.req.bits.passthrough
 
   // flush guest entries on vsatp.MODE Bare <-> SvXX transitions
