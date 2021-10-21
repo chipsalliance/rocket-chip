@@ -729,7 +729,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     val htval_imem = Mux(htval_valid_imem, io.imem.gpa.bits, 0.U)
     assert(!htval_valid_imem || io.imem.gpa.valid)
 
-    val htval_valid_dmem = wb_xcpt && tval_dmem_addr && io.dmem.s2_xcpt.gf.asUInt.orR
+    val htval_valid_dmem = wb_xcpt && tval_dmem_addr && io.dmem.s2_xcpt.gf.asUInt.orR && !(io.dmem.s2_xcpt.ma.asUInt.orR || io.dmem.s2_xcpt.pf.asUInt.orR)
     val htval_dmem = Mux(htval_valid_dmem, io.dmem.s2_gpa, 0.U)
 
     (htval_dmem | htval_imem) >> hypervisorExtraAddrBits
