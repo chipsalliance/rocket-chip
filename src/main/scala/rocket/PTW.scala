@@ -468,6 +468,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       resp_valid(r_req_dest) := true
       when (!homogeneous) {
         count := pgLevels-1
+      }
+      when (!homogeneous || do_both_stages) {
         resp_fragmented_superpage := true
         when(!resp_gf) {
           aux_pte.ppn := makeFragmentedSuperpagePPN(aux_pte.ppn)
