@@ -6,12 +6,13 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.withClock
-import chisel3.experimental.{chiselName, NoChiselNamePrefix}
+import chisel3.experimental.{NoChiselNamePrefix, chiselName}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import freechips.rocketchip.scie._
+import freechips.rocketchip.zbk._
 import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(
@@ -26,6 +27,7 @@ case class RocketCoreParams(
   useCompressed: Boolean = true,
   useRVE: Boolean = false,
   useSCIE: Boolean = false,
+  useZBK: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -179,6 +181,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (minFLen == 16) new HDecode +: (xLen > 32).option(new H64Decode).toSeq ++: (fLen >= 64).option(new HDDecode).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
     (rocketParams.useSCIE.option(new SCIEDecode)) ++:
+    (if (usingZBK) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
     (if (xLen == 32) new I32Decode else new I64Decode) +:
     (usingVM.option(new SVMDecode)) ++:
     (usingSupervisor.option(new SDecode)) ++:
@@ -409,6 +412,17 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     u.io.rs2 := ex_rs(1)
     u.io.rd
   }
+
+  val ex_zbk_wdata = if (!rocketParams.useZBK) 0.U else {
+      val zbk_u = Module(new ZBKImp(xLen))
+      zbk_u.io.zbk_fn := ex_ctrl.alu_fn
+      zbk_u.io.dw     := ex_ctrl.alu_dw
+      zbk_u.io.valid  := ex_ctrl.zbk
+      zbk_u.io.rs1    := ex_op1.asUInt
+      zbk_u.io.rs2    := ex_op2.asUInt
+      zbk_u.io.rd
+    }
+
   val mem_scie_pipelined_wdata = if (!rocketParams.useSCIE) 0.U else {
     val u = Module(new SCIEPipelined(xLen))
     u.io.clock := Module.clock
@@ -568,7 +582,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_mem_size := ex_reg_mem_size
     mem_reg_hls_or_dv := io.dmem.req.bits.dv
     mem_reg_pc := ex_reg_pc
-    mem_reg_wdata := Mux(ex_scie_unpipelined, ex_scie_unpipelined_wdata, alu.io.out)
+    mem_reg_wdata := Mux(ex_scie_unpipelined, ex_scie_unpipelined_wdata, Mux(ex_ctrl.zbk,ex_zbk_wdata,alu.io.out))
     mem_br_taken := alu.io.cmp_out
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
