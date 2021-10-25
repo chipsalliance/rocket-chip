@@ -258,7 +258,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
   val tval = UInt(INPUT, vaddrBitsExtended)
-  val htval = UInt(INPUT, vaddrBitsExtended)
+  val htval = UInt(INPUT, (maxSVAddrBits + 1) min xLen)
   val gva = Bool(INPUT)
   val time = UInt(OUTPUT, xLen)
   val fcsr_rm = Bits(OUTPUT, FPConstants.RM_SZ)
