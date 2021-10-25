@@ -24,6 +24,7 @@ trait CoreParams {
   val useBitManip: Boolean = false
   val useVector: Boolean = false
   val useSCIE: Boolean
+  val useZBK: Boolean
   val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
@@ -79,6 +80,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingBitManip = coreParams.useBitManip
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
+  val usingZBK = coreParams.useZBK
   val usingNMI = coreParams.useNMI
 
   val retireWidth = coreParams.retireWidth
