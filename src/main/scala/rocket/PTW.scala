@@ -421,7 +421,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         stage2_final := arb.io.out.bits.bits.stage2 && !arb.io.out.bits.bits.vstage1
         count       := Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
         aux_count   := Mux(arb.io.out.bits.bits.vstage1, satp_initial_count, 0.U)
-        aux_pte.ppn := Mux(arb.io.out.bits.bits.vstage1, satp.ppn, arb.io.out.bits.bits.addr)
+        aux_pte.ppn := Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp.ppn, arb.io.out.bits.bits.addr)
         resp_ae_ptw := false
         resp_ae_final := false
         resp_gf := false
@@ -492,7 +492,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),
     Mux(mem_resp_valid, Mux(!traverse && (r_req.vstage1 && stage2), merged_pte, pte),
     Mux(state === s_fragment_superpage && !homogeneous, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn), r_pte),
-    Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, satp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
+    Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte)))))))
 
   when (l2_hit && !l2_error) {
