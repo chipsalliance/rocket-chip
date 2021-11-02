@@ -2,8 +2,6 @@
 
 package freechips.rocketchip.zbk
 
-//import Chisel._
-import Chisel.Module
 import chisel3._
 import chisel3.util.{BitPat, HasBlackBoxInline}
 
@@ -62,7 +60,15 @@ class ZBKInterface(xLen: Int) extends Bundle {
 class ZBKImp(xLen:Int) extends Module {
   val io = IO(new ZBKInterface(xLen))
 
-  val zbkb_res = if (xLen == 32) {
+  val zbkb_res = if (xLen == 64) {
+    val zbkb_u = Module(new zbkb64)
+    zbkb_u.io.zbk_fn := io.zbk_fn
+    zbkb_u.io.dw     := io.dw
+    zbkb_u.io.valid  := io.valid
+    zbkb_u.io.rs1    := io.rs1
+    zbkb_u.io.rs2    := io.rs2
+    zbkb_u.io.rd
+  } else if (xLen == 32) {
     val zbkb_u = Module(new zbkb32)
     zbkb_u.io.zbk_fn := io.zbk_fn
     zbkb_u.io.dw     := io.dw
@@ -72,17 +78,33 @@ class ZBKImp(xLen:Int) extends Module {
     zbkb_u.io.rd
   } else 0.U
 
-  val zbkc_res = if (xLen == 32) {
-    val zbkc_u = Module(new zbkc32)
+  val zbkc_res = if (xLen == 64) {
+    val zbkc_u = Module(new zbkc64)
     zbkc_u.io.zbk_fn := io.zbk_fn
     zbkc_u.io.dw     := io.dw
     zbkc_u.io.valid  := io.valid
     zbkc_u.io.rs1    := io.rs1
     zbkc_u.io.rs2    := io.rs2
     zbkc_u.io.rd
+  } else if (xLen == 32) {
+    val zbkb_u = Module(new zbkc32)
+    zbkb_u.io.zbk_fn := io.zbk_fn
+    zbkb_u.io.dw     := io.dw
+    zbkb_u.io.valid  := io.valid
+    zbkb_u.io.rs1    := io.rs1
+    zbkb_u.io.rs2    := io.rs2
+    zbkb_u.io.rd
   } else 0.U
 
-  val zbkx_res = if (xLen == 32) {
+  val zbkx_res = if (xLen == 64) {
+    val zbkx_u = Module(new zbkx64)
+    zbkx_u.io.zbk_fn := io.zbk_fn
+    zbkx_u.io.dw     := io.dw
+    zbkx_u.io.valid  := io.valid
+    zbkx_u.io.rs1    := io.rs1
+    zbkx_u.io.rs2    := io.rs2
+    zbkx_u.io.rd
+  } else if (xLen == 32) {
     val zbkx_u = Module(new zbkx32)
     zbkx_u.io.zbk_fn := io.zbk_fn
     zbkx_u.io.dw     := io.dw
@@ -91,7 +113,9 @@ class ZBKImp(xLen:Int) extends Module {
     zbkx_u.io.rs2    := io.rs2
     zbkx_u.io.rd
   } else 0.U
+
   io.rd := zbkb_res | zbkc_res | zbkx_res
+  val t = poly16_mul(0.U, 0.U) //pseudo object call to include the verilog file of the poly16_mul module
 }
 
 class zbkb32 extends BlackBox with HasBlackBoxInline {
@@ -201,6 +225,116 @@ class zbkb32 extends BlackBox with HasBlackBoxInline {
      """.stripMargin('#'))
 }
 
+class zbkb64 extends BlackBox with HasBlackBoxInline {
+  val io = IO(new ZBKInterface(64))
+  setInline("zbkb64.v",
+    s"""
+       #module zbkb64  (
+       #input  [ 3:0] zbk_fn,
+       #input         dw,
+       #input         valid,
+       #input  [63:0] rs1,
+       #input  [63:0] rs2,
+       #output [63:0] rd);
+       #`define ror64(x,  imm,  l)  ({64{imm[5]}} & {l16``l[31:0],l16``l[63:32]}) | ({64{!imm[5]}} &l16``l[63:0]); \\
+       #        wire [63:0] l16``l= ({64{imm[4]}} & { l8``l[15:0], l8``l[63:16]}) | ({64{!imm[4]}} & l8``l[63:0]); \\
+       #        wire [63:0] l8``l = ({64{imm[3]}} & { l4``l[ 7:0], l4``l[63: 8]}) | ({64{!imm[3]}} & l4``l[63:0]); \\
+       #        wire [63:0] l4``l = ({64{imm[2]}} & { l2``l[ 3:0], l2``l[63: 4]}) | ({64{!imm[2]}} & l2``l[63:0]); \\
+       #        wire [63:0] l2``l = ({64{imm[1]}} & { l1``l[ 1:0], l1``l[63: 2]}) | ({64{!imm[1]}} & l1``l[63:0]); \\
+       #        wire [63:0] l1``l = ({64{imm[0]}} & { l0``l[   0], l0``l[63: 1]}) | ({64{!imm[0]}} & l0``l[63:0]); \\
+       #        wire [63:0] l0``l = x
+       #
+       #`define rol64(x,  imm,  l)  ({64{imm[5]}} & {l16``l[31:0],l16``l[63:32]}) | ({64{!imm[5]}} &l16``l[63:0]); \\
+       #        wire [63:0] l16``l= ({64{imm[4]}} & { l8``l[47:0], l8``l[63:48]}) | ({64{!imm[4]}} & l8``l[63:0]); \\
+       #        wire [63:0] l8``l = ({64{imm[3]}} & { l4``l[55:0], l4``l[63:56]}) | ({64{!imm[3]}} & l4``l[63:0]); \\
+       #        wire [63:0] l4``l = ({64{imm[2]}} & { l2``l[59:0], l2``l[63:60]}) | ({64{!imm[2]}} & l2``l[63:0]); \\
+       #        wire [63:0] l2``l = ({64{imm[1]}} & { l1``l[61:0], l1``l[63:62]}) | ({64{!imm[1]}} & l1``l[63:0]); \\
+       #        wire [63:0] l1``l = ({64{imm[0]}} & { l0``l[62:0], l0``l[63   ]}) | ({64{!imm[0]}} & l0``l[63:0]); \\
+       #        wire [63:0] l0``l = x
+       #
+       #`define rev(x, d, l)  rb``l; \\
+       #    wire [7:0]  rb``l; \\
+       #    for (genvar i = 0;  i < d; i = i + 1) begin: rev``l \\
+       #        assign rb``l[i] = x[d-i-1]; \\
+       #    end
+       #
+       #localparam [3:0] FN_ROR   = 4'd00;
+       #localparam [3:0] FN_ROL   = 4'd01;
+       #localparam [3:0] FN_RORI  = 4'd02;
+       #localparam [3:0] FN_RORW  = 4'd00;
+       #localparam [3:0] FN_ROLW  = 4'd01;
+       #localparam [3:0] FN_RORIW = 4'd02;
+       #localparam [3:0] FN_ANDN  = 4'd03;
+       #localparam [3:0] FN_ORN   = 4'd04;
+       #localparam [3:0] FN_XNOR  = 4'd05;
+       #localparam [3:0] FN_PACK  = 4'd06;
+       #localparam [3:0] FN_PACKW = 4'd06;
+       #localparam [3:0] FN_PACKH = 4'd07;
+       #localparam [3:0] FN_BREV8 = 4'd08;
+       #localparam [3:0] FN_REV8  = 4'd09;
+       #
+       #wire   ror_sel = valid && (zbk_fn == FN_ROR)  && ( dw);
+       #wire   rol_sel = valid && (zbk_fn == FN_ROL)  && ( dw);
+       #wire  rori_sel = valid && (zbk_fn == FN_RORI) && ( dw);
+       #wire  rorw_sel = valid && (zbk_fn == FN_ROR)  && (~dw);
+       #wire  rolw_sel = valid && (zbk_fn == FN_ROL)  && (~dw);
+       #wire roriw_sel = valid && (zbk_fn == FN_RORI) && (~dw);
+       #wire  andn_sel = valid && (zbk_fn == FN_ANDN);
+       #wire   orn_sel = valid && (zbk_fn == FN_ORN);
+       #wire  xnor_sel = valid && (zbk_fn == FN_XNOR);
+       #wire  pack_sel = valid && (zbk_fn == FN_PACK) && ( dw);
+       #wire packw_sel = valid && (zbk_fn == FN_PACK) && (~dw);
+       #wire packh_sel = valid && (zbk_fn == FN_PACKH);
+       #wire brev8_sel = valid && (zbk_fn == FN_BREV8);
+       #wire  rev8_sel = valid && (zbk_fn == FN_REV8);
+       #
+       #wire      roxw = rorw_sel | rolw_sel | roriw_sel;
+       #
+       #wire [ 5:0] shamt  = roxw? {        1'b0 , rs2[ 4:0]} : rs2[5:0];
+       #wire [63:0] win1   = roxw? {rs1[31:0], rs1[31:0]} : rs1;
+       #
+       #wire [63:0] wror   = `ror64(win1, shamt, iror64);
+       #wire [63:0] wrol   = `rol64(win1, shamt, irol64);
+       #wire [63:0] wandn  = rs1 & (~rs2);
+       #wire [63:0] worn   = rs1 | (~rs2);
+       #wire [63:0] wxnor  = rs1 ^ (~rs2);
+       #wire [63:0] wpack  = {       rs2[31:0], rs1[31:0]};
+       #wire [63:0] wpackw = {32'd0, rs2[15:0], rs1[15:0]};
+       #wire [63:0] wpackh = {48'd0, rs2[ 7:0], rs1[ 7:0]};
+       #
+       #wire [ 7:0] brev8_0 = `rev(rs1[ 7: 0], 8, irev8_0)
+       #wire [ 7:0] brev8_1 = `rev(rs1[15: 8], 8, irev8_1)
+       #wire [ 7:0] brev8_2 = `rev(rs1[23:16], 8, irev8_2)
+       #wire [ 7:0] brev8_3 = `rev(rs1[31:24], 8, irev8_3)
+       #wire [ 7:0] brev8_4 = `rev(rs1[39:32], 8, irev8_4)
+       #wire [ 7:0] brev8_5 = `rev(rs1[47:40], 8, irev8_5)
+       #wire [ 7:0] brev8_6 = `rev(rs1[55:48], 8, irev8_6)
+       #wire [ 7:0] brev8_7 = `rev(rs1[63:56], 8, irev8_7)
+       #
+       #wire [63:0] wbrev8  = {brev8_7,   brev8_6,     brev8_5,    brev8_4,
+       #                       brev8_3,   brev8_2,     brev8_1,    brev8_0   };
+       #wire [63:0] wrev8   = {rs1[ 7: 0], rs1[15: 8], rs1[23:16], rs1[31:24],
+       #                       rs1[39:32], rs1[47:40], rs1[55:48], rs1[63:56]};
+       #
+       #assign         rd   = {64{  ror_sel}} & wror  |
+       #                      {64{  rol_sel}} & wrol  |
+       #                      {64{ rori_sel}} & wror  |
+       #                      {64{ rorw_sel}} & {32'd0, wror[31:0]} |
+       #                      {64{ rolw_sel}} & {32'd0, wrol[31:0]} |
+       #                      {64{roriw_sel}} & {32'd0, wror[31:0]} |
+       #                      {64{ andn_sel}} & wandn |
+       #                      {64{  orn_sel}} & worn  |
+       #                      {64{ xnor_sel}} & wxnor |
+       #                      {64{ pack_sel}} & wpack |
+       #                      {64{packw_sel}} & wpackw|
+       #                      {64{packh_sel}} & wpackh|
+       #                      {64{brev8_sel}} & wbrev8|
+       #                      {64{ rev8_sel}} & wrev8 ;
+       #
+       #endmodule
+       """.stripMargin('#'))
+}
+
 class zbkc32 extends BlackBox with HasBlackBoxInline {
   val io = IO(new ZBKInterface(32))
   setInline("zbkc32.v",
@@ -242,7 +376,242 @@ class zbkc32 extends BlackBox with HasBlackBoxInline {
        #                   {32{clmulh_sel}} & wclmulh;
        #
        #endmodule
+       """.stripMargin('#'))
+  }
+class zbkc64 extends BlackBox with HasBlackBoxInline {
+  val io = IO(new ZBKInterface(64))
+  setInline("zbkc64.v",
+    s"""
+       #module zbkc64  (
+       #input  [ 3:0] zbk_fn,
+       #input         dw,
+       #input         valid,
+       #input  [63:0] rs1,
+       #input  [63:0] rs2,
+       #output [63:0] rd);
+       #localparam [3:0] FN_CLMUL = 4'd12;
+       #localparam [3:0] FN_CLMULH= 4'd13;
        #
+       #wire clmull_sel = valid && (zbk_fn == FN_CLMUL );
+       #wire clmulh_sel = valid && (zbk_fn == FN_CLMULH);
+       #/*
+       #a0, a1, a2, a3 are the 16 bit parts of rs1
+       #b0, b1, b2, b3 are the 16 bit parts of rs2
+       #
+       #(a0 + a1.x^16 + a2.x^32 + a3.x^48) .* (b0 + b1.x^16 + b2.x^32 + b3.x^48)
+       #
+       #         polymul0     polymul1  polymul2     polymul3 polymul4 polymul5
+       #clmull:   a0.b0      + (a0.b1 + a1.b0).x^16 + (a0.b2 + a1.b1 + a2.b0).x^32
+       #clmulh: ( a3.b3.x^32 + (a3.b2 + a2.b3).x^16 + (a3.b1 + a2.b2 + a1.b3)      ).x^64
+       #
+       #clmulm: ( a0.b3 + a1.b2 + a2.b1 + a3.b0) .x^48
+       #*/
+       #
+       #wire [15:0] lhs0 = clmulh_sel? rs1[63 -:16] : rs1[15 -:16];
+       #wire [15:0] rhs0 = clmulh_sel? rs2[63 -:16] : rs2[15 -:16];
+       #
+       #wire [15:0] lhs1 = clmulh_sel? rs1[47 -:16] : rs1[31 -:16];
+       #wire [15:0] rhs1 = clmulh_sel? rs2[47 -:16] : rs2[31 -:16];
+       #
+       #wire [15:0] lhs2 = clmulh_sel? rs1[31 -:16] : rs1[47 -:16];
+       #wire [15:0] rhs2 = clmulh_sel? rs2[31 -:16] : rs2[47 -:16];
+       #
+       #// clmulh and clmull
+       #
+       #wire [31:0]  polymul0, polymul1,polymul2,polymul3,polymul4,polymul5;
+       #poly16_mul mul16_ins0(lhs0, rhs0, polymul0);
+       #poly16_mul mul16_ins1(lhs0, rhs1, polymul1);
+       #poly16_mul mul16_ins2(lhs1, rhs0, polymul2);
+       #poly16_mul mul16_ins3(lhs0, rhs2, polymul3);
+       #poly16_mul mul16_ins4(lhs1, rhs1, polymul4);
+       #poly16_mul mul16_ins5(lhs2, rhs0, polymul5);
+       #
+       #wire [31:0] clmul_p2   = polymul1 ^ polymul2;
+       #wire [31:0] clmul_p3   = polymul3 ^ polymul4 ^ polymul5;
+       #
+       #wire [63:0] clmulh_int = {polymul0[31:16],(polymul0[15:0] ^ clmul_p2[31:16]),(clmul_p2[15:0] ^ clmul_p3[31:16]),clmul_p3[15:0]};
+       #wire [63:0] clmull_int = {clmul_p3[31:16],(clmul_p3[15:0] ^ clmul_p2[31:16]),(clmul_p2[15:0] ^ polymul0[31:16]),polymul0[15:0]};
+       #
+       #// clmulm: ( a0.b3 + a1.b2 + a2.b1 + a3.b0) .x^48
+       #wire [15:0] lhs6 = rs1[15 -:16];
+       #wire [15:0] lhs7 = rs1[31 -:16];
+       #wire [15:0] lhs8 = rs1[47 -:16];
+       #wire [15:0] lhs9 = rs1[63 -:16];
+       #
+       #wire [15:0] rhs6 = rs2[63 -:16];
+       #wire [15:0] rhs7 = rs2[47 -:16];
+       #wire [15:0] rhs8 = rs2[31 -:16];
+       #wire [15:0] rhs9 = rs2[15 -:16];
+       #
+       #wire [31:0] polymul6, polymul7, polymul8, polymul9;
+       #poly16_mul  mul16_ins6(lhs6, rhs6, polymul6);
+       #poly16_mul  mul16_ins7(lhs7, rhs7, polymul7);
+       #poly16_mul  mul16_ins8(lhs8, rhs8, polymul8);
+       #poly16_mul  mul16_ins9(lhs9, rhs9, polymul9);
+       #
+       #wire [31:0] clmulm =  polymul6 ^ polymul7 ^ polymul8 ^ polymul9;
+       #
+       #wire [63:0] wclmulh = { clmulh_int[63:16], (clmulh_int[15: 0] ^ clmulm[31:16])                    };
+       #wire [63:0] wclmull = {                    (clmull_int[63:48] ^ clmulm[15: 0]), clmull_int[47: 0] };
+       #
+       #assign rd  =       {64{clmull_sel}} & wclmull|
+       #                   {64{clmulh_sel}} & wclmulh;
+       #
+       #endmodule
+       """.stripMargin('#'))
+}
+class zbkx32 extends BlackBox with HasBlackBoxInline {
+  val io = IO(new ZBKInterface(32))
+  setInline("zbkx32.v",
+    s"""
+       #module zbkx32  (
+       #input  [ 3:0] zbk_fn,
+       #input         dw,
+       #input         valid,
+       #input  [31:0] rs1,
+       #input  [31:0] rs2,
+       #output [31:0] rd);
+       #
+       #`define lut4(x, i, l) res``l; \\
+       #    wire [3:0]    res``l = (i == 0) ? x[ 3: 0] : \\
+       #                           (i == 1) ? x[ 7: 4] : \\
+       #                           (i == 2) ? x[11: 8] : \\
+       #                           (i == 3) ? x[15:12] : \\
+       #                           (i == 4) ? x[19:16] : \\
+       #                           (i == 5) ? x[23:20] : \\
+       #                           (i == 6) ? x[27:24] : \\
+       #                           (i == 7) ? x[31:28] : \\
+       #                         /*(i == 0)*/ 0
+       #
+       #`define lut8(x, i, l) res``l; \\
+       #    wire [7:0]    res``l = (i == 0) ? x[ 7: 0] : \\
+       #                           (i == 1) ? x[15: 8] : \\
+       #                           (i == 2) ? x[23:16] : \\
+       #                           (i == 3) ? x[31:24] : \\
+       #                         /*(i == 0)*/ 0
+       #
+       #localparam [3:0] FN_XPERM8= 4'd14;
+       #localparam [3:0] FN_XPERM4= 4'd15;
+       #
+       #wire xperm8_sel = valid && (zbk_fn == FN_XPERM8);
+       #wire xperm4_sel = valid && (zbk_fn == FN_XPERM4);
+       #
+       #wire [ 7:0] wlut8_0 = `lut8(rs1, rs2[ 7: 0], ilut8_0);
+       #wire [ 7:0] wlut8_1 = `lut8(rs1, rs2[15: 8], ilut8_1);
+       #wire [ 7:0] wlut8_2 = `lut8(rs1, rs2[23:16], ilut8_2);
+       #wire [ 7:0] wlut8_3 = `lut8(rs1, rs2[31:24], ilut8_3);
+       #wire [31:0] wxperm8 = {wlut8_3, wlut8_2, wlut8_1, wlut8_0};
+       #
+       #wire [ 3:0] wlut4_0 = `lut4(rs1, rs2[ 3: 0], ilut4_0);
+       #wire [ 3:0] wlut4_1 = `lut4(rs1, rs2[ 7: 4], ilut4_1);
+       #wire [ 3:0] wlut4_2 = `lut4(rs1, rs2[11: 8], ilut4_2);
+       #wire [ 3:0] wlut4_3 = `lut4(rs1, rs2[15:12], ilut4_3);
+       #wire [ 3:0] wlut4_4 = `lut4(rs1, rs2[19:16], ilut4_4);
+       #wire [ 3:0] wlut4_5 = `lut4(rs1, rs2[23:20], ilut4_5);
+       #wire [ 3:0] wlut4_6 = `lut4(rs1, rs2[27:24], ilut4_6);
+       #wire [ 3:0] wlut4_7 = `lut4(rs1, rs2[31:28], ilut4_7);
+       #wire [31:0] wxperm4 = {wlut4_7, wlut4_6, wlut4_5, wlut4_4, wlut4_3, wlut4_2, wlut4_1, wlut4_0};
+       #
+       #assign rd  =       {32{xperm8_sel}} & wxperm8|
+       #                   {32{xperm4_sel}} & wxperm4;
+       #endmodule
+     """.stripMargin('#'))
+}
+
+class zbkx64 extends BlackBox with HasBlackBoxInline {
+  val io = IO(new ZBKInterface(64))
+  setInline("zbkx64.v",
+    s"""
+       #module zbkx64  (
+       #input  [ 3:0] zbk_fn,
+       #input         dw,
+       #input         valid,
+       #input  [63:0] rs1,
+       #input  [63:0] rs2,
+       #output [63:0] rd);
+       #`define lut4(x, i, l) res``l; \\
+       #    wire [3:0]    res``l = (i == 0) ? x[ 3: 0] : \\
+       #                           (i == 1) ? x[ 7: 4] : \\
+       #                           (i == 2) ? x[11: 8] : \\
+       #                           (i == 3) ? x[15:12] : \\
+       #                           (i == 4) ? x[19:16] : \\
+       #                           (i == 5) ? x[23:20] : \\
+       #                           (i == 6) ? x[27:24] : \\
+       #                           (i == 7) ? x[31:28] : \\
+       #                           (i == 8) ? x[35:32] : \\
+       #                           (i == 9) ? x[39:36] : \\
+       #                           (i ==10) ? x[43:40] : \\
+       #                           (i ==11) ? x[47:44] : \\
+       #                           (i ==12) ? x[51:48] : \\
+       #                           (i ==13) ? x[55:52] : \\
+       #                           (i ==14) ? x[59:56] : \\
+       #                           (i ==15) ? x[63:60] : \\
+       #                        /*(i == 0)*/ 0
+       #
+       #`define lut8(x, i, l) res``l; \\
+       #    wire [7:0]    res``l = (i == 0) ? x[ 7: 0] : \\
+       #                           (i == 1) ? x[15: 8] : \\
+       #                           (i == 2) ? x[23:16] : \\
+       #                           (i == 3) ? x[31:24] : \\
+       #                           (i == 4) ? x[39:32] : \\
+       #                           (i == 5) ? x[47:40] : \\
+       #                           (i == 6) ? x[55:48] : \\
+       #                           (i == 7) ? x[63:56] : \\
+       #                         /*(i == 0)*/ 0
+       #
+       #localparam [3:0] FN_XPERM8= 4'd14;
+       #localparam [3:0] FN_XPERM4= 4'd15;
+       #
+       #wire xperm8_sel = valid && (zbk_fn == FN_XPERM8);
+       #wire xperm4_sel = valid && (zbk_fn == FN_XPERM4);
+       #
+       #wire [ 7:0] wlut8_0 = `lut8(rs1, rs2[ 7: 0], ilut8_0);
+       #wire [ 7:0] wlut8_1 = `lut8(rs1, rs2[15: 8], ilut8_1);
+       #wire [ 7:0] wlut8_2 = `lut8(rs1, rs2[23:16], ilut8_2);
+       #wire [ 7:0] wlut8_3 = `lut8(rs1, rs2[31:24], ilut8_3);
+       #wire [ 7:0] wlut8_4 = `lut8(rs1, rs2[39:32], ilut8_4);
+       #wire [ 7:0] wlut8_5 = `lut8(rs1, rs2[47:40], ilut8_5);
+       #wire [ 7:0] wlut8_6 = `lut8(rs1, rs2[55:48], ilut8_6);
+       #wire [ 7:0] wlut8_7 = `lut8(rs1, rs2[63:56], ilut8_7);
+       #wire [63:0] wxperm8 = { wlut8_7, wlut8_6, wlut8_5, wlut8_4,
+       #                        wlut8_3, wlut8_2, wlut8_1, wlut8_0 };
+       #
+       #wire [ 3:0] wlut4_0 = `lut4(rs1, rs2[ 3: 0], ilut4_0);
+       #wire [ 3:0] wlut4_1 = `lut4(rs1, rs2[ 7: 4], ilut4_1);
+       #wire [ 3:0] wlut4_2 = `lut4(rs1, rs2[11: 8], ilut4_2);
+       #wire [ 3:0] wlut4_3 = `lut4(rs1, rs2[15:12], ilut4_3);
+       #wire [ 3:0] wlut4_4 = `lut4(rs1, rs2[19:16], ilut4_4);
+       #wire [ 3:0] wlut4_5 = `lut4(rs1, rs2[23:20], ilut4_5);
+       #wire [ 3:0] wlut4_6 = `lut4(rs1, rs2[27:24], ilut4_6);
+       #wire [ 3:0] wlut4_7 = `lut4(rs1, rs2[31:28], ilut4_7);
+       #wire [ 3:0] wlut4_8 = `lut4(rs1, rs2[35:32], ilut4_8);
+       #wire [ 3:0] wlut4_9 = `lut4(rs1, rs2[39:36], ilut4_9);
+       #wire [ 3:0] wlut4_10= `lut4(rs1, rs2[43:40], ilut4_10);
+       #wire [ 3:0] wlut4_11= `lut4(rs1, rs2[47:44], ilut4_11);
+       #wire [ 3:0] wlut4_12= `lut4(rs1, rs2[51:48], ilut4_12);
+       #wire [ 3:0] wlut4_13= `lut4(rs1, rs2[55:52], ilut4_13);
+       #wire [ 3:0] wlut4_14= `lut4(rs1, rs2[59:56], ilut4_14);
+       #wire [ 3:0] wlut4_15= `lut4(rs1, rs2[63:60], ilut4_15);
+       #wire [63:0] wxperm4 = { wlut4_15, wlut4_14, wlut4_13, wlut4_12,
+       #                        wlut4_11, wlut4_10, wlut4_9,  wlut4_8,
+       #                        wlut4_7,  wlut4_6,  wlut4_5,  wlut4_4,
+       #                        wlut4_3,  wlut4_2,  wlut4_1,  wlut4_0 };
+       #
+       #assign rd  =       {64{xperm8_sel}} & wxperm8|
+       #                   {64{xperm4_sel}} & wxperm4;
+       #
+       #endmodule
+       """.stripMargin('#'))
+}
+
+class poly16_mul extends BlackBox with HasBlackBoxInline {
+  val io = IO(new Bundle {
+    val a = Input(UInt(16.W))
+    val b = Input(UInt(16.W))
+    val r = Output(UInt(32.W))
+  })
+  setInline("poly16_mul.v",
+    s"""
        #module poly16_mul (
        #    input  wire  [15:0] a,
        #    input  wire  [15:0] b,
@@ -603,61 +972,11 @@ class zbkc32 extends BlackBox with HasBlackBoxInline {
        #endmodule
      """.stripMargin('#'))
 }
-
-class zbkx32 extends BlackBox with HasBlackBoxInline {
-  val io = IO(new ZBKInterface(32))
-  setInline("zbkx32.v",
-    s"""
-       #module zbkx32  (
-       #input  [ 3:0] zbk_fn,
-       #input         dw,
-       #input         valid,
-       #input  [31:0] rs1,
-       #input  [31:0] rs2,
-       #output [31:0] rd);
-       #
-       #`define lut4(x, i, l) res``l; \\
-       #    wire [3:0]    res``l = (i == 0) ? x[ 3: 0] : \\
-       #                           (i == 1) ? x[ 7: 4] : \\
-       #                           (i == 2) ? x[11: 8] : \\
-       #                           (i == 3) ? x[15:12] : \\
-       #                           (i == 4) ? x[19:16] : \\
-       #                           (i == 5) ? x[23:20] : \\
-       #                           (i == 6) ? x[27:24] : \\
-       #                           (i == 7) ? x[31:28] : \\
-       #                         /*(i == 0)*/ 0
-       #
-       #`define lut8(x, i, l) res``l; \\
-       #    wire [7:0]    res``l = (i == 0) ? x[ 7: 0] : \\
-       #                           (i == 1) ? x[15: 8] : \\
-       #                           (i == 2) ? x[23:16] : \\
-       #                           (i == 3) ? x[31:24] : \\
-       #                         /*(i == 0)*/ 0
-       #
-       #localparam [3:0] FN_XPERM8= 4'd14;
-       #localparam [3:0] FN_XPERM4= 4'd15;
-       #
-       #wire xperm8_sel = valid && (zbk_fn == FN_XPERM8);
-       #wire xperm4_sel = valid && (zbk_fn == FN_XPERM4);
-       #
-       #wire [ 7:0] wlut8_0 = `lut8(rs1, rs2[ 7: 0], ilut8_0);
-       #wire [ 7:0] wlut8_1 = `lut8(rs1, rs2[15: 8], ilut8_1);
-       #wire [ 7:0] wlut8_2 = `lut8(rs1, rs2[23:16], ilut8_2);
-       #wire [ 7:0] wlut8_3 = `lut8(rs1, rs2[31:24], ilut8_3);
-       #wire [31:0] wxperm8 = {wlut8_3, wlut8_2, wlut8_1, wlut8_0};
-       #
-       #wire [ 3:0] wlut4_0 = `lut4(rs1, rs2[ 3: 0], ilut4_0);
-       #wire [ 3:0] wlut4_1 = `lut4(rs1, rs2[ 7: 4], ilut4_1);
-       #wire [ 3:0] wlut4_2 = `lut4(rs1, rs2[11: 8], ilut4_2);
-       #wire [ 3:0] wlut4_3 = `lut4(rs1, rs2[15:12], ilut4_3);
-       #wire [ 3:0] wlut4_4 = `lut4(rs1, rs2[19:16], ilut4_4);
-       #wire [ 3:0] wlut4_5 = `lut4(rs1, rs2[23:20], ilut4_5);
-       #wire [ 3:0] wlut4_6 = `lut4(rs1, rs2[27:24], ilut4_6);
-       #wire [ 3:0] wlut4_7 = `lut4(rs1, rs2[31:28], ilut4_7);
-       #wire [31:0] wxperm4 = {wlut4_7, wlut4_6, wlut4_5, wlut4_4, wlut4_3, wlut4_2, wlut4_1, wlut4_0};
-       #
-       #assign rd  =       {32{xperm8_sel}} & wxperm8|
-       #                   {32{xperm4_sel}} & wxperm4;
-       #endmodule
-     """.stripMargin('#'))
+object poly16_mul {
+  def apply(in0: UInt, in1: UInt) = {
+    val m = Module(new poly16_mul)
+    m.io.a := in0
+    m.io.b := in1
+    m.io.r
+  }
 }
