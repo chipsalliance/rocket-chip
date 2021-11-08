@@ -14,6 +14,12 @@ class WithZBK extends Config((site, here, up) => {
 	}
 })
 
+class WithZKN extends Config((site, here, up) => {
+	case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+		r.copy(core = r.core.copy(useZKN = true))
+	}
+})
+
 class RocketWithZbkConf32 extends Config(
 	  new WithZBK ++
 		new DefaultRV32Config ++
@@ -25,5 +31,14 @@ class RocketWithZbkConf64 extends Config(
 		new WithCoherentBusTopology ++
 		new BaseConfig)
 
+class RocketWithZknConf32 extends Config(
+	  new WithZKN ++
+		new DefaultRV32Config ++
+		new BaseConfig)
 
+class RocketWithZknConf64 extends Config(
+	  new WithZKN ++
+		new WithNBigCores(1) ++
+		new WithCoherentBusTopology ++
+		new BaseConfig)
 

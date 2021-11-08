@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.zbk
+package freechips.rocketchip.zk
 
 import chisel3._
 import chisel3.util.{BitPat, HasBlackBoxInline}
@@ -86,13 +86,13 @@ class ZBKImp(xLen:Int) extends Module {
     zbkc_u.io.rs2    := io.rs2
     zbkc_u.io.rd
   } else if (xLen == 32) {
-    val zbkb_u = Module(new zbkc32)
-    zbkb_u.io.zbk_fn := io.zbk_fn
-    zbkb_u.io.dw     := io.dw
-    zbkb_u.io.valid  := io.valid
-    zbkb_u.io.rs1    := io.rs1
-    zbkb_u.io.rs2    := io.rs2
-    zbkb_u.io.rd
+    val zbkc_u = Module(new zbkc32)
+    zbkc_u.io.zbk_fn := io.zbk_fn
+    zbkc_u.io.dw     := io.dw
+    zbkc_u.io.valid  := io.valid
+    zbkc_u.io.rs1    := io.rs1
+    zbkc_u.io.rs2    := io.rs2
+    zbkc_u.io.rd
   } else 0.U
 
   val zbkx_res = if (xLen == 64) {
