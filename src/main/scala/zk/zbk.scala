@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.zbk
+package freechips.rocketchip.zk
 
 import chisel3._
 import chisel3.util._
@@ -104,7 +104,7 @@ class ZBKImp(xLen: Int) extends Module {
   val brev8 = VecInit(io.rs1.asBools.grouped(8).map(x => Reverse(VecInit(x).asUInt)).toSeq).asUInt
   val rev8 = VecInit(io.rs1.asBools.grouped(8).map(VecInit(_).asUInt).toSeq.reverse).asUInt
 
-  // ziass ZBKImp(xLen: Int) extends Module {
+  // zip
   val unzip = if (xLen == 32) {
     val bits = io.rs1.asBools.zipWithIndex
     val lo = VecInit(bits filter { case (_, i) => i % 2 == 0 } map { case (b, _) => b }).asUInt
