@@ -219,7 +219,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   // flush guest entries on vsatp.MODE Bare <-> SvXX transitions
   val v_entries_use_stage1 = RegInit(false.B)
-  val vsatp_mode_mismatch  = priv_v && vstage1_en =/= v_entries_use_stage1
+  val vsatp_mode_mismatch  = priv_v && (vstage1_en =/= v_entries_use_stage1) && !io.req.bits.passthrough
 
   // share a single physical memory attribute checker (unshare if critical path)
   val refill_ppn = io.ptw.resp.bits.pte.ppn(ppnBits-1, 0)
