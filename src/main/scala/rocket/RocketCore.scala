@@ -28,6 +28,7 @@ case class RocketCoreParams(
   useSCIE: Boolean = false,
   useZBK: Boolean = false,
   useZKN: Boolean = false,
+  useZKS: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -184,6 +185,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (usingZKN) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
     (if (usingZKN) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
     (if (usingZKN) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
+    (usingZKS.option(new ZKSDecode)) ++:
     (if (xLen == 32) new I32Decode else new I64Decode) +:
     (usingVM.option(new SVMDecode)) ++:
     (usingSupervisor.option(new SDecode)) ++:
@@ -403,7 +405,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     u.io.rd
   }
 
-  val ex_zbk_wdata = if (!rocketParams.useZBK) 0.U else {
+  val ex_zbk_wdata = if (!usingZBK) 0.U else {
       val zbk_u = Module(new ZBKImp(xLen))
       zbk_u.io.zbk_fn := ex_ctrl.alu_fn
       zbk_u.io.dw     := ex_ctrl.alu_dw
@@ -412,7 +414,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       zbk_u.io.rs2    := ex_op2.asUInt
       zbk_u.io.rd
     }
-  val ex_zkn_wdata = if (!rocketParams.useZKN) 0.U else {
+  val ex_zkn_wdata = if (!usingZKN) 0.U else {
       val zkn_u = Module(new ZKNImp(xLen))
       zkn_u.io.zkn_fn := ex_ctrl.alu_fn
       zkn_u.io.valid  := ex_ctrl.zkn
@@ -422,6 +424,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       zkn_u.io.rs1    := ex_op1.asUInt
       zkn_u.io.rs2    := ex_op2.asUInt
       zkn_u.io.rd
+    }
+  val ex_zks_wdata = if (!usingZKS) 0.U else {
+      val zks_u = Module(new ZKSImp(xLen))
+      zks_u.io.zks_fn := ex_ctrl.alu_fn
+      zks_u.io.valid  := ex_ctrl.zks
+      zks_u.io.bs     := ex_reg_inst(31,30)
+      zks_u.io.rs1    := ex_op1.asUInt
+      zks_u.io.rs2    := ex_op2.asUInt
+      zks_u.io.rd
     }
   val mem_scie_pipelined_wdata = if (!rocketParams.useSCIE) 0.U else {
     val u = Module(new SCIEPipelined(xLen))
@@ -577,7 +588,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_raw_inst := ex_reg_raw_inst
     mem_reg_mem_size := ex_reg_mem_size
     mem_reg_pc := ex_reg_pc
-    mem_reg_wdata := Mux(ex_scie_unpipelined, ex_scie_unpipelined_wdata, Mux(ex_ctrl.zbk,ex_zbk_wdata, Mux(ex_ctrl.zkn,ex_zkn_wdata,alu.io.out)))
+    mem_reg_wdata := Mux(ex_scie_unpipelined, ex_scie_unpipelined_wdata, Mux(ex_ctrl.zbk,ex_zbk_wdata, Mux(ex_ctrl.zkn,ex_zkn_wdata, Mux(ex_ctrl.zks,ex_zks_wdata,alu.io.out))))
     mem_br_taken := alu.io.cmp_out
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
