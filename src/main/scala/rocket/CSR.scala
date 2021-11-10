@@ -57,6 +57,15 @@ class MStatus extends Bundle {
   val uie = Bool()
 }
 
+class MNStatus extends Bundle {
+  val mpp   = UInt(2.W)
+  val zero3 = UInt(3.W)
+  val mpv   = Bool()
+  val zero2 = UInt(3.W)
+  val mie   = Bool()
+  val zero1 = UInt(3.W)
+}
+
 class HStatus extends Bundle {
   val zero6 = UInt(width = 30)
   val vsxl = UInt(width = 2)
@@ -468,7 +477,7 @@ class CSRFile(
     case None => Reg(UInt(width = mtvecWidth))
   }
 
-  val reset_mnstatus = Wire(init=new MStatus().fromBits(0))
+  val reset_mnstatus = Wire(init=new MNStatus().fromBits(0))
   reset_mnstatus.mpp := PRV.M
   val reg_mnscratch = Reg(Bits(width = xLen))
   val reg_mnepc = Reg(UInt(width = vaddrBitsExtended))
@@ -617,8 +626,9 @@ class CSRFile(
     CSRs.dscratch -> reg_dscratch.asUInt) ++
     reg_dscratch1.map(r => CSRs.dscratch1 -> r)
 
-  val read_mnstatus = WireInit(0.U.asTypeOf(new MStatus()))
+  val read_mnstatus = WireInit(0.U.asTypeOf(new MNStatus()))
   read_mnstatus.mpp := reg_mnstatus.mpp
+  read_mnstatus.mpv := reg_mnstatus.mpv
   read_mnstatus.mie := reg_rnmie
   val nmi_csrs = if (!usingNMI) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.mnscratch -> reg_mnscratch,
@@ -965,6 +975,7 @@ class CSRFile(
     }.elsewhen (trapToNmiInt) {
       when (reg_rnmie) {
         reg_mstatus.v := false
+        reg_mnstatus.mpv := reg_mstatus.v
         reg_rnmie := false.B
         reg_mnepc := epc
         reg_mncause := (BigInt(1) << (xLen-1)).U | Mux(causeIsRnmiBEU, 3.U, 2.U)
@@ -1054,7 +1065,7 @@ class CSRFile(
       io.evec := readEPC(reg_dpc)
     }.elsewhen (Bool(usingNMI) && io.rw.addr(10) && !io.rw.addr(7)) {
       ret_prv := reg_mnstatus.mpp
-      reg_mstatus.v := false
+      reg_mstatus.v := usingHypervisor && reg_mnstatus.mpv && reg_mnstatus.mpp <= PRV.S
       reg_rnmie := true.B
       io.evec := readEPC(reg_mnepc)
     }.otherwise {
@@ -1197,12 +1208,13 @@ class CSRFile(
     when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
 
     if (usingNMI) {
-      val new_mnstatus = new MStatus().fromBits(wdata)
+      val new_mnstatus = new MNStatus().fromBits(wdata)
       when (decoded_addr(CSRs.mnscratch)) { reg_mnscratch := wdata }
       when (decoded_addr(CSRs.mnepc))     { reg_mnepc := formEPC(wdata) }
       when (decoded_addr(CSRs.mncause))   { reg_mncause := wdata & UInt((BigInt(1) << (xLen-1)) + BigInt(3)) }
       when (decoded_addr(CSRs.mnstatus))  {
         reg_mnstatus.mpp := legalizePrivilege(new_mnstatus.mpp)
+        reg_mnstatus.mpv := usingHypervisor && new_mnstatus.mpv
         reg_rnmie := reg_rnmie | new_mnstatus.mie  // mnie bit settable but not clearable from software
       }
     }
