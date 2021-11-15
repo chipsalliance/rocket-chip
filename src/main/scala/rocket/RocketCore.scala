@@ -28,6 +28,7 @@ case class RocketCoreParams(
   useSCIE: Boolean = false,
   useZBK: Boolean = false,
   useZKN: Boolean = false,
+  useZKR: Boolean = false,
   useZKS: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
@@ -302,6 +303,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     d.io.insn := id_raw_inst(0)
     d.io
   }
+
+  val seedscr_readillegal = usingZKR && id_csr_ren && (id_raw_inst(0)(31,20) === ZKR.seedcsr)
+
   val id_illegal_insn = !id_ctrl.legal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
@@ -314,7 +318,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
     id_ctrl.scie && !(id_scie_decoder.unpipelined || id_scie_decoder.pipelined) ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
-    !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode(0).system_illegal)
+    !ibuf.io.inst(0).bits.rvc && ((id_sfence || id_system_insn) && csr.io.decode(0).system_illegal) ||
+    seedscr_readillegal
   // stall decode for fences (now, for AMO.rl; later, for AMO.aq and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)

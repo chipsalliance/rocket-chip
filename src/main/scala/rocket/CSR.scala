@@ -13,6 +13,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
 import scala.collection.mutable.LinkedHashMap
 import Instructions._
+import freechips.rocketchip.zk._
 
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient
@@ -608,6 +609,19 @@ class CSRFile(
     read_mapping += CSRs.medeleg -> read_medeleg
   }
 
+  //the Seed CSR for reading random bits
+  //and The msecdfg CSR for the access control of the Seed CSR.
+  if (usingZKR) {
+    val regseed = {
+      val zkr_u = Module(new zkr(xLen))
+      zkr_u.io.clk := clock
+      zkr_u.io.rst := reset
+      zkr_u.io.req := io.rw.cmd
+      zkr_u.io.seedval
+    }
+    read_mapping += ZKR.seedcsr -> regseed
+    read_mapping += ZKR.mseccfg -> ZKR.reg_mseccfg
+  }
   val pmpCfgPerCSR = xLen / new PMPConfig().getWidth
   def pmpCfgIndex(i: Int) = (xLen / 32) * (i / pmpCfgPerCSR)
   if (reg_pmp.nonEmpty) {
@@ -662,6 +676,12 @@ class CSRFile(
     val counter_addr = io_dec.csr(log2Ceil(read_mcounteren.getWidth)-1, 0)
     val allow_counter = (reg_mstatus.prv > PRV.S || read_mcounteren(counter_addr)) &&
       (!usingSupervisor || reg_mstatus.prv >= PRV.S || read_scounteren(counter_addr))
+
+    //Considering the the access control of the seed CSR regarding the sseed and useed flags,
+    //the mseccfg csr is implemented here, which may be changed prior to the ratification of related extensions.
+    val seedcsr_illegal = (usingZKR) && (io_dec.csr === ZKR.seedcsr) &&
+      ( (!ZKR.mseccfg(8))&&(reg_mstatus.prv === PRV.U) || (!ZKR.mseccfg(9))&&(reg_mstatus.prv === PRV.S) )
+
     io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
     io_dec.vector_illegal := io.status.vs === 0 || !reg_misa('v'-'a')
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
@@ -672,7 +692,8 @@ class CSRFile(
       (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
       decodeFast(debug_csrs.keys.toList) && !reg_debug ||
       decodeFast(vector_csrs.keys.toList) && io_dec.vector_illegal ||
-      io_dec.fp_csr && io_dec.fp_illegal
+      io_dec.fp_csr && io_dec.fp_illegal ||
+      seedcsr_illegal
     io_dec.write_illegal := io_dec.csr(11,10).andR
     io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mtval || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.stval)
     io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
@@ -946,6 +967,10 @@ class CSRFile(
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
     when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
+
+    if (usingZKR) {
+      when (decoded_addr(ZKR.mseccfg)) { ZKR.reg_mseccfg := wdata }
+    }
 
     if (usingNMI) {
       val new_mnstatus = new MStatus().fromBits(wdata)
