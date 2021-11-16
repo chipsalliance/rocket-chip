@@ -516,7 +516,7 @@ class CSRFile(
   val read_hie = reg_mie & hs_delegable_interrupts
 
   val (reg_vstvec, read_vstvec) = {
-    val reg = Reg(UInt(width = vaddrBits))
+    val reg = Reg(UInt(width = vaddrBitsExtended))
     (reg, formTVec(reg).sextTo(xLen))
   }
   val reg_vsstatus = Reg(new MStatus)
@@ -530,7 +530,7 @@ class CSRFile(
   val reg_scause = Reg(Bits(width = xLen))
   val reg_stval = Reg(UInt(width = vaddrBitsExtended))
   val reg_sscratch = Reg(Bits(width = xLen))
-  val reg_stvec = Reg(UInt(width = vaddrBits))
+  val reg_stvec = Reg(UInt(width = if (usingHypervisor) vaddrBitsExtended else vaddrBits))
   val reg_satp = Reg(new PTBR)
   val reg_wfi = withClock(io.ungated_clock) { Reg(init=Bool(false)) }
 
@@ -1205,7 +1205,7 @@ class CSRFile(
     if (mtvecWritable)
       when (decoded_addr(CSRs.mtvec))  { reg_mtvec := wdata }
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
-    when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
+    when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata }
 
     if (usingNMI) {
       val new_mnstatus = new MNStatus().fromBits(wdata)
@@ -1286,7 +1286,7 @@ class CSRFile(
       when (decoded_addr(CSRs.sepc))     { reg_sepc := formEPC(wdata) }
       when (decoded_addr(CSRs.stvec))    { reg_stvec := wdata }
       when (decoded_addr(CSRs.scause))   { reg_scause := wdata & scause_mask }
-      when (decoded_addr(CSRs.stval))    { reg_stval := wdata(vaddrBitsExtended-1,0) }
+      when (decoded_addr(CSRs.stval))    { reg_stval := wdata }
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata }
       when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata }
@@ -1361,7 +1361,7 @@ class CSRFile(
       when (decoded_addr(CSRs.vsepc))     { reg_vsepc := formEPC(wdata) }
       when (decoded_addr(CSRs.vstvec))    { reg_vstvec := wdata }
       when (decoded_addr(CSRs.vscause))   { reg_vscause := wdata & scause_mask }
-      when (decoded_addr(CSRs.vstval))    { reg_vstval := wdata(vaddrBitsExtended-1,0) }
+      when (decoded_addr(CSRs.vstval))    { reg_vstval := wdata }
     }
     if (usingUser) {
       when (decoded_addr(CSRs.mcounteren)) { reg_mcounteren := wdata }
