@@ -5,8 +5,6 @@ package freechips.rocketchip.system
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.groundtest.WithTraceGen
 
 class WithZBK extends Config((site, here, up) => {
 	case RocketTilesKey => up(RocketTilesKey, site) map { r =>
@@ -74,6 +72,23 @@ class RocketWithZkConf32 extends Config(
 class RocketWithZkConf64 extends Config(
 		new WithZKN ++
 		new WithZKR ++
+		new WithNBigCores(1) ++
+		new WithCoherentBusTopology ++
+		new BaseConfig)
+
+class FPGARocketWithZkConf32 extends Config(
+		new WithZKN ++
+		new WithZKR ++
+		new WithNBreakpoints(2)	++
+		new WithJtagDTM  ++
+		new DefaultRV32Config ++
+		new BaseConfig)
+
+class FPGARocketWithZkConf64 extends Config(
+		new WithZKN ++
+		new WithZKR ++
+		new WithNBreakpoints(2)	++
+		new WithJtagDTM  ++
 		new WithNBigCores(1) ++
 		new WithCoherentBusTopology ++
 		new BaseConfig)

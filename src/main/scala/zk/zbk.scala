@@ -196,13 +196,18 @@ class zbkb32 extends BlackBox with HasBlackBoxInline {
        #wire [31:0] wpack  = {       rs2[15:0], rs1[15:0]};
        #wire [31:0] wpackh = {16'd0, rs2[ 7:0], rs1[ 7:0]};
        #
-       #wire [ 7:0] brev8_0 = `rev(rs1[ 7: 0], 8, irev8_0)
-       #wire [ 7:0] brev8_1 = `rev(rs1[15: 8], 8, irev8_1)
-       #wire [ 7:0] brev8_2 = `rev(rs1[23:16], 8, irev8_2)
-       #wire [ 7:0] brev8_3 = `rev(rs1[31:24], 8, irev8_3)
+       #wire [ 7:0] rs1_b0  = rs1[ 7: 0];
+       #wire [ 7:0] rs1_b1  = rs1[15: 8];
+       #wire [ 7:0] rs1_b2  = rs1[23:16];
+       #wire [ 7:0] rs1_b3  = rs1[31:24];
+       #
+       #wire [ 7:0] brev8_0 = `rev(rs1_b0, 8, irev8_0)
+       #wire [ 7:0] brev8_1 = `rev(rs1_b1, 8, irev8_1)
+       #wire [ 7:0] brev8_2 = `rev(rs1_b2, 8, irev8_2)
+       #wire [ 7:0] brev8_3 = `rev(rs1_b3, 8, irev8_3)
        #wire [31:0] wbrev8  = {brev8_3, brev8_2, brev8_1, brev8_0};
        #
-       #wire [31:0] wrev8 = {rs1[ 7: 0], rs1[15: 8], rs1[23:16], rs1[31:24]};
+       #wire [31:0] wrev8   = {rs1_b0,  rs1_b1,  rs1_b2,  rs1_b3};
        #
        #wire [31:0] wzip   = `zip32(  rs1, izip32)
        #wire [31:0] wunzip = `unzip32(rs1, iunzip32)
@@ -301,19 +306,28 @@ class zbkb64 extends BlackBox with HasBlackBoxInline {
        #wire [63:0] wpackw = {32'd0, rs2[15:0], rs1[15:0]};
        #wire [63:0] wpackh = {48'd0, rs2[ 7:0], rs1[ 7:0]};
        #
-       #wire [ 7:0] brev8_0 = `rev(rs1[ 7: 0], 8, irev8_0)
-       #wire [ 7:0] brev8_1 = `rev(rs1[15: 8], 8, irev8_1)
-       #wire [ 7:0] brev8_2 = `rev(rs1[23:16], 8, irev8_2)
-       #wire [ 7:0] brev8_3 = `rev(rs1[31:24], 8, irev8_3)
-       #wire [ 7:0] brev8_4 = `rev(rs1[39:32], 8, irev8_4)
-       #wire [ 7:0] brev8_5 = `rev(rs1[47:40], 8, irev8_5)
-       #wire [ 7:0] brev8_6 = `rev(rs1[55:48], 8, irev8_6)
-       #wire [ 7:0] brev8_7 = `rev(rs1[63:56], 8, irev8_7)
+       #wire [ 7:0] rs1_b0  = rs1[ 7: 0];
+       #wire [ 7:0] rs1_b1  = rs1[15: 8];
+       #wire [ 7:0] rs1_b2  = rs1[23:16];
+       #wire [ 7:0] rs1_b3  = rs1[31:24];
+       #wire [ 7:0] rs1_b4  = rs1[39:32];
+       #wire [ 7:0] rs1_b5  = rs1[47:40];
+       #wire [ 7:0] rs1_b6  = rs1[55:48];
+       #wire [ 7:0] rs1_b7  = rs1[63:56];
        #
-       #wire [63:0] wbrev8  = {brev8_7,   brev8_6,     brev8_5,    brev8_4,
-       #                       brev8_3,   brev8_2,     brev8_1,    brev8_0   };
-       #wire [63:0] wrev8   = {rs1[ 7: 0], rs1[15: 8], rs1[23:16], rs1[31:24],
-       #                       rs1[39:32], rs1[47:40], rs1[55:48], rs1[63:56]};
+       #wire [ 7:0] brev8_0 = `rev(rs1_b0, 8, irev8_0)
+       #wire [ 7:0] brev8_1 = `rev(rs1_b1, 8, irev8_1)
+       #wire [ 7:0] brev8_2 = `rev(rs1_b2, 8, irev8_2)
+       #wire [ 7:0] brev8_3 = `rev(rs1_b3, 8, irev8_3)
+       #wire [ 7:0] brev8_4 = `rev(rs1_b4, 8, irev8_4)
+       #wire [ 7:0] brev8_5 = `rev(rs1_b5, 8, irev8_5)
+       #wire [ 7:0] brev8_6 = `rev(rs1_b6, 8, irev8_6)
+       #wire [ 7:0] brev8_7 = `rev(rs1_b7, 8, irev8_7)
+       #
+       #wire [63:0] wbrev8  = {brev8_7, brev8_6, brev8_5, brev8_4,
+       #                       brev8_3, brev8_2, brev8_1, brev8_0};
+       #wire [63:0] wrev8   = {rs1_b0,  rs1_b1,  rs1_b2,  rs1_b3,
+       #                       rs1_b4,  rs1_b5,  rs1_b6,  rs1_b7 };
        #
        #assign         rd   = {64{  ror_sel}} & wror  |
        #                      {64{  rol_sel}} & wrol  |
