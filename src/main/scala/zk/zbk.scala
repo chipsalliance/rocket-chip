@@ -147,14 +147,14 @@ class zbkb32 extends BlackBox with HasBlackBoxInline {
        #       assign rb``l[i] = x[d-i-1]; \\
        #    end
        #
-       #`define zip32(x, l)  {zh``l, zl``l}; \\
+       #`define unzip32(x, l)  {zh``l, zl``l}; \\
        #    wire [15:0]   zh``l, zl``l; \\
        #    for (genvar i = 0;  i < 16; i = i + 1) begin: zip32``l\\
        #        assign zh``l[i] = x[2*i + 1]; \\
        #        assign zl``l[i] = x[2*i    ];\\
        #    end
        #
-       #`define unzip32(x, l) uz``l;\\
+       #`define zip32(x, l) uz``l;\\
        #    wire [31:0]   uz``l;\\
        #    for (genvar i = 0;  i < 16; i = i + 1) begin: unzip32``l\\
        #        assign uz``l[2*i  ] = x[i];\\
