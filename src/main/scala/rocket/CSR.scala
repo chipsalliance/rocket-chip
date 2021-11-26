@@ -434,13 +434,16 @@ class CSRFile(
     Causes.load_page_fault,
     Causes.store_page_fault).map(1 << _).sum)
 
-  val hs_delegable_interrupts = {
-    val hs_sup = Wire(new MIP().fromBits(0.U))
-    hs_sup.vssip := Bool(usingHypervisor)
-    hs_sup.vstip := Bool(usingHypervisor)
-    hs_sup.vseip := Bool(usingHypervisor)
-    hs_sup.lip foreach { _ := Bool(usingHypervisor) }
-    hs_sup.asUInt
+  val (hs_delegable_interrupts, mideleg_always_hs) = {
+    val always = Wire(new MIP().fromBits(0.U))
+    always.vssip := Bool(usingHypervisor)
+    always.vstip := Bool(usingHypervisor)
+    always.vseip := Bool(usingHypervisor)
+
+    val deleg = Wire(init = always)
+    deleg.lip.foreach { _ := Bool(usingHypervisor) }
+
+    (deleg.asUInt, always.asUInt)
   }
 
   val reg_debug = Reg(init=Bool(false))
@@ -459,7 +462,7 @@ class CSRFile(
   val reg_mie = Reg(UInt(width = xLen))
   val (reg_mideleg, read_mideleg) = {
     val reg = Reg(UInt(xLen.W))
-    (reg, Mux(usingSupervisor, reg & delegable_interrupts | hs_delegable_interrupts, 0.U))
+    (reg, Mux(usingSupervisor, reg & delegable_interrupts | mideleg_always_hs, 0.U))
   }
   val (reg_medeleg, read_medeleg) = {
     val reg = Reg(UInt(xLen.W))
