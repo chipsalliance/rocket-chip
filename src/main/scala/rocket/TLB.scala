@@ -198,8 +198,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val state = Reg(init=s_ready)
   val r_refill_tag = Reg(UInt(width = vpnBits))
   val r_superpage_repl_addr = Reg(UInt(log2Ceil(superpage_entries.size).W))
-  val r_sectored_repl_addr = Reg(UInt(log2Ceil(sectored_entries(0).size).W))
-  val r_sectored_hit_addr = Reg(UInt(log2Ceil(sectored_entries(0).size).W))
+  val r_sectored_repl_addr = Reg(UInt(log2Ceil(sectored_entries.head.size).W))
+  val r_sectored_hit_addr = Reg(UInt(log2Ceil(sectored_entries.head.size).W))
   val r_sectored_hit = Reg(Bool())
   val r_vstage1_en = Reg(Bool())
   val r_stage2_en = Reg(Bool())
@@ -397,13 +397,14 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     val hit_mask = Fill(sectored_entries.head.size, r_gpa_valid && r_gpa_vpn === vpn) | Fill(all_entries.size, !vstage1_en)
     hit_mask | ~need_gpa_mask(all_entries.size-1, 0)
   }
+  val superpage_gpa_hits = gpa_hits.asBools.drop(sectored_entries.head.size).take(superpage_entries.size)
 
   val tlb_hit_if_not_gpa_miss = real_hits.orR
   val tlb_hit = (real_hits & gpa_hits).orR
 
   val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
 
-  val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries(0).size, "plru")
+  val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries.head.size, "plru")
   val superpage_plru = new PseudoLRU(superpage_entries.size)
   when (io.req.valid && vm_enabled) {
     when (sector_hits.orR) { sectored_plru.access(memIdx, OHToUInt(sector_hits)) }
@@ -454,20 +455,19 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       r_gpa_valid := false
       r_gpa_vpn   := r_refill_tag
     }
+    when(io.req.fire() && vm_enabled) {
+      // the GPA will come back as a fragmented superpage entry, so zap
+      // superpage hit to prevent a future multi-hit
+      for (((e, h), g) <- superpage_entries.zip(superpage_hits).zip(superpage_gpa_hits)) {
+        when(h && !g) { e.invalidate() }
+      }
+    }
 
     val sfence = io.sfence.valid
     when (io.req.fire() && tlb_miss) {
       state := s_request
       r_refill_tag := vpn
       r_need_gpa := tlb_hit_if_not_gpa_miss
-
-      when(tlb_hit_if_not_gpa_miss) {
-        // the GPA will come back as a fragmented superpage entry, so zap
-        // superpage hit to prevent a future multi-hit
-        for ((e, h) <- superpage_entries.zip(superpage_hits))
-          when(h) { e.invalidate() }
-      }
-
       r_vstage1_en := vstage1_en
       r_stage2_en := stage2_en
       r_superpage_repl_addr := replacementEntry(superpage_entries, superpage_plru.way)
