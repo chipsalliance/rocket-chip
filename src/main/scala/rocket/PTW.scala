@@ -243,8 +243,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
     when (io.dpath.sfence.valid && (!io.dpath.sfence.bits.rs1 || usingHypervisor && io.dpath.sfence.bits.hg)) { valid := 0.U }
 
-    for (i <- 0 until pgLevels-1)
-      ccover(hit && state === s_req && count === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
+    val lcount = if (s2) aux_count else count
+    for (i <- 0 until pgLevels-1) {
+      ccover(hit && state === s_req && lcount === i, s"PTE_CACHE_HIT_L$i", s"PTE cache hit, level $i")
+    }
 
     (hit, Mux1H(hits, data))
   }
