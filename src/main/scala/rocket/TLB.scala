@@ -199,8 +199,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_refill_tag = Reg(UInt(width = vpnBits))
   val r_superpage_repl_addr = Reg(UInt(log2Ceil(superpage_entries.size).W))
   val r_sectored_repl_addr = Reg(UInt(log2Ceil(sectored_entries.head.size).W))
-  val r_sectored_hit_addr = Reg(UInt(log2Ceil(sectored_entries.head.size).W))
-  val r_sectored_hit = Reg(Bool())
+  val r_sectored_hit = Reg(Valid(UInt(log2Ceil(sectored_entries.head.size).W)))
+  val r_superpage_hit = Reg(Valid(UInt(log2Ceil(superpage_entries.size).W)))
   val r_vstage1_en = Reg(Bool())
   val r_stage2_en = Reg(Bool())
   val r_need_gpa = Reg(Bool())
@@ -286,15 +286,16 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     when (special_entry.nonEmpty && !io.ptw.resp.bits.homogeneous) {
       special_entry.foreach(_.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry))
     }.elsewhen (io.ptw.resp.bits.level < pgLevels-1) {
+      val waddr = Mux(r_superpage_hit.valid && usingHypervisor, r_superpage_hit.bits, r_superpage_repl_addr)
       for ((e, i) <- superpage_entries.zipWithIndex) when (r_superpage_repl_addr === i) {
         e.insert(r_refill_tag, io.ptw.resp.bits.level, newEntry)
         when (invalidate_refill) { e.invalidate() }
       }
     }.otherwise {
       val r_memIdx = r_refill_tag.extract(cfg.nSectors.log2 + cfg.nSets.log2 - 1, cfg.nSectors.log2)
-      val waddr = Mux(r_sectored_hit, r_sectored_hit_addr, r_sectored_repl_addr)
+      val waddr = Mux(r_sectored_hit.valid, r_sectored_hit.bits, r_sectored_repl_addr)
       for ((e, i) <- sectored_entries(r_memIdx).zipWithIndex) when (waddr === i) {
-        when (!r_sectored_hit) { e.invalidate() }
+        when (!r_sectored_hit.valid) { e.invalidate() }
         e.insert(r_refill_tag, 0.U, newEntry)
         when (invalidate_refill) { e.invalidate() }
       }
@@ -394,10 +395,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   val gpa_hits = {
     val need_gpa_mask = if (instruction) gf_inst_array else gf_ld_array | gf_st_array
-    val hit_mask = Fill(sectored_entries.head.size, r_gpa_valid && r_gpa_vpn === vpn) | Fill(all_entries.size, !vstage1_en)
+    val hit_mask = Fill(ordinary_entries.size, r_gpa_valid && r_gpa_vpn === vpn) | Fill(all_entries.size, !vstage1_en)
     hit_mask | ~need_gpa_mask(all_entries.size-1, 0)
   }
-  val superpage_gpa_hits = gpa_hits.asBools.drop(sectored_entries.head.size).take(superpage_entries.size)
 
   val tlb_hit_if_not_gpa_miss = real_hits.orR
   val tlb_hit = (real_hits & gpa_hits).orR
@@ -455,13 +455,6 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       r_gpa_valid := false
       r_gpa_vpn   := r_refill_tag
     }
-    when(io.req.fire() && vm_enabled) {
-      // the GPA will come back as a fragmented superpage entry, so zap
-      // superpage hit to prevent a future multi-hit
-      for (((e, h), g) <- superpage_entries.zip(superpage_hits).zip(superpage_gpa_hits)) {
-        when(h && !g) { e.invalidate() }
-      }
-    }
 
     val sfence = io.sfence.valid
     when (io.req.fire() && tlb_miss) {
@@ -472,8 +465,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       r_stage2_en := stage2_en
       r_superpage_repl_addr := replacementEntry(superpage_entries, superpage_plru.way)
       r_sectored_repl_addr := replacementEntry(sectored_entries(memIdx), sectored_plru.way(memIdx))
-      r_sectored_hit_addr := OHToUInt(sector_hits)
-      r_sectored_hit := sector_hits.orR
+      r_sectored_hit.valid := sector_hits.orR
+      r_sectored_hit.bits := OHToUInt(sector_hits)
+      r_superpage_hit.valid := superpage_hits.orR
+      r_superpage_hit.bits := OHToUInt(superpage_hits)
     }
     when (state === s_request) {
       when (sfence) { state := s_ready }

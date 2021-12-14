@@ -211,9 +211,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     (Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen / 8))(vaddrBits - 1, 0)
   }
 
-  def makeFragmentedSuperpagePPN(ppn: UInt): UInt = {
-    val choices = (pgLevels-1 until 0 by -1).map(i => Cat(ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
-    choices(count)
+  def makeFragmentedSuperpagePPN(ppn: UInt): Seq[UInt] = {
+    (pgLevels-1 until 0 by -1).map(i => Cat(ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
   }
 
   def makePTECache(s2: Boolean): (Bool, UInt) = {
@@ -380,7 +379,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
   val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(r_pte.ppn << pgIdxBits, count)
-  val homogeneous = !r_req.need_gpa && pmaHomogeneous && pmpHomogeneous
+  val homogeneous = pmaHomogeneous && pmpHomogeneous
 
   for (i <- 0 until io.requestor.size) {
     io.requestor(i).resp.valid := resp_valid(i)
@@ -395,7 +394,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs
     io.requestor(i).resp.bits.gpa.valid := r_req.need_gpa
-    io.requestor(i).resp.bits.gpa.bits := Cat(aux_pte.ppn, gpa_pgoff)
+    io.requestor(i).resp.bits.gpa.bits :=
+      Cat(Mux(!stage2_final || !r_req.vstage1 || aux_count === (pgLevels - 1), aux_pte.ppn, makeFragmentedSuperpagePPN(aux_pte.ppn)(aux_count)), gpa_pgoff)
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).hgatp := io.dpath.hgatp
     io.requestor(i).vsatp := io.dpath.vsatp
@@ -415,6 +415,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     is (s_ready) {
       when (arb.io.out.fire()) {
         val satp_initial_count = pgLevels - minPgLevels - satp.additionalPgLevels
+        val vsatp_initial_count = pgLevels - minPgLevels - io.dpath.vsatp.additionalPgLevels
         val hgatp_initial_count = pgLevels - minPgLevels - io.dpath.hgatp.additionalPgLevels
 
         r_req := arb.io.out.bits.bits
@@ -423,7 +424,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         stage2       := arb.io.out.bits.bits.stage2
         stage2_final := arb.io.out.bits.bits.stage2 && !arb.io.out.bits.bits.vstage1
         count       := Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
-        aux_count   := Mux(arb.io.out.bits.bits.vstage1, satp_initial_count, 0.U)
+        aux_count   := Mux(arb.io.out.bits.bits.vstage1, vsatp_initial_count, 0.U)
         aux_pte.ppn := Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp.ppn, arb.io.out.bits.bits.addr)
         resp_ae_ptw := false
         resp_ae_final := false
@@ -471,12 +472,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       resp_valid(r_req_dest) := true
       when (!homogeneous) {
         count := pgLevels-1
-      }
-      when (!homogeneous || do_both_stages) {
         resp_fragmented_superpage := true
-        when(!resp_gf) {
-          aux_pte.ppn := makeFragmentedSuperpagePPN(aux_pte.ppn)
-        }
+      }
+      when (do_both_stages) {
+        resp_fragmented_superpage := true
       }
     }
   }
@@ -494,7 +493,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Mux(state === s_req && !stage2_pte_cache_hit && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
     Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),
     Mux(mem_resp_valid, Mux(!traverse && (r_req.vstage1 && stage2), merged_pte, pte),
-    Mux(state === s_fragment_superpage && !homogeneous, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn), r_pte),
+    Mux(state === s_fragment_superpage && !homogeneous, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn)(count), r_pte),
     Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte)))))))
 
