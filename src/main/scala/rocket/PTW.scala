@@ -511,8 +511,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       count := count + 1
     }.otherwise {
       val gf = stage2 && !stage2_final && !pte.ur()
+      val ae = pte.v && invalid_paddr
+      val success = pte.v && !ae && !gf
 
-      when (do_both_stages && !stage2_final && !gf) {
+      when (do_both_stages && !stage2_final && success) {
         when (stage2) {
           stage2 := false
           count := aux_count
@@ -521,8 +523,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           do_switch := true
         }
       }.otherwise {
-        val ae = pte.v && invalid_paddr
-        val success = pte.v && !ae && !gf
         l2_refill := success && count === pgLevels-1 && !r_req.need_gpa &&
           (!r_req.vstage1 && !r_req.stage2 ||
            do_both_stages && aux_count === pgLevels-1 && pte.isFullPerm())
