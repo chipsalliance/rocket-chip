@@ -318,8 +318,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_amo_logical, ~paa_array, 0.U) |
     Mux(cmd_amo_arithmetic, ~pal_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
-  val ma_ld_array = Mux(misaligned && cmd_read, ~eff_array, 0.U)
-  val ma_st_array = Mux(misaligned && cmd_write, ~eff_array, 0.U)
+  val ma_ld_array = Mux(misaligned && cmd_read, ~eff_array & ~(ptw_ae_array | final_ae_array), 0.U)
+  val ma_st_array = Mux(misaligned && cmd_write, ~eff_array & ~(ptw_ae_array | final_ae_array), 0.U)
   val pf_ld_array = Mux(cmd_read, ~(r_array | ptw_ae_array), 0.U)
   val pf_st_array = Mux(cmd_write_perms, ~(w_array | ptw_ae_array), 0.U)
   val pf_inst_array = ~(x_array | ptw_ae_array)
