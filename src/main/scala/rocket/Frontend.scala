@@ -24,6 +24,9 @@ class FrontendExceptions extends Bundle {
   val pf = new Bundle {
     val inst = Bool()
   }
+  val gf = new Bundle {
+    val inst = Bool()
+  }
   val ae = new Bundle {
     val inst = Bool()
   }
@@ -49,6 +52,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
+  val gpa = Flipped(Valid(UInt(vaddrBitsExtended.W)))
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
@@ -112,7 +116,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_btb_taken = s2_btb_resp_valid && s2_btb_resp_bits.taken
   val s2_tlb_resp = Reg(tlb.io.resp)
-  val s2_xcpt = s2_tlb_resp.ae.inst || s2_tlb_resp.pf.inst
+  val s2_xcpt = s2_tlb_resp.ae.inst || s2_tlb_resp.pf.inst || s2_tlb_resp.gf.inst
   val s2_speculative = Reg(init=Bool(false))
   val s2_partial_insn_valid = RegInit(false.B)
   val s2_partial_insn = Reg(UInt(width = coreInstBits))
@@ -149,6 +153,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
+  tlb.io.req.bits.prv := io.ptw.status.prv
+  tlb.io.req.bits.v := io.ptw.status.v
   tlb.io.sfence := io.cpu.sfence
   tlb.io.kill := !s2_valid
 
@@ -323,6 +329,21 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   }
 
   io.cpu.resp <> fq.io.deq
+
+  // supply guest physical address to commit stage
+  val gpa_valid = Reg(Bool())
+  val gpa = Reg(UInt(vaddrBitsExtended.W))
+  when (fq.io.enq.fire() && s2_tlb_resp.gf.inst) {
+    when (!gpa_valid) {
+      gpa := s2_tlb_resp.gpa
+    }
+    gpa_valid := true
+  }
+  when (io.cpu.req.valid) {
+    gpa_valid := false
+  }
+  io.cpu.gpa.valid := gpa_valid
+  io.cpu.gpa.bits := gpa
 
   // performance events
   io.cpu.perf := icache.io.perf
