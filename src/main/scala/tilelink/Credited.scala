@@ -83,7 +83,7 @@ object TLCreditedSink {
   def apply()(implicit p: Parameters): TLCreditedSinkNode = apply(CreditedDelay(1, 1))
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLRAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit p: Parameters) extends LazyModule {

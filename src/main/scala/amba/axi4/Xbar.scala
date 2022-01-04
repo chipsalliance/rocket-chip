@@ -10,6 +10,13 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink._
 
+/**
+  * AXI4 Crossbar. It connects multiple AXI4 masters to slaves.
+  *
+  * @param arbitrationPolicy arbitration policy
+  * @param maxFlightPerId maximum inflight transactions per id
+  * @param awQueueDepth queue depth for AW channel
+  */
 class AXI4Xbar(
   arbitrationPolicy: TLArbiter.Policy = TLArbiter.roundRobin,
   maxFlightPerId:    Int = 7,
