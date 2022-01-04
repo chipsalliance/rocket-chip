@@ -2,11 +2,15 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import chisel3.util.log2Ceil
+import chisel3.util.Mux1H
+import chisel3.util.Queue
+import chisel3.util.UIntToOH
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)
@@ -55,16 +59,16 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
       /* Returns the number of beats to execute and the new address */
       def fragment(a: IrrevocableIO[AXI4BundleA], supportedSizes1: Seq[Int]): (IrrevocableIO[AXI4BundleA], Bool, UInt) = {
-        val out = Wire(a)
+        val out = Wire(a.cloneType)
 
-        val busy   = RegInit(Bool(false))
-        val r_addr = Reg(UInt(width = a.bits.params.addrBits))
-        val r_len  = Reg(UInt(width = AXI4Parameters.lenBits))
+        val busy   = RegInit(false.B)
+        val r_addr = Reg(UInt(a.bits.params.addrBits.W))
+        val r_len  = Reg(UInt(AXI4Parameters.lenBits.W))
 
         val len  = Mux(busy, r_len,  a.bits.len)
         val addr = Mux(busy, r_addr, a.bits.addr)
 
-        val lo = if (lgBytes == 0) UInt(0) else addr(lgBytes-1, 0)
+        val lo = if (lgBytes == 0) 0.U else addr(lgBytes-1, 0)
         val cutoff = AXI4Parameters.lenBits + lgBytes
         val alignment = addr((a.bits.params.addrBits min cutoff)-1, lgBytes)
 
@@ -73,7 +77,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
         val sizes1 = (supportedSizes1 zip slave.slaves.map(_.address)).filter(_._1 >= 0).groupBy(_._1).mapValues(_.flatMap(_._2))
         val reductionMask = AddressDecoder(sizes1.values.toList)
         val support1 = Mux1H(sizes1.toList.map { case (v, a) => // maximum supported size-1 based on target address
-          (AddressSet.unify(a.map(_.widen(~reductionMask)).distinct).map(_.contains(addr)).reduce(_||_), UInt(v))
+          (AddressSet.unify(a.map(_.widen(~reductionMask)).distinct).map(_.contains(addr)).reduce(_||_), v.U)
         })
 
         /* We need to compute the largest transfer allowed by the AXI len.
@@ -90,16 +94,16 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
         // Things that cause us to degenerate to a single beat
         val fixed = a.bits.burst === AXI4Parameters.BURST_FIXED
-        val narrow = a.bits.size =/= UInt(lgBytes)
+        val narrow = a.bits.size =/= lgBytes.U
         val bad = fixed || narrow
 
         // The number of beats-1 to execute
-        val beats1 = Mux(bad, UInt(0), maxSupported1)
+        val beats1 = Mux(bad, 0.U, maxSupported1)
         val beats = OH1ToOH(beats1) // beats1 + 1
 
         val inc_addr = addr + (beats << a.bits.size) // address after adding transfer
         val wrapMask = a.bits.bytes1() // only these bits may change, if wrapping
-        val mux_addr = Wire(init = inc_addr)
+        val mux_addr = WireInit(inc_addr)
         when (a.bits.burst === AXI4Parameters.BURST_WRAP) {
           mux_addr := (inc_addr & wrapMask) | ~(~a.bits.addr | wrapMask)
         }
@@ -147,11 +151,11 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.ar.bits.echo(AXI4FragLast) := ar_last
 
       // When does W channel start counting a new transfer
-      val wbeats_latched = RegInit(Bool(false))
+      val wbeats_latched = RegInit(false.B)
       val wbeats_ready = Wire(Bool())
       val wbeats_valid = Wire(Bool())
-      when (wbeats_valid && wbeats_ready) { wbeats_latched := Bool(true) }
-      when (out.aw.fire()) { wbeats_latched := Bool(false) }
+      when (wbeats_valid && wbeats_ready) { wbeats_latched := true.B }
+      when (out.aw.fire()) { wbeats_latched := false.B }
 
       // AW flow control
       out.aw.valid := in_aw.valid && (wbeats_ready || wbeats_latched)
@@ -161,12 +165,12 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.aw.bits.echo(AXI4FragLast) := aw_last
 
       // We need to inject 'last' into the W channel fragments, count!
-      val w_counter = RegInit(UInt(0, width = AXI4Parameters.lenBits+1))
-      val w_idle = w_counter === UInt(0)
-      val w_todo = Mux(w_idle, Mux(wbeats_valid, w_beats, UInt(0)), w_counter)
-      val w_last = w_todo === UInt(1)
+      val w_counter = RegInit(0.U((AXI4Parameters.lenBits+1).W))
+      val w_idle = w_counter === 0.U
+      val w_todo = Mux(w_idle, Mux(wbeats_valid, w_beats, 0.U), w_counter)
+      val w_last = w_todo === 1.U
       w_counter := w_todo - out.w.fire()
-      assert (!out.w.fire() || w_todo =/= UInt(0)) // underflow impossible
+      assert (!out.w.fire() || w_todo =/= 0.U) // underflow impossible
 
       // W flow control
       wbeats_ready := w_idle
@@ -189,10 +193,10 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.b.ready := in.b.ready || !b_last
 
       // Merge errors from dropped B responses
-      val error = RegInit(Vec.fill(edgeIn.master.endId) { UInt(0, width = AXI4Parameters.respBits)})
+      val error = RegInit(VecInit.fill(edgeIn.master.endId)(0.U(AXI4Parameters.respBits.W)))
       in.b.bits.resp := out.b.bits.resp | error(out.b.bits.id)
       (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).asBools) foreach { case (reg, sel) =>
-        when (sel && out.b.fire()) { reg := Mux(b_last, UInt(0), reg | out.b.bits.resp) }
+        when (sel && out.b.fire()) { reg := Mux(b_last, 0.U, reg | out.b.bits.resp) }
       }
     }
   }

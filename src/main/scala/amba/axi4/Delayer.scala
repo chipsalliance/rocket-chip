@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import chisel3.util.IrrevocableIO
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -17,11 +17,11 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
   lazy val module = new LazyModuleImp(this) {
     def feed[T <: Data](sink: IrrevocableIO[T], source: IrrevocableIO[T], noise: T): Unit = {
       // irrevocable requires that we not lower valid
-      val hold = RegInit(Bool(false))
-      when (sink.valid)  { hold := Bool(true) }
-      when (sink.fire()) { hold := Bool(false) }
+      val hold = RegInit(false.B)
+      when (sink.valid)  { hold := true.B }
+      when (sink.fire()) { hold := false.B }
 
-      val allow = hold || UInt((q * 65535.0).toInt) <= LFSRNoiseMaker(16, source.valid)
+      val allow = hold || ((q * 65535.0).toInt).U <= LFSRNoiseMaker(16, source.valid)
       sink.valid := source.valid && allow
       source.ready := sink.ready && allow
       sink.bits := source.bits

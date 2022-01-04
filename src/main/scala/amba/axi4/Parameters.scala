@@ -2,12 +2,14 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.max
+import chisel3.util.isPow2
+import chisel3.util.log2Up
 
 case class AXI4SlaveParameters(
   address:       Seq[AddressSet],
