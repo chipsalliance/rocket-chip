@@ -13,7 +13,7 @@ import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import scala.collection.mutable.ListBuffer
 
@@ -79,6 +79,14 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   def sx(dummy: Int = 0) = leaf() && x
 }
 
+/**
+  * |vpn2  |vpn1  |vpn0    |
+  * -> set associated
+  * |vpn2  |vpn1  |vpn0|idx|
+  *
+  * idx decides set.
+  *
+  * */
 class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val idxBits = log2Ceil(nSets)
@@ -92,29 +100,70 @@ class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
   val w = Bool()
   val r = Bool()
 
-  override def cloneType = new L2TLBEntry(nSets).asInstanceOf[this.type]
 }
 
+/**
+  * RISC-V PTW implementation with L2 TLB.
+  *
+  */
 @chiselName
 class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
+    /** requests from different TLBs. */
     val requestor = Vec(n, new TLBPTWIO).flip
+    /** PTW to memory interface, it directly connected to L1D$.
+      * In single Rocket, when page is manipulated, it must exist in L1D$.
+      * So L2TLB won't need additional probe procedure at coherence manager.
+      */
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
 
   val omSRAMs = collection.mutable.ListBuffer[OMSRAM]()
 
+  /**
+    * At [[s_req]], access PTE cache & L2TLB at the same time(cycle 1)
+    * in cycle 1, `pte_cache_hit` is known,
+    *             if not hit, just to [[s_wait1]](this will be blocked by I$ ready.)
+    * in cycle 2(if I$ is not blocked), `l2_hit` is known.
+    *
+    *
+    * [[s_ready]]:              000 ready to accept from L1TLBs
+    * [[s_req]]:                001 access PTE cache, increase page count.
+    *                               except PTE cache hit(pte_cache_hit).
+    *                               if missed jump to [[s_wait1]](wait for main memory)
+    *                               send request to D$ & L2TLB.
+    *
+    * [[s_wait1]]:              010 can query L2TLB response: `l2_hit`
+    *                               if missed, go to [[s_wait2]]
+    *
+    * [[s_wait2]]:              100 D$ will return if access fault or not at second cycle.
+    *                               if AE, crashed and reset PTW(go to [[s_ready]])
+    *                               if no AE, go to [[s_wait3]]
+    *
+    * [[s_wait3]]:              101 wait for main memory.(can be multiple cycles.)
+    * [[s_fragment_superpage]]: 111 process super page.
+    *
+    * [[s_dummy1]]:             011 make state is s_req -> 0?1
+    * [[s_dummy2]]:             110
+    */
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
+  /** state machine register, define under the non-gated clock domain. */
   val state = Reg(init=s_ready)
+  /** is refilling L2TLB, requests from L1TLB is not available. */
   val l2_refill_wire = Wire(Bool())
 
+  /** arbitration from different L1TLBs(ITLB, DTLB, RoCC TLB...). */
   val arb = Module(new Arbiter(Valid(new PTWReq), n))
   arb.io.in <> io.requestor.map(_.req)
   arb.io.out.ready := (state === s_ready) && !l2_refill_wire
 
+  /** Maintain a respond valid register, if true, response to correspond requestor. */
   val resp_valid = Reg(next = Vec.fill(io.requestor.size)(Bool(false)))
 
+  /** clock gate logic.
+    * manually clock gate for `state === s_ready`.
+    */
   val clock_en = state =/= s_ready || l2_refill_wire || arb.io.out.valid || io.dpath.sfence.valid || io.dpath.customCSRs.disableDCacheClockGate
   io.dpath.clock_enabled := usingVM && clock_en
   val gated_clock =
@@ -122,17 +171,30 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     else ClockGate(clock, clock_en, "ptw_clock_gate")
   withClock (gated_clock) { // entering gated-clock domain
 
+  /** logic to invalidate TLB(handle SFENCE.VMA).
+    * don't invalidate during PTW.
+    */
   val invalidated = Reg(Bool())
+  /** current page level. */
   val count = Reg(UInt(width = log2Up(pgLevels)))
+  /** respond access fault. */
   val resp_ae = RegNext(false.B)
+  /** not last page level but leaf page. */
   val resp_fragmented_superpage = RegNext(false.B)
 
+  /** latch request from arbiter. */
   val r_req = Reg(new PTWReq)
+  /** which L1TLB should respond to. */
   val r_req_dest = Reg(Bits())
+  /** PTE to respond. */
   val r_pte = Reg(new PTE)
 
+  /** latch valid from memory(hella cache interface). */
   val mem_resp_valid = RegNext(io.mem.resp.valid)
+  /** latch data from memory(hella cache interface). */
   val mem_resp_data = RegNext(io.mem.resp.bits.data)
+  // support page from uncached region.
+  // add a mux to [[mem_resp_valid]], [[mem_resp_data]]
   io.mem.uncached_resp.map { resp =>
     assert(!(resp.valid && io.mem.resp.valid))
     resp.ready := true
@@ -142,6 +204,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
   }
 
+  /* construct PTE from memory. */
   val (pte, invalid_paddr) = {
     val tmp = new PTE().fromBits(mem_resp_data)
     val res = Wire(init = tmp)
@@ -153,7 +216,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     (res, (tmp.ppn >> ppnBits) =/= 0)
   }
+  /** is traversing page table(PTE on D$ is non-leaf) */
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
+  /* get pte address.
+   * TODO: why << 3/2
+   */
   val pte_addr = if (!usingVM) 0.U else {
     val vpn_idxs = (0 until pgLevels).map(i => (r_req.addr >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
     val vpn_idx = vpn_idxs(count)
@@ -161,16 +228,30 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
   val fragmented_superpage_ppn = {
     val choices = (pgLevels-1 until 0 by -1).map(i => Cat(r_pte.ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
+    // dynamic selection but not too big.
     choices(count)
   }
 
+  /* logic to select from arbiter. */
   when (arb.io.out.fire()) {
     r_req := arb.io.out.bits.bits
     r_req_dest := arb.io.chosen
   }
 
+  /** PTE Cache
+    *
+    * data: PPN
+    * tag: paddr(page table address) PTBR at first.
+    *
+    * replacement policy: full -> plru, not full -> find first empty.
+    * write en: D$ respond, and not SFENCE.VMA
+    * read en: s_req
+    */
   val (pte_cache_hit, pte_cache_data) = {
     val size = 1 << log2Up(pgLevels * 2)
+    /** replacement logic is pseudo lru
+      * TODO: really good? I doubt random will be enough.
+      */
     val plru = new PseudoLRU(size)
     val valid = RegInit(0.U(size.W))
     val tags = Reg(Vec(size, UInt(width = paddrBits)))
@@ -178,13 +259,17 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val hits = tags.map(_ === pte_addr).asUInt & valid
     val hit = hits.orR
+    /* cache write logic. */
     when (mem_resp_valid && traverse && !hit && !invalidated) {
+      // if full -> plru, not full -> find first empty.
       val r = Mux(valid.andR, plru.way, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
       tags(r) := pte_addr
       data(r) := pte.ppn
     }
+    // update PLRU
     when (hit && state === s_req) { plru.access(OHToUInt(hits)) }
+    // clean cache when SFENCE.VMA
     when (io.dpath.sfence.valid && !io.dpath.sfence.bits.rs1) { valid := 0.U }
 
     for (i <- 0 until pgLevels-1)
@@ -192,16 +277,32 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     (hit && count < pgLevels-1, Mux1H(hits, data))
   }
+  /** PTE hit at [[s_req]] state. */
   val pte_hit = RegNext(false.B)
   io.dpath.perf.pte_miss := false
   io.dpath.perf.pte_hit := pte_hit && (state === s_req) && !io.dpath.perf.l2hit
   assert(!(io.dpath.perf.l2hit && (io.dpath.perf.pte_miss || io.dpath.perf.pte_hit)),
     "PTE Cache Hit/Miss Performance Monitor Events are lower priority than L2TLB Hit event")
 
+  /** signal to write L2TLB. */
   val l2_refill = RegNext(false.B)
   l2_refill_wire := l2_refill
   io.dpath.perf.l2miss := false
   io.dpath.perf.l2hit := false
+
+  /** L2TLB Cache
+    *
+    * Sync Read RAM
+    * set associated.
+    * ParityCoded
+    *
+    * size: nL2TLBSets
+    * data: L2TLBEntry
+    * index: vpn - idxbits
+    * replacement policy: full -> plru, not full -> find first empty.
+    * write en: l2_refill & !SFENCE.VMA
+    * read en: s0_valid(s_req)
+    */
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
     require(isPow2(coreParams.nL2TLBEntries))
@@ -221,7 +322,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     )
 
     val g = Reg(Vec(coreParams.nL2TLBWays, UInt(width = nL2TLBSets)))
+    /** valid register */
     val valid = RegInit(Vec(Seq.fill(coreParams.nL2TLBWays)(0.U(nL2TLBSets.W))))
+    // vaddr tag & vaddr index
     val (r_tag, r_idx) = Split(r_req.addr, idxBits)
     val r_valid_vec = valid.map(_(r_idx)).asUInt
     val r_valid_vec_q = Reg(UInt(coreParams.nL2TLBWays.W))
@@ -234,6 +337,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       entry.tag := r_tag
 
       val wmask = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec_q.andR, UIntToOH(r_l2_plru_way, coreParams.nL2TLBWays), PriorityEncoderOH(~r_valid_vec_q)) else 1.U(1.W)
+      // replacement.
       ram.write(r_idx, Vec(Seq.fill(coreParams.nL2TLBWays)(code.encode(entry.asUInt))), wmask.asBools)
 
       val mask = UIntToOH(r_idx)
@@ -244,6 +348,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         }
       }
     }
+    /** based on SFEENCE.VMA clear correspond TLB. */
     when (io.dpath.sfence.valid) {
       for (way <- 0 until coreParams.nL2TLBWays) {
         valid(way) :=
@@ -252,6 +357,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       }
     }
 
+    // write to L2TLB will block read.
     val s0_valid = !l2_refill && arb.io.out.fire()
     val s1_valid = RegNext(s0_valid && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
@@ -296,10 +402,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.addr := pte_addr
   io.mem.req.bits.idx.foreach(_ := pte_addr)
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
+  // TODO: resolve state transition when s_req -> s_wait1 -> s_req (PTE cache hit)?
+  //       but not so sure here. s2_kill := state =/= s_wait1
   io.mem.s1_kill := l2_hit || state =/= s_wait1
   io.mem.s2_kill := Bool(false)
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
+  /** generate PMA homogeneous check for each page level. */
   val pmaPgLevelHomogeneous = (0 until pgLevels) map { i =>
     val pgSize = BigInt(1) << (pgIdxBits + ((pgLevels - 1 - i) * pgLevelBits))
     if (pageGranularityPMPs && i == pgLevels - 1) {
@@ -311,6 +420,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
   val pmpHomogeneous = new PMPHomogeneityChecker(io.dpath.pmp).apply(pte_addr >> pgIdxBits << pgIdxBits, count)
+  /** if super page didn't cross PMP and PMA, it is homogeneous. */
   val homogeneous = pmaHomogeneous && pmpHomogeneous
 
   for (i <- 0 until io.requestor.size) {
@@ -332,6 +442,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   switch (state) {
     is (s_ready) {
+      // even request is fired, it might be non-valid
       when (arb.io.out.fire()) {
         next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
       }
@@ -339,9 +450,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     is (s_req) {
       when (pte_cache_hit) {
+        // to next page level
         count := count + 1
         pte_hit := true
       }.otherwise {
+        // if not hit, and D$ is able to process request, just to [[s_wait1]]
+        // notice there will be another transition: next_state -> s_ready if TLB hit.
         next_state := Mux(io.mem.req.ready, s_wait1, s_req)
       }
     }
@@ -350,6 +464,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       next_state := Mux(l2_hit, s_req, s_wait2)
     }
     is (s_wait2) {
+      // This is the 2nd cycle to access D$, get access fault(load access fault).
       next_state := s_wait3
       io.dpath.perf.pte_miss := count < pgLevels-1
       when (io.mem.s2_xcpt.ae.ld) {
@@ -375,10 +490,17 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     pte
   }
   r_pte := OptimizationBarrier(
+    // PTW access forward
     Mux(mem_resp_valid, pte,
+    // L2 TLB cache hit
     Mux(l2_hit && !l2_error, l2_pte,
+    // superpage
     Mux(state === s_fragment_superpage && !homogeneous, makePTE(fragmented_superpage_ppn, r_pte),
+    // small PTE cache hit
     Mux(state === s_req && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
+    // query level 1 page table via ptbr
+    // for physical design, when start a PTW
+    // only need PPN from PTBR, let other PTE entries not being updated to save logic
     Mux(arb.io.out.fire(), makePTE(io.dpath.ptbr.ppn, r_pte),
     r_pte))))))
 
@@ -389,15 +511,18 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     resp_ae := false
     count := pgLevels-1
   }
+
   when (mem_resp_valid) {
     assert(state === s_wait3)
     when (traverse) {
       next_state := s_req
       count := count + 1
     }.otherwise {
+      // refill only when leaf PTE and last page level.
       l2_refill := pte.v && !invalid_paddr && count === pgLevels-1
       val ae = pte.v && invalid_paddr
       resp_ae := ae
+      // when not highest page level, but this is leaf, process it as fragment_superpage
       when (pageGranularityPMPs && count =/= pgLevels-1 && !ae) {
         next_state := s_fragment_superpage
       }.otherwise {
@@ -406,6 +531,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       }
     }
   }
+  // go back to s_req, and retry.
   when (io.mem.s2_nack) {
     assert(state === s_wait2)
     next_state := s_req
@@ -426,7 +552,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   } // leaving gated-clock domain
 
   private def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    if (usingVM) cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
+    if (usingVM) property.cover(cond, s"PTW_$label", "MemorySystem;;" + desc)
 }
 
 /** Mix-ins for constructing tiles that might have a PTW */
