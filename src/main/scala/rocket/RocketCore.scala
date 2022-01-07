@@ -634,14 +634,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val (wb_xcpt, wb_cause) = checkExceptions(List(
     (wb_reg_xcpt,  wb_reg_cause),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.st, UInt(Causes.misaligned_store)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.ld, UInt(Causes.misaligned_load)),
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.pf.st, UInt(Causes.store_page_fault)),
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.pf.ld, UInt(Causes.load_page_fault)),
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.gf.st, UInt(Causes.store_guest_page_fault)),
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.gf.ld, UInt(Causes.load_guest_page_fault)),
     (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.st, UInt(Causes.store_access)),
-    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.ld, UInt(Causes.load_access))
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ae.ld, UInt(Causes.load_access)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.st, UInt(Causes.misaligned_store)),
+    (wb_reg_valid && wb_ctrl.mem && io.dmem.s2_xcpt.ma.ld, UInt(Causes.misaligned_load))
   ))
 
   val wbCoverCauses = List(
@@ -652,6 +652,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   ) ++ (if(usingVM) List(
     (Causes.store_page_fault, "STORE_PAGE_FAULT"),
     (Causes.load_page_fault, "LOAD_PAGE_FAULT")
+  ) else Nil) ++ (if (usingHypervisor) List(
+    (Causes.store_guest_page_fault, "STORE_GUEST_PAGE_FAULT"),
+    (Causes.load_guest_page_fault, "LOAD_GUEST_PAGE_FAULT"),
   ) else Nil)
   coverExceptions(wb_xcpt, wb_cause, "WRITEBACK", wbCoverCauses)
 
@@ -729,7 +732,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     val htval_imem = Mux(htval_valid_imem, io.imem.gpa.bits, 0.U)
     assert(!htval_valid_imem || io.imem.gpa.valid)
 
-    val htval_valid_dmem = wb_xcpt && tval_dmem_addr && io.dmem.s2_xcpt.gf.asUInt.orR && !(io.dmem.s2_xcpt.ma.asUInt.orR || io.dmem.s2_xcpt.pf.asUInt.orR)
+    val htval_valid_dmem = wb_xcpt && tval_dmem_addr && io.dmem.s2_xcpt.gf.asUInt.orR && !io.dmem.s2_xcpt.pf.asUInt.orR
     val htval_dmem = Mux(htval_valid_dmem, io.dmem.s2_gpa, 0.U)
 
     (htval_dmem | htval_imem) >> hypervisorExtraAddrBits
