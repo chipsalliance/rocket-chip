@@ -384,8 +384,6 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_amo_logical, ~paa_array, 0.U) |
     Mux(cmd_amo_arithmetic, ~pal_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
-  val ma_ld_array = Mux(misaligned && cmd_read, ~eff_array & ~(ptw_ae_array | final_ae_array | ptw_gf_array), 0.U)
-  val ma_st_array = Mux(misaligned && cmd_write, ~eff_array & ~(ptw_ae_array | final_ae_array | ptw_gf_array), 0.U)
   val pf_ld_array = Mux(cmd_read, ~(Mux(cmd_readx, x_array, r_array) | (ptw_ae_array | ptw_gf_array)), 0.U)
   val pf_st_array = Mux(cmd_write_perms, ~(w_array | (ptw_ae_array | ptw_gf_array)), 0.U)
   val pf_inst_array = ~(x_array | (ptw_ae_array | ptw_gf_array))
@@ -428,8 +426,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.ae.ld := (ae_ld_array & hits).orR
   io.resp.ae.st := (ae_st_array & hits).orR
   io.resp.ae.inst := (~px_array & hits).orR
-  io.resp.ma.ld := (ma_ld_array & hits).orR
-  io.resp.ma.st := (ma_st_array & hits).orR
+  io.resp.ma.ld := misaligned && cmd_read
+  io.resp.ma.st := misaligned && cmd_write
   io.resp.ma.inst := false // this is up to the pipeline to figure out
   io.resp.cacheable := (c_array & hits).orR
   io.resp.must_alloc := (must_alloc_array & hits).orR
