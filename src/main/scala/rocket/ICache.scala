@@ -117,6 +117,7 @@ class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   val s2_vaddr = UInt(INPUT, vaddrBits) // delayed two cycles w.r.t. req
   val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
   val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
+  val s2_cacheable = Bool(INPUT) // should L2 cache line on a miss?
   val s2_prefetch = Bool(INPUT) // should I$ prefetch next line on a miss?
 
   val resp = Valid(new ICacheResp(outer))
@@ -455,18 +456,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   tl_out.a.bits.user.lift(AMBAProt).foreach { x =>
     // Rocket caches all fetch requests, and it's difficult to differentiate privileged/unprivileged on
     // cached data, so mark as privileged
-    val user_bit_cacheable = true.B
-
-    // enable outer caches for all fetches
-    x.privileged  := user_bit_cacheable
-    x.bufferable  := user_bit_cacheable
-    x.modifiable  := user_bit_cacheable
-    x.readalloc   := user_bit_cacheable
-    x.writealloc  := user_bit_cacheable
-
-    // Following are always tied off
     x.fetch       := true.B
     x.secure      := true.B
+    x.privileged  := true.B
+    x.bufferable  := true.B
+    x.modifiable  := true.B
+    x.readalloc   := io.s2_cacheable
+    x.writealloc  := io.s2_cacheable
   }
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)
