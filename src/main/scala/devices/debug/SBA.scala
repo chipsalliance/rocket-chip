@@ -15,7 +15,7 @@ import freechips.rocketchip.devices.debug._
 object SystemBusAccessState extends scala.Enumeration {
    type SystemBusAccessState = Value
    val Idle, SBReadRequest, SBWriteRequest, SBReadResponse, SBWriteResponse = Value
-} 
+}
 
 object SBErrorCode extends scala.Enumeration {
   type SBErrorCode = Value
@@ -308,9 +308,19 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     // Need an additional check to determine if address is safe for Get/Put
     val rdLegal_addr = edge.manager.supportsGetSafe(io.addrIn, io.sizeIn, Some(TransferSizes(1,cfg.maxSupportedSBAccess/8)))
     val wrLegal_addr = edge.manager.supportsPutFullSafe(io.addrIn, io.sizeIn, Some(TransferSizes(1,cfg.maxSupportedSBAccess/8)))
-    val (_,  gbits) = edge.Get(0.U, io.addrIn, io.sizeIn)
-    val (_, pfbits) = edge.Put(0.U, io.addrIn, io.sizeIn, muxedData)
-
+    // val (_,  gbits) = edge.Get(0.U, io.addrIn, io.sizeIn)
+    // val (_, pfbits) = edge.Put(0.U, io.addrIn, io.sizeIn, muxedData)
+    // Work around because chisel does not support dynamic lshift over 20 bits
+//    val accessTwice = (io.addrIn + io.sizeIn) > ((io.addrIn & ~0x1f.U(128.W)) + 0x2f.U)
+//    val firstHalfLen = Mux(accessTwice, ~io.addrIn(4, 0) + 1.U, io.sizeIn)
+//    val secondHalfLen = Mux(accessTwice, io.addrIn(4, 0) + io.sizeIn, 0.U)
+//    val data0 = vecData(0.U, firstHalfLen)
+//    val data1 = vecData(firstHalfLen + 1.U, io.sizeIn)
+//    muxedData := Mux(counter, secondHalfLen, firstHalfLen)
+    val requestAddr = io.addrIn + counter
+    val mask = Mux(requestAddr(4), (1.U << 0x10.U) << requestAddr(3, 0), 1.U << requestAddr(3, 0))
+    val (_,  gbits) = edge.Get(0.U, requestAddr, 5.U)
+    val (_, pfbits) = edge.Put(0.U, requestAddr & ~0x1f.U(128.W), 5.U, Fill(32, muxedData), mask)
     io.rdLegal := rdLegal_addr
     io.wrLegal := wrLegal_addr
 
@@ -331,9 +341,10 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     val respError = d.bits.denied || d.bits.corrupt
     io.respError := respError
 
-    val wrTxValid = sbState === SBWriteRequest.id.U && requestValid && requestReady
+    val wrTxValid = sbState === SBWriteResponse.id.U && responseValid && responseReady
     val rdTxValid = sbState === SBReadResponse.id.U && responseValid && responseReady
     val txLast    = counter === ((1.U << io.sizeIn) - 1.U)
+//    val txLast    = counter === accessTwice
     counter := Mux((wrTxValid || rdTxValid) && txLast, 0.U,
                Mux((wrTxValid || rdTxValid)          , counter+1.U, counter))
 
@@ -348,16 +359,17 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     }.elsewhen (sbState === SBReadRequest.id.U){
       sbState := Mux(requestValid && requestReady, SBReadResponse.id.U, sbState) 
     }.elsewhen (sbState === SBWriteRequest.id.U){
-      sbState := Mux(wrTxValid && txLast, SBWriteResponse.id.U, sbState)
+      sbState := Mux(requestValid && requestReady, SBWriteResponse.id.U, sbState)
     }.elsewhen (sbState === SBReadResponse.id.U){
-      sbState := Mux(rdTxValid && txLast, Idle.id.U, sbState)
+      sbState := Mux(rdTxValid && txLast, Idle.id.U, Mux(rdTxValid, SBReadRequest.id.U, sbState))
     }.elsewhen (sbState === SBWriteResponse.id.U){
-      sbState := Mux(responseValid && responseReady, Idle.id.U, sbState)
+      sbState := Mux(wrTxValid && txLast, Idle.id.U, Mux(wrTxValid, SBWriteRequest.id.U, sbState))
     }
  
     io.rdDone  := rdTxValid && txLast
-    io.wrDone  := (sbState === SBWriteResponse.id.U) && responseValid && responseReady
-    io.dataOut := d.bits.data
+    io.wrDone  := wrTxValid && txLast
+    // io.dataOut := d.bits.data
+    io.dataOut := (d.bits.data >> ((requestAddr(4, 0) << 3))) & 0xff.U
  
     tl.a.valid := (sbState === SBReadRequest.id.U) || (sbState === SBWriteRequest.id.U)
 
