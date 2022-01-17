@@ -5,8 +5,7 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
-// This needs to stay in sync with the chisel3 and firrtl git submodules
-val chiselVersion = "3.4.3"
+val chiselVersion = "3.5.0"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
@@ -18,7 +17,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.2.0" % "test"),
-  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
