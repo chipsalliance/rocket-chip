@@ -7,7 +7,7 @@ import chisel3.util._
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.jtag._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 
 case class JtagDTMConfig (
@@ -178,8 +178,8 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // so that we don't consider junk in the FIFO to be an error response.
   // The current specification says that any non-zero response is an error.
   nonzeroResp := stickyNonzeroRespReg | (io.dmi.resp.valid & (io.dmi.resp.bits.resp =/= 0.U))
-  cover(!nonzeroResp, "Should see a non-zero response (e.g. when accessing most DM registers when dmactive=0)")
-  cover(!stickyNonzeroRespReg, "Should see a sticky non-zero response (e.g. when accessing most DM registers when dmactive=0)")
+  property.cover(!nonzeroResp, "Should see a non-zero response (e.g. when accessing most DM registers when dmactive=0)")
+  property.cover(!stickyNonzeroRespReg, "Should see a sticky non-zero response (e.g. when accessing most DM registers when dmactive=0)")
 
   busyResp.addr  := 0.U
   busyResp.resp  := ~(0.U(DMIConsts.dmiRespSize.W)) // Generalizing busy to 'all-F'
@@ -231,14 +231,14 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
       dmiAccessChain.io.capture.capture & !busy)
 
   // incorrect operation - not enough time was spent in JTAG Idle state after DMI Write
-  cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Write");
+  property.cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Write");
   // correct operation - enough time was spent in JTAG Idle state after DMI Write
-  cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & !busy, "Enough Idle after DMI Write");
+  property.cover(dmiReqReg.op === DMIConsts.dmi_OP_WRITE & dmiAccessChain.io.capture.capture & !busy, "Enough Idle after DMI Write");
 
   // incorrect operation - not enough time was spent in JTAG Idle state after DMI Read
-  cover(dmiReqReg.op === DMIConsts.dmi_OP_READ & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Read");
+  property.cover(dmiReqReg.op === DMIConsts.dmi_OP_READ & dmiAccessChain.io.capture.capture & busy, "Not enough Idle after DMI Read");
   // correct operation - enough time was spent in JTAG Idle state after DMI Read
-  cover(dmiReqReg.op === DMIConsts.dmi_OP_READ & dmiAccessChain.io.capture.capture & !busy, "Enough Idle after DMI Read");
+  property.cover(dmiReqReg.op === DMIConsts.dmi_OP_READ & dmiAccessChain.io.capture.capture & !busy, "Enough Idle after DMI Read");
 
   io.dmi.req.valid := dmiReqValidReg
 

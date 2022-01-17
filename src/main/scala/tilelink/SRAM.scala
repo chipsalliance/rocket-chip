@@ -222,7 +222,7 @@ class TLRAM(
       CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error_reported")))
 
     val error_cross_covers = new CrossProperty(Seq(mem_active_valid, data_error), Seq(), "Ecc Covers")
-    cover(error_cross_covers)
+    property.cover(error_cross_covers)
 
     // Does the D stage want to perform a write?
     // It's important this reduce to false.B when eccBytes=1 && atomics=false && canCorrect=false
