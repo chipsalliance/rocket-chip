@@ -12,7 +12,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.ICacheLogicalTreeNode
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -362,7 +362,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"FRONTEND_$label", "Rocket;;" + desc)
+    property.cover(cond, s"FRONTEND_$label", "Rocket;;" + desc)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */

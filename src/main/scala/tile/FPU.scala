@@ -13,7 +13,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 case class FPUParams(
   minFLen: Int = 32,
@@ -231,7 +231,6 @@ class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSig
   val in2 = Bits(width = fLen+1)
   val in3 = Bits(width = fLen+1)
 
-  override def cloneType = new FPInput().asInstanceOf[this.type]
 }
 
 case class FType(exp: Int, sig: Int) {
@@ -283,7 +282,6 @@ case class FType(exp: Int, sig: Int) {
       val sign = Bool()
       val exp = UInt(expWidth.W)
       val sig = UInt((ieeeWidth-expWidth-1).W)
-      override def cloneType = new IEEEBundle().asInstanceOf[this.type]
     }
     new IEEEBundle
   }
@@ -452,7 +450,6 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     val store = Bits(width = fLen)
     val toint = Bits(width = xLen)
     val exc = Bits(width = FPConstants.FLAGS_SZ)
-    override def cloneType = new Output().asInstanceOf[this.type]
   }
   val io = new Bundle {
     val in = Valid(new FPInput).flip
@@ -903,7 +900,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     val typeTag = UInt(width = log2Up(floatTypes.size))
     val cp = Bool()
     val pipeid = UInt(width = log2Ceil(pipes.size))
-    override def cloneType: this.type = new WBInfo().asInstanceOf[this.type]
   }
 
   val wen = Reg(init=Bits(0, maxLatency-1))
@@ -1020,5 +1016,5 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val fpuImpl = withClock (gated_clock) { new FPUImpl }
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"FPU_$label", "Core;;" + desc)
+    property.cover(cond, s"FPU_$label", "Core;;" + desc)
 }

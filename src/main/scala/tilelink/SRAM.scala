@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
 import freechips.rocketchip.diplomaticobjectmodel.model.{OMECC, TL_UL}
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
   val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))
@@ -215,14 +215,14 @@ class TLRAM(
     in.d.bits.data    := Mux(d_mux, d_corrected, r_uncorrected)
     in.d.bits.corrupt := Mux(d_mux, d_error, r_error) && out_aad
 
-    val mem_active_valid = Seq(CoverBoolean(in.d.valid, Seq("mem_active")))
+    val mem_active_valid = Seq(property.CoverBoolean(in.d.valid, Seq("mem_active")))
     val data_error = Seq(
-      CoverBoolean(!d_need_fix && !d_error , Seq("no_data_error")),
-      CoverBoolean(d_need_fix && !in.d.bits.corrupt, Seq("data_correctable_error_not_reported")),
-      CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error_reported")))
+      property.CoverBoolean(!d_need_fix && !d_error , Seq("no_data_error")),
+      property.CoverBoolean(d_need_fix && !in.d.bits.corrupt, Seq("data_correctable_error_not_reported")),
+      property.CoverBoolean(d_error && in.d.bits.corrupt, Seq("data_uncorrectable_error_reported")))
 
-    val error_cross_covers = new CrossProperty(Seq(mem_active_valid, data_error), Seq(), "Ecc Covers")
-    cover(error_cross_covers)
+    val error_cross_covers = new property.CrossProperty(Seq(mem_active_valid, data_error), Seq(), "Ecc Covers")
+    property.cover(error_cross_covers)
 
     // Does the D stage want to perform a write?
     // It's important this reduce to false.B when eccBytes=1 && atomics=false && canCorrect=false

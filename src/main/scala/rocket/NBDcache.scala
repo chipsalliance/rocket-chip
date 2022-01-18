@@ -48,7 +48,6 @@ class WritebackReq(params: TLBundleParameters)(implicit p: Parameters) extends L
   val way_en = Bits(width = nWays)
   val voluntary = Bool()
 
-  override def cloneType = new WritebackReq(params)(p).asInstanceOf[this.type]
 }
 
 class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {

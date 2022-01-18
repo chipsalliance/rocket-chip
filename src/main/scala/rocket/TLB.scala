@@ -12,7 +12,7 @@ import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.tile.{CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import chisel3.internal.sourceinfo.SourceInfo
 
@@ -38,7 +38,6 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   val prv = UInt(PRV.SZ.W)
   val v = Bool()
 
-  override def cloneType = new TLBReq(lgMaxSize).asInstanceOf[this.type]
 }
 
 class TLBExceptions(implicit p: Parameters) extends CoreBundle()(p) {
@@ -509,7 +508,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   }
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"${if (instruction) "I" else "D"}TLB_$label", "MemorySystem;;" + desc)
+    property.cover(cond, s"${if (instruction) "I" else "D"}TLB_$label", "MemorySystem;;" + desc)
 
   def replacementEntry(set: Seq[TLBEntry], alt: UInt) = {
     val valids = set.map(_.valid.orR).asUInt

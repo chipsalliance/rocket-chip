@@ -8,7 +8,7 @@ import chisel3.internal.firrtl.KnownWidth
 import chisel3.util.{Cat, Valid}
 
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 /** Base JTAG shifter IO, viewed from input to shift register chain.
   * Can be chained together.
@@ -36,7 +36,6 @@ trait ChainIO extends Bundle {
 class Capture[+T <: Data](gen: T) extends Bundle {
   val bits = Input(gen)  // data to capture, should be always valid
   val capture = Output(Bool())  // will be high in capture state (single cycle), captured on following rising edge
-  override def cloneType = Capture(gen).asInstanceOf[this.type]
 }
 
 object Capture {
@@ -63,7 +62,7 @@ class JtagBypassChain(implicit val p: Parameters) extends Chain {
 
   io.chainOut.data := reg
 
-  cover(io.chainIn.capture, "bypass_chain_capture", "JTAG; bypass_chain_capture; This Bypass Chain captured data")
+  property.cover(io.chainIn.capture, "bypass_chain_capture", "JTAG; bypass_chain_capture; This Bypass Chain captured data")
 
   when (io.chainIn.capture) {
     reg := false.B  // 10.1.1b capture logic 0 on TCK rising
@@ -103,7 +102,7 @@ class CaptureChain[+T <: Data](gen: T)(implicit val p: Parameters) extends Chain
 
   io.chainOut.data := regs(0)
 
-  cover(io.chainIn.capture, "chain_capture", "JTAG; chain_capture; This Chain captured data")
+  property.cover(io.chainIn.capture, "chain_capture", "JTAG; chain_capture; This Chain captured data")
   
   when (io.chainIn.capture) {
     (0 until n) map (x => regs(x) := io.capture.bits.asUInt()(x))
@@ -161,8 +160,8 @@ class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V)(im
 
   val captureBits = io.capture.bits.asUInt()
 
-  cover(io.chainIn.capture, "chain_capture", "JTAG;chain_capture; This Chain captured data")
-  cover(io.chainIn.capture, "chain_update",  "JTAG;chain_update; This Chain updated data")
+  property.cover(io.chainIn.capture, "chain_capture", "JTAG;chain_capture; This Chain captured data")
+  property.cover(io.chainIn.capture, "chain_update",  "JTAG;chain_update; This Chain updated data")
 
   when (io.chainIn.capture) {
     (0 until math.min(n, captureWidth)) map (x => regs(x) := captureBits(x))
