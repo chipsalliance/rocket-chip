@@ -4,8 +4,8 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 
 val defaultVersions = Map(
-  "chisel3" -> "3.4.3",
-  "chisel3-plugin" -> "3.4.3"
+  "chisel3" -> "3.5.0",
+  "chisel3-plugin" -> "3.5.0"
 )
 
 def getVersion(dep: String, org: String = "edu.berkeley.cs", cross: Boolean = false) = {
