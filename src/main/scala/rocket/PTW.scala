@@ -37,6 +37,7 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val fragmented_superpage = Bool()
   val homogeneous = Bool()
   val gpa = Valid(UInt(vaddrBits.W))
+  val gpa_is_pte = Bool()
 }
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
@@ -399,6 +400,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.gpa.valid := r_req.need_gpa
     io.requestor(i).resp.bits.gpa.bits :=
       Cat(Mux(!stage2_final || !r_req.vstage1 || aux_count === (pgLevels - 1), aux_pte.ppn, makeFragmentedSuperpagePPN(aux_pte.ppn)(aux_count)), gpa_pgoff)
+    io.requestor(i).resp.bits.gpa_is_pte := !stage2_final
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).hgatp := io.dpath.hgatp
     io.requestor(i).vsatp := io.dpath.vsatp

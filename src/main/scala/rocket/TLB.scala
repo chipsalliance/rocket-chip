@@ -207,7 +207,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_gpa_valid = Reg(Bool())
   val r_gpa = Reg(UInt(vaddrBits.W))
   val r_gpa_vpn = Reg(UInt(vpnBits.W))
-  val r_gpa_gf = Reg(Bool())
+  val r_gpa_is_pte = Reg(Bool())
 
   val priv = io.req.bits.prv
   val priv_v = usingHypervisor && io.req.bits.v
@@ -304,7 +304,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
     r_gpa_valid := io.ptw.resp.bits.gpa.valid
     r_gpa := io.ptw.resp.bits.gpa.bits
-    r_gpa_gf := io.ptw.resp.bits.gf
+    r_gpa_is_pte := io.ptw.resp.bits.gpa_is_pte
   }
 
   val entries = all_entries.map(_.getData(vpn))
@@ -436,7 +436,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint)
   io.resp.miss := do_refill || vsatp_mode_mismatch || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
-  io.resp.gpa_is_pte := vstage1_en && r_gpa_gf
+  io.resp.gpa_is_pte := vstage1_en && r_gpa_is_pte
   io.resp.gpa := {
     val page = Mux(!vstage1_en, Cat(bad_va, vpn), r_gpa >> pgIdxBits)
     val offset = Mux(io.resp.gpa_is_pte, r_gpa(pgIdxBits-1, 0), io.req.bits.vaddr(pgIdxBits-1, 0))
