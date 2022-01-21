@@ -27,6 +27,7 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae_ptw = Bool()
   val ae_final = Bool()
+  val pf = Bool()
   val gf = Bool()
   val hr = Bool()
   val hw = Bool()
@@ -36,6 +37,7 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val fragmented_superpage = Bool()
   val homogeneous = Bool()
   val gpa = Valid(UInt(vaddrBits.W))
+  val gpa_is_pte = Bool()
 }
 
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
@@ -75,7 +77,8 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
 }
 
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
-  val ppn = UInt(width = 54)
+  val reserved_for_future = UInt(width = 10)
+  val ppn = UInt(width = 44)
   val reserved_for_software = Bits(width = 2)
   val d = Bool()
   val a = Bool()
@@ -86,7 +89,7 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val r = Bool()
   val v = Bool()
 
-  def table(dummy: Int = 0) = v && !r && !w && !x && !d && !a && !u
+  def table(dummy: Int = 0) = v && !r && !w && !x && !d && !a && !u && reserved_for_future === 0
   def leaf(dummy: Int = 0) = v && (r || (x && !w)) && a
   def ur(dummy: Int = 0) = sr() && u
   def uw(dummy: Int = 0) = sw() && u
@@ -143,6 +146,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val count = Reg(UInt(width = log2Ceil(pgLevels)))
   val resp_ae_ptw = Reg(Bool())
   val resp_ae_final = Reg(Bool())
+  val resp_pf = Reg(Bool())
   val resp_gf = Reg(Bool())
   val resp_hr = Reg(Bool())
   val resp_hw = Reg(Bool())
@@ -384,6 +388,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.valid := resp_valid(i)
     io.requestor(i).resp.bits.ae_ptw := resp_ae_ptw
     io.requestor(i).resp.bits.ae_final := resp_ae_final
+    io.requestor(i).resp.bits.pf := resp_pf
     io.requestor(i).resp.bits.gf := resp_gf
     io.requestor(i).resp.bits.hr := resp_hr
     io.requestor(i).resp.bits.hw := resp_hw
@@ -395,6 +400,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.gpa.valid := r_req.need_gpa
     io.requestor(i).resp.bits.gpa.bits :=
       Cat(Mux(!stage2_final || !r_req.vstage1 || aux_count === (pgLevels - 1), aux_pte.ppn, makeFragmentedSuperpagePPN(aux_pte.ppn)(aux_count)), gpa_pgoff)
+    io.requestor(i).resp.bits.gpa_is_pte := !stage2_final
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).hgatp := io.dpath.hgatp
     io.requestor(i).vsatp := io.dpath.vsatp
@@ -427,6 +433,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         aux_pte.ppn := Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp.ppn, arb.io.out.bits.bits.addr)
         resp_ae_ptw := false
         resp_ae_final := false
+        resp_pf := false
         resp_gf := false
         resp_hr := true
         resp_hw := true
@@ -491,7 +498,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Mux(l2_hit && !l2_error, l2_pte,
     Mux(state === s_req && !stage2_pte_cache_hit && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
     Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),
-    Mux(mem_resp_valid, Mux(!traverse && (r_req.vstage1 && stage2), merged_pte, pte),
+    Mux(mem_resp_valid, Mux(!traverse && r_req.vstage1 && stage2, merged_pte, pte),
     Mux(state === s_fragment_superpage && !homogeneous, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn)(count), r_pte),
     Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte)))))))
@@ -511,7 +518,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }.otherwise {
       val gf = stage2 && !stage2_final && !pte.ur()
       val ae = pte.v && invalid_paddr
-      val success = pte.v && !ae && !gf
+      val pf = pte.v && pte.reserved_for_future =/= 0
+      val success = pte.v && !ae && !pf && !gf
 
       when (do_both_stages && !stage2_final && success) {
         when (stage2) {
@@ -535,10 +543,11 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         }
 
         resp_ae_final := ae
-        resp_gf := gf
-        resp_hr := !stage2 || !gf && pte.ur()
-        resp_hw := !stage2 || !gf && pte.uw()
-        resp_hx := !stage2 || !gf && pte.ux()
+        resp_pf := pf && !stage2
+        resp_gf := gf || (pf && stage2)
+        resp_hr := !stage2 || (!pf && !gf && pte.ur())
+        resp_hw := !stage2 || (!pf && !gf && pte.uw())
+        resp_hx := !stage2 || (!pf && !gf && pte.ux())
       }
     }
   }
@@ -559,8 +568,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   for (i <- 0 until pgLevels) {
     val leaf = mem_resp_valid && !traverse && count === i
-    ccover(leaf && pte.v && !invalid_paddr, s"L$i", s"successful page-table access, level $i")
+    ccover(leaf && pte.v && !invalid_paddr && pte.reserved_for_future === 0, s"L$i", s"successful page-table access, level $i")
     ccover(leaf && pte.v && invalid_paddr, s"L${i}_BAD_PPN_MSB", s"PPN too large, level $i")
+    ccover(leaf && pte.v && pte.reserved_for_future =/= 0, s"L${i}_BAD_RSV_MSB", s"reserved MSBs set, level $i")
     ccover(leaf && !mem_resp_data(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
     if (i != pgLevels-1)
       ccover(leaf && !pte.v && mem_resp_data(0), s"L${i}_BAD_PPN_LSB", s"PPN LSBs not zero, level $i")

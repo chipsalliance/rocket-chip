@@ -69,6 +69,7 @@ class TLBEntryData(implicit p: Parameters) extends CoreBundle()(p) {
   val g = Bool()
   val ae_ptw = Bool()
   val ae_final = Bool()
+  val pf = Bool()
   val gf = Bool()
   val sw = Bool()
   val sx = Bool()
@@ -206,7 +207,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_gpa_valid = Reg(Bool())
   val r_gpa = Reg(UInt(vaddrBits.W))
   val r_gpa_vpn = Reg(UInt(vpnBits.W))
-  val r_gpa_gf = Reg(Bool())
+  val r_gpa_is_pte = Reg(Bool())
 
   val priv = io.req.bits.prv
   val priv_v = usingHypervisor && io.req.bits.v
@@ -266,6 +267,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.g := pte.g && pte.v
     newEntry.ae_ptw := io.ptw.resp.bits.ae_ptw
     newEntry.ae_final := io.ptw.resp.bits.ae_final
+    newEntry.pf := io.ptw.resp.bits.pf
     newEntry.gf := io.ptw.resp.bits.gf
     newEntry.hr := io.ptw.resp.bits.hr
     newEntry.hw := io.ptw.resp.bits.hw
@@ -302,7 +304,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
     r_gpa_valid := io.ptw.resp.bits.gpa.valid
     r_gpa := io.ptw.resp.bits.gpa.bits
-    r_gpa_gf := io.ptw.resp.bits.gf
+    r_gpa_is_pte := io.ptw.resp.bits.gpa_is_pte
   }
 
   val entries = all_entries.map(_.getData(vpn))
@@ -312,6 +314,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val nPhysicalEntries = 1 + special_entry.size
   val ptw_ae_array = Cat(false.B, entries.map(_.ae_ptw).asUInt)
   val final_ae_array = Cat(false.B, entries.map(_.ae_final).asUInt)
+  val ptw_pf_array = Cat(false.B, entries.map(_.pf).asUInt)
   val ptw_gf_array = Cat(false.B, entries.map(_.gf).asUInt)
   val sum = Mux(priv_v, io.ptw.gstatus.sum, io.ptw.status.sum)
   val priv_rw_ok = Mux(!priv_s || sum, entries.map(_.u).asUInt, 0.U) | Mux(priv_s, ~entries.map(_.u).asUInt, 0.U)
@@ -383,12 +386,12 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_amo_logical, ~paa_array, 0.U) |
     Mux(cmd_amo_arithmetic, ~pal_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
-  val pf_ld_array = Mux(cmd_read, ~(Mux(cmd_readx, x_array, r_array) | (ptw_ae_array | ptw_gf_array)), 0.U)
-  val pf_st_array = Mux(cmd_write_perms, ~(w_array | (ptw_ae_array | ptw_gf_array)), 0.U)
-  val pf_inst_array = ~(x_array | (ptw_ae_array | ptw_gf_array))
-  val gf_ld_array = Mux(priv_v && cmd_read, ~(Mux(cmd_readx, hx_array, hr_array) | ptw_ae_array), 0.U)
-  val gf_st_array = Mux(priv_v && cmd_write_perms, ~(hw_array | ptw_ae_array), 0.U)
-  val gf_inst_array = Mux(priv_v, ~(hx_array | ptw_ae_array), 0.U)
+  val pf_ld_array = Mux(cmd_read, (~Mux(cmd_readx, x_array, r_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
+  val pf_st_array = Mux(cmd_write_perms, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
+  val pf_inst_array = ((~x_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array
+  val gf_ld_array = Mux(priv_v && cmd_read, ~Mux(cmd_readx, hx_array, hr_array) & ~ptw_ae_array, 0.U)
+  val gf_st_array = Mux(priv_v && cmd_write_perms, ~hw_array & ~ptw_ae_array, 0.U)
+  val gf_inst_array = Mux(priv_v, ~hx_array & ~ptw_ae_array, 0.U)
 
   val gpa_hits = {
     val need_gpa_mask = if (instruction) gf_inst_array else gf_ld_array | gf_st_array
@@ -433,7 +436,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint)
   io.resp.miss := do_refill || vsatp_mode_mismatch || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
-  io.resp.gpa_is_pte := vstage1_en && r_gpa_gf
+  io.resp.gpa_is_pte := vstage1_en && r_gpa_is_pte
   io.resp.gpa := {
     val page = Mux(!vstage1_en, Cat(bad_va, vpn), r_gpa >> pgIdxBits)
     val offset = Mux(io.resp.gpa_is_pte, r_gpa(pgIdxBits-1, 0), io.req.bits.vaddr(pgIdxBits-1, 0))
