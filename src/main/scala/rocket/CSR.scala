@@ -794,7 +794,7 @@ class CSRFile(
   val decoded_addr = {
     val addr = Cat(io.status.v, io.rw.addr)
     val pats = for (((k, _), i) <- read_mapping.zipWithIndex)
-      yield (BitPat(k.U), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
+      yield (BitPat(k.U(12.W)), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
     val decoded = DecodeLogic(addr, Seq.fill(read_mapping.size)(X), pats)
     val unvirtualized_mapping = for (((k, _), v) <- read_mapping zip decoded) yield k -> v.asBool
 
@@ -832,7 +832,7 @@ class CSRFile(
     val addr = io_dec.inst(31, 20)
 
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => addr === k }.reduce(_||_)
-    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
+    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U(12.W)), (read_mapping -- s).keys.toList.map(_.U(12.W)))
 
     val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: is_hfence_vvma :: is_hfence_gvma :: is_hlsv :: Nil =
       DecodeLogic(io_dec.inst, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
