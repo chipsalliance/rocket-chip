@@ -154,12 +154,12 @@ object CSR
   // commands
   val SZ = 3
   def X = BitPat.dontCare(SZ)
-  def N = UInt(0,SZ)
-  def R = UInt(2,SZ)
-  def I = UInt(4,SZ)
-  def W = UInt(5,SZ)
-  def S = UInt(6,SZ)
-  def C = UInt(7,SZ)
+  def N = 0.U(SZ.W)
+  def R = 2.U(SZ.W)
+  def I = 4.U(SZ.W)
+  def W = 5.U(SZ.W)
+  def S = 6.U(SZ.W)
+  def C = 7.U(SZ.W)
 
   // mask a CSR cmd with a valid bit
   def maskCmd(valid: Bool, cmd: UInt): UInt = {
