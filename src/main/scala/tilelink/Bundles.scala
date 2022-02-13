@@ -15,26 +15,26 @@ abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameter
 object TLMessages
 {
   //                                  A    B    C    D    E
-  def PutFullData    = UInt(0) //     .    .                   => AccessAck
-  def PutPartialData = UInt(1) //     .    .                   => AccessAck
-  def ArithmeticData = UInt(2) //     .    .                   => AccessAckData
-  def LogicalData    = UInt(3) //     .    .                   => AccessAckData
-  def Get            = UInt(4) //     .    .                   => AccessAckData
-  def Hint           = UInt(5) //     .    .                   => HintAck
-  def AcquireBlock   = UInt(6) //     .                        => Grant[Data]
-  def AcquirePerm    = UInt(7) //     .                        => Grant[Data]
-  def Probe          = UInt(6) //          .                   => ProbeAck[Data]
-  def AccessAck      = UInt(0) //               .    .
-  def AccessAckData  = UInt(1) //               .    .
-  def HintAck        = UInt(2) //               .    .
-  def ProbeAck       = UInt(4) //               .
-  def ProbeAckData   = UInt(5) //               .
-  def Release        = UInt(6) //               .              => ReleaseAck
-  def ReleaseData    = UInt(7) //               .              => ReleaseAck
-  def Grant          = UInt(4) //                    .         => GrantAck
-  def GrantData      = UInt(5) //                    .         => GrantAck
-  def ReleaseAck     = UInt(6) //                    .
-  def GrantAck       = UInt(0) //                         .
+  def PutFullData    = 0.U(3.W) //     .    .                   => AccessAck
+  def PutPartialData = 1.U(3.W) //     .    .                   => AccessAck
+  def ArithmeticData = 2.U(3.W) //     .    .                   => AccessAckData
+  def LogicalData    = 3.U(3.W) //     .    .                   => AccessAckData
+  def Get            = 4.U(3.W) //     .    .                   => AccessAckData
+  def Hint           = 5.U(3.W) //     .    .                   => HintAck
+  def AcquireBlock   = 6.U(3.W) //     .                        => Grant[Data]
+  def AcquirePerm    = 7.U(3.W) //     .                        => Grant[Data]
+  def Probe          = 6.U(3.W) //          .                   => ProbeAck[Data]
+  def AccessAck      = 0.U(3.W) //               .    .
+  def AccessAckData  = 1.U(3.W) //               .    .
+  def HintAck        = 2.U(3.W) //               .    .
+  def ProbeAck       = 4.U(3.W) //               .
+  def ProbeAckData   = 5.U(3.W) //               .
+  def Release        = 6.U(3.W) //               .              => ReleaseAck
+  def ReleaseData    = 7.U(3.W) //               .              => ReleaseAck
+  def Grant          = 4.U(3.W) //                    .         => GrantAck
+  def GrantData      = 5.U(3.W) //                    .         => GrantAck
+  def ReleaseAck     = 6.U(3.W) //                    .
+  def GrantAck       = 0.U(3.W) //                         .
 
   def isA(x: UInt) = x <= AcquirePerm
   def isB(x: UInt) = x <= Probe
