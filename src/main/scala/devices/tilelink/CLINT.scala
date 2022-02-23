@@ -71,6 +71,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 
     val nTiles = intnode.out.size
     val timecmp = Seq.fill(nTiles) { Reg(UInt(width = timeWidth)) }
+    /** inter-processor interrupt. */
     val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
 
     val (intnode_out, _) = intnode.out.unzip

@@ -24,6 +24,10 @@ class MStatus extends Bundle {
   val dprv = UInt(width = PRV.SZ) // effective prv for data accesses
   val dv = Bool() // effective v for data accesses
   val prv = UInt(width = PRV.SZ)
+  /** Refer to 8.1
+    *
+    * virtualization mode
+    */
   val v = Bool()
 
   val sd = Bool()
@@ -237,18 +241,23 @@ class CSRDecodeIO(implicit p: Parameters) extends CoreBundle {
   val virtual_system_illegal = Bool(OUTPUT)
 }
 
+/** General CSR interface between Core and CSR.
+  */
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
   val ungated_clock = Clock().asInput
+  /** interrupt from external core. */
   val interrupts = new CoreInterrupts().asInput
+  /** hardwired hartid */
   val hartid = UInt(INPUT, hartIdLen)
+  /** CPU interface. */
   val rw = new Bundle {
     val addr = UInt(INPUT, CSR.ADDRSZ)
     val cmd = Bits(INPUT, CSR.SZ)
     val rdata = Bits(OUTPUT, xLen)
     val wdata = Bits(INPUT, xLen)
   }
-
+  /** TODO */
   val decode = Vec(decodeWidth, new CSRDecodeIO)
 
   val csr_stall = Bool(OUTPUT)
@@ -266,6 +275,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val retire = UInt(INPUT, log2Up(1+retireWidth))
   val cause = UInt(INPUT, xLen)
   val pc = UInt(INPUT, vaddrBitsExtended)
+  /** write to reg_mtval. */
   val tval = UInt(INPUT, vaddrBitsExtended)
   val htval = UInt(INPUT, (maxSVAddrBits + 1) min xLen)
   val gva = Bool(INPUT)
@@ -353,6 +363,13 @@ class VType(implicit p: Parameters) extends CoreBundle {
   }
 }
 
+/**
+  * Interrupt -> get cause -> exu -> mem -> commit -> tvec -> ifu.
+  *
+  * WARL: Write Any Values, Reads Legal Values.
+  * WLRL: Write Legal Values, Reads Legal Values.
+  * WPRI: Reserved Writes Preserve Values, Reads Ignore Values
+  */
 class CSRFile(
   perfEventSets: EventSets = new EventSets(Seq()),
   customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
@@ -456,9 +473,13 @@ class CSRFile(
   val reg_scontext = (coreParams.scontextWidth > 0).option(RegInit(0.U(coreParams.scontextWidth.W)))
 
   val reg_tselect = Reg(UInt(width = log2Up(nBreakpoints)))
+  /** Breakpoint CSR */
   val reg_bp = Reg(Vec(1 << log2Up(nBreakpoints), new BP))
   val reg_pmp = Reg(Vec(nPMPs, new PMPReg))
 
+  /** while mie is the corresponding MXLEN-bit read/write register containing interrupt enable bits.
+    * refer to 3.1.9
+    */
   val reg_mie = Reg(UInt(width = xLen))
   val (reg_mideleg, read_mideleg) = {
     val reg = Reg(UInt(xLen.W))
@@ -470,11 +491,51 @@ class CSRFile(
   }
   val reg_mip = Reg(new MIP)
   val reg_mepc = Reg(UInt(width = vaddrBitsExtended))
+  /** Machine Cause Register
+    * The mcause register is an MXLEN-bit read-write register formatted as shown in Figure 3.22.
+    * When a trap is taken into M-mode, mcause is written with a code indicating the event that caused the trap.
+    * Otherwise, mcause is never written by the implementation, though it may be explicitly written by software.
+    *
+    * refer to 3.1.15
+    *
+    * OpenSBI: The 'mcause' CSR is having exception/interrupt cause
+    */
   val reg_mcause = RegInit(0.U(xLen.W))
+  /** The mtval register is an MXLEN-bit read-write register formatted as shown in Figure 3.23.
+    * When a trap is taken into M-mode, mtval is either set to zero or written with exception-specific information
+    * to assist software in handling the trap.
+    * Otherwise, mtval is never written by the implementation, though it may be explicitly written by software.
+    * The hardware platform will specify which exceptions must set mtval informatively and
+    * which may unconditionally set it to zero.
+    * If the hardware platform specifies that no exceptions set mtval to a nonzero value, then mtval is read-only zero.
+    *
+    * If mtval is written with a nonzero value when a breakpoint, address-misaligned, access-fault,
+    * or page-fault exception occurs on an instruction fetch, load, or store,
+    * then mtval will contain the faulting virtual address.
+    *
+    * TODO: ill instr.
+    *
+    * OpenSBI: The 'mtval' CSR is having additional trap information
+    */
   val reg_mtval = Reg(UInt(width = vaddrBitsExtended))
+  /**
+    * OpenSBI: The 'mtval2' CSR is having additional trap information
+    */
   val reg_mtval2 = Reg(UInt(((maxSVAddrBits + 1) min xLen).W))
+  /** The mscratch register is an MXLEN-bit read/write register dedicated for use by machine mode.
+    * Typically, it is used to hold a pointer to a machine-mode hart-local context space and swapped with
+    * a user register upon entry to an M-mode trap handler.
+    *
+    * OpenSBI: The 'mscratch' CSR is pointing to sbi_scratch of current HART
+    *
+    * refer to 3.1.13
+    */
   val reg_mscratch = Reg(Bits(width = xLen))
   val mtvecWidth = paddrBits min xLen
+  /** The mtvec register is an MXLEN-bit WARL read/write register that holds trap vector configuration
+    * consisting of a vector base address (BASE) and a vector mode (MODE).
+    * refer to 3.1.7
+    */
   val reg_mtvec = mtvecInit match {
     case Some(addr) => Reg(init=UInt(addr, mtvecWidth))
     case None => Reg(UInt(width = mtvecWidth))
@@ -487,6 +548,7 @@ class CSRFile(
   val reg_mncause = RegInit(0.U(xLen.W))
   val reg_mnstatus = Reg(init=reset_mnstatus)
   val reg_rnmie = RegInit(true.B)
+  /** non maskable interrupt enable. */
   val nmie = reg_rnmie
 
   val delegable_counters = ((BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1).U
@@ -554,6 +616,9 @@ class CSRFile(
   val reg_hpmcounter = io.counters.zipWithIndex.map { case (c, i) =>
     WideCounter(CSR.hpmWidth, c.inc, reset = false, inhibit = reg_mcountinhibit(CSR.firstHPM+i)) }
 
+  /** The mip register is an MXLEN-bit read/write register containing information on pending interrupts
+    * refer to 3.1.9
+    */
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
   mip.mtip := io.interrupts.mtip
@@ -602,17 +667,46 @@ class CSRFile(
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
+  /** The misa CSR is a WARL read-write register reporting the ISA supported by the hart.
+    * This register must be readable in any implementation,
+    * but a value of zero can be returned to indicate the misa register has not been implemented,
+    * requiring that CPU capabilities be determined through a separate non-standard mechanism.
+    * refer to 3.1.1
+    */
   val reg_misa = Reg(init=UInt(isaMax))
+  /** The mstatus register is an MXLEN-bit read/write register formatted as shown in Figure 3.6 for RV32
+    * and Figure 3.7 for RV64.
+    * The mstatus register keeps track of and controls the hart’s current operating state.
+    * refer to 3.1.6
+    */
   val read_mstatus = io.status.asUInt()(xLen-1,0)
+  /** The mtvec register is an MXLEN-bit WARL read/write register that holds trap vector configuration,
+    * consisting of a vector base address (BASE) and a vector mode (MODE).
+    */
   val read_mtvec = formTVec(reg_mtvec).padTo(xLen)
   val read_stvec = formTVec(reg_stvec).sextTo(xLen)
 
   val read_mapping = LinkedHashMap[Int,Bits](
+    /** Debug/Trace trigger register select.
+      * TODO: see debug spec.
+      */
     CSRs.tselect -> reg_tselect,
+    /** First Debug/Trace trigger data register.
+      * TODO: see debug spec.
+      */
     CSRs.tdata1 -> reg_bp(reg_tselect).control.asUInt,
+    /** Second Debug/Trace trigger data register.
+      * TODO: see debug spec.
+      */
     CSRs.tdata2 -> reg_bp(reg_tselect).address.sextTo(xLen),
+    /** Third Debug/Trace trigger data register.
+      * TODO: see debug spec.
+      */
     CSRs.tdata3 -> reg_bp(reg_tselect).textra.asUInt,
+    /** MISA: refer to 3.1.1
+      */
     CSRs.misa -> reg_misa,
+    /** MSTATUS: refer to 3.1.6 */
     CSRs.mstatus -> read_mstatus,
     CSRs.mtvec -> read_mtvec,
     CSRs.mip -> read_mip,
@@ -791,13 +885,17 @@ class CSRFile(
   // mimpid, marchid, and mvendorid are 0 unless overridden by customCSRs
   Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
 
+  /** A decoder logic to convert `io.rw.addr` and `io.status.v` to correspond CSR valid signal. */
   val decoded_addr = {
     val addr = Cat(io.status.v, io.rw.addr)
     val pats = for (((k, _), i) <- read_mapping.zipWithIndex)
       yield (BitPat(k.U), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
     val decoded = DecodeLogic(addr, Seq.fill(read_mapping.size)(X), pats)
+    /** CSR address match addr */
     val unvirtualized_mapping = for (((k, _), v) <- read_mapping zip decoded) yield k -> v.asBool
 
+    // if CPU support supervisor/hypervisor mode, generate new CSR address
+    // see Table 2.2
     for ((k, v) <- unvirtualized_mapping) yield k -> {
       val alt = CSR.mode(k) match {
         case PRV.S => unvirtualized_mapping.lift(k + (1 << CSR.modeLSB))
@@ -808,6 +906,7 @@ class CSRFile(
     }
   }
 
+  /** */
   val wdata = readModifyWriteCSR(io.rw.cmd, io.rw.rdata, io.rw.wdata)
 
   val system_insn = io.rw.cmd === CSR.I
@@ -907,6 +1006,7 @@ class CSRFile(
     require(reg_mip.getWidth <= xLen)
     log2Ceil(xLen)
   }
+  /** cause -> TVec */
   val notDebugTVec = {
     val base = Mux(delegate, Mux(delegateVS, read_vstvec, read_stvec), read_mtvec)
     val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
@@ -1098,6 +1198,7 @@ class CSRFile(
     io.value := reg
   }
 
+  // Read CSR: one hot mux all CSR.
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
   // cover access to register
@@ -1143,6 +1244,7 @@ class CSRFile(
     }
   }
 
+  // Write CSR
   val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
   io.csrw_counter := Mux(coreParams.haveBasicCounters && csr_wen && (io.rw.addr.inRange(CSRs.mcycle, CSRs.mcycle + CSR.nCtr) || io.rw.addr.inRange(CSRs.mcycleh, CSRs.mcycleh + CSR.nCtr)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
   when (csr_wen) {
@@ -1525,6 +1627,12 @@ class CSRFile(
     t.tval := io.tval
   }
 
+  /** See 3.1.9 Machine Interrupt Registers (mip and mie) for MIP
+    * See Table 3.6
+    * TODO: read spec.
+    *
+    * @return the interrupt enable index
+    */
   def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {
     val nonstandard = supported_interrupts.getWidth-1 to 12 by -1
     // MEI, MSI, MTI,  SEI, SSI, STI, VSEI, VSSI, VSTI, UEI, USI, UTI

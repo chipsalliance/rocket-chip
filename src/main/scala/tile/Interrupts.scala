@@ -16,12 +16,31 @@ class NMI(val w: Int) extends Bundle {
 }
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
+  /** Refer to privilege spec 1.3.
+    * and Debug Spec.
+    */
   val debug = Bool()
+  /** Refer to privilege spec 3.2.1.
+    * machine time interrupt pending.
+    * Interrupt by RTC.
+    */
   val mtip = Bool()
+  /** Refer to privilege spec 3.1.9.
+    * machine software interrupt pending.
+    * Interrupt by storing to CLINT MMIO.
+    *
+    * "Bits mip.MSIP and mie.MSIE are the interrupt-pending and
+    * interrupt-enable bits for machine-level software interrupts."
+    */
   val msip = Bool()
+  /** Refer to privilege spec 3.1.9.
+    * machine external interrupt pending.
+    * Interrupt by PLIC.
+    */
   val meip = Bool()
   val seip = usingSupervisor.option(Bool())
   val lip = Vec(coreParams.nLocalInterrupts, Bool())
+  /** Refer to privilege spec 3.5 */
   val nmi = usingNMI.option(new NMI(resetVectorLen))
 }
 
