@@ -2,10 +2,8 @@
 
 package freechips.rocketchip.zbk
 
-//import Chisel._
 import chisel3._
 import chisel3.util.BitPat
-//import chisel3.experimental.fromIntToIntParam
 
 object ZBK {
   val opcode = BitPat("b?????????????????????????0?01011")
@@ -45,26 +43,40 @@ object ZBK {
   def FN_XPERM4= 13.U(FN_Len.W)
 }
 
-//class ZBKInterface(xLen: Int) extends Bundle {
-//  val zbk_fn = Bits(INPUT,ZBK.FN_Len)
-//  val dw     = Bool(INPUT)
-//  val valid  = Bool(INPUT)
-//  val rs1    = Bits(INPUT, width=xLen)
-//  val rs2    = Bits(INPUT, width=xLen)
-//  val rd     = Bits(OUTPUT, width=xLen)
-//}
-
 class ZBKInterface(xLen: Int) extends Bundle {
   val zbk_fn = Input(UInt(ZBK.FN_Len.W))
-  val dw     = Input(Bool())
+  val dw     = Input(UInt(SZ_DW.W))
   val valid  = Input(Bool())
   val rs1    = Input(UInt(xLen.W))
   val rs2    = Input(UInt(xLen.W))
   val rd     = Output(UInt(xLen.W))
 }
 
-class ZBKImp(xLen:Int) extends BlackBox {
+class ZBKImp(xLen: Int) extends Module {
   val io = IO(new ZBKInterface(xLen))
+
+  // rotate
+  val (shamt, shin_r) =
+    if (xLen == 32) (io.rs2(4,0), io.rs1)
+    else {
+      require(xLen == 64)
+      val shin_hi = Mux(io.dw === DW_64, io.rs1(63,32), io.rs1(31,0))
+      val shamt = Cat(io.rs2(5) & (io.dw === DW_64), io.rs2(4,0))
+      (shamt, Cat(shin_hi, io.rs1(31,0)))
+    }
+  val shin = Mux(io.fn === ZKB.FN_ROR  || io.fn === ZKB.FN_RORI, shin_r, Reverse(shin_r))
+  val shout_r = shin.rotateRight(shamt)(xLen-1,0)
+  val shout_l = Reverse(shout_r)
+  val shout_raw = Mux(io.fn === FN_ROR || io.fn === FN_ROR, shout_r, UInt(0)) |
+                  Mux(io.fn === FN_SL,                      shout_l, UInt(0))
+  val shout =
+    if (xLen == 32) shout_raw
+    else {
+      require(xLen == 64)
+      def sext(in: UInt(32.W)) = {
+        val in_hi_32 = Fill(32, in(31))
+        Cat(in_hi_32, in)
+      }
+      Mux(io.dw == DW_64, shout_raw, sext(shout_raw(31,0)))
+    }
 }
-
-
