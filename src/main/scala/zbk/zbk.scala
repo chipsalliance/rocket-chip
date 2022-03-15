@@ -96,4 +96,8 @@ class ZBKImp(xLen: Int) extends Module {
         Cat(Seq(0.U((xLen/2).W), io.rs2(xLen/4-1,0), io.rs1(xLen/4-1,0))))
     }
   val packh = Cat(0.U((xLen-16).W), Seq(io.rs2(7,0), io.rs1(7,0))
+
+  // rev
+  val brev8 = VecInit(io.rs1.asBools.grouped(8).map(Reverse(VecInit(_).asUInt))).asUInt
+  val rev8 = VecInit(io.rs1.asBools.grouped(8).map(VecInit(_).asUInt).reverse).asUInt
 }
