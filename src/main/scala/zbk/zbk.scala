@@ -85,4 +85,15 @@ class ZBKImp(xLen: Int) extends Module {
   val andn = io.rs1 & rs2n
   val orn = io.rs1 | rs2n
   val xnor = io.rs1 ^ rs2n
+
+  // pack
+  val pack =
+    if (xLen == 32) Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0))
+    else {
+      require(xLen == 64)
+      Mux(io.dw == DW_64,
+        Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0)),
+        Cat(Seq(0.U((xLen/2).W), io.rs2(xLen/4-1,0), io.rs1(xLen/4-1,0))))
+    }
+  val packh = Cat(0.U((xLen-16).W), Seq(io.rs2(7,0), io.rs1(7,0))
 }
