@@ -79,4 +79,10 @@ class ZBKImp(xLen: Int) extends Module {
       }
       Mux(io.dw == DW_64, shout_raw, sext(shout_raw(31,0)))
     }
+
+  // bool
+  val rs2n = ~io.rs2
+  val andn = io.rs1 & rs2n
+  val orn = io.rs1 | rs2n
+  val xnor = io.rs1 ^ rs2n
 }
