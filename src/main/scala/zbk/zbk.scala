@@ -100,4 +100,17 @@ class ZBKImp(xLen: Int) extends Module {
   // rev
   val brev8 = VecInit(io.rs1.asBools.grouped(8).map(Reverse(VecInit(_).asUInt))).asUInt
   val rev8 = VecInit(io.rs1.asBools.grouped(8).map(VecInit(_).asUInt).reverse).asUInt
+
+  // zip
+  val unzip = if (xLen == 32) {
+    val bits = io.rs1.asBools.zipWithIndex
+    val lo = VecInit(bits filter { case (i, b) => i % 2 == 0 } map { case (i, b) => b }).asUInt
+    val hi = VecInit(bits filter { case (i, b) => i % 2 != 0 } map { case (i, b) => b }).asUInt
+    Cat(hi, lo)
+  } else 0.U
+  val unzip = if (xLen == 32) {
+    val lo = io.rs1(15,0).asBools
+    val hi = io.rs1(31,16).asBools
+    VecInit(lo.zip(hi).map { case (l, h) => VecInit(Seq(l, h)).asUInt }).asUInt
+  } else 0.U
 }
