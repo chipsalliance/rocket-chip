@@ -127,4 +127,12 @@ class ZBKImp(xLen: Int) extends Module {
   val xperm4 = VecInit(io.rs2.asBools.grouped(4).map(
     xperm4_rs1(VecInit(_).asUInt) // FIXME overflow should return 0!
   )).asUInt
+
+  // clmul
+  val clmul_rs1 = Mux(io.fn == FN_CLMUL, io.rs1, Reverse(io.rs1))
+  val clmul_rs2 = Mux(io.fn == FN_CLMUL, io.rs2, Reverse(io.rs2))
+  val clmul_raw = clmul_rs2.asBools.zipWithIndex.map({
+    case (i, b) => Mux(b, clmul_rs1 << i, 0.U)
+  }).reduce(_ ^ _)(xLen-1,0)
+  val clmul = Mux(io.fn == FN_CLMUL, clmul, Reverse(clmul)) // including clmulh
 }
