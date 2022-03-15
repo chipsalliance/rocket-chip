@@ -135,4 +135,14 @@ class ZBKImp(xLen: Int) extends Module {
     case (i, b) => Mux(b, clmul_rs1 << i, 0.U)
   }).reduce(_ ^ _)(xLen-1,0)
   val clmul = Mux(io.fn == FN_CLMUL, clmul, Reverse(clmul)) // including clmulh
+
+  // according to FN_xxx above
+  io.rd := VecInit(Seq(
+    shout, shout, shout,
+    andn, orn, xnor,
+    pack, packh,
+    brev8, rev8,
+    zip, unzip,
+    clmul, clmul,
+    xperm8, xperm4))(io.fn)
 }
