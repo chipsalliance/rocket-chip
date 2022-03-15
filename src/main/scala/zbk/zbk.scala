@@ -81,7 +81,7 @@ class ZBKImp(xLen: Int) extends Module {
         val in_hi_32 = Fill(32, in(31))
         Cat(in_hi_32, in)
       }
-      Mux(io.dw == DW_64, shout_raw, sext(shout_raw(31,0)))
+      Mux(io.dw === DW_64, shout_raw, sext(shout_raw(31,0)))
     }
 
   // bool
@@ -95,7 +95,7 @@ class ZBKImp(xLen: Int) extends Module {
     if (xLen == 32) Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0))
     else {
       require(xLen == 64)
-      Mux(io.dw == DW_64,
+      Mux(io.dw === DW_64,
         Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0)),
         Cat(Seq(0.U((xLen/2).W), io.rs2(xLen/4-1,0), io.rs1(xLen/4-1,0))))
     }
@@ -129,12 +129,12 @@ class ZBKImp(xLen: Int) extends Module {
   )).asUInt
 
   // clmul
-  val clmul_rs1 = Mux(io.fn == FN_CLMUL, io.rs1, Reverse(io.rs1))
-  val clmul_rs2 = Mux(io.fn == FN_CLMUL, io.rs2, Reverse(io.rs2))
+  val clmul_rs1 = Mux(io.fn === FN_CLMUL, io.rs1, Reverse(io.rs1))
+  val clmul_rs2 = Mux(io.fn === FN_CLMUL, io.rs2, Reverse(io.rs2))
   val clmul_raw = clmul_rs2.asBools.zipWithIndex.map({
     case (i, b) => Mux(b, clmul_rs1 << i, 0.U)
   }).reduce(_ ^ _)(xLen-1,0)
-  val clmul = Mux(io.fn == FN_CLMUL, clmul, Reverse(clmul)) // including clmulh
+  val clmul = Mux(io.fn === FN_CLMUL, clmul_raw, Cat(0.U(1.W), Reverse(clmul_raw)(xLen-1,1))) // including clmulh
 
   // according to FN_xxx above
   io.rd := VecInit(Seq(
