@@ -113,4 +113,12 @@ class ZBKImp(xLen: Int) extends Module {
     val hi = io.rs1(31,16).asBools
     VecInit(lo.zip(hi).map { case (l, h) => VecInit(Seq(l, h)).asUInt }).asUInt
   } else 0.U
+
+  // xperm
+  val xperm8 = VecInit(io.rs2.asBools.grouped(8).map(
+    (io.rs1 >> Cat(VecInit(_).asUInt, 0.U(3.W)))(7,0)
+  )).asUInt
+  val xperm4 = VecInit(io.rs2.asBools.grouped(4).map(
+    (io.rs1 >> Cat(VecInit(_).asUInt, 0.U(2.W)))(3,0)
+  )).asUInt
 }
