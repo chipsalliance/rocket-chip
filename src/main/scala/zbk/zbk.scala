@@ -115,10 +115,12 @@ class ZBKImp(xLen: Int) extends Module {
   } else 0.U
 
   // xperm
+  val xperm8_rs1 = VecInit(io.rs1.asBools.grouped(8).map(VecInit(_).asUInt))
   val xperm8 = VecInit(io.rs2.asBools.grouped(8).map(
-    (io.rs1 >> Cat(VecInit(_).asUInt, 0.U(3.W)))(7,0)
+    xperm8_rs1(VecInit(_).asUInt) // FIXME overflow should return 0!
   )).asUInt
+  val xperm4_rs1 = VecInit(io.rs1.asBools.grouped(4).map(VecInit(_).asUInt))
   val xperm4 = VecInit(io.rs2.asBools.grouped(4).map(
-    (io.rs1 >> Cat(VecInit(_).asUInt, 0.U(2.W)))(3,0)
+    xperm4_rs1(VecInit(_).asUInt) // FIXME overflow should return 0!
   )).asUInt
 }
