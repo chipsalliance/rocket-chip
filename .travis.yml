@@ -76,27 +76,35 @@ jobs:
         - export CXX=g++-4.8 CC=gcc-4.8
     - &test
       stage: Test
+      name: "UnittestSuite"
       script:
         - ./regression/run-test-bucket 1
     - <<: *test
+      name: "JtagDtmSuite"
       script:
         - ./regression/run-test-bucket 2
     - <<: *test
+      name: "JtagDtmSuite w/ SBA"
       script:
         - ./regression/run-test-bucket 3
     - <<: *test
+      name: "RocketSuiteB"
       script:
         - ./regression/run-test-bucket 4
     - <<: *test
+      name: "RocketSuiteA"
       script:
         - ./regression/run-test-bucket 5
     - <<: *test
+      name: "RocketSuiteC"
       script:
         - ./regression/run-test-bucket 6
     - <<: *test
+      name: "Miscellaneous"
       script:
         - ./regression/run-test-bucket 7
     - <<: *test
+      name: "Wake Compilation"
       name: check wake compilation
       script:
         - ci-tests/wake_scala_compilation
