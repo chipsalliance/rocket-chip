@@ -347,4 +347,55 @@ class ZKNImp(xLen:Int) extends Module {
         Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
       })
   }
+
+  // sha
+  def sext(in: UInt): UInt = if (xLen == 32) in
+    else {
+      require(xLen == 64)
+      val in_hi_32 = Fill(32, in(31))
+      Cat(in_hi_32, in)
+    }
+  val inb = io.rs1(31,0)
+  val sha256sig0 = sext(inb.rotateRight(7)  ^ inb.rotateRight(18) ^ (inb >>  3))
+  val sha256sig1 = sext(inb.rotateRight(17) ^ inb.rotateRight(19) ^ (inb >> 10))
+  val sha256sum0 = sext(inb.rotateRight(2)  ^ inb.rotateRight(13) ^ inb.rotateRight(22))
+  val sha256sum1 = sext(inb.rotateRight(6)  ^ inb.rotateRight(11) ^ inb.rotateRight(25))
+
+  val sha512sig0 = if (xLen == 32) {
+    val sha512sig0_rs1  = (io.rs1 >> 1 )  ^ (io.rs1 >> 7) ^ (io.rs1 >>  8)
+    val sha512sig0_rs2h = (io.rs2 << 31)  ^                 (io.rs1 << 24)
+    val sha512sig0_rs2l = sha512sig0_rs2h ^ (io.rs2 << 25)
+    sha512sig0_rs1 ^ Mux(io.lh, sha512sig0_rs2h, sha512sig0_rs2l)
+  } else {
+    require(xLen == 64)
+    io.rs1.rotateRight(1) ^ io.rs1.rotateRight(8) ^ io.rs1 >> 7
+  }
+
+  val sha512sig1 = if (xLen == 32) {
+    val sha512sig1_rs1  = (io.rs1 >> 3 )  ^ (io.rs1 >> 6) ^ (io.rs1 >> 19)
+    val sha512sig1_rs2h = (io.rs2 << 29)  ^                 (io.rs1 << 13)
+    val sha512sig1_rs2l = sha512sig1_rs2h ^ (io.rs2 << 16)
+    sha512sig1_rs1 ^ Mux(io.lh, sha512sig1_rs2h, sha512sig1_rs2l)
+  } else {
+    require(xLen == 64)
+    io.rs1.rotateRight(19) ^ io.rs1.rotateRight(61) ^ io.rs1 >> 6
+  }
+
+  val sha512sum0 = if (xLen == 32) {
+    val sha512sum0_rs1  = (io.rs1 << 25) ^ (io.rs1 << 30) ^ (io.rs1 >> 28)
+    val sha512sum0_rs2  = (io.rs2 >>  7) ^ (io.rs2 >>  2) ^ (io.rs2 <<  4)
+    sha512sum0_rs1 ^ sha512sum0_rs2
+  } else {
+    require(xLen == 64)
+    io.rs1.rotateRight(28) ^ io.rs1.rotateRight(34) ^ io.rs1.rotateRight(39)
+  }
+
+  val sha512sum1 = if (xLen == 32) {
+    val sha512sum1_rs1  = (io.rs1 << 23) ^ (io.rs1 >> 14) ^ (io.rs1 >> 18)
+    val sha512sum1_rs2  = (io.rs2 >>  9) ^ (io.rs2 << 18) ^ (io.rs2 << 14)
+    sha512sum1_rs1 ^ sha512sum1_rs2
+  } else {
+    require(xLen == 64)
+    io.rs1.rotateRight(14) ^ io.rs1.rotateRight(18) ^ io.rs1.rotateRight(41)
+  }
 }
