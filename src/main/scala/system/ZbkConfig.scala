@@ -22,6 +22,7 @@ class RocketWithZbkConf32 extends Config(
 class RocketWithZbkConf64 extends Config(
   	new WithZBK ++
 		new WithNBigCores(1) ++
+		new WithCoherentBusTopology ++
 		new BaseConfig)
 
 
