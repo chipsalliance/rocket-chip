@@ -154,6 +154,13 @@ object AES {
     0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61,
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
   )
+
+  val rcon: Seq[Int] = Seq(
+    0x01, 0x02, 0x04, 0x08,
+    0x10, 0x20, 0x40, 0x80,
+    0x1b, 0x36, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00
+  )
 }
 
 class SBox(table: Seq[Int]) extends Module {
@@ -315,5 +322,26 @@ class ZKNImp(xLen:Int) extends Module {
       // note the case io.zkn_fn === ZKN.FN_AES_IM! it is also dec
       Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
     })
+  }
+
+  // aes ks
+  val ks1 = if (xLen == 32) 0.U else {
+    // TODO: how to handle illegal
+    val tmp1 = io.rs1(63,32)
+    val rc = VecInit(AES.rcon.map(_.U(8.W)).toSeq)(io.rcon)
+    val tmp2 = Mux(io.rcon === 0xA.U, tmp1, tmp1.rotateRight(8))
+    val tmp3 = VecInit(asBytes(tmp2).map(x => {
+      // TODO: reuse 8 sbox in aes64enc
+      val enc = Module(new SBox(AES.enc))
+      enc.io.in := x
+      enc.io.out
+    }).toSeq).asUInt
+    val tmp4 = tmp3 ^ rc
+    Cat(tmp4, tmp4)
+  }
+  val ks2 = if (xLen == 32) 0.U else {
+    val w0 = io.rs1(63,32) ^ io.rs2(31,0)
+    val w1 = w0 ^ io.rs2(63,32)
+    Cat(w1, w0)
   }
 }
