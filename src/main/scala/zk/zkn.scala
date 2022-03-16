@@ -184,7 +184,10 @@ class AESSBox extends Module {
   val dec = Module(new SBox(AES.dec))
   enc.io.in := io.in
   dec.io.in := io.in
-  io.out := Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_ESM, enc.io.out, dec.io.out)
+  io.out := Mux(io.zkn_fn === ZKN.FN_AES_ES ||
+    io.zkn_fn === ZKN.FN_AES_ESM ||
+    io.zkn_fn === ZKN.FN_AES_KS1,
+    enc.io.out, dec.io.out)
 }
 
 class GFMul(y: Int) extends Module {
@@ -279,7 +282,7 @@ class ZKNImp(xLen:Int) extends Module {
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
 
-  // aes enc/dec
+  // aes
   val aes = if (xLen == 32) {
     val si = asBytes(io.rs2)(bs)
     val so = {
@@ -298,6 +301,7 @@ class ZKNImp(xLen:Int) extends Module {
     io.rs1 ^ barrel.leftRotate(asBytes(mixed_so), bs)
   } else {
     require(xLen == 64)
+    // var name from rvk spec enc/dec
     val sr = {
       val sr_enc = Module(new ShiftRows(true))
       val sr_dec = Module(new ShiftRows(false))
@@ -307,41 +311,40 @@ class ZKNImp(xLen:Int) extends Module {
       sr_dec.io.in2 := io.rs2
       Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_ESM, sr_enc.io.out, sr_dec.io.out)
     }
+    // TODO: for ks: how to handle illegal rcon
+    // var name from rvk spec ks1
+    val tmp1 = io.rs1(63,32)
+    val tmp2 = Mux(io.rcon === 0xA.U, tmp1, tmp1.rotateRight(8))
+    // reuse 8 Sbox here
+    val si = Mux(io.zkn_fn === FN_AES_KS1, Cat(0.U(32.W), tmp2), sr)
     val so = VecInit(asBytes(sr).map(x => {
       val m = Module(new AESSBox)
       m.io.in := x
       m.io.zkn_fn := io.zkn_fn
       m.io.out
-    }).toSeq).toUInt
-    Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn == ZKN.FN_AES_DS, so, {
-      val mc_in = Mux(io.zkn_fn === ZKN.FN_AES_IM, io.rs1, so)
-      val mc_enc = Module(new MixColumn64(true))
-      val mc_dec = Module(new MixColumn64(false))
-      mc_enc.io.in := mc_in
-      mc_dec.io.in := mc_in
-      // note the case io.zkn_fn === ZKN.FN_AES_IM! it is also dec
-      Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
-    })
-  }
-
-  // aes ks
-  val ks1 = if (xLen == 32) 0.U else {
-    // TODO: how to handle illegal
-    val tmp1 = io.rs1(63,32)
-    val rc = VecInit(AES.rcon.map(_.U(8.W)).toSeq)(io.rcon)
-    val tmp2 = Mux(io.rcon === 0xA.U, tmp1, tmp1.rotateRight(8))
-    val tmp3 = VecInit(asBytes(tmp2).map(x => {
-      // TODO: reuse 8 sbox in aes64enc
-      val enc = Module(new SBox(AES.enc))
-      enc.io.in := x
-      enc.io.out
     }).toSeq).asUInt
-    val tmp4 = tmp3 ^ rc
-    Cat(tmp4, tmp4)
-  }
-  val ks2 = if (xLen == 32) 0.U else {
-    val w0 = io.rs1(63,32) ^ io.rs2(31,0)
+    // var name from rvk spec ks1
+    val rc = VecInit(AES.rcon.map(_.U(8.W)).toSeq)(io.rcon)
+    val tmp4 = so(31,0) ^ rc
+    val ks1 = Cat(tmp4, tmp4)
+    // var name from rvk spec ks2
+    val w0 = tmp1 ^ io.rs2(31,0)
     val w1 = w0 ^ io.rs2(63,32)
-    Cat(w1, w0)
+    val ks2 = Cat(w1, w0)
+    // TODO: rewrite into Mux1H
+    Mux(io.zkn_fn === ZKN.FN_AES_ES ||
+      io.zkn_fn == ZKN.FN_AES_DS ||
+      io.zkn_fn == ZKN.FN_AES_KS1 ||
+      io.zkn_fn == ZKN.FN_AES_KS2,
+        Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_DS, so,
+          Mux(io.zkn_fn === ZKN.FN_AES_KS1, ks1, ks2)), {
+        val mc_in = Mux(io.zkn_fn === ZKN.FN_AES_IM, io.rs1, so)
+        val mc_enc = Module(new MixColumn64(true))
+        val mc_dec = Module(new MixColumn64(false))
+        mc_enc.io.in := mc_in
+        mc_dec.io.in := mc_in
+        // note the case io.zkn_fn === ZKN.FN_AES_IM! it is also dec
+        Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
+      })
   }
 }
