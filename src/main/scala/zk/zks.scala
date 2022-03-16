@@ -87,4 +87,9 @@ class ZKSImp(xLen:Int) extends Module {
   val sm3 = sext(Mux(io.zkn_fn == ZKS.FN_SM3P0,
     r1 ^ r1.rotateLeft(9) ^ r1.rotateLeft(17),
     r1 ^ r1.rotateLeft(15) ^ r1.rotateLeft(23)))
+
+  // according to FN_xxx above
+  io.rd := VecInit(Seq(
+    sm4, sm4
+    sm3, sm3))(io.zks_fn)
 }

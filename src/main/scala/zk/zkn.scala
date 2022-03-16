@@ -398,4 +398,12 @@ class ZKNImp(xLen:Int) extends Module {
     require(xLen == 64)
     io.rs1.rotateRight(14) ^ io.rs1.rotateRight(18) ^ io.rs1.rotateRight(41)
   }
+
+  // according to FN_xxx above
+  io.rd := VecInit(Seq(
+    aes, aes, aes, aes, aes, aes, aes,
+    sha256sig0, sha256sig1,
+    sha256sum0, sha256sum1,
+    sha512sig0, sha512sig1,
+    sha512sum0, sha512sum1))(io.zkn_fn)
 }
