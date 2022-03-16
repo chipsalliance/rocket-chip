@@ -101,8 +101,10 @@ class ZBKImp(xLen: Int) extends Module {
   val packh = Cat(0.U((xLen-16).W), io.rs2(7,0), io.rs1(7,0))
 
   // rev
-  val brev8 = VecInit(io.rs1.asBools.grouped(8).map(x => Reverse(VecInit(x).asUInt)).toSeq).asUInt
-  val rev8 = VecInit(io.rs1.asBools.grouped(8).map(VecInit(_).asUInt).toSeq.reverse).asUInt
+  def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
+  val rs1_bytes = asBytes(io.rs1)
+  val brev8 = VecInit(rs1_bytes.map(Reverse(_)).toSeq).asUInt
+  val rev8 = VecInit(rs1_bytes.reverse.toSeq).asUInt
 
   // zip
   val unzip = if (xLen == 32) {
@@ -118,14 +120,13 @@ class ZBKImp(xLen: Int) extends Module {
   } else 0.U
 
   // xperm
-  val xperm8_rs1 = VecInit(io.rs1.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
-  val xperm8 = VecInit(io.rs2.asBools.grouped(8).map(
-    x => xperm8_rs1(VecInit(x).asUInt) // FIXME overflow should return 0!
-  ).toSeq).asUInt
-  val xperm4_rs1 = VecInit(io.rs1.asBools.grouped(4).map(VecInit(_).asUInt).toSeq)
-  val xperm4 = VecInit(io.rs2.asBools.grouped(4).map(
-    x => xperm4_rs1(VecInit(x).asUInt) // FIXME overflow should return 0!
-  ).toSeq).asUInt
+  def asNibbles(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(4).map(VecInit(_).asUInt).toSeq)
+  // rs1_bytes defined above
+  val rs2_bytes = asBytes(io.rs1)
+  val rs1_nibbles = asNibbles(io.rs1)
+  val rs2_nibbles = asNibbles(io.rs1)
+  val xperm8 = VecInit(rs2_bytes.map(rs1_bytes(_)).toSeq).asUInt // FIXME overflow should return 0!
+  val xperm4 = VecInit(rs2_nibbles.map(rs1_nibbles(_)).toSeq).asUInt // FIXME overflow should return 0!
 
   // clmul
   val clmul_rs1 = Mux(io.zbk_fn === ZBK.FN_CLMUL, io.rs1, Reverse(io.rs1))
