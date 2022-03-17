@@ -16,6 +16,6 @@ addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.6.1")
 
 addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.2.5" )
 
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.21")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.34")
 
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.15.0")
