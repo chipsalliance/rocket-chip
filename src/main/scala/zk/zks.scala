@@ -3,7 +3,7 @@
 package freechips.rocketchip.zk
 
 import chisel3._
-import chisel3.util.{BitPat, HasBlackBoxInline}
+import chisel3.util._
 
 object ZKS {
   val SM4ED       = BitPat("b??11000??????????000?????0110011")
@@ -68,28 +68,28 @@ class ZKSImp(xLen:Int) extends Module {
 
   // sm4
   // dynamic selection should be merged into aes rv32 logic!
-  val si = asBytes(io.rs2)(bs)
+  val si = asBytes(io.rs2)(io.bs)
   val so = {
     val m = Module(new SBox(SM4.sbox))
     m.io.in := si
     m.io.out
   }
   val x = Cat(0.U(24.W), so)
-  val y = Mux(io.zks_fn == ZKS.FN_SM4ED,
+  val y = Mux(io.zks_fn === ZKS.FN_SM4ED,
     x ^ (x << 8) ^ (x << 2) ^ (x << 18) ^ ((x & 0x3F.U) << 26) ^ ((x & 0xC0.U) << 10),
-    x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 1) << 23) ^ ((x & 0xF8.U) << 13))
+    x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 0x1.U) << 23) ^ ((x & 0xF8.U) << 13))
   // dynamic rotate should be merged into aes rv32 logic!
-  val z = barrel.leftRotate(asBytes(y), bs)
+  val z = barrel.leftRotate(asBytes(y), io.bs).asUInt
   val sm4 = sext(z ^ io.rs1(31,0))
 
   // sm3
   val r1 = io.rs1(31,0)
-  val sm3 = sext(Mux(io.zkn_fn == ZKS.FN_SM3P0,
+  val sm3 = sext(Mux(io.zks_fn === ZKS.FN_SM3P0,
     r1 ^ r1.rotateLeft(9) ^ r1.rotateLeft(17),
     r1 ^ r1.rotateLeft(15) ^ r1.rotateLeft(23)))
 
   // according to FN_xxx above
   io.rd := VecInit(Seq(
-    sm4, sm4
+    sm4, sm4,
     sm3, sm3))(io.zks_fn)
 }

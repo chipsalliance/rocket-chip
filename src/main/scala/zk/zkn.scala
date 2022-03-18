@@ -3,9 +3,17 @@
 package freechips.rocketchip.zk
 
 import chisel3._
-import chisel3.util.{BitPat, HasBlackBoxInline}
+import chisel3.util._
 
 // utils
+
+trait ShiftType
+
+object LeftShift extends ShiftType
+object RightShift extends ShiftType
+object LeftRotate extends ShiftType
+object RightRotate extends ShiftType
+
 object barrel {
 
   /** A Barrel Shifter implementation for Vec type.
@@ -193,7 +201,7 @@ class AESSBox extends Module {
 class GFMul(y: Int) extends Module {
   val io = IO(new Bundle {
     val in = Input(UInt(8.W))
-    val out = Input(UInt(8.W))
+    val out = Output(UInt(8.W))
   })
 
   // x*f(x) = 2*in in GF
@@ -208,7 +216,7 @@ class GFMul(y: Int) extends Module {
     (if ((y & 0x1) != 0) Seq(   (io.in)) else Nil) ++
     (if ((y & 0x2) != 0) Seq( xt(io.in)) else Nil) ++
     (if ((y & 0x4) != 0) Seq(xt2(io.in)) else Nil) ++
-    (if ((y & 0x8) != 0) Seq(xt3(io.in)) else Nil) ++
+    (if ((y & 0x8) != 0) Seq(xt3(io.in)) else Nil)
   ).reduce(_ ^ _)
 }
 
@@ -216,7 +224,7 @@ class ShiftRows(enc: Boolean) extends Module {
   val io = IO(new Bundle {
     val in1 = Input(UInt(64.W))
     val in2 = Input(UInt(64.W))
-    val out = Input(UInt(64.W))
+    val out = Output(UInt(64.W))
   })
 
   val stride = if (enc) 5 else 13
@@ -226,13 +234,13 @@ class ShiftRows(enc: Boolean) extends Module {
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
   val bytes = asBytes(io.in1) ++ asBytes(io.in2)
 
-  io.out := VecInit(indexes.map(bytes(_)).toSeq).toUInt
+  io.out := VecInit(indexes.map(bytes(_)).toSeq).asUInt
 }
 
 class MixColumn8(enc: Boolean) extends Module {
   val io = IO(new Bundle {
     val in = Input(UInt(8.W))
-    val out = Input(UInt(32.W))
+    val out = Output(UInt(32.W))
   })
 
   def m(x: UInt, y: Int): UInt = {
@@ -241,22 +249,23 @@ class MixColumn8(enc: Boolean) extends Module {
     m.io.out
   }
 
-  io.out := if (enc) Cat(m(io.in, 3), io.in, io.in, m(io.in, 2))
+  val out = if (enc) Cat(m(io.in, 3), io.in, io.in, m(io.in, 2))
     else Cat(m(io.in, 0xb), m(io.in, 0xd), m(io.in, 9), m(io.in, 0xe))
+  io.out := out
 }
 
 class MixColumn32(enc: Boolean) extends Module {
   val io = IO(new Bundle {
     val in = Input(UInt(32.W))
-    val out = Input(UInt(32.W))
+    val out = Output(UInt(32.W))
   })
 
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
   io.out := asBytes(io.in).zipWithIndex.map({
     case (b, i) => {
       val m = Module(new MixColumn8(enc))
-      m.in := b
-      m.out.rotateLeft(i * 8)
+      m.io.in := b
+      m.io.out.rotateLeft(i * 8)
     }
   }).reduce(_ ^ _)
 }
@@ -264,16 +273,16 @@ class MixColumn32(enc: Boolean) extends Module {
 class MixColumn64(enc: Boolean) extends Module {
   val io = IO(new Bundle {
     val in = Input(UInt(64.W))
-    val out = Input(UInt(64.W))
+    val out = Output(UInt(64.W))
   })
 
   io.out := VecInit(io.in.asBools.grouped(32).map(VecInit(_).asUInt).map({
     x => {
       val m = Module(new MixColumn32(enc))
-      m.in := x
-      m.out
+      m.io.in := x
+      m.io.out
     }
-  }).toSeq).toUInt
+  }).toSeq).asUInt
 }
 
 class ZKNImp(xLen:Int) extends Module {
@@ -284,21 +293,21 @@ class ZKNImp(xLen:Int) extends Module {
 
   // aes
   val aes = if (xLen == 32) {
-    val si = asBytes(io.rs2)(bs)
+    val si = asBytes(io.rs2)(io.bs)
     val so = {
       val m = Module(new AESSBox)
       m.io.in := si
       m.io.zkn_fn := io.zkn_fn
       m.io.out
     }
-    val mixed_so = Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn == ZKN.FN_AES_DS, Cat(0.U(24.W), so), {
+    val mixed_so = Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_DS, Cat(0.U(24.W), so), {
         val mc_enc = Module(new MixColumn8(true))
         val mc_dec = Module(new MixColumn8(false))
         mc_enc.io.in := so
         mc_dec.io.in := so
         Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
       })
-    io.rs1 ^ barrel.leftRotate(asBytes(mixed_so), bs)
+    io.rs1 ^ barrel.leftRotate(asBytes(mixed_so), io.bs).asUInt
   } else {
     require(xLen == 64)
     // var name from rvk spec enc/dec
@@ -316,7 +325,7 @@ class ZKNImp(xLen:Int) extends Module {
     val tmp1 = io.rs1(63,32)
     val tmp2 = Mux(io.rcon === 0xA.U, tmp1, tmp1.rotateRight(8))
     // reuse 8 Sbox here
-    val si = Mux(io.zkn_fn === FN_AES_KS1, Cat(0.U(32.W), tmp2), sr)
+    val si = Mux(io.zkn_fn === ZKN.FN_AES_KS1, Cat(0.U(32.W), tmp2), sr)
     val so = VecInit(asBytes(sr).map(x => {
       val m = Module(new AESSBox)
       m.io.in := x
@@ -333,9 +342,9 @@ class ZKNImp(xLen:Int) extends Module {
     val ks2 = Cat(w1, w0)
     // TODO: rewrite into Mux1H
     Mux(io.zkn_fn === ZKN.FN_AES_ES ||
-      io.zkn_fn == ZKN.FN_AES_DS ||
-      io.zkn_fn == ZKN.FN_AES_KS1 ||
-      io.zkn_fn == ZKN.FN_AES_KS2,
+      io.zkn_fn === ZKN.FN_AES_DS ||
+      io.zkn_fn === ZKN.FN_AES_KS1 ||
+      io.zkn_fn === ZKN.FN_AES_KS2,
         Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_DS, so,
           Mux(io.zkn_fn === ZKN.FN_AES_KS1, ks1, ks2)), {
         val mc_in = Mux(io.zkn_fn === ZKN.FN_AES_IM, io.rs1, so)
@@ -365,7 +374,7 @@ class ZKNImp(xLen:Int) extends Module {
     val sha512sig0_rs1  = (io.rs1 >> 1 )  ^ (io.rs1 >> 7) ^ (io.rs1 >>  8)
     val sha512sig0_rs2h = (io.rs2 << 31)  ^                 (io.rs1 << 24)
     val sha512sig0_rs2l = sha512sig0_rs2h ^ (io.rs2 << 25)
-    sha512sig0_rs1 ^ Mux(io.lh, sha512sig0_rs2h, sha512sig0_rs2l)
+    sha512sig0_rs1 ^ Mux(io.hl, sha512sig0_rs2h, sha512sig0_rs2l)
   } else {
     require(xLen == 64)
     io.rs1.rotateRight(1) ^ io.rs1.rotateRight(8) ^ io.rs1 >> 7
@@ -375,7 +384,7 @@ class ZKNImp(xLen:Int) extends Module {
     val sha512sig1_rs1  = (io.rs1 >> 3 )  ^ (io.rs1 >> 6) ^ (io.rs1 >> 19)
     val sha512sig1_rs2h = (io.rs2 << 29)  ^                 (io.rs1 << 13)
     val sha512sig1_rs2l = sha512sig1_rs2h ^ (io.rs2 << 16)
-    sha512sig1_rs1 ^ Mux(io.lh, sha512sig1_rs2h, sha512sig1_rs2l)
+    sha512sig1_rs1 ^ Mux(io.hl, sha512sig1_rs2h, sha512sig1_rs2l)
   } else {
     require(xLen == 64)
     io.rs1.rotateRight(19) ^ io.rs1.rotateRight(61) ^ io.rs1 >> 6
