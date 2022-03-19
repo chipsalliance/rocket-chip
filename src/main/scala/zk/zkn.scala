@@ -373,7 +373,7 @@ class ZKNImp(xLen:Int) extends Module {
 
   val sha512sig0 = if (xLen == 32) {
     val sha512sig0_rs1  = (io.rs1 >> 1 )  ^ (io.rs1 >> 7) ^ (io.rs1 >>  8)
-    val sha512sig0_rs2h = (io.rs2 << 31)  ^                 (io.rs1 << 24)
+    val sha512sig0_rs2h = (io.rs2 << 31)  ^                 (io.rs2 << 24)
     val sha512sig0_rs2l = sha512sig0_rs2h ^ (io.rs2 << 25)
     sha512sig0_rs1 ^ Mux(io.hl, sha512sig0_rs2h, sha512sig0_rs2l)
   } else {
@@ -382,9 +382,9 @@ class ZKNImp(xLen:Int) extends Module {
   }
 
   val sha512sig1 = if (xLen == 32) {
-    val sha512sig1_rs1  = (io.rs1 >> 3 )  ^ (io.rs1 >> 6) ^ (io.rs1 >> 19)
-    val sha512sig1_rs2h = (io.rs2 << 29)  ^                 (io.rs1 << 13)
-    val sha512sig1_rs2l = sha512sig1_rs2h ^ (io.rs2 << 16)
+    val sha512sig1_rs1  = (io.rs1 << 3 )  ^ (io.rs1 >> 6) ^ (io.rs1 >> 19)
+    val sha512sig1_rs2h = (io.rs2 >> 29)  ^                 (io.rs2 << 13)
+    val sha512sig1_rs2l = sha512sig1_rs2h ^ (io.rs2 << 26)
     sha512sig1_rs1 ^ Mux(io.hl, sha512sig1_rs2h, sha512sig1_rs2l)
   } else {
     require(xLen == 64)
