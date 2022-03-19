@@ -77,7 +77,7 @@ class ZKSImp(xLen:Int) extends Module {
   val x = Cat(0.U(24.W), so)
   val y = Mux(io.zks_fn === ZKS.FN_SM4ED,
     x ^ (x << 8) ^ (x << 2) ^ (x << 18) ^ ((x & 0x3F.U) << 26) ^ ((x & 0xC0.U) << 10),
-    x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 0x1.U) << 23) ^ ((x & 0xF8.U) << 13))
+    x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 0x1.U) << 23) ^ ((x & 0xF8.U) << 13))(31,0)
   // dynamic rotate should be merged into aes rv32 logic!
   val z = barrel.leftRotate(asBytes(y), io.bs).asUInt
   val sm4 = sext(z ^ io.rs1(31,0))
