@@ -124,9 +124,9 @@ class ZBKImp(xLen: Int) extends Module {
 
   // xperm
   // rs1_bytes defined above
-  val rs2_bytes = asBytes(io.rs1)
+  val rs2_bytes = asBytes(io.rs2)
   val rs1_nibbles = asNibbles(io.rs1)
-  val rs2_nibbles = asNibbles(io.rs1)
+  val rs2_nibbles = asNibbles(io.rs2)
   val xperm8 = VecInit(rs2_bytes.map(
     x => Mux(x(7,log2Ceil(xLen/8)).orR, 0.U(8.W), rs1_bytes(x)) // return 0 when x overflow
   ).toSeq).asUInt
