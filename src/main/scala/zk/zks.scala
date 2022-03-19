@@ -68,7 +68,7 @@ class ZKSImp(xLen:Int) extends Module {
 
   // sm4
   // dynamic selection should be merged into aes rv32 logic!
-  val si = asBytes(io.rs2)(io.bs)
+  val si = asBytes(io.rs2(31,0))(io.bs)
   val so = {
     val m = Module(new SBox(SM4.sbox))
     m.io.in := si
@@ -79,7 +79,8 @@ class ZKSImp(xLen:Int) extends Module {
     x ^ (x << 8) ^ (x << 2) ^ (x << 18) ^ ((x & 0x3F.U) << 26) ^ ((x & 0xC0.U) << 10),
     x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 0x1.U) << 23) ^ ((x & 0xF8.U) << 13))(31,0)
   // dynamic rotate should be merged into aes rv32 logic!
-  val z = barrel.leftRotate(asBytes(y), io.bs).asUInt
+  // Vec rightRotate = UInt rotateLeft as Vec is big endian while UInt is little endian
+  val z = barrel.rightRotate(asBytes(y), io.bs).asUInt
   val sm4 = sext(z ^ io.rs1(31,0))
 
   // sm3

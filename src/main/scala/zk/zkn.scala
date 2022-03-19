@@ -307,7 +307,8 @@ class ZKNImp(xLen:Int) extends Module {
         mc_dec.io.in := so
         Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
       })
-    io.rs1 ^ barrel.leftRotate(asBytes(mixed_so), io.bs).asUInt
+    // Vec rightRotate = UInt rotateLeft as Vec is big endian while UInt is little endian
+    io.rs1 ^ barrel.rightRotate(asBytes(mixed_so), io.bs).asUInt
   } else {
     require(xLen == 64)
     // var name from rvk spec enc/dec
