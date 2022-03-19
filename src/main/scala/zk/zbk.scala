@@ -58,6 +58,14 @@ class ZBKInterface(xLen: Int) extends Bundle {
 class ZBKImp(xLen: Int) extends Module {
   val io = IO(new ZBKInterface(xLen))
 
+  // helper
+  def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
+  def asNibbles(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(4).map(VecInit(_).asUInt).toSeq)
+  def sext(in: UInt): UInt = {
+    val in_hi_32 = Fill(32, in(31))
+    Cat(in_hi_32, in)
+  }
+
   // rotate
   val (shamt, shin_r) =
     if (xLen == 32) (io.rs2(4,0), io.rs1)
@@ -76,10 +84,6 @@ class ZBKImp(xLen: Int) extends Module {
     if (xLen == 32) shout_raw
     else {
       require(xLen == 64)
-      def sext(in: UInt): UInt = {
-        val in_hi_32 = Fill(32, in(31))
-        Cat(in_hi_32, in)
-      }
       Mux(io.dw, shout_raw, sext(shout_raw(31,0)))
     }
 
@@ -96,12 +100,11 @@ class ZBKImp(xLen: Int) extends Module {
       require(xLen == 64)
       Mux(io.dw,
         Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0)),
-        Cat(0.U((xLen/2).W), io.rs2(xLen/4-1,0), io.rs1(xLen/4-1,0)))
+        sext(Cat(io.rs2(xLen/4-1,0), io.rs1(xLen/4-1,0))))
     }
   val packh = Cat(0.U((xLen-16).W), io.rs2(7,0), io.rs1(7,0))
 
   // rev
-  def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
   val rs1_bytes = asBytes(io.rs1)
   val brev8 = VecInit(rs1_bytes.map(Reverse(_)).toSeq).asUInt
   val rev8 = VecInit(rs1_bytes.reverse.toSeq).asUInt
@@ -120,13 +123,20 @@ class ZBKImp(xLen: Int) extends Module {
   } else 0.U
 
   // xperm
-  def asNibbles(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(4).map(VecInit(_).asUInt).toSeq)
   // rs1_bytes defined above
   val rs2_bytes = asBytes(io.rs1)
   val rs1_nibbles = asNibbles(io.rs1)
   val rs2_nibbles = asNibbles(io.rs1)
-  val xperm8 = VecInit(rs2_bytes.map(rs1_bytes(_)).toSeq).asUInt // FIXME overflow should return 0!
-  val xperm4 = VecInit(rs2_nibbles.map(rs1_nibbles(_)).toSeq).asUInt // FIXME overflow should return 0!
+  val xperm8 = VecInit(rs2_bytes.map(
+    x => Mux(x(7,log2Ceil(xLen/8)).orR, 0.U(8.W), rs1_bytes(x)) // return 0 when x overflow
+  ).toSeq).asUInt
+  val xperm4 = VecInit(rs2_nibbles.map(
+    x => if (xLen == 32) Mux(x(3,log2Ceil(xLen/4)).orR, 0.U(4.W), rs1_nibbles(x)) // return 0 when x overflow
+    else {
+      require(xLen == 64)
+      rs1_nibbles(x)
+    }
+  ).toSeq).asUInt
 
   // clmul
   val clmul_rs1 = Mux(io.zbk_fn === ZBK.FN_CLMUL, io.rs1, Reverse(io.rs1))
