@@ -326,7 +326,7 @@ class ZKNImp(xLen:Int) extends Module {
     val tmp2 = Mux(io.rcon === 0xA.U, tmp1, tmp1.rotateRight(8))
     // reuse 8 Sbox here
     val si = Mux(io.zkn_fn === ZKN.FN_AES_KS1, Cat(0.U(32.W), tmp2), sr)
-    val so = VecInit(asBytes(sr).map(x => {
+    val so = VecInit(asBytes(si).map(x => {
       val m = Module(new AESSBox)
       m.io.in := x
       m.io.zkn_fn := io.zkn_fn
