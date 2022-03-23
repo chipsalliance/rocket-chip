@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{DescribedSRAM, _}
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.dontTouch
 import chisel3.util.random.LFSR
@@ -104,7 +104,6 @@ class ICacheResp(outer: ICache) extends Bundle {
   val replay = Bool()
   val ae = Bool()
 
-  override def cloneType = new ICacheResp(outer).asInstanceOf[this.type]
 }
 
 class ICachePerfEvents extends Bundle {
@@ -117,6 +116,7 @@ class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   val s2_vaddr = UInt(INPUT, vaddrBits) // delayed two cycles w.r.t. req
   val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
   val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
+  val s2_cacheable = Bool(INPUT) // should L2 cache line on a miss?
   val s2_prefetch = Bool(INPUT) // should I$ prefetch next line on a miss?
 
   val resp = Valid(new ICacheResp(outer))
@@ -455,18 +455,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   tl_out.a.bits.user.lift(AMBAProt).foreach { x =>
     // Rocket caches all fetch requests, and it's difficult to differentiate privileged/unprivileged on
     // cached data, so mark as privileged
-    val user_bit_cacheable = true.B
-
-    // enable outer caches for all fetches
-    x.privileged  := user_bit_cacheable
-    x.bufferable  := user_bit_cacheable
-    x.modifiable  := user_bit_cacheable
-    x.readalloc   := user_bit_cacheable
-    x.writealloc  := user_bit_cacheable
-
-    // Following are always tied off
     x.fetch       := true.B
     x.secure      := true.B
+    x.privileged  := true.B
+    x.bufferable  := true.B
+    x.modifiable  := true.B
+    x.readalloc   := io.s2_cacheable
+    x.writealloc  := io.s2_cacheable
   }
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)
@@ -492,27 +487,27 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   ccover(invalidate && refill_valid, "FLUSH_DURING_MISS", "I$ flushed during miss")
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"ICACHE_$label", "MemorySystem;;" + desc)
+    property.cover(cond, s"ICACHE_$label", "MemorySystem;;" + desc)
 
-  val mem_active_valid = Seq(CoverBoolean(s2_valid, Seq("mem_active")))
+  val mem_active_valid = Seq(property.CoverBoolean(s2_valid, Seq("mem_active")))
   val data_error = Seq(
-    CoverBoolean(!s2_data_decoded.correctable && !s2_data_decoded.uncorrectable, Seq("no_data_error")),
-    CoverBoolean(s2_data_decoded.correctable, Seq("data_correctable_error")),
-    CoverBoolean(s2_data_decoded.uncorrectable, Seq("data_uncorrectable_error")))
+    property.CoverBoolean(!s2_data_decoded.correctable && !s2_data_decoded.uncorrectable, Seq("no_data_error")),
+    property.CoverBoolean(s2_data_decoded.correctable, Seq("data_correctable_error")),
+    property.CoverBoolean(s2_data_decoded.uncorrectable, Seq("data_uncorrectable_error")))
   val request_source = Seq(
-    CoverBoolean(!s2_slaveValid, Seq("from_CPU")),
-    CoverBoolean(s2_slaveValid, Seq("from_TL"))
+    property.CoverBoolean(!s2_slaveValid, Seq("from_CPU")),
+    property.CoverBoolean(s2_slaveValid, Seq("from_TL"))
   )
   val tag_error = Seq(
-    CoverBoolean(!s2_tag_disparity, Seq("no_tag_error")),
-    CoverBoolean(s2_tag_disparity, Seq("tag_error"))
+    property.CoverBoolean(!s2_tag_disparity, Seq("no_tag_error")),
+    property.CoverBoolean(s2_tag_disparity, Seq("tag_error"))
   )
   val mem_mode = Seq(
-    CoverBoolean(s2_scratchpad_hit, Seq("ITIM_mode")),
-    CoverBoolean(!s2_scratchpad_hit, Seq("cache_mode"))
+    property.CoverBoolean(s2_scratchpad_hit, Seq("ITIM_mode")),
+    property.CoverBoolean(!s2_scratchpad_hit, Seq("cache_mode"))
   )
 
-  val error_cross_covers = new CrossProperty(
+  val error_cross_covers = new property.CrossProperty(
     Seq(mem_active_valid, data_error, tag_error, request_source, mem_mode),
     Seq(
       // tag error cannot occur in ITIM mode
@@ -522,5 +517,5 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     ),
     "MemorySystem;;Memory Bit Flip Cross Covers")
 
-  cover(error_cross_covers)
+  property.cover(error_cross_covers)
 }

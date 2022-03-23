@@ -13,7 +13,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 case class FPUParams(
   minFLen: Int = 32,
@@ -56,107 +56,109 @@ class FPUDecoder(implicit p: Parameters) extends FPUModule()(p) {
     val sigs = new FPUCtrlSigs().asOutput
   }
 
-  val default =       List(X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,X)
+  private val X2 = BitPat.dontCare(2)
+
+  val default =       List(X,X,X,X,X,X,X,X2,X2,X,X,X,X,X,X,X)
   val h: Array[(BitPat, List[BitPat])] =
-    Array(FLH      -> List(Y,Y,N,N,N,X,X,X,X,N,N,N,N,N,N,N),
-          FSH      -> List(Y,N,N,Y,N,Y,X,I,H,N,Y,N,N,N,N,N),
-          FMV_H_X  -> List(N,Y,N,N,N,X,X,H,I,Y,N,N,N,N,N,N),
-          FCVT_H_W -> List(N,Y,N,N,N,X,X,H,H,Y,N,N,N,N,N,Y),
-          FCVT_H_WU-> List(N,Y,N,N,N,X,X,H,H,Y,N,N,N,N,N,Y),
-          FCVT_H_L -> List(N,Y,N,N,N,X,X,H,H,Y,N,N,N,N,N,Y),
-          FCVT_H_LU-> List(N,Y,N,N,N,X,X,H,H,Y,N,N,N,N,N,Y),
-          FMV_X_H  -> List(N,N,Y,N,N,N,X,I,H,N,Y,N,N,N,N,N),
-          FCLASS_H -> List(N,N,Y,N,N,N,X,H,H,N,Y,N,N,N,N,N),
-          FCVT_W_H -> List(N,N,Y,N,N,N,X,H,X,N,Y,N,N,N,N,Y),
-          FCVT_WU_H-> List(N,N,Y,N,N,N,X,H,X,N,Y,N,N,N,N,Y),
-          FCVT_L_H -> List(N,N,Y,N,N,N,X,H,X,N,Y,N,N,N,N,Y),
-          FCVT_LU_H-> List(N,N,Y,N,N,N,X,H,X,N,Y,N,N,N,N,Y),
-          FCVT_S_H -> List(N,Y,Y,N,N,N,X,H,S,N,N,Y,N,N,N,Y),
-          FCVT_H_S -> List(N,Y,Y,N,N,N,X,S,H,N,N,Y,N,N,N,Y),
-          FEQ_H    -> List(N,N,Y,Y,N,N,N,H,H,N,Y,N,N,N,N,Y),
-          FLT_H    -> List(N,N,Y,Y,N,N,N,H,H,N,Y,N,N,N,N,Y),
-          FLE_H    -> List(N,N,Y,Y,N,N,N,H,H,N,Y,N,N,N,N,Y),
-          FSGNJ_H  -> List(N,Y,Y,Y,N,N,N,H,H,N,N,Y,N,N,N,N),
-          FSGNJN_H -> List(N,Y,Y,Y,N,N,N,H,H,N,N,Y,N,N,N,N),
-          FSGNJX_H -> List(N,Y,Y,Y,N,N,N,H,H,N,N,Y,N,N,N,N),
-          FMIN_H   -> List(N,Y,Y,Y,N,N,N,H,H,N,N,Y,N,N,N,Y),
-          FMAX_H   -> List(N,Y,Y,Y,N,N,N,H,H,N,N,Y,N,N,N,Y),
-          FADD_H   -> List(N,Y,Y,Y,N,N,Y,H,H,N,N,N,Y,N,N,Y),
-          FSUB_H   -> List(N,Y,Y,Y,N,N,Y,H,H,N,N,N,Y,N,N,Y),
-          FMUL_H   -> List(N,Y,Y,Y,N,N,N,H,H,N,N,N,Y,N,N,Y),
-          FMADD_H  -> List(N,Y,Y,Y,Y,N,N,H,H,N,N,N,Y,N,N,Y),
-          FMSUB_H  -> List(N,Y,Y,Y,Y,N,N,H,H,N,N,N,Y,N,N,Y),
-          FNMADD_H -> List(N,Y,Y,Y,Y,N,N,H,H,N,N,N,Y,N,N,Y),
-          FNMSUB_H -> List(N,Y,Y,Y,Y,N,N,H,H,N,N,N,Y,N,N,Y),
-          FDIV_H   -> List(N,Y,Y,Y,N,N,N,H,H,N,N,N,N,Y,N,Y),
-          FSQRT_H  -> List(N,Y,Y,N,N,N,X,H,H,N,N,N,N,N,Y,Y))
+    Array(FLH      -> List(Y,Y,N,N,N,X,X,X2,X2,N,N,N,N,N,N,N),
+          FSH      -> List(Y,N,N,Y,N,Y,X, I, H,N,Y,N,N,N,N,N),
+          FMV_H_X  -> List(N,Y,N,N,N,X,X, H, I,Y,N,N,N,N,N,N),
+          FCVT_H_W -> List(N,Y,N,N,N,X,X, H, H,Y,N,N,N,N,N,Y),
+          FCVT_H_WU-> List(N,Y,N,N,N,X,X, H, H,Y,N,N,N,N,N,Y),
+          FCVT_H_L -> List(N,Y,N,N,N,X,X, H, H,Y,N,N,N,N,N,Y),
+          FCVT_H_LU-> List(N,Y,N,N,N,X,X, H, H,Y,N,N,N,N,N,Y),
+          FMV_X_H  -> List(N,N,Y,N,N,N,X, I, H,N,Y,N,N,N,N,N),
+          FCLASS_H -> List(N,N,Y,N,N,N,X, H, H,N,Y,N,N,N,N,N),
+          FCVT_W_H -> List(N,N,Y,N,N,N,X, H,X2,N,Y,N,N,N,N,Y),
+          FCVT_WU_H-> List(N,N,Y,N,N,N,X, H,X2,N,Y,N,N,N,N,Y),
+          FCVT_L_H -> List(N,N,Y,N,N,N,X, H,X2,N,Y,N,N,N,N,Y),
+          FCVT_LU_H-> List(N,N,Y,N,N,N,X, H,X2,N,Y,N,N,N,N,Y),
+          FCVT_S_H -> List(N,Y,Y,N,N,N,X, H, S,N,N,Y,N,N,N,Y),
+          FCVT_H_S -> List(N,Y,Y,N,N,N,X, S, H,N,N,Y,N,N,N,Y),
+          FEQ_H    -> List(N,N,Y,Y,N,N,N, H, H,N,Y,N,N,N,N,Y),
+          FLT_H    -> List(N,N,Y,Y,N,N,N, H, H,N,Y,N,N,N,N,Y),
+          FLE_H    -> List(N,N,Y,Y,N,N,N, H, H,N,Y,N,N,N,N,Y),
+          FSGNJ_H  -> List(N,Y,Y,Y,N,N,N, H, H,N,N,Y,N,N,N,N),
+          FSGNJN_H -> List(N,Y,Y,Y,N,N,N, H, H,N,N,Y,N,N,N,N),
+          FSGNJX_H -> List(N,Y,Y,Y,N,N,N, H, H,N,N,Y,N,N,N,N),
+          FMIN_H   -> List(N,Y,Y,Y,N,N,N, H, H,N,N,Y,N,N,N,Y),
+          FMAX_H   -> List(N,Y,Y,Y,N,N,N, H, H,N,N,Y,N,N,N,Y),
+          FADD_H   -> List(N,Y,Y,Y,N,N,Y, H, H,N,N,N,Y,N,N,Y),
+          FSUB_H   -> List(N,Y,Y,Y,N,N,Y, H, H,N,N,N,Y,N,N,Y),
+          FMUL_H   -> List(N,Y,Y,Y,N,N,N, H, H,N,N,N,Y,N,N,Y),
+          FMADD_H  -> List(N,Y,Y,Y,Y,N,N, H, H,N,N,N,Y,N,N,Y),
+          FMSUB_H  -> List(N,Y,Y,Y,Y,N,N, H, H,N,N,N,Y,N,N,Y),
+          FNMADD_H -> List(N,Y,Y,Y,Y,N,N, H, H,N,N,N,Y,N,N,Y),
+          FNMSUB_H -> List(N,Y,Y,Y,Y,N,N, H, H,N,N,N,Y,N,N,Y),
+          FDIV_H   -> List(N,Y,Y,Y,N,N,N, H, H,N,N,N,N,Y,N,Y),
+          FSQRT_H  -> List(N,Y,Y,N,N,N,X, H, H,N,N,N,N,N,Y,Y))
   val f: Array[(BitPat, List[BitPat])] =
-    Array(FLW      -> List(Y,Y,N,N,N,X,X,X,X,N,N,N,N,N,N,N),
-          FSW      -> List(Y,N,N,Y,N,Y,X,I,S,N,Y,N,N,N,N,N),
-          FMV_S_X  -> List(N,Y,N,N,N,X,X,S,I,Y,N,N,N,N,N,N),
-          FCVT_S_W -> List(N,Y,N,N,N,X,X,S,S,Y,N,N,N,N,N,Y),
-          FCVT_S_WU-> List(N,Y,N,N,N,X,X,S,S,Y,N,N,N,N,N,Y),
-          FCVT_S_L -> List(N,Y,N,N,N,X,X,S,S,Y,N,N,N,N,N,Y),
-          FCVT_S_LU-> List(N,Y,N,N,N,X,X,S,S,Y,N,N,N,N,N,Y),
-          FMV_X_S  -> List(N,N,Y,N,N,N,X,I,S,N,Y,N,N,N,N,N),
-          FCLASS_S -> List(N,N,Y,N,N,N,X,S,S,N,Y,N,N,N,N,N),
-          FCVT_W_S -> List(N,N,Y,N,N,N,X,S,X,N,Y,N,N,N,N,Y),
-          FCVT_WU_S-> List(N,N,Y,N,N,N,X,S,X,N,Y,N,N,N,N,Y),
-          FCVT_L_S -> List(N,N,Y,N,N,N,X,S,X,N,Y,N,N,N,N,Y),
-          FCVT_LU_S-> List(N,N,Y,N,N,N,X,S,X,N,Y,N,N,N,N,Y),
-          FEQ_S    -> List(N,N,Y,Y,N,N,N,S,S,N,Y,N,N,N,N,Y),
-          FLT_S    -> List(N,N,Y,Y,N,N,N,S,S,N,Y,N,N,N,N,Y),
-          FLE_S    -> List(N,N,Y,Y,N,N,N,S,S,N,Y,N,N,N,N,Y),
-          FSGNJ_S  -> List(N,Y,Y,Y,N,N,N,S,S,N,N,Y,N,N,N,N),
-          FSGNJN_S -> List(N,Y,Y,Y,N,N,N,S,S,N,N,Y,N,N,N,N),
-          FSGNJX_S -> List(N,Y,Y,Y,N,N,N,S,S,N,N,Y,N,N,N,N),
-          FMIN_S   -> List(N,Y,Y,Y,N,N,N,S,S,N,N,Y,N,N,N,Y),
-          FMAX_S   -> List(N,Y,Y,Y,N,N,N,S,S,N,N,Y,N,N,N,Y),
-          FADD_S   -> List(N,Y,Y,Y,N,N,Y,S,S,N,N,N,Y,N,N,Y),
-          FSUB_S   -> List(N,Y,Y,Y,N,N,Y,S,S,N,N,N,Y,N,N,Y),
-          FMUL_S   -> List(N,Y,Y,Y,N,N,N,S,S,N,N,N,Y,N,N,Y),
-          FMADD_S  -> List(N,Y,Y,Y,Y,N,N,S,S,N,N,N,Y,N,N,Y),
-          FMSUB_S  -> List(N,Y,Y,Y,Y,N,N,S,S,N,N,N,Y,N,N,Y),
-          FNMADD_S -> List(N,Y,Y,Y,Y,N,N,S,S,N,N,N,Y,N,N,Y),
-          FNMSUB_S -> List(N,Y,Y,Y,Y,N,N,S,S,N,N,N,Y,N,N,Y),
-          FDIV_S   -> List(N,Y,Y,Y,N,N,N,S,S,N,N,N,N,Y,N,Y),
-          FSQRT_S  -> List(N,Y,Y,N,N,N,X,S,S,N,N,N,N,N,Y,Y))
+    Array(FLW      -> List(Y,Y,N,N,N,X,X,X2,X2,N,N,N,N,N,N,N),
+          FSW      -> List(Y,N,N,Y,N,Y,X, I, S,N,Y,N,N,N,N,N),
+          FMV_S_X  -> List(N,Y,N,N,N,X,X, S, I,Y,N,N,N,N,N,N),
+          FCVT_S_W -> List(N,Y,N,N,N,X,X, S, S,Y,N,N,N,N,N,Y),
+          FCVT_S_WU-> List(N,Y,N,N,N,X,X, S, S,Y,N,N,N,N,N,Y),
+          FCVT_S_L -> List(N,Y,N,N,N,X,X, S, S,Y,N,N,N,N,N,Y),
+          FCVT_S_LU-> List(N,Y,N,N,N,X,X, S, S,Y,N,N,N,N,N,Y),
+          FMV_X_S  -> List(N,N,Y,N,N,N,X, I, S,N,Y,N,N,N,N,N),
+          FCLASS_S -> List(N,N,Y,N,N,N,X, S, S,N,Y,N,N,N,N,N),
+          FCVT_W_S -> List(N,N,Y,N,N,N,X, S,X2,N,Y,N,N,N,N,Y),
+          FCVT_WU_S-> List(N,N,Y,N,N,N,X, S,X2,N,Y,N,N,N,N,Y),
+          FCVT_L_S -> List(N,N,Y,N,N,N,X, S,X2,N,Y,N,N,N,N,Y),
+          FCVT_LU_S-> List(N,N,Y,N,N,N,X, S,X2,N,Y,N,N,N,N,Y),
+          FEQ_S    -> List(N,N,Y,Y,N,N,N, S, S,N,Y,N,N,N,N,Y),
+          FLT_S    -> List(N,N,Y,Y,N,N,N, S, S,N,Y,N,N,N,N,Y),
+          FLE_S    -> List(N,N,Y,Y,N,N,N, S, S,N,Y,N,N,N,N,Y),
+          FSGNJ_S  -> List(N,Y,Y,Y,N,N,N, S, S,N,N,Y,N,N,N,N),
+          FSGNJN_S -> List(N,Y,Y,Y,N,N,N, S, S,N,N,Y,N,N,N,N),
+          FSGNJX_S -> List(N,Y,Y,Y,N,N,N, S, S,N,N,Y,N,N,N,N),
+          FMIN_S   -> List(N,Y,Y,Y,N,N,N, S, S,N,N,Y,N,N,N,Y),
+          FMAX_S   -> List(N,Y,Y,Y,N,N,N, S, S,N,N,Y,N,N,N,Y),
+          FADD_S   -> List(N,Y,Y,Y,N,N,Y, S, S,N,N,N,Y,N,N,Y),
+          FSUB_S   -> List(N,Y,Y,Y,N,N,Y, S, S,N,N,N,Y,N,N,Y),
+          FMUL_S   -> List(N,Y,Y,Y,N,N,N, S, S,N,N,N,Y,N,N,Y),
+          FMADD_S  -> List(N,Y,Y,Y,Y,N,N, S, S,N,N,N,Y,N,N,Y),
+          FMSUB_S  -> List(N,Y,Y,Y,Y,N,N, S, S,N,N,N,Y,N,N,Y),
+          FNMADD_S -> List(N,Y,Y,Y,Y,N,N, S, S,N,N,N,Y,N,N,Y),
+          FNMSUB_S -> List(N,Y,Y,Y,Y,N,N, S, S,N,N,N,Y,N,N,Y),
+          FDIV_S   -> List(N,Y,Y,Y,N,N,N, S, S,N,N,N,N,Y,N,Y),
+          FSQRT_S  -> List(N,Y,Y,N,N,N,X, S, S,N,N,N,N,N,Y,Y))
   val d: Array[(BitPat, List[BitPat])] =
-    Array(FLD      -> List(Y,Y,N,N,N,X,X,X,X,N,N,N,N,N,N,N),
-          FSD      -> List(Y,N,N,Y,N,Y,X,I,D,N,Y,N,N,N,N,N),
-          FMV_D_X  -> List(N,Y,N,N,N,X,X,D,I,Y,N,N,N,N,N,N),
-          FCVT_D_W -> List(N,Y,N,N,N,X,X,D,D,Y,N,N,N,N,N,Y),
-          FCVT_D_WU-> List(N,Y,N,N,N,X,X,D,D,Y,N,N,N,N,N,Y),
-          FCVT_D_L -> List(N,Y,N,N,N,X,X,D,D,Y,N,N,N,N,N,Y),
-          FCVT_D_LU-> List(N,Y,N,N,N,X,X,D,D,Y,N,N,N,N,N,Y),
-          FMV_X_D  -> List(N,N,Y,N,N,N,X,I,D,N,Y,N,N,N,N,N),
-          FCLASS_D -> List(N,N,Y,N,N,N,X,D,D,N,Y,N,N,N,N,N),
-          FCVT_W_D -> List(N,N,Y,N,N,N,X,D,X,N,Y,N,N,N,N,Y),
-          FCVT_WU_D-> List(N,N,Y,N,N,N,X,D,X,N,Y,N,N,N,N,Y),
-          FCVT_L_D -> List(N,N,Y,N,N,N,X,D,X,N,Y,N,N,N,N,Y),
-          FCVT_LU_D-> List(N,N,Y,N,N,N,X,D,X,N,Y,N,N,N,N,Y),
-          FCVT_S_D -> List(N,Y,Y,N,N,N,X,D,S,N,N,Y,N,N,N,Y),
-          FCVT_D_S -> List(N,Y,Y,N,N,N,X,S,D,N,N,Y,N,N,N,Y),
-          FEQ_D    -> List(N,N,Y,Y,N,N,N,D,D,N,Y,N,N,N,N,Y),
-          FLT_D    -> List(N,N,Y,Y,N,N,N,D,D,N,Y,N,N,N,N,Y),
-          FLE_D    -> List(N,N,Y,Y,N,N,N,D,D,N,Y,N,N,N,N,Y),
-          FSGNJ_D  -> List(N,Y,Y,Y,N,N,N,D,D,N,N,Y,N,N,N,N),
-          FSGNJN_D -> List(N,Y,Y,Y,N,N,N,D,D,N,N,Y,N,N,N,N),
-          FSGNJX_D -> List(N,Y,Y,Y,N,N,N,D,D,N,N,Y,N,N,N,N),
-          FMIN_D   -> List(N,Y,Y,Y,N,N,N,D,D,N,N,Y,N,N,N,Y),
-          FMAX_D   -> List(N,Y,Y,Y,N,N,N,D,D,N,N,Y,N,N,N,Y),
-          FADD_D   -> List(N,Y,Y,Y,N,N,Y,D,D,N,N,N,Y,N,N,Y),
-          FSUB_D   -> List(N,Y,Y,Y,N,N,Y,D,D,N,N,N,Y,N,N,Y),
-          FMUL_D   -> List(N,Y,Y,Y,N,N,N,D,D,N,N,N,Y,N,N,Y),
-          FMADD_D  -> List(N,Y,Y,Y,Y,N,N,D,D,N,N,N,Y,N,N,Y),
-          FMSUB_D  -> List(N,Y,Y,Y,Y,N,N,D,D,N,N,N,Y,N,N,Y),
-          FNMADD_D -> List(N,Y,Y,Y,Y,N,N,D,D,N,N,N,Y,N,N,Y),
-          FNMSUB_D -> List(N,Y,Y,Y,Y,N,N,D,D,N,N,N,Y,N,N,Y),
-          FDIV_D   -> List(N,Y,Y,Y,N,N,N,D,D,N,N,N,N,Y,N,Y),
-          FSQRT_D  -> List(N,Y,Y,N,N,N,X,D,D,N,N,N,N,N,Y,Y))
+    Array(FLD      -> List(Y,Y,N,N,N,X,X,X2,X2,N,N,N,N,N,N,N),
+          FSD      -> List(Y,N,N,Y,N,Y,X, I, D,N,Y,N,N,N,N,N),
+          FMV_D_X  -> List(N,Y,N,N,N,X,X, D, I,Y,N,N,N,N,N,N),
+          FCVT_D_W -> List(N,Y,N,N,N,X,X, D, D,Y,N,N,N,N,N,Y),
+          FCVT_D_WU-> List(N,Y,N,N,N,X,X, D, D,Y,N,N,N,N,N,Y),
+          FCVT_D_L -> List(N,Y,N,N,N,X,X, D, D,Y,N,N,N,N,N,Y),
+          FCVT_D_LU-> List(N,Y,N,N,N,X,X, D, D,Y,N,N,N,N,N,Y),
+          FMV_X_D  -> List(N,N,Y,N,N,N,X, I, D,N,Y,N,N,N,N,N),
+          FCLASS_D -> List(N,N,Y,N,N,N,X, D, D,N,Y,N,N,N,N,N),
+          FCVT_W_D -> List(N,N,Y,N,N,N,X, D,X2,N,Y,N,N,N,N,Y),
+          FCVT_WU_D-> List(N,N,Y,N,N,N,X, D,X2,N,Y,N,N,N,N,Y),
+          FCVT_L_D -> List(N,N,Y,N,N,N,X, D,X2,N,Y,N,N,N,N,Y),
+          FCVT_LU_D-> List(N,N,Y,N,N,N,X, D,X2,N,Y,N,N,N,N,Y),
+          FCVT_S_D -> List(N,Y,Y,N,N,N,X, D, S,N,N,Y,N,N,N,Y),
+          FCVT_D_S -> List(N,Y,Y,N,N,N,X, S, D,N,N,Y,N,N,N,Y),
+          FEQ_D    -> List(N,N,Y,Y,N,N,N, D, D,N,Y,N,N,N,N,Y),
+          FLT_D    -> List(N,N,Y,Y,N,N,N, D, D,N,Y,N,N,N,N,Y),
+          FLE_D    -> List(N,N,Y,Y,N,N,N, D, D,N,Y,N,N,N,N,Y),
+          FSGNJ_D  -> List(N,Y,Y,Y,N,N,N, D, D,N,N,Y,N,N,N,N),
+          FSGNJN_D -> List(N,Y,Y,Y,N,N,N, D, D,N,N,Y,N,N,N,N),
+          FSGNJX_D -> List(N,Y,Y,Y,N,N,N, D, D,N,N,Y,N,N,N,N),
+          FMIN_D   -> List(N,Y,Y,Y,N,N,N, D, D,N,N,Y,N,N,N,Y),
+          FMAX_D   -> List(N,Y,Y,Y,N,N,N, D, D,N,N,Y,N,N,N,Y),
+          FADD_D   -> List(N,Y,Y,Y,N,N,Y, D, D,N,N,N,Y,N,N,Y),
+          FSUB_D   -> List(N,Y,Y,Y,N,N,Y, D, D,N,N,N,Y,N,N,Y),
+          FMUL_D   -> List(N,Y,Y,Y,N,N,N, D, D,N,N,N,Y,N,N,Y),
+          FMADD_D  -> List(N,Y,Y,Y,Y,N,N, D, D,N,N,N,Y,N,N,Y),
+          FMSUB_D  -> List(N,Y,Y,Y,Y,N,N, D, D,N,N,N,Y,N,N,Y),
+          FNMADD_D -> List(N,Y,Y,Y,Y,N,N, D, D,N,N,N,Y,N,N,Y),
+          FNMSUB_D -> List(N,Y,Y,Y,Y,N,N, D, D,N,N,N,Y,N,N,Y),
+          FDIV_D   -> List(N,Y,Y,Y,N,N,N, D, D,N,N,N,N,Y,N,Y),
+          FSQRT_D  -> List(N,Y,Y,N,N,N,X, D, D,N,N,N,N,N,Y,Y))
   val fcvt_hd: Array[(BitPat, List[BitPat])] =
-    Array(FCVT_H_D -> List(N,Y,Y,N,N,N,X,D,H,N,N,Y,N,N,N,Y),
-          FCVT_D_H -> List(N,Y,Y,N,N,N,X,H,D,N,N,Y,N,N,N,Y))
+    Array(FCVT_H_D -> List(N,Y,Y,N,N,N,X, D, H,N,N,Y,N,N,N,Y),
+          FCVT_D_H -> List(N,Y,Y,N,N,N,X, H, D,N,N,Y,N,N,N,Y))
 
   val insns = (minFLen, fLen) match {
     case (32, 32) => f
@@ -231,7 +233,6 @@ class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSig
   val in2 = Bits(width = fLen+1)
   val in3 = Bits(width = fLen+1)
 
-  override def cloneType = new FPInput().asInstanceOf[this.type]
 }
 
 case class FType(exp: Int, sig: Int) {
@@ -283,7 +284,6 @@ case class FType(exp: Int, sig: Int) {
       val sign = Bool()
       val exp = UInt(expWidth.W)
       val sig = UInt((ieeeWidth-expWidth-1).W)
-      override def cloneType = new IEEEBundle().asInstanceOf[this.type]
     }
     new IEEEBundle
   }
@@ -452,7 +452,6 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
     val store = Bits(width = fLen)
     val toint = Bits(width = xLen)
     val exc = Bits(width = FPConstants.FLAGS_SZ)
-    override def cloneType = new Output().asInstanceOf[this.type]
   }
   val io = new Bundle {
     val in = Valid(new FPInput).flip
@@ -903,7 +902,6 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     val typeTag = UInt(width = log2Up(floatTypes.size))
     val cp = Bool()
     val pipeid = UInt(width = log2Ceil(pipes.size))
-    override def cloneType: this.type = new WBInfo().asInstanceOf[this.type]
   }
 
   val wen = Reg(init=Bits(0, maxLatency-1))
@@ -1020,5 +1018,5 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val fpuImpl = withClock (gated_clock) { new FPUImpl }
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"FPU_$label", "Core;;" + desc)
+    property.cover(cond, s"FPU_$label", "Core;;" + desc)
 }

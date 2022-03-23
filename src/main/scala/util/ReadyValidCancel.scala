@@ -19,7 +19,6 @@ class ValidCancel[+T <: Data](gen: T) extends Bundle {
   val lateCancel = Output(Bool())
   val bits       = Output(gen)
   def validQual(): Bool = earlyValid && !lateCancel
-  override def cloneType: this.type = ValidCancel(gen).asInstanceOf[this.type]
 
   /** Down-converts a ValidCancel output to a Valid bundle, dropping early/late timing split. */
   def andNotCancel(): Valid[T] = {
@@ -48,7 +47,6 @@ class ReadyValidCancel[+T <: Data](gen: T) extends ValidCancel(gen)
   val ready = Input(Bool())
   def mightFire(): Bool = ready && earlyValid
   def fire():      Bool = ready && validQual()
-  override def cloneType: this.type = ReadyValidCancel(gen).asInstanceOf[this.type]
 
   /** Down-converts a ReadyValidCancel output to a DecoupledIO bundle, dropping early/late timing split. */
   def asDecoupled(): DecoupledIO[T] = {

@@ -7,7 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 class TLAsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends LazyModule
 {
@@ -24,16 +24,16 @@ class TLAsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends L
 
       out.a <> ToAsyncBundle(in.a, params)
       in.d <> FromAsyncBundle(out.d, psync)
-      cover(in.a, "TL_ASYNC_CROSSING_SOURCE_A", "MemorySystem;;TLAsyncCrossingSource Channel A")
-      cover(in.d, "TL_ASYNC_CROSSING_SOURCE_D", "MemorySystem;;TLAsyncCrossingSource Channel D")
+      property.cover(in.a, "TL_ASYNC_CROSSING_SOURCE_A", "MemorySystem;;TLAsyncCrossingSource Channel A")
+      property.cover(in.d, "TL_ASYNC_CROSSING_SOURCE_D", "MemorySystem;;TLAsyncCrossingSource Channel D")
 
       if (bce) {
         in.b <> FromAsyncBundle(out.b, psync)
         out.c <> ToAsyncBundle(in.c, params)
         out.e <> ToAsyncBundle(in.e, params)
-        cover(in.b, "TL_ASYNC_CROSSING_SOURCE_B", "MemorySystem;;TLAsyncCrossingSource Channel B")
-        cover(in.c, "TL_ASYNC_CROSSING_SOURCE_C", "MemorySystem;;TLAsyncCrossingSource Channel C")
-        cover(in.e, "TL_ASYNC_CROSSING_SOURCE_E", "MemorySystem;;TLAsyncCrossingSource Channel E")
+        property.cover(in.b, "TL_ASYNC_CROSSING_SOURCE_B", "MemorySystem;;TLAsyncCrossingSource Channel B")
+        property.cover(in.c, "TL_ASYNC_CROSSING_SOURCE_C", "MemorySystem;;TLAsyncCrossingSource Channel C")
+        property.cover(in.e, "TL_ASYNC_CROSSING_SOURCE_E", "MemorySystem;;TLAsyncCrossingSource Channel E")
       } else {
         in.b.valid := Bool(false)
         in.c.ready := Bool(true)
@@ -56,16 +56,16 @@ class TLAsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implici
 
       out.a <> FromAsyncBundle(in.a, params.sync)
       in.d <> ToAsyncBundle(out.d, params)
-      cover(out.a, "TL_ASYNC_CROSSING_SINK_A", "MemorySystem;;TLAsyncCrossingSink Channel A")
-      cover(out.d, "TL_ASYNC_CROSSING_SINK_D", "MemorySystem;;TLAsyncCrossingSink Channel D")
+      property.cover(out.a, "TL_ASYNC_CROSSING_SINK_A", "MemorySystem;;TLAsyncCrossingSink Channel A")
+      property.cover(out.d, "TL_ASYNC_CROSSING_SINK_D", "MemorySystem;;TLAsyncCrossingSink Channel D")
 
       if (bce) {
         in.b <> ToAsyncBundle(out.b, params)
         out.c <> FromAsyncBundle(in.c, params.sync)
         out.e <> FromAsyncBundle(in.e, params.sync)
-        cover(out.b, "TL_ASYNC_CROSSING_SINK_B", "MemorySystem;;TLAsyncCrossingSinkChannel B")
-        cover(out.c, "TL_ASYNC_CROSSING_SINK_C", "MemorySystem;;TLAsyncCrossingSink Channel C")
-        cover(out.e, "TL_ASYNC_CROSSING_SINK_E", "MemorySystem;;TLAsyncCrossingSink Channel E")
+        property.cover(out.b, "TL_ASYNC_CROSSING_SINK_B", "MemorySystem;;TLAsyncCrossingSinkChannel B")
+        property.cover(out.c, "TL_ASYNC_CROSSING_SINK_C", "MemorySystem;;TLAsyncCrossingSink Channel C")
+        property.cover(out.e, "TL_ASYNC_CROSSING_SINK_E", "MemorySystem;;TLAsyncCrossingSink Channel E")
       } else {
         in.b.widx := UInt(0)
         in.c.ridx := UInt(0)

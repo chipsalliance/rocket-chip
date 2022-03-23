@@ -13,9 +13,6 @@ class NMI(val w: Int) extends Bundle {
   val rnmi = Bool()
   val rnmi_interrupt_vector = UInt(w.W)
   val rnmi_exception_vector = UInt(w.W)
-  val unmi = Bool()
-  val unmi_interrupt_vector = UInt(w.W)
-  val unmi_exception_vector = UInt(w.W)
 }
 
 class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {

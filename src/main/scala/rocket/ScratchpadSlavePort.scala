@@ -11,7 +11,7 @@ import freechips.rocketchip.util._
 
 /* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
 class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
-  def this(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) {
+  def this(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) = {
     this(Seq(address), coreDataBytes, usingAtomics)
   }
 

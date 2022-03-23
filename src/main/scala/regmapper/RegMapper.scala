@@ -6,7 +6,7 @@ import Chisel._
 
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import chisel3.internal.sourceinfo.SourceInfo
 
 // A bus agnostic register interface to a register-based device
@@ -154,12 +154,12 @@ object RegMapper
 
       val facct = field.desc.map{_.access}.getOrElse("")
       if((facct == RegFieldAccessType.R) || (facct == RegFieldAccessType.RW)) {
-        cover(f_rivalid && f_riready, fname + "_Reg_read_start",  fdesc + " RegField Read Request Initiate")
-        cover(f_rovalid && f_roready, fname + "_Reg_read_out",    fdesc + " RegField Read Request Complete")
+        property.cover(f_rivalid && f_riready, fname + "_Reg_read_start",  fdesc + " RegField Read Request Initiate")
+        property.cover(f_rovalid && f_roready, fname + "_Reg_read_out",    fdesc + " RegField Read Request Complete")
       }
       if((facct == RegFieldAccessType.W) || (facct == RegFieldAccessType.RW)) {
-        cover(f_wivalid && f_wiready, fname + "_Reg_write_start", fdesc + " RegField Write Request Initiate")
-        cover(f_wovalid && f_woready, fname + "_Reg_write_out",   fdesc + " RegField Write Request Complete")
+        property.cover(f_wivalid && f_wiready, fname + "_Reg_write_start", fdesc + " RegField Write Request Initiate")
+        property.cover(f_wovalid && f_woready, fname + "_Reg_write_out",   fdesc + " RegField Write Request Complete")
       }
 
       def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) Bool(true) else x || y

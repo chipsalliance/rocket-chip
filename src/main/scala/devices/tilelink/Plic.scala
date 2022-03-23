@@ -12,7 +12,7 @@ import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.prci.{ClockSinkDomain}
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.diplomaticobjectmodel.model._
@@ -311,13 +311,13 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     if (nDevices >= 2) {
       val claimed = claimer(0) && maxDevs(0) > 0
       val completed = completer(0)
-      cover(claimed && RegEnable(claimed, false.B, claimed || completed), "TWO_CLAIMS", "two claims with no intervening complete")
-      cover(completed && RegEnable(completed, false.B, claimed || completed), "TWO_COMPLETES", "two completes with no intervening claim")
+      property.cover(claimed && RegEnable(claimed, false.B, claimed || completed), "TWO_CLAIMS", "two claims with no intervening complete")
+      property.cover(completed && RegEnable(completed, false.B, claimed || completed), "TWO_COMPLETES", "two completes with no intervening claim")
 
       val ep = enables(0).asUInt & pending.asUInt
       val ep2 = RegNext(ep)
       val diff = ep & ~ep2
-      cover((diff & (diff - 1)) =/= 0, "TWO_INTS_PENDING", "two enabled interrupts became pending on same cycle")
+      property.cover((diff & (diff - 1)) =/= 0, "TWO_INTS_PENDING", "two enabled interrupts became pending on same cycle")
 
       if (nPriorities > 0)
         ccover(maxDevs(0) > (UInt(1) << priority(0).getWidth) && maxDevs(0) <= Cat(UInt(1), threshold(0)),
@@ -325,7 +325,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     }
 
     def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-      cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
+      property.cover(cond, s"PLIC_$label", "Interrupts;;" + desc)
   }
 }
 

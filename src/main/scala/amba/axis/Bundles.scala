@@ -24,7 +24,6 @@ case class AXISDataField(width: Int) extends BundleField(AXISData) {
 }
 
 class AXISBundleBits(val params: AXISBundleParameters) extends BundleMap(AXISBundle.keys(params)) {
-  override def cloneType: this.type = (new AXISBundleBits(params)).asInstanceOf[this.type]
   def last = if (params.hasLast) apply(AXISLast) else true.B
   def id   = if (params.hasId)   apply(AXISId)   else 0.U
   def dest = if (params.hasDest) apply(AXISDest) else 0.U
@@ -34,7 +33,6 @@ class AXISBundleBits(val params: AXISBundleParameters) extends BundleMap(AXISBun
 }
 
 class AXISBundle(val params: AXISBundleParameters) extends IrrevocableIO(new AXISBundleBits(params)) {
-  override def cloneType: this.type = (new AXISBundle(params)).asInstanceOf[this.type]
 }
 
 object AXISBundle {

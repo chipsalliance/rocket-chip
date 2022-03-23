@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 class EventSet(val gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bool)]) {
   def size = events.size
@@ -20,7 +20,7 @@ class EventSet(val gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bo
   }
   def withCovers: Unit = {
     events.zipWithIndex.foreach {
-      case ((name, func), i) => cover(gate((1.U << i), (func() << i)), name)
+      case ((name, func), i) => property.cover(gate((1.U << i), (func() << i)), name)
     }
   }
 }

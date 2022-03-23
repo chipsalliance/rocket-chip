@@ -57,7 +57,6 @@ final class RationalIO[T <: Data](gen: T) extends Bundle
   val ready  = Input(Bool())
   val sink   = Input(UInt(2.W))
 
-  override def cloneType: this.type = new RationalIO(gen).asInstanceOf[this.type]
 }
 
 object RationalIO

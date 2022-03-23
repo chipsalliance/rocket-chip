@@ -13,7 +13,7 @@ import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusErrorLogicalTr
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 
 trait BusErrors extends Bundle {
   def toErrorList: List[Option[(Valid[UInt], String, String)]]
@@ -97,7 +97,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams, logicalT
           new_cause := i
           new_value := s.get.bits
         }
-        cover(en, s"BusErrorCause_$i", s"Core;;BusErrorCause $i covered")
+        property.cover(en, s"BusErrorCause_$i", s"Core;;BusErrorCause $i covered")
       }
     }
 

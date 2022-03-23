@@ -191,7 +191,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
         hprot(0) := !x.fetch
         hprot(1) :=  x.privileged
         hprot(2) :=  x.bufferable
-        hprot(3) :=  x.modifiable
+        hprot(3) :=  x.modifiable && (x.readalloc || x.writealloc) // cacheable
         out.hprot := Cat(hprot.reverse)
       }
 

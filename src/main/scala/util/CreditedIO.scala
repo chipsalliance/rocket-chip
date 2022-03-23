@@ -37,7 +37,6 @@ case class CreditedDelay(debit: Int, credit: Int)
   */
 final class CreditedIO[T <: Data](gen: T) extends Bundle
 {
-  override def cloneType: this.type = new CreditedIO(genType).asInstanceOf[this.type]
   def genType: T = gen
 
   val credit = Input (Bool()) // 1: a credit is given to the sender by the receiver

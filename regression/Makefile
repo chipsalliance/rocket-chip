@@ -170,7 +170,7 @@ stamps/rocket-tools_checkout.stamp: | stamps/riscv-tests.stamp
 # This means that the rule will be executed, but it will /not/ be
 # evaluated as a depenency for install.stamp. This is needed because
 # the timestamp on install.stamp will be older than the checkout stamp
-# anytime we restore the installation area from cache in travisci.
+# anytime we restore the installation area from cache in CI.
 $(RISCV)/install.stamp: | stamps/rocket-tools_checkout.stamp
 	mkdir -p $(dir $@)
 	+cd $(RISCV_TOOLS); RISCV=$(abspath $(RISCV)) ./build.sh

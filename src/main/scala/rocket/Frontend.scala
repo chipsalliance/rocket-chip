@@ -12,7 +12,7 @@ import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.property._
+import freechips.rocketchip.util.property
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.ICacheLogicalTreeNode
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -22,6 +22,9 @@ class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
 
 class FrontendExceptions extends Bundle {
   val pf = new Bundle {
+    val inst = Bool()
+  }
+  val gf = new Bundle {
     val inst = Bool()
   }
   val ae = new Bundle {
@@ -49,6 +52,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Valid(new FrontendReq)
   val sfence = Valid(new SFenceReq)
   val resp = Decoupled(new FrontendResp).flip
+  val gpa = Flipped(Valid(UInt(vaddrBitsExtended.W)))
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
@@ -112,7 +116,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_btb_resp_bits = Reg(new BTBResp)
   val s2_btb_taken = s2_btb_resp_valid && s2_btb_resp_bits.taken
   val s2_tlb_resp = Reg(tlb.io.resp)
-  val s2_xcpt = s2_tlb_resp.ae.inst || s2_tlb_resp.pf.inst
+  val s2_xcpt = s2_tlb_resp.ae.inst || s2_tlb_resp.pf.inst || s2_tlb_resp.gf.inst
   val s2_speculative = Reg(init=Bool(false))
   val s2_partial_insn_valid = RegInit(false.B)
   val s2_partial_insn = Reg(UInt(width = coreInstBits))
@@ -149,6 +153,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := Bool(false)
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
+  tlb.io.req.bits.prv := io.ptw.status.prv
+  tlb.io.req.bits.v := io.ptw.status.v
   tlb.io.sfence := io.cpu.sfence
   tlb.io.kill := !s2_valid
 
@@ -160,6 +166,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s1_kill := s2_redirect || tlb.io.resp.miss || s2_replay
   val s2_can_speculatively_refill = s2_tlb_resp.cacheable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableSpeculativeICacheRefill
   icache.io.s2_kill := s2_speculative && !s2_can_speculatively_refill || s2_xcpt
+  icache.io.s2_cacheable := s2_tlb_resp.cacheable
   icache.io.s2_prefetch := s2_tlb_resp.prefetchable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableICachePrefetch
 
   fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
@@ -324,6 +331,21 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   io.cpu.resp <> fq.io.deq
 
+  // supply guest physical address to commit stage
+  val gpa_valid = Reg(Bool())
+  val gpa = Reg(UInt(vaddrBitsExtended.W))
+  when (fq.io.enq.fire() && s2_tlb_resp.gf.inst) {
+    when (!gpa_valid) {
+      gpa := s2_tlb_resp.gpa
+    }
+    gpa_valid := true
+  }
+  when (io.cpu.req.valid) {
+    gpa_valid := false
+  }
+  io.cpu.gpa.valid := gpa_valid
+  io.cpu.gpa.bits := gpa
+
   // performance events
   io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
@@ -341,7 +363,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   def alignPC(pc: UInt) = ~(~pc | (coreInstBytes - 1))
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
-    cover(cond, s"FRONTEND_$label", "Rocket;;" + desc)
+    property.cover(cond, s"FRONTEND_$label", "Rocket;;" + desc)
 }
 
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */

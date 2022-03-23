@@ -48,7 +48,6 @@ class WritebackReq(params: TLBundleParameters)(implicit p: Parameters) extends L
   val way_en = Bits(width = nWays)
   val voluntary = Bool()
 
-  override def cloneType = new WritebackReq(params)(p).asInstanceOf[this.type]
 }
 
 class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
@@ -726,6 +725,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.req.bits.vaddr := s1_req.addr
   dtlb.io.req.bits.size := s1_req.size
   dtlb.io.req.bits.cmd := s1_req.cmd
+  dtlb.io.req.bits.prv := s1_req.dprv
+  dtlb.io.req.bits.v := s1_req.dv
   when (!dtlb.io.req.ready && !io.cpu.req.bits.phys) { io.cpu.req.ready := Bool(false) }
 
   dtlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
