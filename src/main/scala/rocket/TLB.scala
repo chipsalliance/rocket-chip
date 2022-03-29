@@ -142,9 +142,9 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   }
 
   def invalidate(): Unit = { valid.foreach(_ := false) }
-  def invalidate(virtual: Bool, guestPhys: Bool): Unit = {
+  def invalidate(virtual: Bool): Unit = {
     for ((v, e) <- valid zip entry_data)
-      when (tag_v === virtual || tag_v && guestPhys) { v := false }
+      when (tag_v === virtual) { v := false }
   }
   def invalidateVPN(vpn: UInt, virtual: Bool): Unit = {
     if (superpage) {
@@ -489,11 +489,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         val hg = usingHypervisor && io.sfence.bits.hg
         when (!hg && io.sfence.bits.rs1) { e.invalidateVPN(vpn, hv) }
         .elsewhen (!hg && io.sfence.bits.rs2) { e.invalidateNonGlobal(hv) }
-        .otherwise { e.invalidate(hv, hg) }
+        .otherwise { e.invalidate(hv || hg) }
       }
     }
     when(io.req.fire() && vsatp_mode_mismatch) {
-      all_real_entries.foreach(_.invalidate(true, false))
+      all_real_entries.foreach(_.invalidate(true))
       v_entries_use_stage1 := vstage1_en
     }
     when (multipleHits || reset) {
