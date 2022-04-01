@@ -99,9 +99,10 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val shift_logic = (isCmp(io.fn) && slt) | logic | shro
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
-  io.out := out
-  if (xLen > 32) {
-    require(xLen == 64)
-    when (io.dw === DW_32) { io.out := Cat(Fill(32, out(31)), out(31,0)) }
-  }
+  io.out :=
+    if (xLen == 32) out
+    else {
+      require(xLen == 64)
+      Mux(io.dw === DW_64, out, Cat(Fill(32, out(31)), out(31,0)))
+    }
 }
