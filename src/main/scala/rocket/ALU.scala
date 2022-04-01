@@ -70,26 +70,33 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   io.cmp_out := cmpInverted(io.fn) ^ Mux(cmpEq(io.fn), in1_xor_in2 === UInt(0), slt)
 
   // SLL, SRL, SRA
+  // ROL, ROLW, ROR, RORI, RORW, RORIW
   val (shamt, shin_r) =
     if (xLen == 32) (io.in2(4,0), io.in1)
     else {
       require(xLen == 64)
-      val shin_hi_32 = Fill(32, isSub(io.fn) && io.in1(31))
+      // FIXME: add impl of isRotate
+      val shin_hi_32 = Mux(isRotate, io.in1(31,0), Fill(32, isSub(io.fn) && io.in1(31)))
       val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
   val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
+  // TODO: Merge shift and rotate (manual barrel)
   val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
-  val shout_l = Reverse(shout_r)
-  val shout = Mux(io.fn === FN_SR || io.fn === FN_SRA, shout_r, UInt(0)) |
-              Mux(io.fn === FN_SL,                     shout_l, UInt(0))
+  val roout_r = shin.rotateRight(shamt)(xLen-1,0)
+  // FIXME: add withZB option
+  val shro_r = Mux(isRotate, roout_r, shout_r)
+  val shro_l = Reverse(shro_r)
+  // not sign extended, used by rorw
+  val shro = Mux(io.fn === FN_SR || io.fn === FN_SRA, shro_r, UInt(0)) |
+             Mux(io.fn === FN_SL,                     shro_l, UInt(0))
 
   // AND, OR, XOR
   // ANDN, ORN, XNOR
   val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
               Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & in2_inv, UInt(0))
-  val shift_logic = (isCmp(io.fn) && slt) | logic | shout
+  val shift_logic = (isCmp(io.fn) && slt) | logic | shro
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
   io.out := out

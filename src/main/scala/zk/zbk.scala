@@ -6,14 +6,8 @@ import chisel3._
 import chisel3.util._
 
 object ZBK {
-  val ROR    = BitPat("b0110000??????????101?????0110011")
-  val ROL    = BitPat("b0110000??????????001?????0110011")
-  val RORI   = BitPat("b011000???????????101?????0010011")
   val PACK   = BitPat("b0000100??????????100?????0110011")
   val PACKH  = BitPat("b0000100??????????111?????0110011")
-  val ROLW   = BitPat("b0110000??????????001?????0111011")
-  val RORW   = BitPat("b0110000??????????101?????0111011")
-  val RORIW  = BitPat("b0110000??????????101?????0011011")
   val PACKW  = BitPat("b0000100??????????100?????0111011")
   val BREV8  = BitPat("b011010000111?????101?????0010011")
   val REV8   = BitPat("b011010?11000?????101?????0010011")
@@ -25,19 +19,16 @@ object ZBK {
   val XPERM4 = BitPat("b0010100??????????010?????0110011")
 
   val FN_Len   = 4
-  def FN_ROR   =  0.U(FN_Len.W)
-  def FN_ROL   =  1.U(FN_Len.W)
-  def FN_RORI  =  2.U(FN_Len.W)
-  def FN_PACK  =  3.U(FN_Len.W)
-  def FN_PACKH =  4.U(FN_Len.W)
-  def FN_BREV8 =  5.U(FN_Len.W)
-  def FN_REV8  =  6.U(FN_Len.W)
-  def FN_ZIP   =  7.U(FN_Len.W)
-  def FN_UNZIP =  8.U(FN_Len.W)
-  def FN_CLMUL =  9.U(FN_Len.W)
-  def FN_CLMULH= 10.U(FN_Len.W)
-  def FN_XPERM8= 11.U(FN_Len.W)
-  def FN_XPERM4= 12.U(FN_Len.W)
+  def FN_PACK  =  1.U(FN_Len.W)
+  def FN_PACKH =  2.U(FN_Len.W)
+  def FN_BREV8 =  3.U(FN_Len.W)
+  def FN_REV8  =  4.U(FN_Len.W)
+  def FN_ZIP   =  5.U(FN_Len.W)
+  def FN_UNZIP =  6.U(FN_Len.W)
+  def FN_CLMUL =  7.U(FN_Len.W)
+  def FN_CLMULH=  8.U(FN_Len.W)
+  def FN_XPERM8=  9.U(FN_Len.W)
+  def FN_XPERM4= 10.U(FN_Len.W)
 }
 
 class ZBKInterface(xLen: Int) extends Bundle {
@@ -59,27 +50,6 @@ class ZBKImp(xLen: Int) extends Module {
     val in_hi_32 = Fill(32, in(31))
     Cat(in_hi_32, in)
   }
-
-  // rotate
-  val (shamt, shin_r) =
-    if (xLen == 32) (io.rs2(4,0), io.rs1)
-    else {
-      require(xLen == 64)
-      val shin_hi = Mux(io.dw, io.rs1(63,32), io.rs1(31,0))
-      val shamt = Cat(io.rs2(5) & io.dw, io.rs2(4,0))
-      (shamt, Cat(shin_hi, io.rs1(31,0)))
-    }
-  val shin = Mux(io.zbk_fn === ZBK.FN_ROR  || io.zbk_fn === ZBK.FN_RORI, shin_r, Reverse(shin_r))
-  val shout_r = shin.rotateRight(shamt)(xLen-1,0)
-  val shout_l = Reverse(shout_r)
-  val shout_raw = Mux(io.zbk_fn === ZBK.FN_ROR || io.zbk_fn === ZBK.FN_RORI, shout_r, 0.U) |
-                  Mux(io.zbk_fn === ZBK.FN_ROL,                              shout_l, 0.U)
-  val shout =
-    if (xLen == 32) shout_raw
-    else {
-      require(xLen == 64)
-      Mux(io.dw, shout_raw, sext(shout_raw(31,0)))
-    }
 
   // pack
   val pack =
@@ -136,7 +106,6 @@ class ZBKImp(xLen: Int) extends Module {
 
   // according to FN_xxx above
   io.rd := VecInit(Seq(
-    shout, shout, shout,
     pack, packh,
     brev8, rev8,
     zip, unzip,
