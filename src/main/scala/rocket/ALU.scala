@@ -58,6 +58,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   // ADD, SUB
+  // FIXME: isSub also for ANDN, ORN, XNOR
   val in2_inv = Mux(isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv
   io.adder_out := io.in1 + in2_inv + isSub(io.fn)
@@ -85,8 +86,9 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
               Mux(io.fn === FN_SL,                     shout_l, UInt(0))
 
   // AND, OR, XOR
+  // ANDN, ORN, XNOR
   val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
-              Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & io.in2, UInt(0))
+              Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & in2_inv, UInt(0))
   val shift_logic = (isCmp(io.fn) && slt) | logic | shout
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 

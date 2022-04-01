@@ -9,9 +9,6 @@ object ZBK {
   val ROR    = BitPat("b0110000??????????101?????0110011")
   val ROL    = BitPat("b0110000??????????001?????0110011")
   val RORI   = BitPat("b011000???????????101?????0010011")
-  val ANDN   = BitPat("b0100000??????????111?????0110011")
-  val ORN    = BitPat("b0100000??????????110?????0110011")
-  val XNOR   = BitPat("b0100000??????????100?????0110011")
   val PACK   = BitPat("b0000100??????????100?????0110011")
   val PACKH  = BitPat("b0000100??????????111?????0110011")
   val ROLW   = BitPat("b0110000??????????001?????0111011")
@@ -31,19 +28,16 @@ object ZBK {
   def FN_ROR   =  0.U(FN_Len.W)
   def FN_ROL   =  1.U(FN_Len.W)
   def FN_RORI  =  2.U(FN_Len.W)
-  def FN_ANDN  =  3.U(FN_Len.W)
-  def FN_ORN   =  4.U(FN_Len.W)
-  def FN_XNOR  =  5.U(FN_Len.W)
-  def FN_PACK  =  6.U(FN_Len.W)
-  def FN_PACKH =  7.U(FN_Len.W)
-  def FN_BREV8 =  8.U(FN_Len.W)
-  def FN_REV8  =  9.U(FN_Len.W)
-  def FN_ZIP   = 10.U(FN_Len.W)
-  def FN_UNZIP = 11.U(FN_Len.W)
-  def FN_CLMUL = 12.U(FN_Len.W)
-  def FN_CLMULH= 13.U(FN_Len.W)
-  def FN_XPERM8= 14.U(FN_Len.W)
-  def FN_XPERM4= 15.U(FN_Len.W)
+  def FN_PACK  =  3.U(FN_Len.W)
+  def FN_PACKH =  4.U(FN_Len.W)
+  def FN_BREV8 =  5.U(FN_Len.W)
+  def FN_REV8  =  6.U(FN_Len.W)
+  def FN_ZIP   =  7.U(FN_Len.W)
+  def FN_UNZIP =  8.U(FN_Len.W)
+  def FN_CLMUL =  9.U(FN_Len.W)
+  def FN_CLMULH= 10.U(FN_Len.W)
+  def FN_XPERM8= 11.U(FN_Len.W)
+  def FN_XPERM4= 12.U(FN_Len.W)
 }
 
 class ZBKInterface(xLen: Int) extends Bundle {
@@ -86,12 +80,6 @@ class ZBKImp(xLen: Int) extends Module {
       require(xLen == 64)
       Mux(io.dw, shout_raw, sext(shout_raw(31,0)))
     }
-
-  // bool
-  val rs2n = ~io.rs2
-  val andn = io.rs1 & rs2n
-  val orn = io.rs1 | rs2n
-  val xnor = io.rs1 ^ rs2n
 
   // pack
   val pack =
@@ -149,7 +137,6 @@ class ZBKImp(xLen: Int) extends Module {
   // according to FN_xxx above
   io.rd := VecInit(Seq(
     shout, shout, shout,
-    andn, orn, xnor,
     pack, packh,
     brev8, rev8,
     zip, unzip,
