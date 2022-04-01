@@ -77,6 +77,16 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val pop_out = Mux(io.fn === FN_CLZ || io.fn === FN_CPOP || io.fn === FN_CTZ,
     PopCount(pop_inw), 0.U)
 
+  // zext/sext
+  val exth = Mux(io.fn === FN_ZEXT || io.fn === FN_SEXT,
+    Cat(Fill(xLen-16, Mux(io.fn === FN_SEXT, io.in1(15), 0.U)), io.in1(15,0)),
+    0.U)
+  val extb = Mux(io.fn === FN_SEXT,
+    Cat(Fill(xLen-8, io.in1(7)), io.in1(7,0)),
+    0.U)
+  // FIXME: impl by dw or fn
+  val ext = Mux(isHalfWord, exth, extb)
+
   // SLT, SLTU
   val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), io.adder_out(xLen-1),
@@ -117,7 +127,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   // ANDN, ORN, XNOR
   val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
               Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & in2_inv, UInt(0))
-  val shift_logic = (isCmp(io.fn) && slt) | logic | shro | max_min | pop_out
+  val shift_logic = (isCmp(io.fn) && slt) | logic | shro | max_min | pop_out | ext
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
   io.out :=
