@@ -67,7 +67,12 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), io.adder_out(xLen-1),
     Mux(cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1)))
-  io.cmp_out := cmpInverted(io.fn) ^ Mux(cmpEq(io.fn), in1_xor_in2 === UInt(0), slt)
+  val cmp = cmpInverted(io.fn) ^ Mux(cmpEq(io.fn), in1_xor_in2 === UInt(0), slt)
+  io.cmp_out := cmp
+  // MAX, MAXU, MIN, MINU
+  // FIXME: actually no fn defined now, inverted is min
+  //        add withZB option
+  val max_min = Mux(io.fn === FN_MAX || io.fn === FN_MIN, Mux(cmp, io.in2, io.in1), UInt(0))
 
   // SLL, SRL, SRA
   // ROL, ROLW, ROR, RORI, RORW, RORIW
@@ -96,7 +101,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   // ANDN, ORN, XNOR
   val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
               Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & in2_inv, UInt(0))
-  val shift_logic = (isCmp(io.fn) && slt) | logic | shro
+  val shift_logic = (isCmp(io.fn) && slt) | logic | shro | max_min
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
   io.out :=
