@@ -58,10 +58,24 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   }
 
   // ADD, SUB
-  // FIXME: isSub also for ANDN, ORN, XNOR
-  val in2_inv = Mux(isSub(io.fn), ~io.in2, io.in2)
-  val in1_xor_in2 = io.in1 ^ in2_inv
-  io.adder_out := io.in1 + in2_inv + isSub(io.fn)
+  // FIXME: isSub also for ANDN, ORN, XNOR, CLZ, CTZ
+  val adder_in1 = Mux(io.fn === FN_CLZ || io.fn === FN_CTZ, shin, io.in1)
+  val adder_in2 = Mux(io.fn === FN_CLZ || io.fn === FN_CTZ, 1.U, io.in2)
+  val in2_inv = Mux(isSub(io.fn), ~adder_in2, adder_in2)
+  val in1_xor_in2 = adder_in1 ^ in2_inv
+  val adder_out = adder_in1 + in2_inv + isSub(io.fn)
+  io.adder_out := adder_out
+
+  // CLZ, CPOP, CTZ
+  val pop_in = Mux(io.fn === FN_CPOP, io.in1, adder_out)
+  val pop_inw =
+    if (xLen == 32) pop_in
+    else {
+      require(xLen == 64)
+      Mux(io.dw === DW_64, pop_in, Cat(Fill(32, 0.U), pop_in(31,0)))
+    }
+  val pop_out = Mux(io.fn === FN_CLZ || io.fn === FN_CPOP || io.fn === FN_CTZ,
+    PopCount(pop_inw), 0.U)
 
   // SLT, SLTU
   val slt =
@@ -81,11 +95,13 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
     else {
       require(xLen == 64)
       // FIXME: add impl of isRotate
+      // FIXME: isRotate also for CLZW
       val shin_hi_32 = Mux(isRotate, io.in1(31,0), Fill(32, isSub(io.fn) && io.in1(31)))
       val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
+  // FIXME: reverse also for CLZ/CLZW
   val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
   // TODO: Merge shift and rotate (manual barrel)
   val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
@@ -101,7 +117,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   // ANDN, ORN, XNOR
   val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
               Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & in2_inv, UInt(0))
-  val shift_logic = (isCmp(io.fn) && slt) | logic | shro | max_min
+  val shift_logic = (isCmp(io.fn) && slt) | logic | shro | max_min | pop_out
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
   io.out :=
