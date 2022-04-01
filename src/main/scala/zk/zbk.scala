@@ -9,8 +9,6 @@ object ZBK {
   val PACK   = BitPat("b0000100??????????100?????0110011")
   val PACKH  = BitPat("b0000100??????????111?????0110011")
   val PACKW  = BitPat("b0000100??????????100?????0111011")
-  val BREV8  = BitPat("b011010000111?????101?????0010011")
-  val REV8   = BitPat("b011010?11000?????101?????0010011")
   val ZIP    = BitPat("b000010001111?????001?????0010011")
   val UNZIP  = BitPat("b000010001111?????101?????0010011")
   val CLMUL  = BitPat("b0000101??????????001?????0110011")
@@ -19,16 +17,14 @@ object ZBK {
   val XPERM4 = BitPat("b0010100??????????010?????0110011")
 
   val FN_Len   = 4
-  def FN_PACK  =  1.U(FN_Len.W)
-  def FN_PACKH =  2.U(FN_Len.W)
-  def FN_BREV8 =  3.U(FN_Len.W)
-  def FN_REV8  =  4.U(FN_Len.W)
-  def FN_ZIP   =  5.U(FN_Len.W)
-  def FN_UNZIP =  6.U(FN_Len.W)
-  def FN_CLMUL =  7.U(FN_Len.W)
-  def FN_CLMULH=  8.U(FN_Len.W)
-  def FN_XPERM8=  9.U(FN_Len.W)
-  def FN_XPERM4= 10.U(FN_Len.W)
+  def FN_PACK  =  0.U(FN_Len.W)
+  def FN_PACKH =  1.U(FN_Len.W)
+  def FN_ZIP   =  2.U(FN_Len.W)
+  def FN_UNZIP =  3.U(FN_Len.W)
+  def FN_CLMUL =  4.U(FN_Len.W)
+  def FN_CLMULH=  5.U(FN_Len.W)
+  def FN_XPERM8=  6.U(FN_Len.W)
+  def FN_XPERM4=  7.U(FN_Len.W)
 }
 
 class ZBKInterface(xLen: Int) extends Bundle {
@@ -62,11 +58,6 @@ class ZBKImp(xLen: Int) extends Module {
     }
   val packh = Cat(0.U((xLen-16).W), io.rs2(7,0), io.rs1(7,0))
 
-  // rev
-  val rs1_bytes = asBytes(io.rs1)
-  val brev8 = VecInit(rs1_bytes.map(Reverse(_)).toSeq).asUInt
-  val rev8 = VecInit(rs1_bytes.reverse.toSeq).asUInt
-
   // zip
   val unzip = if (xLen == 32) {
     val bits = io.rs1.asBools.zipWithIndex
@@ -81,7 +72,7 @@ class ZBKImp(xLen: Int) extends Module {
   } else 0.U
 
   // xperm
-  // rs1_bytes defined above
+  val rs1_bytes = asBytes(io.rs1)
   val rs2_bytes = asBytes(io.rs2)
   val rs1_nibbles = asNibbles(io.rs1)
   val rs2_nibbles = asNibbles(io.rs2)
@@ -107,7 +98,6 @@ class ZBKImp(xLen: Int) extends Module {
   // according to FN_xxx above
   io.rd := VecInit(Seq(
     pack, packh,
-    brev8, rev8,
     zip, unzip,
     clmul, clmul,
     xperm8, xperm4))(io.zbk_fn)

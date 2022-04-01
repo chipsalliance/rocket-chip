@@ -87,6 +87,18 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   // FIXME: impl by dw or fn
   val ext = Mux(isHalfWord, exth, extb)
 
+  // rev/orc
+  def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
+  val rs1_bytes = asBytes(io.rs1)
+  val rev8 = VecInit(rs1_bytes.reverse.toSeq).asUInt
+  // brev8 only in Zbk
+  // discard that Mux when not withZBK
+  val orc_brev8 = VecInit(rs1_bytes.map(x =>
+      Mux(io.fn === FN_ORC,
+        Mux(x.orR, 0xFF.U(8.W), 0.U(8.W)),
+        Reverse(x))
+    ).toSeq).asUInt
+
   // SLT, SLTU
   val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), io.adder_out(xLen-1),
