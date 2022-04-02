@@ -59,7 +59,12 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
 
   // ADD, SUB
   // FIXME: isSub also for ANDN, ORN, XNOR, CLZ, CTZ
-  val adder_in1 = Mux(io.fn === FN_CLZ || io.fn === FN_CTZ, shin, io.in1)
+  val adder_in1_sh =
+    Mux(io.fn === FN_SH1ADD, (shin << 1)(xLen-1,0),
+      Mux(io.fn === FN_SH2ADD, (shin << 2)(xLen-1,0),
+        Mux(io.fn === FN_SH3ADD, (shin << 3)(xLen-1,0), shin)))
+  // FIXME: use shin also for SHXADD
+  val adder_in1 = Mux(io.fn === FN_CLZ || io.fn === FN_CTZ, adder_in1_sh, io.in1)
   val adder_in2 = Mux(io.fn === FN_CLZ || io.fn === FN_CTZ, 1.U, io.in2)
   val in2_inv = Mux(isSub(io.fn), ~adder_in2, adder_in2)
   val in1_xor_in2 = adder_in1 ^ in2_inv
@@ -118,12 +123,16 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
       require(xLen == 64)
       // FIXME: add impl of isRotate
       // FIXME: isRotate also for CLZW
-      val shin_hi_32 = Mux(isRotate, io.in1(31,0), Fill(32, isSub(io.fn) && io.in1(31)))
-      val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
+      val shin_hi_32_ext = Mux(isUW, Fill(32, 0.U), Fill(32, isSub(io.fn) && io.in1(31)))
+      val shin_hi_32 = Mux(isRotate, io.in1(31,0), shin_hi_32_ext)
+      val shin_hi = Mux(io.dw === DW_64 && !isUW, io.in1(63,32), shin_hi_32)
+      // FIXME: dw === DW_64 for slli.uw!
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
   // FIXME: reverse also for CLZ/CLZW
+  // FIXME: use shin_r for SHXADD
+  // FIXME: use Reverse(shin_r) for SLLI.UW
   val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
   // TODO: Merge shift and rotate (manual barrel)
   val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
@@ -132,6 +141,7 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val shro_r = Mux(isRotate, roout_r, shout_r)
   val shro_l = Reverse(shro_r)
   // not sign extended, used by rorw
+  // FIXME: use shro_l for SLLI.UW
   val shro = Mux(io.fn === FN_SR || io.fn === FN_SRA, shro_r, UInt(0)) |
              Mux(io.fn === FN_SL,                     shro_l, UInt(0))
 
