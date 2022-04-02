@@ -118,17 +118,18 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   // SLL, SRL, SRA
   // ROL, ROLW, ROR, RORI, RORW, RORIW
   val (shamt, shin_r) =
-    if (xLen == 32) (io.in2(4,0), io.in1)
+    if (xLen == 32) (io.in2(4,0), Mux(isZBS, 1.U, io.in1))
     else {
       require(xLen == 64)
       // FIXME: add impl of isRotate
       // FIXME: isRotate also for CLZW
-      val shin_hi_32_ext = Mux(isUW, Fill(32, 0.U), Fill(32, isSub(io.fn) && io.in1(31)))
-      val shin_hi_32 = Mux(isRotate, io.in1(31,0), shin_hi_32_ext)
-      val shin_hi = Mux(io.dw === DW_64 && !isUW, io.in1(63,32), shin_hi_32)
+      val shin_in1 = Mux(isZBS, 1.U, io.in1)
+      val shin_hi_32_ext = Mux(isUW, Fill(32, 0.U), Fill(32, isSub(io.fn) && shin_in1(31)))
+      val shin_hi_32 = Mux(isRotate, shin_in1(31,0), shin_hi_32_ext)
+      val shin_hi = Mux(io.dw === DW_64 && !isUW, shin_in1(63,32), shin_hi_32)
       // FIXME: dw === DW_64 for slli.uw!
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
-      (shamt, Cat(shin_hi, io.in1(31,0)))
+      (shamt, Cat(shin_hi, shin_in1(31,0)))
     }
   // FIXME: reverse also for CLZ/CLZW
   // FIXME: use shin_r for SHXADD
@@ -142,13 +143,20 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   val shro_l = Reverse(shro_r)
   // not sign extended, used by rorw
   // FIXME: use shro_l for SLLI.UW
+  // FIXME: use shro_l for ZBS
   val shro = Mux(io.fn === FN_SR || io.fn === FN_SRA, shro_r, UInt(0)) |
              Mux(io.fn === FN_SL,                     shro_l, UInt(0))
 
   // AND, OR, XOR
   // ANDN, ORN, XNOR
-  val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, UInt(0)) |
-              Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & in2_inv, UInt(0))
+  // BCLR, BEXT, BINV, BSET
+  // NOTE: can this be merged into in2_inv?
+  val and = io.in1 & Mux(isZBS, Mux(io.fn === FN_BCLR, ~shro, shro), in2_inv)
+  val xor = Mux(isZBS, io.in1 ^ shro, in_xor_in2)
+  // note the special logic for bext
+  val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, xor, UInt(0)) |
+              Mux(io.fn === FN_OR || io.fn === FN_AND, and, UInt(0))
+  val bext = and.orR
   val shift_logic = (isCmp(io.fn) && slt) | logic | shro | max_min | pop_out | ext
   val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
 
