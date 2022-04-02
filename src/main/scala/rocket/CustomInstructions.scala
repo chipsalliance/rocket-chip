@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3.util._
 
 object CustomInstructions {
   def MNRET              = BitPat("b01110000001000000000000001110011")
