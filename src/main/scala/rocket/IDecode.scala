@@ -10,6 +10,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.scie.SCIE
 import freechips.rocketchip.zk.{ZBK, ZKN, ZKS}
 import Instructions._
+import CustomInstructions._
 import ALU._
 
 
