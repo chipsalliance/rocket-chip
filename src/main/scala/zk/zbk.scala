@@ -93,7 +93,10 @@ class ZBKImp(xLen: Int) extends Module {
   val clmul_raw = clmul_rs2.asBools.zipWithIndex.map({
     case (b, i) => Mux(b, clmul_rs1 << i, 0.U)
   }).reduce(_ ^ _)(xLen-1,0)
-  val clmul = Mux(io.zbk_fn === ZBK.FN_CLMUL, clmul_raw, Cat(0.U(1.W), Reverse(clmul_raw)(xLen-1,1))) // including clmulh
+  // clmul_raw also for clmulr
+  val clmulr = Reverse(clmul_raw)
+  val clmulh = Cat(0.U(1.W), clmulr(xLen-1,1))
+  val clmul = Mux(io.zbk_fn === ZBK.FN_CLMUL, clmul_raw, clmulh) // including clmulh
 
   // according to FN_xxx above
   io.rd := VecInit(Seq(
