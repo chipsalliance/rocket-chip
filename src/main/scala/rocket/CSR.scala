@@ -448,7 +448,7 @@ class CSRFile(
 
   val reg_debug = Reg(init=Bool(false))
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
-  val reg_dscratch = Reg(UInt(width = xLen))
+  val reg_dscratch0 = Reg(UInt(width = xLen))
   val reg_dscratch1 = (p(DebugModuleKey).map(_.nDscratch).getOrElse(1) > 1).option(Reg(UInt(width = xLen)))
   val reg_singleStepped = Reg(Bool())
 
@@ -626,7 +626,7 @@ class CSRFile(
   val debug_csrs = if (!usingDebug) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
-    CSRs.dscratch -> reg_dscratch.asUInt) ++
+    CSRs.dscratch0 -> reg_dscratch0.asUInt) ++
     reg_dscratch1.map(r => CSRs.dscratch1 -> r)
 
   val read_mnstatus = WireInit(0.U.asTypeOf(new MNStatus()))
@@ -1252,7 +1252,7 @@ class CSRFile(
         if (usingHypervisor) reg_dcsr.v := new_dcsr.v
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
-      when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
+      when (decoded_addr(CSRs.dscratch0)) { reg_dscratch0 := wdata }
       reg_dscratch1.foreach { r =>
         when (decoded_addr(CSRs.dscratch1)) { r := wdata }
       }
