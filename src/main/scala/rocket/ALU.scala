@@ -72,15 +72,30 @@ class ALU(implicit p: Parameters) extends CoreModule()(p) {
   io.adder_out := adder_out
 
   // CLZ, CPOP, CTZ
-  val pop_in = Mux(io.fn === FN_CPOP, io.in1, adder_out)
-  val pop_inw =
-    if (xLen == 32) pop_in
+  val pop_in =
+    if (xLen == 32) io.in1
     else {
       require(xLen == 64)
-      Mux(io.dw === DW_64, pop_in, Cat(Fill(32, 0.U), pop_in(31,0)))
+      Mux(io.dw === DW_64, io.in1, Cat(Fill(32, 0.U), io.in1(31,0)))
     }
-  val pop_out = Mux(io.fn === FN_CLZ || io.fn === FN_CPOP || io.fn === FN_CTZ,
-    PopCount(pop_inw), 0.U)
+  val pop_out = Mux(io.fn === FN_CPOP, PopCount(pop_in), 0.U)
+  val tz_in = ~adder_out & adder_in1 // all zero or one hot
+  val tz_inw =
+    if (xLen == 32) tz_in
+    else {
+      require(xLen == 64)
+      Mux(io.dw === DW_64, tz_in, Cat(Fill(32, 0.U), tz_in(31,0)))
+    }
+  val tz_out = VecInit((0 to log2Ceil(xLen)-1).map(
+    x => {
+      val bits = tz_inw.asBools.zipWithIndex
+      VecInit(
+        bits
+          filter { case (_, i) => i % (1 << (x + 1)) >= (1 << x) }
+          map { case (b, _) => b }
+        ).asUInt.orR
+    }
+  ).toSeq).asUInt
 
   // zext/sext
   val exth = Mux(io.fn === FN_ZEXT || io.fn === FN_SEXT,
