@@ -214,7 +214,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     (pgLevels-1 until 0 by -1).map(i => Cat(ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
   }
 
-  def makePTECache(s2: Boolean): (Bool, UInt) = {
+  def makePTECache(s2: Boolean): (Bool, UInt) = if (coreParams.nPTECacheEntries == 0) {
+    (false.B, 0.U)
+  } else {
     val plru = new PseudoLRU(coreParams.nPTECacheEntries)
     val valid = RegInit(0.U(coreParams.nPTECacheEntries.W))
     val tags = Reg(Vec(coreParams.nPTECacheEntries, UInt((if (usingHypervisor) 1 + vaddrBits else paddrBits).W)))
