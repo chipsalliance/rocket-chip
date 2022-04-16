@@ -405,7 +405,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, SInt(2), SInt(4))))
 
-  val alu = Module(new ALU)
+  val alu = Module(new ABLU)
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt

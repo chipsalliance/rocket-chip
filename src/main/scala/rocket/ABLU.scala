@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
@@ -11,20 +11,20 @@ object ABLU
 {
   val SZ_ALU_FN = 4
   def FN_X    = BitPat("b????")
-  def FN_ADD  = UInt(0)
-  def FN_SL   = UInt(1)
-  def FN_SEQ  = UInt(2)
-  def FN_SNE  = UInt(3)
-  def FN_XOR  = UInt(4)
-  def FN_SR   = UInt(5)
-  def FN_OR   = UInt(6)
-  def FN_AND  = UInt(7)
-  def FN_SUB  = UInt(10)
-  def FN_SRA  = UInt(11)
-  def FN_SLT  = UInt(12)
-  def FN_SGE  = UInt(13)
-  def FN_SLTU = UInt(14)
-  def FN_SGEU = UInt(15)
+  def FN_ADD  = 0.U(SZ_ALU_FN.W)
+  def FN_SL   = 1.U(SZ_ALU_FN.W)
+  def FN_SEQ  = 2.U(SZ_ALU_FN.W)
+  def FN_SNE  = 3.U(SZ_ALU_FN.W)
+  def FN_XOR  = 4.U(SZ_ALU_FN.W)
+  def FN_SR   = 5.U(SZ_ALU_FN.W)
+  def FN_OR   = 6.U(SZ_ALU_FN.W)
+  def FN_AND  = 7.U(SZ_ALU_FN.W)
+  def FN_SUB  = 10.U(SZ_ALU_FN.W)
+  def FN_SRA  = 11.U(SZ_ALU_FN.W)
+  def FN_SLT  = 12.U(SZ_ALU_FN.W)
+  def FN_SGE  = 13.U(SZ_ALU_FN.W)
+  def FN_SLTU = 14.U(SZ_ALU_FN.W)
+  def FN_SGEU = 15.U(SZ_ALU_FN.W)
 
   def FN_DIV  = FN_XOR
   def FN_DIVU = FN_SR
@@ -35,13 +35,6 @@ object ABLU
   def FN_MULH   = FN_SL
   def FN_MULHSU = FN_SEQ
   def FN_MULHU  = FN_SNE
-
-  def isMulFN(fn: UInt, cmp: UInt) = fn(1,0) === cmp(1,0)
-  def isSub(cmd: UInt) = cmd(3)
-  def isCmp(cmd: UInt) = cmd >= FN_SLT
-  def cmpUnsigned(cmd: UInt) = cmd(1)
-  def cmpInverted(cmd: UInt) = cmd(0)
-  def cmpEq(cmd: UInt) = !cmd(3)
 }
 
 import ABLU._
@@ -57,9 +50,39 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
     val cmp_out = Bool(OUTPUT)
   }
 
+  val (pla_in, pla_out) = pla(Seq(
+    // ctrl signals, shxadd1H out1H
+    (BitPat("b0000"),BitPat("b00_000_00000_000_0000000100_0000_0000_0001")),//FN_ADD
+    (BitPat("b0001"),BitPat("b00_000_00000_100_0000000100_0000_0000_0010")),//FN_SL
+    (BitPat("b0010"),BitPat("b00_100_00000_000_0000000100_0000_0100_0000")),//FN_SEQ
+    (BitPat("b0011"),BitPat("b00_110_00000_000_0000000100_0000_0100_0000")),//FN_SNE
+    (BitPat("b0100"),BitPat("b00_000_00000_000_0000000100_0000_0000_1000")),//FN_XOR
+    (BitPat("b0101"),BitPat("b00_000_00000_000_0000000100_0000_0000_0010")),//FN_SR
+    (BitPat("b0110"),BitPat("b00_000_00000_000_0000000100_0000_0001_0000")),//FN_OR
+    (BitPat("b0111"),BitPat("b00_000_00000_000_0000000100_0000_0000_0100")),//FN_AND
+    (BitPat("b1000"),BitPat("b00_000_00000_000_0000000000_0000_0000_0000")),//UNUSED
+    (BitPat("b1001"),BitPat("b00_000_00000_000_0000000000_0000_0000_0000")),//UNUSED
+    (BitPat("b1010"),BitPat("b00_000_00000_000_0011000100_0000_0000_0001")),//FN_SUB
+    (BitPat("b1011"),BitPat("b00_000_00000_001_0000000100_0000_0000_0010")),//FN_SRA
+    (BitPat("b1100"),BitPat("b00_000_00000_000_0011000100_0000_0100_0000")),//FN_SLT
+    (BitPat("b1101"),BitPat("b00_010_00000_000_0011000100_0000_0100_0000")),//FN_SGE
+    (BitPat("b1110"),BitPat("b00_001_00000_000_0011000100_0000_0100_0000")),//FN_SLTU
+    (BitPat("b1111"),BitPat("b00_011_00000_000_0011000100_0000_0100_0000")),//FN_SGEU
+  ))
+
+  pla_in := io.fn
+  // note that it is inverted
+  val isSub :: isIn2Inv :: isZBS :: isUW ::
+    isSRA:: isRotate :: isLeft ::
+    isCLZ :: isCZ :: isBCLR :: isCZBCLR :: isCZZBS ::
+    isUnsigned :: isInverted :: isSEQSNE ::
+    isSEXT :: isORC :: Nil = pla_out(36,18).asBools
+  val shxadd1H = pla_out(17,14) // 4 bit
+  val out1H = pla_out(13,0)
+
   // process input
   // used by SUB, ANDN, ORN, XNOR
-  val in2_inv = Mux(isSub | isLogicN, ~io.in2, io.in2)
+  val in2_inv = Mux(isIn2Inv, ~io.in2, io.in2)
   val shamt =
     if (xLen == 32) io.in2(4,0)
     else {
@@ -67,12 +90,13 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
       Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
     }
   val in1_ext =
-    if (xLen == 32) Mux(isZBS, 1.U, io.in1)
+    if (xLen == 32) io.in1
     else {
       require(xLen == 64)
       val in1_hi_orig = io.in1(63,32)
       val in1_hi_rotate = io.in1(31,0)
-      val in1_hi_sext = Fill(32, isSRA & io.in1(31))
+      // note that sext fills 0 for ADDW/SUBW, but it works
+      val in1_hi_sext = Fill(32, isSRA & io.in1(31)) // 31 to 63 then to 64 in shout_r
       val in1_hi_zext = Fill(32, 0.U)
       val in1_hi = Mux(io.dw === DW_64,
         Mux(isUW, in1_hi_zext, in1_hi_orig),
@@ -80,34 +104,43 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
       Cat(in1_hi, io.in1(31,0))
     }
   val in1 = Mux(isZBS, 1.U(xLen.W), in1_ext)
+  // one arm: SL, ROL, SLLIUW, ZBS, CLZ
   // another arm: SR, SRA, ROR, CTZ, ADD, SUB
   // note that CLZW is not included here
   // in1 capable of right hand operation
-  val in1_r = Mux(isSL | isROL | isSLLIUW | isZBS | isCLZ, Reverse(in1), in1)
+  // isLeft
+  val in1_r = Mux(isLeft, Reverse(in1), in1)
 
   // shifter
   // TODO: Merge shift and rotate (manual barrel)
-  val shout_r = (Cat(isSub & in1_r(xLen-1), in1_r).asSInt >> shamt)(xLen-1,0)
+  val shout_r = (Cat(isSRA & in1_r(xLen-1), in1_r).asSInt >> shamt)(xLen-1,0)
   val roout_r = in1_r.rotateRight(shamt)(xLen-1,0)
   // FIXME: add withZB option
   val shro_r = Mux(isRotate, roout_r, shout_r)
-  val shro = Mux(isSR | isSRA | isROR, shro_r, Reverse(shro_r))
+  // one arm: SL, ROL, SLLIUW, ZBS
+  // another arm: SR, SRA, ROR
+  val shro = Mux(isLeft, Reverse(shro_r), shro_r)
 
   // adder
   val adder_in1_r =
     if (xLen == 32) in1_r
     else {
       require(xLen == 64)
-      Mux(io.dw === DW_64, in1_r,
-        // CLZW only reverse (31,0) here
-        Mux(isCLZ, Cat(in1_ext(63,32), Reverse(in1_ext(31,0))), in1_ext))
+      // one arm: CLZW
+      // another arm: add, addw, add.uw
+      // CLZW only reverse (31,0) here
+      Mux((io.dw === DW_32) & isCLZ,
+        Cat(in1_ext(63,32), Reverse(in1_ext(31,0))),
+        in1_ext)
     }
   val adder_in1 =
-    Mux(isSH1ADD, (in1_ext << 1)(xLen-1,0),
-      Mux(isSH2ADD, (in1_ext << 2)(xLen-1,0),
-        Mux(isSH3ADD, (in1_ext << 3)(xLen-1,0), adder_in1_r)))
+    Mux1H(shxadd1H, Seq(
+      adder_in1_r,
+      (in1_ext << 1)(xLen-1,0),
+      (in1_ext << 2)(xLen-1,0),
+      (in1_ext << 3)(xLen-1,0)))
   // out = in1 - 1 when isCLZ/isCTZ
-  val adder_in2 = Mux(isCLZ | isCTZ,
+  val adder_in2 = Mux(isCZ,
     ~0.U(xLen.W), in2_inv)
   val adder_out = adder_in1 + adder_in2 + isSub
   io.adder_out := adder_out
@@ -117,14 +150,14 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
   // ANDN, ORN, XNOR
   // BCLR, BEXT, BINV, BSET
   // NOTE: can this be merged into in2_inv?
-  val out_inv = Mux(isCLZ | isCTZ | isBCLR, ~Mux(isBCLR, shro, adder_out), shro)
-  val logic_in2 = Mux(isCLZ | isCTZ | isZBS, out_inv, in2_inv)
+  val out_inv = Mux(isCZBCLR, ~Mux(isBCLR, shro, adder_out), shro)
+  val logic_in2 = Mux(isCZZBS, out_inv, in2_inv)
   // also BINV
   val xor = adder_in1 ^ logic_in2
   // also BCLR
   val and = adder_in1 & logic_in2
   // also BSET
-  val or = xor | and
+  val or = adder_in1 | logic_in2
   val bext = and.orR
 
   // SLT, SLTU
@@ -168,12 +201,8 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
   ).toSeq).asUInt)
 
   // ZEXT/SEXT
-  val exth = Mux(isZEXT | isSEXT,
-    Cat(Fill(xLen-16, Mux(isSEXT, io.in1(15), 0.U)), io.in1(15,0)),
-    0.U)
-  val extb = Mux(isSEXT,
-    Cat(Fill(xLen-8, io.in1(7)), io.in1(7,0)),
-    0.U)
+  val exth = Cat(Fill(xLen-16, Mux(isSEXT, io.in1(15), 0.U)), io.in1(15,0))
+  val extb = Cat(Fill(xLen-8, io.in1(7)), io.in1(7,0))
 
   // REV/ORC
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
@@ -186,6 +215,26 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
         Mux(x.orR, 0xFF.U(8.W), 0.U(8.W)),
         Reverse(x))
     ).toSeq).asUInt
+
+  val out := Mux1H(out1H, Seq(
+    adder_out,
+    shro,
+    and,
+    xor,
+    //
+    or,
+    bext,
+    cmp,
+    max_min,
+    //
+    cpop,
+    ctz_out,
+    exth,
+    extb,
+    //
+    rev8,
+    orc_brev8,
+    ))
 
   io.out :=
     if (xLen == 32) out
