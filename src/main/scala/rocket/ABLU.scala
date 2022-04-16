@@ -156,7 +156,7 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
       require(xLen == 64)
       Mux(io.dw === DW_64, ctz_in, Cat(Fill(32, 0.U(1.W)), ctz_in(31,0)))
     }
-  val ctz_out = VecInit((0 to log2Ceil(xLen)-1).map(
+  val ctz_out = Cat(~ctz_in_w.orR, VecInit((0 to log2Ceil(xLen)-1).map(
     x => {
       val bits = ctz_in_w.asBools.zipWithIndex
       VecInit(
@@ -165,7 +165,7 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
           map { case (b, _) => b }
         ).asUInt.orR
     }
-  ).toSeq).asUInt
+  ).toSeq).asUInt)
 
   // ZEXT/SEXT
   val exth = Mux(isZEXT | isSEXT,
