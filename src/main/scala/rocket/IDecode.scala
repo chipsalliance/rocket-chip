@@ -429,49 +429,49 @@ class SCIEDecode(implicit val p: Parameters) extends DecodeConstants
     SCIE.opcode->       List(Y,N,N,N,N,N,Y,Y,Y,N,N, A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
-class ZBKBDecode(implicit val p: Parameters) extends DecodeConstants
-{
-  val table: Array[(BitPat, List[BitPat])] = Array(
-    ZBK.ROR ->          List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_ROR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.ROL ->          List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_ROL,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.RORI ->         List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,ZBK.FN_RORI,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.ANDN ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_ANDN,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.ORN ->          List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_ORN,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.XNOR ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_XNOR,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.PACK ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.PACKH ->        List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACKH, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.REV8 ->         List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X  ,ZBK.FN_REV8,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.BREV8 ->        List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X  ,ZBK.FN_BREV8, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
-}
-
-class ZBKB32Decode(implicit val p: Parameters) extends DecodeConstants
-{
-  val table: Array[(BitPat, List[BitPat])] = Array(
-    ZBK.ZIP ->          List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X, ZBK.FN_ZIP,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.UNZIP ->        List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X, ZBK.FN_UNZIP, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
-}
-
-class ZBKB64Decode(implicit val p: Parameters) extends DecodeConstants
-{
-  val table: Array[(BitPat, List[BitPat])] = Array(
-    ZBK.RORW ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_32, ZBK.FN_ROR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.ROLW ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_32, ZBK.FN_ROL,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.RORIW ->        List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_IMM,A1_RS1, IMM_I, DW_32, ZBK.FN_RORI,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.PACKW ->        List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_32, ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
-}
-
-class ZBKCDecode(implicit val p: Parameters) extends DecodeConstants
-{
-  val table: Array[(BitPat, List[BitPat])] = Array(
-    ZBK.CLMUL ->        List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_CLMUL,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.CLMULH ->       List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_CLMULH,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
-}
-class ZBKXDecode(implicit val p: Parameters) extends DecodeConstants
-{
-  val table: Array[(BitPat, List[BitPat])] = Array(
-    ZBK.XPERM8 ->       List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_XPERM8,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZBK.XPERM4 ->       List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_XPERM4,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
-}
+//class ZBKBDecode(implicit val p: Parameters) extends DecodeConstants
+//{
+//  val table: Array[(BitPat, List[BitPat])] = Array(
+//    ZBK.ROR ->          List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_PACK,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.ROL ->          List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_PACK,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.RORI ->         List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.ANDN ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.ORN ->          List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACK,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.XNOR ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.PACK ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.PACKH ->        List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACKH, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.REV8 ->         List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.BREV8 ->        List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X  ,ZBK.FN_PACK, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+//}
+//
+//class ZBKB32Decode(implicit val p: Parameters) extends DecodeConstants
+//{
+//  val table: Array[(BitPat, List[BitPat])] = Array(
+//    ZBK.ZIP ->          List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X, ZBK.FN_ZIP,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.UNZIP ->        List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_X  ,A1_RS1, IMM_X, DW_X, ZBK.FN_UNZIP, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+//}
+//
+//class ZBKB64Decode(implicit val p: Parameters) extends DecodeConstants
+//{
+//  val table: Array[(BitPat, List[BitPat])] = Array(
+//    ZBK.RORW ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_32, ZBK.FN_PACK,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.ROLW ->         List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_32, ZBK.FN_PACK,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.RORIW ->        List(Y,N,N,N,N,N,N,Y,N,Y,N,N,A2_IMM,A1_RS1, IMM_I, DW_32, ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.PACKW ->        List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_32, ZBK.FN_PACK,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+//}
+//
+//class ZBKCDecode(implicit val p: Parameters) extends DecodeConstants
+//{
+//  val table: Array[(BitPat, List[BitPat])] = Array(
+//    ZBK.CLMUL ->        List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_CLMUL,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.CLMULH ->       List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_CLMULH,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+//}
+//class ZBKXDecode(implicit val p: Parameters) extends DecodeConstants
+//{
+//  val table: Array[(BitPat, List[BitPat])] = Array(
+//    ZBK.XPERM8 ->       List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_XPERM8,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+//    ZBK.XPERM4 ->       List(Y,N,N,N,N,N,Y,Y,N,Y,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZBK.FN_XPERM4,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+//}
 
 class ZKND32Decode(implicit val p: Parameters) extends DecodeConstants
 {

@@ -3,6 +3,7 @@
 
 package freechips.rocketchip.rocket
 
+import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.CoreModule
@@ -41,42 +42,42 @@ import ABLU._
 
 class ABLU(implicit p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    val dw = Bits(INPUT, SZ_DW)
-    val fn = Bits(INPUT, SZ_ALU_FN)
-    val in2 = UInt(INPUT, xLen)
-    val in1 = UInt(INPUT, xLen)
-    val out = UInt(OUTPUT, xLen)
-    val adder_out = UInt(OUTPUT, xLen)
-    val cmp_out = Bool(OUTPUT)
+    val dw = Input(Bits(SZ_DW.W))
+    val fn = Input(Bits(SZ_ALU_FN.W))
+    val in2 = Input(UInt(xLen.W))
+    val in1 = Input(UInt(xLen.W))
+    val out = Output(UInt(xLen.W))
+    val adder_out = Output(UInt(xLen.W))
+    val cmp_out = Output(Bool())
   }
 
   val (pla_in, pla_out) = pla(Seq(
     // ctrl signals, shxadd1H out1H
-    (BitPat("b0000"),BitPat("b00_000_00000_000_0000000100_0000_0000_0001")),//FN_ADD
-    (BitPat("b0001"),BitPat("b00_000_00000_100_0000000100_0000_0000_0010")),//FN_SL
-    (BitPat("b0010"),BitPat("b00_100_00000_000_0000000100_0000_0100_0000")),//FN_SEQ
-    (BitPat("b0011"),BitPat("b00_110_00000_000_0000000100_0000_0100_0000")),//FN_SNE
-    (BitPat("b0100"),BitPat("b00_000_00000_000_0000000100_0000_0000_1000")),//FN_XOR
-    (BitPat("b0101"),BitPat("b00_000_00000_000_0000000100_0000_0000_0010")),//FN_SR
-    (BitPat("b0110"),BitPat("b00_000_00000_000_0000000100_0000_0001_0000")),//FN_OR
-    (BitPat("b0111"),BitPat("b00_000_00000_000_0000000100_0000_0000_0100")),//FN_AND
-    (BitPat("b1000"),BitPat("b00_000_00000_000_0000000000_0000_0000_0000")),//UNUSED
-    (BitPat("b1001"),BitPat("b00_000_00000_000_0000000000_0000_0000_0000")),//UNUSED
-    (BitPat("b1010"),BitPat("b00_000_00000_000_0011000100_0000_0000_0001")),//FN_SUB
-    (BitPat("b1011"),BitPat("b00_000_00000_001_0000000100_0000_0000_0010")),//FN_SRA
-    (BitPat("b1100"),BitPat("b00_000_00000_000_0011000100_0000_0100_0000")),//FN_SLT
-    (BitPat("b1101"),BitPat("b00_010_00000_000_0011000100_0000_0100_0000")),//FN_SGE
-    (BitPat("b1110"),BitPat("b00_001_00000_000_0011000100_0000_0100_0000")),//FN_SLTU
-    (BitPat("b1111"),BitPat("b00_011_00000_000_0011000100_0000_0100_0000")),//FN_SGEU
+    (BitPat("b0000"),BitPat("b00_000_00000_000_0000 0001 00_0000_0000_0001")),//FN_ADD
+    (BitPat("b0001"),BitPat("b00_000_00000_100_0000 0001 00_0000_0000_0010")),//FN_SL
+    (BitPat("b0010"),BitPat("b00_100_00000_000_0000 0001 00_0000_0100_0000")),//FN_SEQ
+    (BitPat("b0011"),BitPat("b00_110_00000_000_0000 0001 00_0000_0100_0000")),//FN_SNE
+    (BitPat("b0100"),BitPat("b00_000_00000_000_0000 0001 00_0000_0000_1000")),//FN_XOR
+    (BitPat("b0101"),BitPat("b00_000_00000_000_0000 0001 00_0000_0000_0010")),//FN_SR
+    (BitPat("b0110"),BitPat("b00_000_00000_000_0000 0001 00_0000_0001_0000")),//FN_OR
+    (BitPat("b0111"),BitPat("b00_000_00000_000_0000 0001 00_0000_0000_0100")),//FN_AND
+    (BitPat("b1000"),BitPat("b00_000_00000_000_0000 0000 00_0000_0000_0000")),//UNUSED
+    (BitPat("b1001"),BitPat("b00_000_00000_000_0000 0000 00_0000_0000_0000")),//UNUSED
+    (BitPat("b1010"),BitPat("b00_000_00000_000_0011 0001 00_0000_0000_0001")),//FN_SUB
+    (BitPat("b1011"),BitPat("b00_000_00000_001_0000 0001 00_0000_0000_0010")),//FN_SRA
+    (BitPat("b1100"),BitPat("b00_000_00000_000_0011 0001 00_0000_0100_0000")),//FN_SLT
+    (BitPat("b1101"),BitPat("b00_010_00000_000_0011 0001 00_0000_0100_0000")),//FN_SGE
+    (BitPat("b1110"),BitPat("b00_001_00000_000_0011 0001 00_0000_0100_0000")),//FN_SLTU
+    (BitPat("b1111"),BitPat("b00_011_00000_000_0011 0001 00_0000_0100_0000")),//FN_SGEU
   ))
 
   pla_in := io.fn
   // note that it is inverted
-  val isSub :: isIn2Inv :: isZBS :: isUW ::
-    isSRA:: isRotate :: isLeft ::
-    isCLZ :: isCZ :: isBCLR :: isCZBCLR :: isCZZBS ::
-    isUnsigned :: isInverted :: isSEQSNE ::
-    isSEXT :: isORC :: Nil = pla_out(36,18).asBools
+  val isSub :: isIn2Inv :: isZBS :: isUW :: Nil = pla_out(21,18).asBools
+  val isSRA :: isRotate :: isLeft :: Nil = pla_out(24,22).asBools
+  val isCLZ :: isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = pla_out(29,25).asBools
+  val isUnsigned :: isInverted :: isSEQSNE :: Nil = pla_out(32,30).asBools
+  val isSEXT :: isORC :: Nil = pla_out(34,33).asBools
   val shxadd1H = pla_out(17,14) // 4 bit
   val out1H = pla_out(13,0)
 
@@ -211,12 +212,12 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
   // BREV8 only in Zbk
   // discard that Mux when not withZBK
   val orc_brev8 = VecInit(in1_bytes.map(x =>
-      Mux(io.fn === FN_ORC,
+      Mux(isORC,
         Mux(x.orR, 0xFF.U(8.W), 0.U(8.W)),
         Reverse(x))
     ).toSeq).asUInt
 
-  val out := Mux1H(out1H, Seq(
+  val out = Mux1H(out1H, Seq(
     adder_out,
     shro,
     and,
@@ -233,13 +234,13 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
     extb,
     //
     rev8,
-    orc_brev8,
-    ))
+    orc_brev8))
 
-  io.out :=
+  val out_w =
     if (xLen == 32) out
     else {
       require(xLen == 64)
       Mux(io.dw === DW_64, out, Cat(Fill(32, out(31)), out(31,0)))
     }
+  io.out := out_w
 }
