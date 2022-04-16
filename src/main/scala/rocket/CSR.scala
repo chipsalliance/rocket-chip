@@ -795,7 +795,7 @@ class CSRFile(
     val addr = Cat(io.status.v, io.rw.addr)
     val pats = for (((k, _), i) <- read_mapping.zipWithIndex)
       yield (BitPat(k.U), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
-    val decoded = DecodeLogic(addr, Seq.fill(read_mapping.size)(X), pats)
+    val decoded = DecodeLogic(addr, Seq.fill(read_mapping.size)(N), pats)
     val unvirtualized_mapping = for (((k, _), v) <- read_mapping zip decoded) yield k -> v.asBool
 
     for ((k, v) <- unvirtualized_mapping) yield k -> {
