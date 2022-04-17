@@ -6,25 +6,12 @@ import chisel3._
 import chisel3.util._
 
 object ZBK {
-  val PACK   = BitPat("b0000100??????????100?????0110011")
-  val PACKH  = BitPat("b0000100??????????111?????0110011")
-  val PACKW  = BitPat("b0000100??????????100?????0111011")
-  val ZIP    = BitPat("b000010001111?????001?????0010011")
-  val UNZIP  = BitPat("b000010001111?????101?????0010011")
-  val CLMUL  = BitPat("b0000101??????????001?????0110011")
-  val CLMULH = BitPat("b0000101??????????011?????0110011")
-  val XPERM8 = BitPat("b0010100??????????100?????0110011")
-  val XPERM4 = BitPat("b0010100??????????010?????0110011")
-
-  val FN_Len   = 4
-  def FN_PACK  =  0.U(FN_Len.W)
-  def FN_PACKH =  1.U(FN_Len.W)
-  def FN_ZIP   =  2.U(FN_Len.W)
-  def FN_UNZIP =  3.U(FN_Len.W)
-  def FN_CLMUL =  4.U(FN_Len.W)
-  def FN_CLMULH=  5.U(FN_Len.W)
-  def FN_XPERM8=  6.U(FN_Len.W)
-  def FN_XPERM4=  7.U(FN_Len.W)
+  val FN_Len = 3
+  def FN_CLMUL  =  0.U(FN_Len.W)
+  def FN_CLMULR =  1.U(FN_Len.W)
+  def FN_CLMULH =  2.U(FN_Len.W)
+  def FN_XPERM8 =  3.U(FN_Len.W)
+  def FN_XPERM4 =  4.U(FN_Len.W)
 }
 
 class ZBKInterface(xLen: Int) extends Bundle {
@@ -47,30 +34,6 @@ class ZBKImp(xLen: Int) extends Module {
     Cat(in_hi_32, in)
   }
 
-  // pack
-  val pack =
-    if (xLen == 32) Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0))
-    else {
-      require(xLen == 64)
-      Mux(io.dw,
-        Cat(io.rs2(xLen/2-1,0), io.rs1(xLen/2-1,0)),
-        sext(Cat(io.rs2(xLen/4-1,0), io.rs1(xLen/4-1,0))))
-    }
-  val packh = Cat(0.U((xLen-16).W), io.rs2(7,0), io.rs1(7,0))
-
-  // zip
-  val unzip = if (xLen == 32) {
-    val bits = io.rs1.asBools.zipWithIndex
-    val lo = VecInit(bits filter { case (_, i) => i % 2 == 0 } map { case (b, _) => b }).asUInt
-    val hi = VecInit(bits filter { case (_, i) => i % 2 != 0 } map { case (b, _) => b }).asUInt
-    Cat(hi, lo)
-  } else 0.U
-  val zip = if (xLen == 32) {
-    val lo = io.rs1(15,0).asBools
-    val hi = io.rs1(31,16).asBools
-    VecInit(lo.zip(hi).map { case (l, h) => VecInit(Seq(l, h)).asUInt }).asUInt
-  } else 0.U
-
   // xperm
   val rs1_bytes = asBytes(io.rs1)
   val rs2_bytes = asBytes(io.rs2)
@@ -90,18 +53,15 @@ class ZBKImp(xLen: Int) extends Module {
   // clmul
   val clmul_rs1 = Mux(io.zbk_fn === ZBK.FN_CLMUL, io.rs1, Reverse(io.rs1))
   val clmul_rs2 = Mux(io.zbk_fn === ZBK.FN_CLMUL, io.rs2, Reverse(io.rs2))
-  val clmul_raw = clmul_rs2.asBools.zipWithIndex.map({
+  val clmul = clmul_rs2.asBools.zipWithIndex.map({
     case (b, i) => Mux(b, clmul_rs1 << i, 0.U)
   }).reduce(_ ^ _)(xLen-1,0)
   // clmul_raw also for clmulr
-  val clmulr = Reverse(clmul_raw)
+  val clmulr = Reverse(clmul)
   val clmulh = Cat(0.U(1.W), clmulr(xLen-1,1))
-  val clmul = Mux(io.zbk_fn === ZBK.FN_CLMUL, clmul_raw, clmulh) // including clmulh
 
   // according to FN_xxx above
   io.rd := VecInit(Seq(
-    pack, packh,
-    zip, unzip,
-    clmul, clmul,
+    clmul, clmulr, clmulh,
     xperm8, xperm4))(io.zbk_fn)
 }
