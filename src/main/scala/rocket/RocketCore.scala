@@ -183,7 +183,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (minFLen == 16) new HDecode +: (xLen > 32).option(new H64Decode).toSeq ++: (fLen >= 64).option(new HDDecode).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
     (rocketParams.useSCIE.option(new SCIEDecode)) ++:
-    //(if (usingZBK) new ZBKXDecode +: new ZBKCDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
+    // WithZB will enable
+    (if (true) new ZBADecode +: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq ++: new ZBBSEDecode +: (xLen == 32).option(new ZBBZE32Decode).toSeq else Nil) ++:
+    // WithZB but !WithZK will enable
+    (if (false) (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
+    // Either WithZB or WithZBK will enable
+    (if (true) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
+    // WithZBK will enable
+    (if (true) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
     (if (usingZKN) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
     (if (usingZKN) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
     (if (usingZKN) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:

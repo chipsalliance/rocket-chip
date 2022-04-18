@@ -29,10 +29,6 @@ class ZBKImp(xLen: Int) extends Module {
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
   def asNibbles(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(4).map(VecInit(_).asUInt).toSeq)
-  def sext(in: UInt): UInt = {
-    val in_hi_32 = Fill(32, in(31))
-    Cat(in_hi_32, in)
-  }
 
   // xperm
   val rs1_bytes = asBytes(io.rs1)
