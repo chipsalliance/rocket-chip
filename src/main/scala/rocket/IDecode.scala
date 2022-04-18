@@ -441,11 +441,11 @@ class ZBADecode(implicit val p: Parameters) extends DecodeConstants
 class ZBA64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ADD_UW    -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_ADDUW , N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    SLLI_UW   -> List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_64, FN_SLLIUW, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    SH1ADD_UW -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_SH1ADD, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    SH2ADD_UW -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_SH2ADD, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    SH3ADD_UW -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_SH3ADD, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    ADD_UW    -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_ADDUW   , N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SLLI_UW   -> List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_64, FN_SLLIUW  , N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH1ADD_UW -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_SH1ADDUW, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH2ADD_UW -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_SH2ADDUW, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH3ADD_UW -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_64, FN_SH3ADDUW, N, M_X, N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 // In both Zbb and Zbkb

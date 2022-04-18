@@ -93,66 +93,66 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
 
   val (pla_in, pla_out) = pla(Seq(
     // ctrl signals, shxadd1H out1H
-    (BitPat("b000000"),BitPat("b00_000_0000_000_0000 0001 00_0000_0000_0000_0001")),//FN_ADD
-    (BitPat("b000001"),BitPat("b00_000_0000_100_0000 0001 00_0000_0000_0000_0010")),//FN_SL
-    (BitPat("b000010"),BitPat("b00_100_0000_000_0000 0001 00_0000_0000_0100_0000")),//FN_SEQ
-    (BitPat("b000011"),BitPat("b00_110_0000_000_0000 0001 00_0000_0000_0100_0000")),//FN_SNE
-    (BitPat("b000100"),BitPat("b00_000_0000_000_0000 0001 00_0000_0000_0000_1000")),//FN_XOR
-    (BitPat("b000101"),BitPat("b00_000_0000_000_0000 0001 00_0000_0000_0000_0010")),//FN_SR
-    (BitPat("b000110"),BitPat("b00_000_0000_000_0000 0001 00_0000_0000_0001_0000")),//FN_OR
-    (BitPat("b000111"),BitPat("b00_000_0000_000_0000 0001 00_0000_0000_0000_0100")),//FN_AND
-    (BitPat("b001000"),BitPat("b00_000_0000_000_0000 0000 00_0000_0000_0000_0000")),//UNUSED
-    (BitPat("b001001"),BitPat("b00_000_0000_000_0000 0000 00_0000_0000_0000_0000")),//UNUSED
-    (BitPat("b001010"),BitPat("b00_000_0000_000_0011 0001 00_0000_0000_0000_0001")),//FN_SUB
-    (BitPat("b001011"),BitPat("b00_000_0000_001_0000 0001 00_0000_0000_0000_0010")),//FN_SRA
-    (BitPat("b001100"),BitPat("b00_000_0000_000_0011 0001 00_0000_0000_0100_0000")),//FN_SLT
-    (BitPat("b001101"),BitPat("b00_010_0000_000_0011 0001 00_0000_0000_0100_0000")),//FN_SGE
-    (BitPat("b001110"),BitPat("b00_001_0000_000_0011 0001 00_0000_0000_0100_0000")),//FN_SLTU
-    (BitPat("b001111"),BitPat("b00_011_0000_000_0011 0001 00_0000_0000_0100_0000")),//FN_SGEU
+    (BitPat("b000000"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0001")),//FN_ADD
+    (BitPat("b000001"),BitPat("b00_000_0000_1100_0000 0001 00_0000_0000_0000_0010")),//FN_SL
+    (BitPat("b000010"),BitPat("b00_100_0000_0000_0000 0001 00_0000_0000_0100_0000")),//FN_SEQ
+    (BitPat("b000011"),BitPat("b00_110_0000_0000_0000 0001 00_0000_0000_0100_0000")),//FN_SNE
+    (BitPat("b000100"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_1000")),//FN_XOR
+    (BitPat("b000101"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0010")),//FN_SR
+    (BitPat("b000110"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0001_0000")),//FN_OR
+    (BitPat("b000111"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0100")),//FN_AND
+    (BitPat("b001000"),BitPat("b00_000_0000_0000_0000 0000 00_0000_0000_0000_0000")),//UNUSED
+    (BitPat("b001001"),BitPat("b00_000_0000_0000_0000 0000 00_0000_0000_0000_0000")),//UNUSED
+    (BitPat("b001010"),BitPat("b00_000_0000_0000_0011 0001 00_0000_0000_0000_0001")),//FN_SUB
+    (BitPat("b001011"),BitPat("b00_000_0000_0001_0000 0001 00_0000_0000_0000_0010")),//FN_SRA
+    (BitPat("b001100"),BitPat("b00_000_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SLT
+    (BitPat("b001101"),BitPat("b00_010_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SGE
+    (BitPat("b001110"),BitPat("b00_001_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SLTU
+    (BitPat("b001111"),BitPat("b00_011_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SGEU
     // Zb
-    (BitPat("b010000"),BitPat("b00_000_0000_000_1000 0001 00_0000_0000_0000_0001")),//FN_ADDUW
-    (BitPat("b010001"),BitPat("b00_000_0000_100_1000 0001 00_0000_0000_0000_0010")),//FN_SLLIUW
-    (BitPat("b010010"),BitPat("b00_000_0000_000_0000 0010 00_0000_0000_0000_0001")),//FN_SH1ADD
-    (BitPat("b010011"),BitPat("b00_000_0000_000_1000 0010 00_0000_0000_0000_0001")),//FN_SH1ADDUW
-    (BitPat("b010100"),BitPat("b00_000_0000_000_0000 0100 00_0000_0000_0000_0001")),//FN_SH2ADD
-    (BitPat("b010101"),BitPat("b00_000_0000_000_1000 0100 00_0000_0000_0000_0001")),//FN_SH2ADDUW
-    (BitPat("b010110"),BitPat("b00_000_0000_000_0000 1000 00_0000_0000_0000_0001")),//FN_SH3ADD
-    (BitPat("b010111"),BitPat("b00_000_0000_000_1000 1000 00_0000_0000_0000_0001")),//FN_SH3ADDUW
-    (BitPat("b011000"),BitPat("b00_000_0000_010_0000 0001 00_0000_0000_0000_0010")),//FN_ROR
-    (BitPat("b011001"),BitPat("b00_000_0000_110_0000 0001 00_0000_0000_0000_0010")),//FN_ROL
-    (BitPat("b011010"),BitPat("b00_000_0000_000_0010 0001 00_0000_0000_0000_0100")),//FN_ANDN
-    (BitPat("b011011"),BitPat("b00_000_0000_000_0010 0001 00_0000_0000_0001_0000")),//FN_ORN
-    (BitPat("b011100"),BitPat("b00_000_0000_000_0010 0001 00_0000_0000_0000_1000")),//FN_XNOR
-    (BitPat("b011101"),BitPat("b00_000_0000_000_0000 0001 00_0001_0000_0000_0000")),//FN_REV8
-    (BitPat("b011110"),BitPat("b10_000_0000_000_0000 0001 00_0010_0000_0000_0000")),//FN_ORCB
-    (BitPat("b011111"),BitPat("b00_000_0000_000_0000 0001 00_0000_1000_0000_0000")),//FN_SEXTB
-    (BitPat("b100000"),BitPat("b01_000_0000_000_0000 0001 00_0000_0100_0000_0000")),//FN_SEXTH
-    (BitPat("b100001"),BitPat("b00_000_0000_000_0000 0001 00_0000_0100_0000_0000")),//FN_ZEXTH
-    (BitPat("b100010"),BitPat("b00_000_0000_000_0011 0001 00_0000_0000_1000_0000")),//FN_MAX
-    (BitPat("b100011"),BitPat("b00_001_0000_000_0011 0001 00_0000_0000_1000_0000")),//FN_MAXU
-    (BitPat("b100100"),BitPat("b00_010_0000_000_0011 0001 00_0000_0000_1000_0000")),//FN_MIN
-    (BitPat("b100101"),BitPat("b00_011_0000_000_0011 0001 00_0000_0000_1000_0000")),//FN_MINU
-    (BitPat("b100110"),BitPat("b00_000_0000_000_0000 0001 00_0000_0001_0000_0000")),//FN_CPOP
-    (BitPat("b100111"),BitPat("b00_000_1101_110_0000 0001 00_0000_0010_0000_0000")),//FN_CLZ
-    (BitPat("b101000"),BitPat("b00_000_1101_000_0000 0001 00_0000_0010_0000_0000")),//FN_CTZ
-    (BitPat("b101001"),BitPat("b00_000_1110_100_0100 0001 00_0000_0000_0000_0100")),//FN_BCLR
-    (BitPat("b101010"),BitPat("b00_000_1000_100_0100 0001 00_0000_0000_0010_0000")),//FN_BEXT
-    (BitPat("b101011"),BitPat("b00_000_1000_100_0100 0001 00_0000_0000_0000_1000")),//FN_BINV
-    (BitPat("b101100"),BitPat("b00_000_1000_100_0100 0001 00_0000_0000_0001_0000")),//FN_BSET
-    (BitPat("b101101"),BitPat("b00_000_0000_000_0000 0001 00_0010_0000_0000_0000")),//FN_BREV8
-    (BitPat("b101110"),BitPat("b00_000_0000_000_0000 0001 00_0100_0000_0000_0000")),//FN_PACK
-    (BitPat("b101111"),BitPat("b00_000_0000_000_0000 0001 00_1000_0000_0000_0000")),//FN_PACKH
-    (BitPat("b110000"),BitPat("b00_000_0000_000_0000 0001 01_0000_0000_0000_0000")),//FN_ZIP
-    (BitPat("b110001"),BitPat("b00_000_0000_000_0000 0001 10_0000_0000_0000_0000")),//FN_UNZIP
+    (BitPat("b010000"),BitPat("b00_000_0000_0000_1000 0001 00_0000_0000_0000_0001")),//FN_ADDUW
+    (BitPat("b010001"),BitPat("b00_000_0000_1100_1000 0001 00_0000_0000_0000_0010")),//FN_SLLIUW
+    (BitPat("b010010"),BitPat("b00_000_0000_0000_0000 0010 00_0000_0000_0000_0001")),//FN_SH1ADD
+    (BitPat("b010011"),BitPat("b00_000_0000_0000_1000 0010 00_0000_0000_0000_0001")),//FN_SH1ADDUW
+    (BitPat("b010100"),BitPat("b00_000_0000_0000_0000 0100 00_0000_0000_0000_0001")),//FN_SH2ADD
+    (BitPat("b010101"),BitPat("b00_000_0000_0000_1000 0100 00_0000_0000_0000_0001")),//FN_SH2ADDUW
+    (BitPat("b010110"),BitPat("b00_000_0000_0000_0000 1000 00_0000_0000_0000_0001")),//FN_SH3ADD
+    (BitPat("b010111"),BitPat("b00_000_0000_0000_1000 1000 00_0000_0000_0000_0001")),//FN_SH3ADDUW
+    (BitPat("b011000"),BitPat("b00_000_0000_0010_0000 0001 00_0000_0000_0000_0010")),//FN_ROR
+    (BitPat("b011001"),BitPat("b00_000_0000_1110_0000 0001 00_0000_0000_0000_0010")),//FN_ROL
+    (BitPat("b011010"),BitPat("b00_000_0000_0000_0010 0001 00_0000_0000_0000_0100")),//FN_ANDN
+    (BitPat("b011011"),BitPat("b00_000_0000_0000_0010 0001 00_0000_0000_0001_0000")),//FN_ORN
+    (BitPat("b011100"),BitPat("b00_000_0000_0000_0010 0001 00_0000_0000_0000_1000")),//FN_XNOR
+    (BitPat("b011101"),BitPat("b00_000_0000_0000_0000 0001 00_0001_0000_0000_0000")),//FN_REV8
+    (BitPat("b011110"),BitPat("b10_000_0000_0000_0000 0001 00_0010_0000_0000_0000")),//FN_ORCB
+    (BitPat("b011111"),BitPat("b00_000_0000_0000_0000 0001 00_0000_1000_0000_0000")),//FN_SEXTB
+    (BitPat("b100000"),BitPat("b01_000_0000_0000_0000 0001 00_0000_0100_0000_0000")),//FN_SEXTH
+    (BitPat("b100001"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0100_0000_0000")),//FN_ZEXTH
+    (BitPat("b100010"),BitPat("b00_000_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MAX
+    (BitPat("b100011"),BitPat("b00_001_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MAXU
+    (BitPat("b100100"),BitPat("b00_010_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MIN
+    (BitPat("b100101"),BitPat("b00_011_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MINU
+    (BitPat("b100110"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0001_0000_0000")),//FN_CPOP
+    (BitPat("b100111"),BitPat("b00_000_1101_1110_0000 0001 00_0000_0010_0000_0000")),//FN_CLZ
+    (BitPat("b101000"),BitPat("b00_000_1101_0000_0000 0001 00_0000_0010_0000_0000")),//FN_CTZ
+    (BitPat("b101001"),BitPat("b00_000_1110_1000_0100 0001 00_0000_0000_0000_0100")),//FN_BCLR
+    (BitPat("b101010"),BitPat("b00_000_1000_1000_0100 0001 00_0000_0000_0010_0000")),//FN_BEXT
+    (BitPat("b101011"),BitPat("b00_000_1000_1000_0100 0001 00_0000_0000_0000_1000")),//FN_BINV
+    (BitPat("b101100"),BitPat("b00_000_1000_1000_0100 0001 00_0000_0000_0001_0000")),//FN_BSET
+    (BitPat("b101101"),BitPat("b00_000_0000_0000_0000 0001 00_0010_0000_0000_0000")),//FN_BREV8
+    (BitPat("b101110"),BitPat("b00_000_0000_0000_0000 0001 00_0100_0000_0000_0000")),//FN_PACK
+    (BitPat("b101111"),BitPat("b00_000_0000_0000_0000 0001 00_1000_0000_0000_0000")),//FN_PACKH
+    (BitPat("b110000"),BitPat("b00_000_0000_0000_0000 0001 01_0000_0000_0000_0000")),//FN_ZIP
+    (BitPat("b110001"),BitPat("b00_000_0000_0000_0000 0001 10_0000_0000_0000_0000")),//FN_UNZIP
   ))
 
   pla_in := io.fn
   // note that it is inverted
   val isSub :: isIn2Inv :: isZBS :: isUW :: Nil = pla_out(25,22).asBools
-  val isSRA :: isRotate :: isLeft :: Nil = pla_out(28,26).asBools
-  val isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = pla_out(32,29).asBools
-  val isUnsigned :: isInverted :: isSEQSNE :: Nil = pla_out(35,33).asBools
-  val isSEXT :: isORC :: Nil = pla_out(37,36).asBools
+  val isSRA :: isRotate :: isLeft :: isLeftZBS :: Nil = pla_out(29,26).asBools
+  val isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = pla_out(33,30).asBools
+  val isUnsigned :: isInverted :: isSEQSNE :: Nil = pla_out(36,34).asBools
+  val isSEXT :: isORC :: Nil = pla_out(38,37).asBools
   val shxadd1H = pla_out(21,18) // 4 bit
   val out1H = pla_out(17,0)
 
@@ -180,28 +180,38 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
         Mux(isRotate, in1_hi_rotate, in1_hi_sext))
       Cat(in1_hi, io.in1(31,0))
     }
-  val in1 = Mux(isZBS, 1.U(xLen.W), in1_ext)
-  // one arm: SL, ROL, SLLIUW, ZBS, CLZ
-  // another arm: SR, SRA, ROR, CTZ, ADD, SUB
+  // one arm: SL, ROL, SLLIUW, CLZ
+  // another arm: SR, SRA, ROR, CTZ, ADD, SUB, ZBS
   // note that CLZW is not included here
   // in1 capable of right hand operation
   // isLeft
-  val in1_r = Mux(isLeft, Reverse(in1), in1)
+  val in1_r = Mux(isLeft, Reverse(in1_ext), in1_ext)
 
   // shifter
+  val shin = Mux(isZBS,
+    if (xLen == 32) (BigInt(1) << 31).U(32.W)
+    else {
+      require(xLen == 64)
+      (BigInt(1) << 63).U(64.W)
+    }, in1_r)
   // TODO: Merge shift and rotate (manual barrel)
-  val shout_r = (Cat(isSRA & in1_r(xLen-1), in1_r).asSInt >> shamt)(xLen-1,0)
-  val roout_r = in1_r.rotateRight(shamt)(xLen-1,0)
+  val shout_r = (Cat(isSRA & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
+  val roout_r = shin.rotateRight(shamt)(xLen-1,0)
   // FIXME: add withZB option
   val shro_r = Mux(isRotate, roout_r, shout_r)
   // one arm: SL, ROL, SLLIUW, ZBS
   // another arm: SR, SRA, ROR
-  val shro = Mux(isLeft, Reverse(shro_r), shro_r)
+  val shro = Mux(isLeftZBS, Reverse(shro_r), shro_r)
 
   // adder
   val adder_in1 =
     Mux1H(shxadd1H, Seq(
-      in1_r,
+      if (xLen == 32) in1_r
+      else {
+        require(xLen == 64)
+        // for CLZW/CTZW
+        Mux(io.dw === DW_64, in1_r, Cat(Fill(32, 1.U(1.W)), in1_r(31,0)))
+      },
       (in1_ext << 1)(xLen-1,0),
       (in1_ext << 2)(xLen-1,0),
       (in1_ext << 3)(xLen-1,0)))
@@ -248,15 +258,9 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) {
     })
   // ctz_in = ~adder_out & adder_in1 // all zero or one hot
   val ctz_in = and
-  val ctz_in_w = // mask higher bits
-    if (xLen == 32) ctz_in
-    else {
-      require(xLen == 64)
-      Mux(io.dw === DW_64, ctz_in, Cat(Fill(32, 0.U(1.W)), ctz_in(31,0)))
-    }
-  val ctz_out = Cat(~ctz_in_w.orR, VecInit((0 to log2Ceil(xLen)-1).map(
+  val ctz_out = Cat(~ctz_in.orR, VecInit((0 to log2Ceil(xLen)-1).map(
     x => {
-      val bits = ctz_in_w.asBools.zipWithIndex
+      val bits = ctz_in.asBools.zipWithIndex
       VecInit(
         bits
           filter { case (_, i) => i % (1 << (x + 1)) >= (1 << x) }
