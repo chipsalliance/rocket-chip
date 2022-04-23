@@ -6,7 +6,6 @@ import Chisel._
 import chisel3.RawModule
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMRegister, OMRegisterMap}
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.util._
 
@@ -61,7 +60,7 @@ case class TLRegisterNode(
 
   // Calling this method causes the matching TL2 bundle to be
   // configured to route all requests to the listed RegFields.
-  def regmap(mapping: RegField.Map*) : OMRegisterMap = {
+  def regmap(mapping: RegField.Map*) = {
     val (bundleIn, edge) = this.in(0)
     val a = bundleIn.a
     val d = bundleIn.d
@@ -103,11 +102,6 @@ case class TLRegisterNode(
     bundleIn.e.ready := Bool(true)
 
     genRegDescsJson(mapping:_*)
-    genOMRegMap(mapping:_*)
-  }
-
-  def genOMRegMap(mapping: RegField.Map*): OMRegisterMap = {
-    OMRegister.convert(mapping = mapping:_*)
   }
 
   def genRegDescsJson(mapping: RegField.Map*): Unit = {

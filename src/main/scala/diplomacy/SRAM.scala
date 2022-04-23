@@ -5,8 +5,6 @@ package freechips.rocketchip.diplomacy
 import Chisel._
 import chisel3.SyncReadMem
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.diplomaticobjectmodel.DiplomaticObjectModelAddressing
-import freechips.rocketchip.diplomaticobjectmodel.model._
 import freechips.rocketchip.util.{DescribedSRAM, Code}
 
 abstract class DiplomaticSRAM(
@@ -19,10 +17,6 @@ abstract class DiplomaticSRAM(
     .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
     .getOrElse(new MemoryDevice())
 
-  def getOMMemRegions(resourceBindings: ResourceBindings): Seq[OMMemoryRegion] = {
-    DiplomaticObjectModelAddressing.getOMMemoryRegions(devName.getOrElse(""), resourceBindings) // TODO name source???
-  }
-
   val resources = device.reg("mem")
 
   def bigBits(x: BigInt, tail: List[Boolean] = Nil): List[Boolean] =
@@ -34,7 +28,7 @@ abstract class DiplomaticSRAM(
   def makeSinglePortedByteWriteSeqMem(size: BigInt, lanes: Int = beatBytes, bits: Int = 8) = {
     // We require the address range to include an entire beat (for the write mask)
 
-    val (mem, omSRAM) =  DescribedSRAM(
+    val mem  =  DescribedSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
@@ -42,13 +36,7 @@ abstract class DiplomaticSRAM(
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
 
-    val omMem: OMMemory = DiplomaticObjectModelAddressing.makeOMMemory(
-      desc = "mem", //lim._2.name.map(n => n).getOrElse(lim._1.name),
-      depth = size,
-      data = Vec(lanes, UInt(width = bits))
-    )
-
-    (mem, omSRAM, Seq(omMem))
+    mem
   }
 }
 

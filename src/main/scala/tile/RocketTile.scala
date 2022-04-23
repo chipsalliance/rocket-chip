@@ -7,7 +7,6 @@ import Chisel._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{DCacheLogicalTreeNode, LogicalModuleTree, RocketLogicalTreeNode, UTLBLogicalTreeNode}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
@@ -56,15 +55,13 @@ class RocketTile private(
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
-  override val logicalTreeNode = new RocketLogicalTreeNode(this, p(XLen), pgLevels)
-
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map { s =>
     LazyModule(new ScratchpadSlavePort(AddressSet.misaligned(s, d.dataScratchpadBytes), lazyCoreParamsView.coreDataBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO))
   }}
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, lm.node.portParams.head.beatBytes))
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
-    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), logicalTreeNode))
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
     intOutwardNode := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
@@ -119,15 +116,6 @@ class RocketTile private(
       if (!rocketParams.boundaryBuffers) TLBuffer(BufferParams.none)
       else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
     case _ => TLBuffer(BufferParams.none)
-  }
-
-  val dCacheLogicalTreeNode = new DCacheLogicalTreeNode(dcache, dtim_adapter.map(_.device), rocketParams.dcache.get)
-  LogicalModuleTree.add(logicalTreeNode, iCacheLogicalTreeNode)
-  LogicalModuleTree.add(logicalTreeNode, dCacheLogicalTreeNode)
-
-  if (rocketParams.core.useVM) {
-    val utlbLogicalTreeNode = new UTLBLogicalTreeNode(rocketParams.core, utlbOMSRAMs)
-    LogicalModuleTree.add(logicalTreeNode, utlbLogicalTreeNode)
   }
 }
 

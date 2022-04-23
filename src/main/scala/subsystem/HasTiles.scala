@@ -8,7 +8,6 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{LogicalModuleTree}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
 import freechips.rocketchip.tilelink._
@@ -263,7 +262,6 @@ trait CanAttachTile {
     connectPRC(domain, context)
     connectOutputNotifications(domain, context)
     connectInputConstants(domain, context)
-    LogicalModuleTree.add(context.logicalTreeNode, domain.tile.logicalTreeNode)
   }
 
   /** Connect the port where the tile is the master to a TileLink interconnect. */
