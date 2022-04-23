@@ -5,10 +5,9 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.CoreModule
+import freechips.rocketchip.tile.{CoreModule, HasCoreParameters}
 
-object ALU
-{
+trait ALUFN {
   val SZ_ALU_FN = 4
   def FN_X    = BitPat("b????")
   def FN_ADD  = UInt(0)
@@ -26,6 +25,46 @@ object ALU
   def FN_SLTU = UInt(14)
   def FN_SGEU = UInt(15)
 
+  // from Zb
+  // Zba: UW is encoded here becuase it is DW_64
+  def FN_ADDUW    = UInt(0)
+  def FN_SLLIUW   = UInt(0)
+  def FN_SH1ADD   = UInt(0)
+  def FN_SH1ADDUW = UInt(0)
+  def FN_SH2ADD   = UInt(0)
+  def FN_SH2ADDUW = UInt(0)
+  def FN_SH3ADD   = UInt(0)
+  def FN_SH3ADDUW = UInt(0)
+  // Zbb
+  def FN_ROR      = UInt(0)
+  def FN_ROL      = UInt(0)
+  def FN_ANDN     = UInt(0)
+  def FN_ORN      = UInt(0)
+  def FN_XNOR     = UInt(0)
+  def FN_REV8     = UInt(0)
+  def FN_ORCB     = UInt(0)
+  def FN_SEXTB    = UInt(0)
+  def FN_SEXTH    = UInt(0)
+  def FN_ZEXTH    = UInt(0)
+  def FN_MAX      = UInt(0)
+  def FN_MAXU     = UInt(0)
+  def FN_MIN      = UInt(0)
+  def FN_MINU     = UInt(0)
+  def FN_CPOP     = UInt(0)
+  def FN_CLZ      = UInt(0)
+  def FN_CTZ      = UInt(0)
+  // Zbs
+  def FN_BCLR     = UInt(0)
+  def FN_BEXT     = UInt(0)
+  def FN_BINV     = UInt(0)
+  def FN_BSET     = UInt(0)
+  // Zbk
+  def FN_BREV8    = UInt(0)
+  def FN_PACK     = UInt(0)
+  def FN_PACKH    = UInt(0)
+  def FN_ZIP      = UInt(0)
+  def FN_UNZIP    = UInt(0)
+
   def FN_DIV  = FN_XOR
   def FN_DIVU = FN_SR
   def FN_REM  = FN_OR
@@ -35,7 +74,10 @@ object ALU
   def FN_MULH   = FN_SL
   def FN_MULHSU = FN_SEQ
   def FN_MULHU  = FN_SNE
+}
 
+object ALU extends ALUFN
+{
   def isMulFN(fn: UInt, cmp: UInt) = fn(1,0) === cmp(1,0)
   def isSub(cmd: UInt) = cmd(3)
   def isCmp(cmd: UInt) = cmd >= FN_SLT
@@ -46,17 +88,19 @@ object ALU
 
 import ALU._
 
-class ALU(implicit p: Parameters) extends CoreModule()(p) {
+trait HasALUIO extends HasCoreParameters {
   val io = new Bundle {
     val dw = Bits(INPUT, SZ_DW)
-    val fn = Bits(INPUT, SZ_ALU_FN)
+    val fn = Bits(INPUT, if (usingABLU) ABLU.SZ_ALU_FN else SZ_ALU_FN)
     val in2 = UInt(INPUT, xLen)
     val in1 = UInt(INPUT, xLen)
     val out = UInt(OUTPUT, xLen)
     val adder_out = UInt(OUTPUT, xLen)
     val cmp_out = Bool(OUTPUT)
   }
+}
 
+class ALU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
   // ADD, SUB
   val in2_inv = Mux(isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv

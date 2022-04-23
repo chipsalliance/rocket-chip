@@ -17,7 +17,7 @@
     DOI: https://doi.org/10.1007/3-540-48285-7_6
 */
 
-package freechips.rocketchip.zk
+package freechips.rocketchip.util
 
 import chisel3._
 

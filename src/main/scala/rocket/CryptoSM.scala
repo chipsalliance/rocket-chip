@@ -1,9 +1,10 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.zk
+package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.util._
 
 object ZKS {
   val FN_Len      = 2
@@ -13,7 +14,7 @@ object ZKS {
   def FN_SM3P1    = 3.U(FN_Len.W)
 }
 
-class ZKSInterface(xLen: Int) extends Bundle {
+class CryptoSMInterface(xLen: Int) extends Bundle {
   val zks_fn = Input(UInt(ZKS.FN_Len.W))
   val valid  = Input(Bool())
   val bs     = Input(UInt(2.W))
@@ -22,8 +23,8 @@ class ZKSInterface(xLen: Int) extends Bundle {
   val rd     = Output(UInt(xLen.W))
 }
 
-class ZKSImp(xLen:Int) extends Module {
-  val io = IO(new ZKSInterface(xLen))
+class CryptoSM(xLen:Int) extends Module {
+  val io = IO(new CryptoSMInterface(xLen))
 
   // helper
   def sext(in: UInt): UInt = if (xLen == 32) in

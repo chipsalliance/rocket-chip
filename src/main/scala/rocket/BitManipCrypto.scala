@@ -1,6 +1,6 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.zk
+package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
@@ -14,7 +14,7 @@ object ZBK {
   def FN_XPERM4 =  4.U(FN_Len.W)
 }
 
-class ZBKInterface(xLen: Int) extends Bundle {
+class BitManipCryptoInterface(xLen: Int) extends Bundle {
   val zbk_fn = Input(UInt(ZBK.FN_Len.W))
   val dw     = Input(Bool())
   val valid  = Input(Bool())
@@ -23,8 +23,8 @@ class ZBKInterface(xLen: Int) extends Bundle {
   val rd     = Output(UInt(xLen.W))
 }
 
-class ZBKImp(xLen: Int) extends Module {
-  val io = IO(new ZBKInterface(xLen))
+class BitManipCrypto(xLen: Int) extends Module {
+  val io = IO(new BitManipCryptoInterface(xLen))
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)

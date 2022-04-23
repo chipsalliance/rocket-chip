@@ -1,9 +1,10 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.zk
+package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.util._
 
 // utils
 
@@ -87,7 +88,7 @@ object ZKN {
   def FN_SHA512_SUM1 = 14.U(FN_Len.W)
 }
 
-class ZKNInterface(xLen: Int) extends Bundle {
+class CryptoNISTInterface(xLen: Int) extends Bundle {
   val zkn_fn = Input(UInt(ZKN.FN_Len.W))
   val valid  = Input(Bool())
   val hl     = Input(Bool())
@@ -208,8 +209,8 @@ class MixColumn64(enc: Boolean) extends Module {
   }).toSeq).asUInt
 }
 
-class ZKNImp(xLen:Int) extends Module {
-  val io = IO(new ZKNInterface(xLen))
+class CryptoNIST(xLen:Int) extends Module {
+  val io = IO(new CryptoNISTInterface(xLen))
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)

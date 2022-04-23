@@ -322,6 +322,36 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
   }
 })
 
+class WithABLU extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useABLU = true))
+  }
+})
+
+class WithBitManip extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useBitManip = true))
+  }
+})
+
+class WithBitManipCrypto extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useBitManipCrypto = true))
+  }
+})
+
+class WithCryptoNIST extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useCryptoNIST = true))
+  }
+})
+
+class WithCryptoSM extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useCryptoSM = true))
+  }
+})
+
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })

@@ -6,13 +6,12 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.withClock
-import chisel3.experimental.{NoChiselNamePrefix, chiselName}
+import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import freechips.rocketchip.scie._
-import freechips.rocketchip.zk._
 import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(
@@ -27,9 +26,11 @@ case class RocketCoreParams(
   useCompressed: Boolean = true,
   useRVE: Boolean = false,
   useSCIE: Boolean = false,
-  useZBK: Boolean = false,
-  useZKN: Boolean = false,
-  useZKS: Boolean = false,
+  useBitManip: Boolean = false,
+  useBitManipCrypto: Boolean = false,
+  useABLU: Boolean = false,
+  useCryptoNIST: Boolean = false,
+  useCryptoSM: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -183,18 +184,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (minFLen == 16) new HDecode +: (xLen > 32).option(new H64Decode).toSeq ++: (fLen >= 64).option(new HDDecode).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode)) ++:
     (rocketParams.useSCIE.option(new SCIEDecode)) ++:
-    // WithZB will enable
-    (if (true) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
-    // WithZB but !WithZK will enable
-    (if (false) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
-    // Either WithZB or WithZBK will enable
-    (if (true) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
-    // WithZBK will enable
-    (if (true) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
-    (if (usingZKN) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
-    (if (usingZKN) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
-    (if (usingZKN) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
-    (usingZKS.option(new ZKSDecode)) ++:
+    (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
+    (if (usingBitManip && !usingBitManipCrypto) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
+    (if (usingBitManip || usingBitManipCrypto) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
+    (if (usingBitManipCrypto) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
+    (if (usingCryptoNIST) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
+    (if (usingCryptoNIST) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
+    (if (usingCryptoNIST) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
+    (usingCryptoSM.option(new ZKSDecode)) ++:
     (if (xLen == 32) new I32Decode else new I64Decode) +:
     (usingVM.option(new SVMDecode)) ++:
     (usingSupervisor.option(new SDecode)) ++:
@@ -412,7 +409,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, SInt(2), SInt(4))))
 
-  val alu = Module(new ABLU)
+  val alu = Module(if (usingABLU) new ABLU else new ALU)
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
@@ -426,35 +423,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     u.io.rd
   }
 
-  val ex_zbk_wdata = if (!usingZBK) 0.U else {
-      val zbk_u = Module(new ZBKImp(xLen))
-      zbk_u.io.zbk_fn := ex_ctrl.alu_fn
-      zbk_u.io.dw     := ex_ctrl.alu_dw
-      zbk_u.io.valid  := ex_ctrl.zbk
-      zbk_u.io.rs1    := ex_op1.asUInt
-      zbk_u.io.rs2    := ex_op2.asUInt
-      zbk_u.io.rd
-    }
-  val ex_zkn_wdata = if (!usingZKN) 0.U else {
-      val zkn_u = Module(new ZKNImp(xLen))
-      zkn_u.io.zkn_fn := ex_ctrl.alu_fn
-      zkn_u.io.valid  := ex_ctrl.zkn
-      zkn_u.io.hl     := ex_reg_inst(27)
-      zkn_u.io.bs     := ex_reg_inst(31,30)
-      zkn_u.io.rcon   := ex_reg_inst(23,20)
-      zkn_u.io.rs1    := ex_op1.asUInt
-      zkn_u.io.rs2    := ex_op2.asUInt
-      zkn_u.io.rd
-    }
-  val ex_zks_wdata = if (!usingZKS) 0.U else {
-      val zks_u = Module(new ZKSImp(xLen))
-      zks_u.io.zks_fn := ex_ctrl.alu_fn
-      zks_u.io.valid  := ex_ctrl.zks
-      zks_u.io.bs     := ex_reg_inst(31,30)
-      zks_u.io.rs1    := ex_op1.asUInt
-      zks_u.io.rs2    := ex_op2.asUInt
-      zks_u.io.rd
-    }
   val mem_scie_pipelined_wdata = if (!rocketParams.useSCIE) 0.U else {
     val u = Module(new SCIEPipelined(xLen))
     u.io.clock := Module.clock
@@ -464,6 +432,39 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     u.io.rs2 := ex_rs(1)
     u.io.rd
   }
+
+  // FIXME: merge this into ABLU
+  val ex_zbk_wdata = if (!usingBitManipCrypto && !usingBitManip) 0.U else {
+      val zbk = Module(new BitManipCrypto(xLen))
+      zbk.io.zbk_fn := ex_ctrl.alu_fn
+      zbk.io.dw     := ex_ctrl.alu_dw
+      zbk.io.valid  := ex_ctrl.zbk
+      zbk.io.rs1    := ex_op1.asUInt
+      zbk.io.rs2    := ex_op2.asUInt
+      zbk.io.rd
+    }
+
+  val ex_zkn_wdata = if (!usingCryptoNIST) 0.U else {
+      val zkn = Module(new CryptoNIST(xLen))
+      zkn.io.zkn_fn := ex_ctrl.alu_fn
+      zkn.io.valid  := ex_ctrl.zkn
+      zkn.io.hl     := ex_reg_inst(27)
+      zkn.io.bs     := ex_reg_inst(31,30)
+      zkn.io.rcon   := ex_reg_inst(23,20)
+      zkn.io.rs1    := ex_op1.asUInt
+      zkn.io.rs2    := ex_op2.asUInt
+      zkn.io.rd
+    }
+
+  val ex_zks_wdata = if (!usingCryptoSM) 0.U else {
+      val zks = Module(new CryptoSM(xLen))
+      zks.io.zks_fn := ex_ctrl.alu_fn
+      zks.io.valid  := ex_ctrl.zks
+      zks.io.bs     := ex_reg_inst(31,30)
+      zks.io.rs1    := ex_op1.asUInt
+      zks.io.rs2    := ex_op2.asUInt
+      zks.io.rd
+    }
 
   // multiplier and divider
   val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen))

@@ -22,12 +22,13 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
-  val useBitManip: Boolean = false
+  val useBitManip: Boolean
+  val useBitManipCrypto: Boolean
+  val useABLU: Boolean
   val useVector: Boolean = false
   val useSCIE: Boolean
-  val useZBK: Boolean
-  val useZKN: Boolean
-  val useZKS: Boolean
+  val useCryptoNIST: Boolean
+  val useCryptoSM: Boolean
   val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
@@ -82,11 +83,12 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
   val usingBitManip = coreParams.useBitManip
+  val usingBitManipCrypto = coreParams.useBitManipCrypto || coreParams.useCryptoNIST || coreParams.useCryptoSM
+  val usingABLU = coreParams.useABLU || usingBitManip || usingBitManipCrypto
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
-  val usingZBK = coreParams.useZBK || coreParams.useZKN || coreParams.useZKS
-  val usingZKN = coreParams.useZKN
-  val usingZKS = coreParams.useZKS
+  val usingCryptoNIST = coreParams.useCryptoNIST
+  val usingCryptoSM = coreParams.useCryptoSM
   val usingNMI = coreParams.useNMI
 
   val retireWidth = coreParams.retireWidth

@@ -8,89 +8,79 @@ import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
-object ABLU
+object ABLU extends ALUFN
 {
-  val SZ_ALU_FN = 6
-  def FN_X    = BitPat("b??????")
-  def FN_ADD  = 0.U(SZ_ALU_FN.W)
-  def FN_SL   = 1.U(SZ_ALU_FN.W)
-  def FN_SEQ  = 2.U(SZ_ALU_FN.W)
-  def FN_SNE  = 3.U(SZ_ALU_FN.W)
-  def FN_XOR  = 4.U(SZ_ALU_FN.W)
-  def FN_SR   = 5.U(SZ_ALU_FN.W)
-  def FN_OR   = 6.U(SZ_ALU_FN.W)
-  def FN_AND  = 7.U(SZ_ALU_FN.W)
-  def FN_SUB  = 10.U(SZ_ALU_FN.W)
-  def FN_SRA  = 11.U(SZ_ALU_FN.W)
-  def FN_SLT  = 12.U(SZ_ALU_FN.W)
-  def FN_SGE  = 13.U(SZ_ALU_FN.W)
-  def FN_SLTU = 14.U(SZ_ALU_FN.W)
-  def FN_SGEU = 15.U(SZ_ALU_FN.W)
+  override val SZ_ALU_FN = 6
+  override def FN_X    = BitPat("b??????")
+  override def FN_ADD  = 0.U(SZ_ALU_FN.W)
+  override def FN_SL   = 1.U(SZ_ALU_FN.W)
+  override def FN_SEQ  = 2.U(SZ_ALU_FN.W)
+  override def FN_SNE  = 3.U(SZ_ALU_FN.W)
+  override def FN_XOR  = 4.U(SZ_ALU_FN.W)
+  override def FN_SR   = 5.U(SZ_ALU_FN.W)
+  override def FN_OR   = 6.U(SZ_ALU_FN.W)
+  override def FN_AND  = 7.U(SZ_ALU_FN.W)
+  override def FN_SUB  = 10.U(SZ_ALU_FN.W)
+  override def FN_SRA  = 11.U(SZ_ALU_FN.W)
+  override def FN_SLT  = 12.U(SZ_ALU_FN.W)
+  override def FN_SGE  = 13.U(SZ_ALU_FN.W)
+  override def FN_SLTU = 14.U(SZ_ALU_FN.W)
+  override def FN_SGEU = 15.U(SZ_ALU_FN.W)
 
   // from Zb
   // Zba: UW is encoded here becuase it is DW_64
-  def FN_ADDUW    = 16.U(SZ_ALU_FN.W)
-  def FN_SLLIUW   = 17.U(SZ_ALU_FN.W)
-  def FN_SH1ADD   = 18.U(SZ_ALU_FN.W)
-  def FN_SH1ADDUW = 19.U(SZ_ALU_FN.W)
-  def FN_SH2ADD   = 20.U(SZ_ALU_FN.W)
-  def FN_SH2ADDUW = 21.U(SZ_ALU_FN.W)
-  def FN_SH3ADD   = 22.U(SZ_ALU_FN.W)
-  def FN_SH3ADDUW = 23.U(SZ_ALU_FN.W)
+  override def FN_ADDUW    = 16.U(SZ_ALU_FN.W)
+  override def FN_SLLIUW   = 17.U(SZ_ALU_FN.W)
+  override def FN_SH1ADD   = 18.U(SZ_ALU_FN.W)
+  override def FN_SH1ADDUW = 19.U(SZ_ALU_FN.W)
+  override def FN_SH2ADD   = 20.U(SZ_ALU_FN.W)
+  override def FN_SH2ADDUW = 21.U(SZ_ALU_FN.W)
+  override def FN_SH3ADD   = 22.U(SZ_ALU_FN.W)
+  override def FN_SH3ADDUW = 23.U(SZ_ALU_FN.W)
   // Zbb
-  def FN_ROR      = 24.U(SZ_ALU_FN.W)
-  def FN_ROL      = 25.U(SZ_ALU_FN.W)
-  def FN_ANDN     = 26.U(SZ_ALU_FN.W)
-  def FN_ORN      = 27.U(SZ_ALU_FN.W)
-  def FN_XNOR     = 28.U(SZ_ALU_FN.W)
-  def FN_REV8     = 29.U(SZ_ALU_FN.W)
-  def FN_ORCB     = 30.U(SZ_ALU_FN.W)
-  def FN_SEXTB    = 31.U(SZ_ALU_FN.W)
-  def FN_SEXTH    = 32.U(SZ_ALU_FN.W)
-  def FN_ZEXTH    = 33.U(SZ_ALU_FN.W)
-  def FN_MAX      = 34.U(SZ_ALU_FN.W)
-  def FN_MAXU     = 35.U(SZ_ALU_FN.W)
-  def FN_MIN      = 36.U(SZ_ALU_FN.W)
-  def FN_MINU     = 37.U(SZ_ALU_FN.W)
-  def FN_CPOP     = 38.U(SZ_ALU_FN.W)
-  def FN_CLZ      = 39.U(SZ_ALU_FN.W)
-  def FN_CTZ      = 40.U(SZ_ALU_FN.W)
+  override def FN_ROR      = 24.U(SZ_ALU_FN.W)
+  override def FN_ROL      = 25.U(SZ_ALU_FN.W)
+  override def FN_ANDN     = 26.U(SZ_ALU_FN.W)
+  override def FN_ORN      = 27.U(SZ_ALU_FN.W)
+  override def FN_XNOR     = 28.U(SZ_ALU_FN.W)
+  override def FN_REV8     = 29.U(SZ_ALU_FN.W)
+  override def FN_ORCB     = 30.U(SZ_ALU_FN.W)
+  override def FN_SEXTB    = 31.U(SZ_ALU_FN.W)
+  override def FN_SEXTH    = 32.U(SZ_ALU_FN.W)
+  override def FN_ZEXTH    = 33.U(SZ_ALU_FN.W)
+  override def FN_MAX      = 34.U(SZ_ALU_FN.W)
+  override def FN_MAXU     = 35.U(SZ_ALU_FN.W)
+  override def FN_MIN      = 36.U(SZ_ALU_FN.W)
+  override def FN_MINU     = 37.U(SZ_ALU_FN.W)
+  override def FN_CPOP     = 38.U(SZ_ALU_FN.W)
+  override def FN_CLZ      = 39.U(SZ_ALU_FN.W)
+  override def FN_CTZ      = 40.U(SZ_ALU_FN.W)
   // Zbs
-  def FN_BCLR     = 41.U(SZ_ALU_FN.W)
-  def FN_BEXT     = 42.U(SZ_ALU_FN.W)
-  def FN_BINV     = 43.U(SZ_ALU_FN.W)
-  def FN_BSET     = 44.U(SZ_ALU_FN.W)
+  override def FN_BCLR     = 41.U(SZ_ALU_FN.W)
+  override def FN_BEXT     = 42.U(SZ_ALU_FN.W)
+  override def FN_BINV     = 43.U(SZ_ALU_FN.W)
+  override def FN_BSET     = 44.U(SZ_ALU_FN.W)
   // Zbk
-  def FN_BREV8    = 45.U(SZ_ALU_FN.W)
-  def FN_PACK     = 46.U(SZ_ALU_FN.W)
-  def FN_PACKH    = 47.U(SZ_ALU_FN.W)
-  def FN_ZIP      = 48.U(SZ_ALU_FN.W)
-  def FN_UNZIP    = 49.U(SZ_ALU_FN.W)
+  override def FN_BREV8    = 45.U(SZ_ALU_FN.W)
+  override def FN_PACK     = 46.U(SZ_ALU_FN.W)
+  override def FN_PACKH    = 47.U(SZ_ALU_FN.W)
+  override def FN_ZIP      = 48.U(SZ_ALU_FN.W)
+  override def FN_UNZIP    = 49.U(SZ_ALU_FN.W)
 
-  def FN_DIV  = FN_XOR
-  def FN_DIVU = FN_SR
-  def FN_REM  = FN_OR
-  def FN_REMU = FN_AND
+  override def FN_DIV  = FN_XOR
+  override def FN_DIVU = FN_SR
+  override def FN_REM  = FN_OR
+  override def FN_REMU = FN_AND
 
-  def FN_MUL    = FN_ADD
-  def FN_MULH   = FN_SL
-  def FN_MULHSU = FN_SEQ
-  def FN_MULHU  = FN_SNE
+  override def FN_MUL    = FN_ADD
+  override def FN_MULH   = FN_SL
+  override def FN_MULHSU = FN_SEQ
+  override def FN_MULHU  = FN_SNE
 }
 
 import ABLU._
 
-class ABLU(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
-    val dw = Input(Bits(SZ_DW.W))
-    val fn = Input(Bits(SZ_ALU_FN.W))
-    val in2 = Input(UInt(xLen.W))
-    val in1 = Input(UInt(xLen.W))
-    val out = Output(UInt(xLen.W))
-    val adder_out = Output(UInt(xLen.W))
-    val cmp_out = Output(Bool())
-  }
-
+class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
   val (pla_in, pla_out) = pla(Seq(
     // ctrl signals, shxadd1H out1H
     (BitPat("b000000"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0001")),//FN_ADD
