@@ -600,65 +600,65 @@ class ZBSDecode(implicit val p: Parameters) extends DecodeConstants
 class ZKND32Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.AES32DSI ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DS,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES32DSMI ->    List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DSM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    AES32DSI ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DS,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES32DSMI ->    List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DSM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 class ZKND64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.AES64DS ->      List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DS,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES64DSM ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DSM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES64IM ->      List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_IM,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES64KS1I ->    List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_KS1,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES64KS2 ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_KS2,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    AES64DS ->      List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DS,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES64DSM ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_DSM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES64IM ->      List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_IM,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES64KS1I ->    List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_KS1,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES64KS2 ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_KS2,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 class ZKNE32Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.AES32ESI ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ES,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES32ESMI ->    List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ESM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    AES32ESI ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ES,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES32ESMI ->    List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ESM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 class ZKNE64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.AES64ES ->      List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ES,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.AES64ESM ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ESM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    AES64ES ->      List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ES,     N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    AES64ESM ->     List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_XPR,ZKN.FN_AES_ESM,    N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 class ZKNHDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.SHA256SIG0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA256SIG1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA256SUM0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SUM0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA256SUM1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SUM1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    SHA256SIG0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA256SIG1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA256SUM0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SUM0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA256SUM1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA256_SUM1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 class ZKNH32Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.SHA512SIG0L ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SIG1L ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SIG0H ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SIG1H ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SUM0R ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SUM1R ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    SHA512SIG0L ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SIG1L ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SIG0H ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SIG1H ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SUM0R ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SUM1R ->  List(Y,N,N,N,N,N,Y,Y,N,N,Y,N,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 class ZKNH64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKN.SHA512SIG0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SIG1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SUM0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKN.SHA512SUM1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    SHA512SIG0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SIG1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SIG1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SUM0 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM0,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SHA512SUM1 ->   List(Y,N,N,N,N,N,N,Y,N,N,Y,N,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKN.FN_SHA512_SUM1,N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 class ZKSDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ZKS.SM4ED ->        List(Y,N,N,N,N,N,Y,Y,N,N,N,Y,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM4ED,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKS.SM4KS ->        List(Y,N,N,N,N,N,Y,Y,N,N,N,Y,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM4KS,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKS.SM3P0 ->        List(Y,N,N,N,N,N,N,Y,N,N,N,Y,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM3P0,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZKS.SM3P1 ->        List(Y,N,N,N,N,N,N,Y,N,N,N,Y,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM3P1,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    SM4ED ->        List(Y,N,N,N,N,N,Y,Y,N,N,N,Y,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM4ED,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SM4KS ->        List(Y,N,N,N,N,N,Y,Y,N,N,N,Y,A2_RS2,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM4KS,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SM3P0 ->        List(Y,N,N,N,N,N,N,Y,N,N,N,Y,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM3P0,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SM3P1 ->        List(Y,N,N,N,N,N,N,Y,N,N,N,Y,A2_X  ,A1_RS1, IMM_X, DW_X,  ZKS.FN_SM3P1,      N,M_X,   N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 class RoCCDecode(implicit val p: Parameters) extends DecodeConstants

@@ -6,20 +6,15 @@ import chisel3._
 import chisel3.util._
 
 object ZKS {
-  val SM4ED       = BitPat("b??11000??????????000?????0110011")
-  val SM4KS       = BitPat("b??11010??????????000?????0110011")
-  val SM3P0       = BitPat("b000100001000?????001?????0010011")
-  val SM3P1       = BitPat("b000100001001?????001?????0010011")
-
-  val FN_Len      = 4
-  def FN_SM4ED    =  0.U(FN_Len.W)
-  def FN_SM4KS    =  1.U(FN_Len.W)
-  def FN_SM3P0    =  2.U(FN_Len.W)
-  def FN_SM3P1    =  3.U(FN_Len.W)
+  val FN_Len      = 2
+  def FN_SM4ED    = 0.U(FN_Len.W)
+  def FN_SM4KS    = 1.U(FN_Len.W)
+  def FN_SM3P0    = 2.U(FN_Len.W)
+  def FN_SM3P1    = 3.U(FN_Len.W)
 }
 
 class ZKSInterface(xLen: Int) extends Bundle {
-  val zks_fn = Input(UInt(ZKN.FN_Len.W))
+  val zks_fn = Input(UInt(ZKS.FN_Len.W))
   val valid  = Input(Bool())
   val bs     = Input(UInt(2.W))
   val rs1    = Input(UInt(xLen.W))
