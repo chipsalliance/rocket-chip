@@ -84,7 +84,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
   override def ivyDeps = T {
     Agg(
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
-      ivy"org.json4s::json4s-jackson:3.6.6",
+      ivy"org.json4s::json4s-jackson:4.0.5",
       ivy"org.scalatest::scalatest:3.2.0"
     ) ++ chisel3IvyDeps
   }
