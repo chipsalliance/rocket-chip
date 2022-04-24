@@ -14,7 +14,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
-import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import scala.collection.mutable.ListBuffer
 
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
@@ -122,8 +121,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
-
-  val omSRAMs = collection.mutable.ListBuffer[OMSRAM]()
 
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(UInt(), 8)
   val state = Reg(init=s_ready)
@@ -279,7 +276,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val l2_plru = new SetAssocLRU(nL2TLBSets, coreParams.nL2TLBWays, "plru")
 
-    val (ram, omSRAM) =  DescribedSRAM(
+    val ram =  DescribedSRAM(
       name = "l2_tlb_ram",
       desc = "L2 TLB",
       size = nL2TLBSets,
@@ -351,7 +348,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       ccover(s2_hit && s2_hit_vec(way), s"L2_TLB_HIT_WAY$way", s"L2 TLB hit way$way")
     }
 
-    omSRAMs += omSRAM
     (s2_hit, s2_error, s2_pte, Some(ram))
   }
 
@@ -605,7 +601,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 /** Mix-ins for constructing tiles that might have a PTW */
 trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =>
   val module: CanHavePTWModule
-  val utlbOMSRAMs = collection.mutable.ListBuffer[OMSRAM]()
   var nPTWPorts = 1
   nDCachePorts += usingPTW.toInt
 }
@@ -616,6 +611,5 @@ trait CanHavePTWModule extends HasHellaCacheModule {
   val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
   if (outer.usingPTW) {
     dcachePorts += ptw.io.mem
-    outer.utlbOMSRAMs ++= ptw.omSRAMs
   }
 }

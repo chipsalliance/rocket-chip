@@ -5,7 +5,6 @@ package freechips.rocketchip.subsystem
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util._
@@ -115,18 +114,6 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
       manager.resources.foreach { case resource =>
         resource.bind(value)
       }
-    }
-  }
-
-  lazy val logicalTreeNode = new SubsystemLogicalTreeNode()
-
-  tlBusWrapperLocationMap.values.foreach { bus =>
-    val builtIn = bus.builtInDevices
-    builtIn.errorOpt.foreach { error =>
-      LogicalModuleTree.add(logicalTreeNode, error.logicalTreeNode)
-    }
-    builtIn.zeroOpt.foreach { zero =>
-      LogicalModuleTree.add(logicalTreeNode, zero.logicalTreeNode)
     }
   }
 }

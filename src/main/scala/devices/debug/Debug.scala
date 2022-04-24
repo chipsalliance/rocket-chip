@@ -16,7 +16,6 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.systembusaccess._
 import freechips.rocketchip.devices.tilelink.TLBusBypass
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.DebugLogicalTreeNode
 import freechips.rocketchip.amba.apb.{APBToTL, APBFanout}
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
@@ -1883,10 +1882,4 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
     io.auth.foreach { x => dmOuter.module.io.dmAuthenticated.get := x.dmAuthenticated }
     io.auth.foreach { x => dmInner.module.io.auth.foreach {y => x <> y}}
   }
-
-  val logicalTreeNode = new DebugLogicalTreeNode(
-    device,
-    () => dmOuter,
-    () => dmInner
-  )
 }
