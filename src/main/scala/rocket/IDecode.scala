@@ -9,6 +9,7 @@ import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._
 import freechips.rocketchip.scie.SCIE
 import Instructions._
+import CustomInstructions._
 import ALU._
 
 abstract trait DecodeConstants extends HasCoreParameters

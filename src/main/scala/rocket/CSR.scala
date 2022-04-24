@@ -13,6 +13,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import scala.collection.mutable.LinkedHashMap
 import Instructions._
+import CustomInstructions._
 
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient
@@ -448,7 +449,7 @@ class CSRFile(
 
   val reg_debug = Reg(init=Bool(false))
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
-  val reg_dscratch = Reg(UInt(width = xLen))
+  val reg_dscratch0 = Reg(UInt(width = xLen))
   val reg_dscratch1 = (p(DebugModuleKey).map(_.nDscratch).getOrElse(1) > 1).option(Reg(UInt(width = xLen)))
   val reg_singleStepped = Reg(Bool())
 
@@ -626,7 +627,7 @@ class CSRFile(
   val debug_csrs = if (!usingDebug) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
-    CSRs.dscratch -> reg_dscratch.asUInt) ++
+    CSRs.dscratch0 -> reg_dscratch0.asUInt) ++
     reg_dscratch1.map(r => CSRs.dscratch1 -> r)
 
   val read_mnstatus = WireInit(0.U.asTypeOf(new MNStatus()))
@@ -634,10 +635,10 @@ class CSRFile(
   read_mnstatus.mpv := reg_mnstatus.mpv
   read_mnstatus.mie := reg_rnmie
   val nmi_csrs = if (!usingNMI) LinkedHashMap() else LinkedHashMap[Int,Bits](
-    CSRs.mnscratch -> reg_mnscratch,
-    CSRs.mnepc -> readEPC(reg_mnepc).sextTo(xLen),
-    CSRs.mncause -> reg_mncause,
-    CSRs.mnstatus -> read_mnstatus.asUInt)
+    CustomCSRs.mnscratch -> reg_mnscratch,
+    CustomCSRs.mnepc -> readEPC(reg_mnepc).sextTo(xLen),
+    CustomCSRs.mncause -> reg_mncause,
+    CustomCSRs.mnstatus -> read_mnstatus.asUInt)
 
   val context_csrs = LinkedHashMap[Int,Bits]() ++
     reg_mcontext.map(r => CSRs.mcontext -> r) ++
@@ -1212,10 +1213,10 @@ class CSRFile(
 
     if (usingNMI) {
       val new_mnstatus = new MNStatus().fromBits(wdata)
-      when (decoded_addr(CSRs.mnscratch)) { reg_mnscratch := wdata }
-      when (decoded_addr(CSRs.mnepc))     { reg_mnepc := formEPC(wdata) }
-      when (decoded_addr(CSRs.mncause))   { reg_mncause := wdata & UInt((BigInt(1) << (xLen-1)) + BigInt(3)) }
-      when (decoded_addr(CSRs.mnstatus))  {
+      when (decoded_addr(CustomCSRs.mnscratch)) { reg_mnscratch := wdata }
+      when (decoded_addr(CustomCSRs.mnepc))     { reg_mnepc := formEPC(wdata) }
+      when (decoded_addr(CustomCSRs.mncause))   { reg_mncause := wdata & UInt((BigInt(1) << (xLen-1)) + BigInt(3)) }
+      when (decoded_addr(CustomCSRs.mnstatus))  {
         reg_mnstatus.mpp := legalizePrivilege(new_mnstatus.mpp)
         reg_mnstatus.mpv := usingHypervisor && new_mnstatus.mpv
         reg_rnmie := reg_rnmie | new_mnstatus.mie  // mnie bit settable but not clearable from software
@@ -1252,7 +1253,7 @@ class CSRFile(
         if (usingHypervisor) reg_dcsr.v := new_dcsr.v
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
-      when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
+      when (decoded_addr(CSRs.dscratch0)) { reg_dscratch0 := wdata }
       reg_dscratch1.foreach { r =>
         when (decoded_addr(CSRs.dscratch1)) { r := wdata }
       }
