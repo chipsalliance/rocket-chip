@@ -52,7 +52,7 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams, logicalT
 
     val sources_and_desc = io.errors.toErrorList
     val sources = sources_and_desc.map(_.map(_._1))
-    val sources_enums = sources_and_desc.zipWithIndex.flatMap{case (s, i) => s.map {e => (BigInt(i) -> (e._2, e._3))}}
+    val sources_enums = sources_and_desc.zipWithIndex.flatMap{case (s, i) => s.map {e => (BigInt(i) -> ((e._2, e._3)))}}
 
     val causeWidth = log2Ceil(sources.lastIndexWhere(_.nonEmpty) + 1)
     val (cause, cause_desc) = DescribedReg(UInt(causeWidth.W),

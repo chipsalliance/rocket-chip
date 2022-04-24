@@ -356,7 +356,7 @@ trait HasFPUParameters {
           val isbox = isBox(x, t)
           prev.map(p => (isbox && p._1, p._2))
         }
-      prev :+ (true.B, t.unsafeConvert(x, outType))
+      prev :+ ((true.B, t.unsafeConvert(x, outType)))
     }
 
     val (oks, floats) = helper(x, maxType).unzip
