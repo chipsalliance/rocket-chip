@@ -61,7 +61,11 @@ class WithIncoherentBusTopology extends Config((site, here, up) => {
       pbus = site(PeripheryBusKey),
       fbus = site(FrontBusKey),
       cbus = site(ControlBusKey),
-      xTypes = SubsystemCrossingParams()))
+      xTypes = SubsystemCrossingParams(
+        sbusToCbusXType = site(SbusToCbusXTypeKey),
+        cbusToPbusXType = site(CbusToPbusXTypeKey),
+        fbusToSbusXType = site(FbusToSbusXTypeKey)),
+      driveClocksFromSBus = site(DriveClocksFromSBus)))
 })
 
 class WithCoherentBusTopology extends Config((site, here, up) => {

@@ -25,12 +25,6 @@ EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
 COMMA := ,
 
-# Running with sbt-launch.jar doesn't read .sbtopts by default
-# Set if the file exists (if it exists, we're building chisel3 and firrtl from source)
-sbtopts_file := $(base_dir)/.sbtopts
-ifneq (,$(wildcard $(sbtopts_file)))
-	SBT_OPTS ?= $(shell cat $(sbtopts_file))
-endif
 SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -jar $(base_dir)/sbt-launch.jar
 SHELL := /bin/bash
 
@@ -52,7 +46,7 @@ all_srcs := $(scala_srcs) $(resources)
 
 ROCKET_CHIP_JAR := $(base_dir)/rocketchip.jar
 $(ROCKET_CHIP_JAR): $(all_srcs)
-	cd $(base_dir) && $(SBT) $(SBT_OPTS) assembly
+	cd $(base_dir) && $(SBT) assembly
 
 rc_resource_dir := $(base_dir)/src/main/resources
 csrc := $(rc_resource_dir)/csrc

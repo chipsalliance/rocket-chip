@@ -7,7 +7,6 @@ import Chisel.ImplicitConversions._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile.{CoreBundle, LookupByHartId}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -61,7 +60,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       )
   }
 
-  val rdata = for (((array, omSRAM), i) <- data_arrays zipWithIndex) yield {
+  val rdata = for ((array , i) <- data_arrays zipWithIndex) yield {
     val valid = io.req.valid && (Bool(data_arrays.size == 1) || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
       val wMaskSlice = (0 until wMask.size).filter(j => i % (wordBits/subWordBits) == (j % (wordBytes/eccBytes)) / (subWordBytes/eccBytes)).map(wMask(_))
@@ -84,7 +83,6 @@ class DCacheMetadataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) 
 
 class DCache(staticIdForMetadataUseOnly: Int, val crossing: ClockCrossingType)(implicit p: Parameters) extends HellaCache(staticIdForMetadataUseOnly)(p) {
   override lazy val module = new DCacheModule(this)
-  override def getOMSRAMs(): Seq[OMSRAM] = Seq(module.dcacheImpl.omSRAM) ++ module.dcacheImpl.data.data_arrays.map(_._2)
 }
 
 class DCacheTLBPort(implicit p: Parameters) extends CoreBundle()(p) {
@@ -121,7 +119,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val replacer = ReplacementPolicy.fromString(cacheParams.replacementPolicy, nWays)
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
-  val (tag_array, omSRAM) = DescribedSRAM(
+  val tag_array = DescribedSRAM(
     name = "tag_array",
     desc = "DCache Tag Array",
     size = nSets,

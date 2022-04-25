@@ -1,4 +1,4 @@
-Rocket Chip Generator :rocket: [![Build Status](https://travis-ci.org/chipsalliance/rocket-chip.svg?branch=master)](https://travis-ci.org/chipsalliance/rocket-chip)
+Rocket Chip Generator :rocket: ![Build Status](https://github.com/chipsalliance/rocket-chip/workflows/Continuous%20Integration/badge.svg?branch=master)
 =====================
 
 This repository contains the Rocket chip generator necessary to instantiate
@@ -691,18 +691,6 @@ The Rocket Chip Scala build uses the standard Scala build tool SBT.
 IDEs like [IntelliJ](https://www.jetbrains.com/idea/) and [VSCode](https://code.visualstudio.com/)
 are popular in the Scala community and work with Rocket Chip.
 To use one of these IDEs, there is one minor peculiarity of the Rocket Chip build that must be addressed.
-
-If the file `.sbtopts` exists in the root of the repository, you need to expand the `$PWD` variable inside of the file to an absolute path pointing to the location of your Rocket Chip clone.
-You can do this in `bash` with:
-```bash
-sed -i "s|\$PWD|$PWD|" .sbtopts
-```
-
-_If the file `.sbtopts` does not exist, you do not need to do anything special._
-
-If `.sbtopts` does not exist or if you have expanded the `$PWD` variable inside of it, you can import Rocket Chip into your IDE of choice.
-
-For more information on what `.sbtopts` is for (when it exists), see [CONTRIBUTING.md](CONTRIBUTING.md#bumping-chisel).
 
 ## <a name="contributors"></a> Contributors
 
