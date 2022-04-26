@@ -3,6 +3,7 @@
 package freechips.rocketchip.util
 
 import chisel3._
+import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
 
 case object ClockGateImpl extends Field[() => ClockGate](() => new EICG_wrapper)
@@ -37,4 +38,6 @@ object ClockGate {
 }
 
 // behavioral model of Integrated Clock Gating cell
-class EICG_wrapper extends ClockGate
+class EICG_wrapper extends ClockGate with HasBlackBoxResource {
+  addResource("/vsrc/EICG_wrapper.v")
+}
