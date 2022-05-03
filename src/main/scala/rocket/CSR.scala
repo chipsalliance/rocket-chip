@@ -813,8 +813,8 @@ class CSRFile(
 
   val system_insn = io.rw.cmd === CSR.I
   val hlsv = Seq(HLV_B, HLV_BU, HLV_H, HLV_HU, HLV_W, HLV_WU, HLV_D, HSV_B, HSV_H, HSV_W, HSV_D, HLVX_HU, HLVX_WU)
-  val decode_table = Seq(        SCALL->       List(Y,N,N,N,N,N,N,N,N),
-                                 SBREAK->      List(N,Y,N,N,N,N,N,N,N),
+  val decode_table = Seq(        ECALL->       List(Y,N,N,N,N,N,N,N,N),
+                                 EBREAK->      List(N,Y,N,N,N,N,N,N,N),
                                  MRET->        List(N,N,Y,N,N,N,N,N,N),
                                  CEASE->       List(N,N,N,Y,N,N,N,N,N),
                                  WFI->         List(N,N,N,N,Y,N,N,N,N)) ++
