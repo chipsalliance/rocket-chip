@@ -275,6 +275,12 @@ class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
   }
 })
 
+class WithHypervisor(hext: Boolean = true) extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useHypervisor = hext))
+  }
+})
+
 class WithRoccExample extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {
