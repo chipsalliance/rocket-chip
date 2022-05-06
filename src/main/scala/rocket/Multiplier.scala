@@ -7,10 +7,13 @@ import chisel3._
 import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.util._
-import ALU._
+import freechips.rocketchip.config.Parameters
+import freechips.rocketchip.tile.HasCoreParameters
 
-class MultiplierReq(dataBits: Int, tagBits: Int) extends Bundle {
-  val fn = Bits(SZ_ALU_FN.W)
+class MultiplierReq(dataBits: Int, tagBits: Int)(implicit val p: Parameters) extends Bundle with HasCoreParameters {
+  val alu = if (usingABLU) ABLU else ALU
+
+  val fn = Bits(alu.SZ_ALU_FN.W)
   val dw = Bits(SZ_DW.W)
   val in1 = Bits(dataBits.W)
   val in2 = Bits(dataBits.W)
@@ -22,7 +25,7 @@ class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
   val tag = UInt(tagBits.W)
 }
 
-class MultiplierIO(val dataBits: Int, val tagBits: Int) extends Bundle {
+class MultiplierIO(val dataBits: Int, val tagBits: Int)(implicit val p: Parameters) extends Bundle {
   val req = Flipped(Decoupled(new MultiplierReq(dataBits, tagBits)))
   val kill = Input(Bool())
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
@@ -36,7 +39,7 @@ case class MulDivParams(
   divEarlyOutGranularity: Int = 1
 )
 
-class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
+class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with HasCoreParameters {
   private def minDivLatency = (cfg.divUnroll > 0).option(if (cfg.divEarlyOut) 3 else 1 + w/cfg.divUnroll)
   private def minMulLatency = (cfg.mulUnroll > 0).option(if (cfg.mulEarlyOut) 2 else w/cfg.mulUnroll)
   def minLatency: Int = (minDivLatency ++ minMulLatency).min
@@ -59,16 +62,17 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   val divisor = Reg(Bits((w+1).W)) // div only needs w bits
   val remainder = Reg(Bits((2*mulw+2).W)) // div only needs 2*w+1 bits
 
+  val alu = if (usingABLU) ABLU else ALU
   val mulDecode = List(
-    FN_MUL    -> List(Y, N, X, X),
-    FN_MULH   -> List(Y, Y, Y, Y),
-    FN_MULHU  -> List(Y, Y, N, N),
-    FN_MULHSU -> List(Y, Y, Y, N))
+    alu.FN_MUL    -> List(Y, N, X, X),
+    alu.FN_MULH   -> List(Y, Y, Y, Y),
+    alu.FN_MULHU  -> List(Y, Y, N, N),
+    alu.FN_MULHSU -> List(Y, Y, Y, N))
   val divDecode = List(
-    FN_DIV    -> List(N, N, Y, Y),
-    FN_REM    -> List(N, Y, Y, Y),
-    FN_DIVU   -> List(N, N, N, N),
-    FN_REMU   -> List(N, Y, N, N))
+    alu.FN_DIV    -> List(N, N, Y, Y),
+    alu.FN_REM    -> List(N, Y, Y, Y),
+    alu.FN_DIVU   -> List(N, N, N, N),
+    alu.FN_REMU   -> List(N, Y, N, N))
   val cmdMul :: cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(io.req.bits.fn, List(X, X, X, X),
       (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
@@ -181,7 +185,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   io.req.ready := state === s_ready
 }
 
-class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Module with ShouldBeRetimed {
+class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with ShouldBeRetimed with HasCoreParameters {
   val io = IO(new Bundle {
     val req = Flipped(Valid(new MultiplierReq(width, log2Ceil(nXpr))))
     val resp = Valid(new MultiplierResp(width, log2Ceil(nXpr)))
@@ -189,11 +193,12 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Modu
 
   val in = Pipe(io.req)
 
+  val alu = if (usingABLU) ABLU else ALU
   val decode = List(
-    FN_MUL    -> List(N, X, X),
-    FN_MULH   -> List(Y, Y, Y),
-    FN_MULHU  -> List(Y, N, N),
-    FN_MULHSU -> List(Y, Y, N))
+    alu.FN_MUL    -> List(N, X, X),
+    alu.FN_MULH   -> List(Y, Y, Y),
+    alu.FN_MULHU  -> List(Y, N, N),
+    alu.FN_MULHSU -> List(Y, Y, N))
   val cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.asBool)
   val cmdHalf = (width > 32).B && in.bits.dw === DW_32

@@ -10,62 +10,62 @@ import freechips.rocketchip.tile.CoreModule
 
 object ABLU extends ALUFN
 {
-  override val SZ_ALU_FN = 6
-  override def FN_X    = BitPat("b??????")
-  override def FN_ADD  = 0.U(SZ_ALU_FN.W)
-  override def FN_SL   = 1.U(SZ_ALU_FN.W)
-  override def FN_SEQ  = 2.U(SZ_ALU_FN.W)
-  override def FN_SNE  = 3.U(SZ_ALU_FN.W)
-  override def FN_XOR  = 4.U(SZ_ALU_FN.W)
-  override def FN_SR   = 5.U(SZ_ALU_FN.W)
-  override def FN_OR   = 6.U(SZ_ALU_FN.W)
-  override def FN_AND  = 7.U(SZ_ALU_FN.W)
-  override def FN_SUB  = 10.U(SZ_ALU_FN.W)
-  override def FN_SRA  = 11.U(SZ_ALU_FN.W)
-  override def FN_SLT  = 12.U(SZ_ALU_FN.W)
-  override def FN_SGE  = 13.U(SZ_ALU_FN.W)
-  override def FN_SLTU = 14.U(SZ_ALU_FN.W)
-  override def FN_SGEU = 15.U(SZ_ALU_FN.W)
+  override val SZ_ALU_FN = 39
+  override def FN_X        = BitPat("b??_???_????_????_????__????__??_????_????_????_????")
+  override def FN_ADD      = "b00_000_0000_0000_0000__0001__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SL       = "b00_000_0000_1100_0000__0001__00_0000_0000_0000_0010".U(SZ_ALU_FN.W)
+  override def FN_SEQ      = "b00_100_0000_0000_0000__0001__00_0000_0000_0100_0000".U(SZ_ALU_FN.W)
+  override def FN_SNE      = "b00_110_0000_0000_0000__0001__00_0000_0000_0100_0000".U(SZ_ALU_FN.W)
+  override def FN_XOR      = "b00_000_0000_0000_0000__0001__00_0000_0000_0000_1000".U(SZ_ALU_FN.W)
+  override def FN_SR       = "b00_000_0000_0000_0000__0001__00_0000_0000_0000_0010".U(SZ_ALU_FN.W)
+  override def FN_OR       = "b00_000_0000_0000_0000__0001__00_0000_0000_0001_0000".U(SZ_ALU_FN.W)
+  override def FN_AND      = "b00_000_0000_0000_0000__0001__00_0000_0000_0000_0100".U(SZ_ALU_FN.W)
+  override def FN_SUB      = "b00_000_0000_0000_0011__0001__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SRA      = "b00_000_0000_0001_0000__0001__00_0000_0000_0000_0010".U(SZ_ALU_FN.W)
+  override def FN_SLT      = "b00_000_0000_0000_0011__0001__00_0000_0000_0100_0000".U(SZ_ALU_FN.W)
+  override def FN_SGE      = "b00_010_0000_0000_0011__0001__00_0000_0000_0100_0000".U(SZ_ALU_FN.W)
+  override def FN_SLTU     = "b00_001_0000_0000_0011__0001__00_0000_0000_0100_0000".U(SZ_ALU_FN.W)
+  override def FN_SGEU     = "b00_011_0000_0000_0011__0001__00_0000_0000_0100_0000".U(SZ_ALU_FN.W)
 
   // from Zb
   // Zba: UW is encoded here becuase it is DW_64
-  override def FN_ADDUW    = 16.U(SZ_ALU_FN.W)
-  override def FN_SLLIUW   = 17.U(SZ_ALU_FN.W)
-  override def FN_SH1ADD   = 18.U(SZ_ALU_FN.W)
-  override def FN_SH1ADDUW = 19.U(SZ_ALU_FN.W)
-  override def FN_SH2ADD   = 20.U(SZ_ALU_FN.W)
-  override def FN_SH2ADDUW = 21.U(SZ_ALU_FN.W)
-  override def FN_SH3ADD   = 22.U(SZ_ALU_FN.W)
-  override def FN_SH3ADDUW = 23.U(SZ_ALU_FN.W)
+  override def FN_ADDUW    = "b00_000_0000_0000_1000__0001__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SLLIUW   = "b00_000_0000_1100_1000__0001__00_0000_0000_0000_0010".U(SZ_ALU_FN.W)
+  override def FN_SH1ADD   = "b00_000_0000_0000_0000__0010__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SH1ADDUW = "b00_000_0000_0000_1000__0010__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SH2ADD   = "b00_000_0000_0000_0000__0100__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SH2ADDUW = "b00_000_0000_0000_1000__0100__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SH3ADD   = "b00_000_0000_0000_0000__1000__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
+  override def FN_SH3ADDUW = "b00_000_0000_0000_1000__1000__00_0000_0000_0000_0001".U(SZ_ALU_FN.W)
   // Zbb
-  override def FN_ROR      = 24.U(SZ_ALU_FN.W)
-  override def FN_ROL      = 25.U(SZ_ALU_FN.W)
-  override def FN_ANDN     = 26.U(SZ_ALU_FN.W)
-  override def FN_ORN      = 27.U(SZ_ALU_FN.W)
-  override def FN_XNOR     = 28.U(SZ_ALU_FN.W)
-  override def FN_REV8     = 29.U(SZ_ALU_FN.W)
-  override def FN_ORCB     = 30.U(SZ_ALU_FN.W)
-  override def FN_SEXTB    = 31.U(SZ_ALU_FN.W)
-  override def FN_SEXTH    = 32.U(SZ_ALU_FN.W)
-  override def FN_ZEXTH    = 33.U(SZ_ALU_FN.W)
-  override def FN_MAX      = 34.U(SZ_ALU_FN.W)
-  override def FN_MAXU     = 35.U(SZ_ALU_FN.W)
-  override def FN_MIN      = 36.U(SZ_ALU_FN.W)
-  override def FN_MINU     = 37.U(SZ_ALU_FN.W)
-  override def FN_CPOP     = 38.U(SZ_ALU_FN.W)
-  override def FN_CLZ      = 39.U(SZ_ALU_FN.W)
-  override def FN_CTZ      = 40.U(SZ_ALU_FN.W)
+  override def FN_ROR      = "b00_000_0000_0010_0000__0001__00_0000_0000_0000_0010".U(SZ_ALU_FN.W)
+  override def FN_ROL      = "b00_000_0000_1110_0000__0001__00_0000_0000_0000_0010".U(SZ_ALU_FN.W)
+  override def FN_ANDN     = "b00_000_0000_0000_0010__0001__00_0000_0000_0000_0100".U(SZ_ALU_FN.W)
+  override def FN_ORN      = "b00_000_0000_0000_0010__0001__00_0000_0000_0001_0000".U(SZ_ALU_FN.W)
+  override def FN_XNOR     = "b00_000_0000_0000_0010__0001__00_0000_0000_0000_1000".U(SZ_ALU_FN.W)
+  override def FN_REV8     = "b00_000_0000_0000_0000__0001__00_0001_0000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_ORCB     = "b10_000_0000_0000_0000__0001__00_0010_0000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_SEXTB    = "b00_000_0000_0000_0000__0001__00_0000_1000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_SEXTH    = "b01_000_0000_0000_0000__0001__00_0000_0100_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_ZEXTH    = "b00_000_0000_0000_0000__0001__00_0000_0100_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_MAX      = "b00_000_0000_0000_0011__0001__00_0000_0000_1000_0000".U(SZ_ALU_FN.W)
+  override def FN_MAXU     = "b00_001_0000_0000_0011__0001__00_0000_0000_1000_0000".U(SZ_ALU_FN.W)
+  override def FN_MIN      = "b00_010_0000_0000_0011__0001__00_0000_0000_1000_0000".U(SZ_ALU_FN.W)
+  override def FN_MINU     = "b00_011_0000_0000_0011__0001__00_0000_0000_1000_0000".U(SZ_ALU_FN.W)
+  override def FN_CPOP     = "b00_000_0000_0000_0000__0001__00_0000_0001_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_CLZ      = "b00_000_1101_1110_0000__0001__00_0000_0010_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_CTZ      = "b00_000_1101_0000_0000__0001__00_0000_0010_0000_0000".U(SZ_ALU_FN.W)
   // Zbs
-  override def FN_BCLR     = 41.U(SZ_ALU_FN.W)
-  override def FN_BEXT     = 42.U(SZ_ALU_FN.W)
-  override def FN_BINV     = 43.U(SZ_ALU_FN.W)
-  override def FN_BSET     = 44.U(SZ_ALU_FN.W)
+  override def FN_BCLR     = "b00_000_1110_1000_0100__0001__00_0000_0000_0000_0100".U(SZ_ALU_FN.W)
+  override def FN_BEXT     = "b00_000_1000_1000_0100__0001__00_0000_0000_0010_0000".U(SZ_ALU_FN.W)
+  override def FN_BINV     = "b00_000_1000_1000_0100__0001__00_0000_0000_0000_1000".U(SZ_ALU_FN.W)
+  override def FN_BSET     = "b00_000_1000_1000_0100__0001__00_0000_0000_0001_0000".U(SZ_ALU_FN.W)
   // Zbk
-  override def FN_BREV8    = 45.U(SZ_ALU_FN.W)
-  override def FN_PACK     = 46.U(SZ_ALU_FN.W)
-  override def FN_PACKH    = 47.U(SZ_ALU_FN.W)
-  override def FN_ZIP      = 48.U(SZ_ALU_FN.W)
-  override def FN_UNZIP    = 49.U(SZ_ALU_FN.W)
+  override def FN_BREV8    = "b00_000_0000_0000_0000__0001__00_0010_0000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_PACK     = "b00_000_0000_0000_0000__0001__00_0100_0000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_PACKH    = "b00_000_0000_0000_0000__0001__00_1000_0000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_ZIP      = "b00_000_0000_0000_0000__0001__01_0000_0000_0000_0000".U(SZ_ALU_FN.W)
+  override def FN_UNZIP    = "b00_000_0000_0000_0000__0001__10_0000_0000_0000_0000".U(SZ_ALU_FN.W)
 
   override def FN_DIV  = FN_XOR
   override def FN_DIVU = FN_SR
@@ -79,70 +79,14 @@ object ABLU extends ALUFN
 }
 
 class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
-  val (pla_in, pla_out) = pla(Seq(
-    // ctrl signals, shxadd1H out1H
-    (BitPat("b000000"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0001")),//FN_ADD
-    (BitPat("b000001"),BitPat("b00_000_0000_1100_0000 0001 00_0000_0000_0000_0010")),//FN_SL
-    (BitPat("b000010"),BitPat("b00_100_0000_0000_0000 0001 00_0000_0000_0100_0000")),//FN_SEQ
-    (BitPat("b000011"),BitPat("b00_110_0000_0000_0000 0001 00_0000_0000_0100_0000")),//FN_SNE
-    (BitPat("b000100"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_1000")),//FN_XOR
-    (BitPat("b000101"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0010")),//FN_SR
-    (BitPat("b000110"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0001_0000")),//FN_OR
-    (BitPat("b000111"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0000_0000_0100")),//FN_AND
-    (BitPat("b001000"),BitPat("b00_000_0000_0000_0000 0000 00_0000_0000_0000_0000")),//UNUSED
-    (BitPat("b001001"),BitPat("b00_000_0000_0000_0000 0000 00_0000_0000_0000_0000")),//UNUSED
-    (BitPat("b001010"),BitPat("b00_000_0000_0000_0011 0001 00_0000_0000_0000_0001")),//FN_SUB
-    (BitPat("b001011"),BitPat("b00_000_0000_0001_0000 0001 00_0000_0000_0000_0010")),//FN_SRA
-    (BitPat("b001100"),BitPat("b00_000_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SLT
-    (BitPat("b001101"),BitPat("b00_010_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SGE
-    (BitPat("b001110"),BitPat("b00_001_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SLTU
-    (BitPat("b001111"),BitPat("b00_011_0000_0000_0011 0001 00_0000_0000_0100_0000")),//FN_SGEU
-    // Zb
-    (BitPat("b010000"),BitPat("b00_000_0000_0000_1000 0001 00_0000_0000_0000_0001")),//FN_ADDUW
-    (BitPat("b010001"),BitPat("b00_000_0000_1100_1000 0001 00_0000_0000_0000_0010")),//FN_SLLIUW
-    (BitPat("b010010"),BitPat("b00_000_0000_0000_0000 0010 00_0000_0000_0000_0001")),//FN_SH1ADD
-    (BitPat("b010011"),BitPat("b00_000_0000_0000_1000 0010 00_0000_0000_0000_0001")),//FN_SH1ADDUW
-    (BitPat("b010100"),BitPat("b00_000_0000_0000_0000 0100 00_0000_0000_0000_0001")),//FN_SH2ADD
-    (BitPat("b010101"),BitPat("b00_000_0000_0000_1000 0100 00_0000_0000_0000_0001")),//FN_SH2ADDUW
-    (BitPat("b010110"),BitPat("b00_000_0000_0000_0000 1000 00_0000_0000_0000_0001")),//FN_SH3ADD
-    (BitPat("b010111"),BitPat("b00_000_0000_0000_1000 1000 00_0000_0000_0000_0001")),//FN_SH3ADDUW
-    (BitPat("b011000"),BitPat("b00_000_0000_0010_0000 0001 00_0000_0000_0000_0010")),//FN_ROR
-    (BitPat("b011001"),BitPat("b00_000_0000_1110_0000 0001 00_0000_0000_0000_0010")),//FN_ROL
-    (BitPat("b011010"),BitPat("b00_000_0000_0000_0010 0001 00_0000_0000_0000_0100")),//FN_ANDN
-    (BitPat("b011011"),BitPat("b00_000_0000_0000_0010 0001 00_0000_0000_0001_0000")),//FN_ORN
-    (BitPat("b011100"),BitPat("b00_000_0000_0000_0010 0001 00_0000_0000_0000_1000")),//FN_XNOR
-    (BitPat("b011101"),BitPat("b00_000_0000_0000_0000 0001 00_0001_0000_0000_0000")),//FN_REV8
-    (BitPat("b011110"),BitPat("b10_000_0000_0000_0000 0001 00_0010_0000_0000_0000")),//FN_ORCB
-    (BitPat("b011111"),BitPat("b00_000_0000_0000_0000 0001 00_0000_1000_0000_0000")),//FN_SEXTB
-    (BitPat("b100000"),BitPat("b01_000_0000_0000_0000 0001 00_0000_0100_0000_0000")),//FN_SEXTH
-    (BitPat("b100001"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0100_0000_0000")),//FN_ZEXTH
-    (BitPat("b100010"),BitPat("b00_000_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MAX
-    (BitPat("b100011"),BitPat("b00_001_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MAXU
-    (BitPat("b100100"),BitPat("b00_010_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MIN
-    (BitPat("b100101"),BitPat("b00_011_0000_0000_0011 0001 00_0000_0000_1000_0000")),//FN_MINU
-    (BitPat("b100110"),BitPat("b00_000_0000_0000_0000 0001 00_0000_0001_0000_0000")),//FN_CPOP
-    (BitPat("b100111"),BitPat("b00_000_1101_1110_0000 0001 00_0000_0010_0000_0000")),//FN_CLZ
-    (BitPat("b101000"),BitPat("b00_000_1101_0000_0000 0001 00_0000_0010_0000_0000")),//FN_CTZ
-    (BitPat("b101001"),BitPat("b00_000_1110_1000_0100 0001 00_0000_0000_0000_0100")),//FN_BCLR
-    (BitPat("b101010"),BitPat("b00_000_1000_1000_0100 0001 00_0000_0000_0010_0000")),//FN_BEXT
-    (BitPat("b101011"),BitPat("b00_000_1000_1000_0100 0001 00_0000_0000_0000_1000")),//FN_BINV
-    (BitPat("b101100"),BitPat("b00_000_1000_1000_0100 0001 00_0000_0000_0001_0000")),//FN_BSET
-    (BitPat("b101101"),BitPat("b00_000_0000_0000_0000 0001 00_0010_0000_0000_0000")),//FN_BREV8
-    (BitPat("b101110"),BitPat("b00_000_0000_0000_0000 0001 00_0100_0000_0000_0000")),//FN_PACK
-    (BitPat("b101111"),BitPat("b00_000_0000_0000_0000 0001 00_1000_0000_0000_0000")),//FN_PACKH
-    (BitPat("b110000"),BitPat("b00_000_0000_0000_0000 0001 01_0000_0000_0000_0000")),//FN_ZIP
-    (BitPat("b110001"),BitPat("b00_000_0000_0000_0000 0001 10_0000_0000_0000_0000")),//FN_UNZIP
-  ))
-
-  pla_in := io.fn
   // note that it is inverted
-  val isSub :: isIn2Inv :: isZBS :: isUW :: Nil = pla_out(25,22).asBools
-  val isSRA :: isRotate :: isLeft :: isLeftZBS :: Nil = pla_out(29,26).asBools
-  val isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = pla_out(33,30).asBools
-  val isUnsigned :: isInverted :: isSEQSNE :: Nil = pla_out(36,34).asBools
-  val isSEXT :: isORC :: Nil = pla_out(38,37).asBools
-  val shxadd1H = pla_out(21,18) // 4 bit
-  val out1H = pla_out(17,0)
+  val isSub :: isIn2Inv :: isZBS :: isUW :: Nil = io.fn(25,22).asBools
+  val isSRA :: isRotate :: isLeft :: isLeftZBS :: Nil = io.fn(29,26).asBools
+  val isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = io.fn(33,30).asBools
+  val isUnsigned :: isInverted :: isSEQSNE :: Nil = io.fn(36,34).asBools
+  val isSEXT :: isORC :: Nil = io.fn(38,37).asBools
+  val shxadd1H = io.fn(21,18) // 4 bit
+  val out1H = io.fn(17,0)
 
   // process input
   // used by SUB, ANDN, ORN, XNOR
