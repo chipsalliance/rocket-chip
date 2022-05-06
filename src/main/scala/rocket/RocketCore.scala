@@ -326,7 +326,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
     id_ctrl.scie && !(id_scie_decoder.unpipelined || id_scie_decoder.pipelined) ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
-    !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal)
+    !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal) ||
+    id_ctrl.zkn && id_ctrl.alu_fn(ZKN.FN_Len-1,0) === ZKN.FN_AES_KS1 && id_inst(0)(23,20) > 0xA.U(4.W)
   val id_virtual_insn = id_ctrl.legal &&
     ((id_csr_en && !(!id_csr_ren && csr.io.decode(0).write_illegal) && csr.io.decode(0).virtual_access_illegal) ||
      (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal))
