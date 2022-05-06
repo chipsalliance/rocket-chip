@@ -78,8 +78,6 @@ object ABLU extends ALUFN
   override def FN_MULHU  = FN_SNE
 }
 
-import ABLU._
-
 class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
   val (pla_in, pla_out) = pla(Seq(
     // ctrl signals, shxadd1H out1H
