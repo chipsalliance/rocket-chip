@@ -383,6 +383,10 @@ class WithExtMemSize(n: BigInt) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
 })
 
+class WithExtMemSbusBypass(base: BigInt = x"10_0000_0000") extends Config((site, here, up) => {
+  case ExtMem => up(ExtMem, site).map(x => x.copy(incohBase = Some(base)))
+})
+
 class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
   case DTSModel => model
   case DTSCompat => compat
