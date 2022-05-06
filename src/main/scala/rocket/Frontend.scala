@@ -223,7 +223,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rviReturn = rviJALR && !rviBits(7) && BitPat("b00?01") === rviBits(19,15)
       val rviCall = (rviJALR || rviJump) && rviBits(7)
       val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
-      val rvcJAL = Bool(xLen == 32) && bits === Instructions.C_JAL
+      val rvcJAL = Bool(xLen == 32) && bits === Instructions32.C_JAL
       val rvcJump = bits === Instructions.C_J || rvcJAL
       val rvcImm = Mux(bits(14), new RVCDecoder(bits, xLen).bImm.asSInt, new RVCDecoder(bits, xLen).jImm.asSInt)
       val rvcJR = bits === Instructions.C_MV && bits(6,2) === 0
