@@ -330,6 +330,10 @@ class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })
 
+class WithClockGateModel(file: String = "/vsrc/EICG_wrapper.v") extends Config((site, here, up) => {
+  case ClockGateModelFile => Some(file)
+})
+
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
     r.copy(crossingType = SynchronousCrossing())
