@@ -950,7 +950,6 @@ class CSRFile(
   io.gstatus.sd := io.gstatus.fs.andR || io.gstatus.xs.andR || io.gstatus.vs.andR
   io.gstatus.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
   io.gstatus.sd_rv32 := xLen == 32 && io.gstatus.sd
-  io.gstatus.xs := (if (usingRoCC) UInt(3) else UInt(0))
 
   val exception = insn_call || insn_break || io.exception
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
@@ -1484,6 +1483,7 @@ class CSRFile(
   if (!(vmIdBits > 0)) {
     reg_hgatp.asid := 0.U
   }
+  reg_vsstatus.xs := (if (usingRoCC) UInt(3) else UInt(0))
 
   if (nBreakpoints <= 1) reg_tselect := 0
   for (bpc <- reg_bp map {_.control}) {
