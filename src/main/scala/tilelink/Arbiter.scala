@@ -35,47 +35,20 @@ object TLArbiter
     apply(lowestIndexFirst)(sink, sources.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def lowestFromSeq[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: Seq[ReadyValidCancel[T]]): Unit = {
-    applyCancel(lowestIndexFirst)(sink, sources.map(s => (edge.numBeats1(s.bits), s)):_*)
-  }
-
   def lowest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*): Unit = {
     apply(lowestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
-  }
-
-  def lowest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*): Unit = {
-    applyCancel(lowestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
   def highest[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*): Unit = {
     apply(highestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def highest[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*): Unit = {
-    applyCancel(highestIndexFirst)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
-  }
-
   def robin[T <: TLChannel](edge: TLEdge, sink: DecoupledIO[T], sources: DecoupledIO[T]*): Unit = {
     apply(roundRobin)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
   }
 
-  def robin[T <: TLChannel](edge: TLEdge, sink: ReadyValidCancel[T], sources: ReadyValidCancel[T]*): Unit = {
-    applyCancel(roundRobin)(sink, sources.toList.map(s => (edge.numBeats1(s.bits), s)):_*)
-  }
-
   def apply[T <: Data](policy: Policy)(sink: DecoupledIO[T], sources: (UInt, DecoupledIO[T])*): Unit = {
-    val sink_ACancel = Wire(new ReadyValidCancel(chiselTypeOf(sink.bits)))
-    val sources_ACancel = sources.map(s => (s._1, ReadyValidCancel(s._2)))
-    applyCancel(policy = policy)(
-      sink = sink_ACancel,
-      sources = sources_ACancel:_*)
-    sink :<> sink_ACancel.asDecoupled()
-  }
-
-  def applyCancel[T <: Data](policy: Policy)(sink: ReadyValidCancel[T], sources: (UInt, ReadyValidCancel[T])*): Unit = {
     if (sources.isEmpty) {
-      sink.earlyValid := false.B
-      sink.lateCancel := DontCare
       sink.bits       := DontCare
     } else if (sources.size == 1) {
       sink :<> sources.head._2
@@ -90,42 +63,39 @@ object TLArbiter
       val latch = idle && sink.ready // winner (if any) claims sink
 
       // Who wants access to the sink?
-      val earlyValids = sourcesIn.map(_.earlyValid)
-      val validQuals  = sourcesIn.map(_.validQual())
+      val valids = sourcesIn.map(_.valid)
+
       // Arbitrate amongst the requests
-      val readys = VecInit(policy(earlyValids.size, Cat(earlyValids.reverse), latch).asBools)
+      val readys = VecInit(policy(valids.size, Cat(valids.reverse), latch).asBools)
+
       // Which request wins arbitration?
-      val earlyWinner = VecInit((readys zip earlyValids) map { case (r,v) => r&&v })
-      val winnerQual  = VecInit((readys zip validQuals)  map { case (r,v) => r&&v })
+      val winner = VecInit((readys zip valids) map { case (r,v) => r&&v })
 
       // Confirm the policy works properly
-      require (readys.size == earlyValids.size)
-      require (readys.size == validQuals.size)
+      require (readys.size == valids.size)
       // Never two winners
-      val prefixOR = earlyWinner.scanLeft(false.B)(_||_).init
-      assert((prefixOR zip earlyWinner) map { case (p,w) => !p || !w } reduce {_ && _})
+      val prefixOR = winner.scanLeft(false.B)(_||_).init
+      assert((prefixOR zip winner) map { case (p,w) => !p || !w } reduce {_ && _})
       // If there was any request, there is a winner
-      assert (!earlyValids.reduce(_||_) || earlyWinner.reduce(_||_))
-      assert (!validQuals .reduce(_||_) || validQuals .reduce(_||_))
+      assert (!valids.reduce(_||_) || winner.reduce(_||_))
 
       // Track remaining beats
-      val maskedBeats = (winnerQual zip beatsIn) map { case (w,b) => Mux(w, b, 0.U) }
+      val maskedBeats = (winner zip beatsIn) map { case (w,b) => Mux(w, b, 0.U) }
+
       val initBeats = maskedBeats.reduce(_ | _) // no winner => 0 beats
       beatsLeft := Mux(latch, initBeats, beatsLeft - sink.fire)
 
       // The one-hot source granted access in the previous cycle
       val state = RegInit(VecInit(Seq.fill(sources.size)(false.B)))
-      val muxStateEarly = Mux(idle, earlyWinner, state)
-      val muxStateQual  = Mux(idle, winnerQual,  state)
-      state := muxStateQual
+      val muxState = Mux(idle, winner, state)
+      state := muxState
 
       val allowed = Mux(idle, readys, state)
       (sourcesIn zip allowed) foreach { case (s, r) =>
         s.ready := sink.ready && r
       }
-      sink.earlyValid := Mux(idle, earlyValids.reduce(_||_), Mux1H(state, earlyValids))
-      sink.lateCancel := Mux1H(muxStateEarly, sourcesIn.map(_.lateCancel))
-      sink.bits      :<= Mux1H(muxStateEarly, sourcesIn.map(_.bits))
+      sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
+      sink.bits :<= Mux1H(muxState, sourcesIn.map(_.bits))
     }
   }
 }
