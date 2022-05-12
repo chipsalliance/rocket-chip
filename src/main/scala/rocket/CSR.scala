@@ -950,6 +950,7 @@ class CSRFile(
   io.gstatus.sd := io.gstatus.fs.andR || io.gstatus.xs.andR || io.gstatus.vs.andR
   io.gstatus.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0)
   io.gstatus.sd_rv32 := xLen == 32 && io.gstatus.sd
+  io.gstatus.xs := (if (usingRoCC) UInt(3) else UInt(0))
 
   val exception = insn_call || insn_break || io.exception
   assert(PopCount(insn_ret :: insn_call :: insn_break :: io.exception :: Nil) <= 1, "these conditions must be mutually exclusive")
@@ -1343,7 +1344,6 @@ class CSRFile(
         reg_vsstatus.sum := new_vsstatus.sum
         reg_vsstatus.fs := formFS(new_vsstatus.fs)
         reg_vsstatus.vs := formVS(new_vsstatus.vs)
-        if (usingRoCC) reg_vsstatus.xs := Fill(2, new_vsstatus.xs.orR)
       }
       when (decoded_addr(CSRs.vsip)) {
         val new_vsip = new MIP().fromBits((read_hip & ~read_hideleg) | ((wdata << 1) & read_hideleg))
