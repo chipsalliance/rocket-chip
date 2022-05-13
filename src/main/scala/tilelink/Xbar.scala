@@ -432,7 +432,7 @@ object TLXbar_ACancel
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLRAMXbar(nManagers: Int, txns: Int)(implicit p: Parameters) extends LazyModule {

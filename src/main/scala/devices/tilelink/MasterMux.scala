@@ -104,7 +104,7 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLMasterMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {

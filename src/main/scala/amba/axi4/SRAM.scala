@@ -8,8 +8,21 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba._
 
-// Setting wcorrupt=true is not enough to enable the w.user field
-// You must also list AMBACorrupt in your master's requestFields
+/**
+  * AXI4 slave device to provide a RAM storage
+  *
+  * Setting wcorrupt=true is not enough to enable the w.user field
+  * You must also list AMBACorrupt in your master's requestFields
+  *
+  * @param address address range
+  * @param cacheable whether this ram is cacheable
+  * @param executable whether this ram is executable
+  * @param beatBytes number of bytes in each beat
+  * @param devName optional device name
+  * @param errors address ranges where all access should fail
+  * @param wcorrupt enable AMBACorrupt in w.user
+  */
+
 class AXI4RAM(
     address: AddressSet,
     cacheable: Boolean = true,
