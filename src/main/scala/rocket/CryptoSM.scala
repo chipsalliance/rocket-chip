@@ -46,7 +46,8 @@ class CryptoSM(xLen:Int) extends Module {
     x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 0x1.U) << 23) ^ ((x & 0xF8.U) << 13))(31,0)
   // dynamic rotate should be merged into aes rv32 logic!
   // Vec rightRotate = UInt rotateLeft as Vec is big endian while UInt is little endian
-  val z = barrel.rightRotate(asBytes(y), io.bs).asUInt
+  // FIXME: use chisel3.stdlib.BarrelShifter after chisel3 3.6.0
+  val z = BarrelShifter.rightRotate(asBytes(y), io.bs).asUInt
   val sm4 = sext(z ^ io.rs1(31,0))
 
   // sm3

@@ -6,69 +6,6 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
 
-// utils
-
-trait ShiftType
-
-object LeftShift extends ShiftType
-object RightShift extends ShiftType
-object LeftRotate extends ShiftType
-object RightRotate extends ShiftType
-
-object barrel {
-
-  /** A Barrel Shifter implementation for Vec type.
-    *
-    * @param inputs           input signal to be shifted, should be a [[Vec]] type.
-    * @param shiftInput       input signal to indicate the shift number, encoded in UInt.
-    * @param shiftType        [[ShiftType]] to indicate the type of shifter.
-    * @param shiftGranularity how many bits will be resolved in each layer.
-    *                         For a smaller `shiftGranularity`, latency will be high, but area is smaller.
-    *                         For a large `shiftGranularity`, latency will be low, but area is higher.
-    */
-  def apply[T <: Data](inputs: Vec[T], shiftInput: UInt, shiftType: ShiftType, shiftGranularity: Int = 1): Vec[T] = {
-    val elementType: T = chiselTypeOf(inputs.head)
-    shiftInput
-      .asBools()
-      .grouped(shiftGranularity)
-      .map(VecInit(_).asUInt())
-      .zipWithIndex
-      .foldLeft(inputs) {
-        case (prev, (shiftBits, layer)) =>
-          Mux1H(
-            UIntToOH(shiftBits),
-            Seq.tabulate(1 << shiftBits.getWidth)(i => {
-              // shift no more than inputs length
-              // prev.drop will not warn about overflow!
-              val layerShift: Int = (i * (1 << (layer * shiftGranularity))).min(prev.length)
-              VecInit(shiftType match {
-                case LeftRotate =>
-                  prev.drop(layerShift) ++ prev.take(layerShift)
-                case LeftShift =>
-                  prev.drop(layerShift) ++ Seq.fill(layerShift)(0.U.asTypeOf(elementType))
-                case RightRotate =>
-                  prev.takeRight(layerShift) ++ prev.dropRight(layerShift)
-                case RightShift =>
-                  Seq.fill(layerShift)(0.U.asTypeOf(elementType)) ++ prev.dropRight(layerShift)
-              })
-            })
-          )
-      }
-  }
-
-  def leftShift[T <: Data](inputs: Vec[T], shift: UInt, layerSize: Int = 1): Vec[T] =
-    apply(inputs, shift, LeftShift, layerSize)
-
-  def rightShift[T <: Data](inputs: Vec[T], shift: UInt, layerSize: Int = 1): Vec[T] =
-    apply(inputs, shift, RightShift, layerSize)
-
-  def leftRotate[T <: Data](inputs: Vec[T], shift: UInt, layerSize: Int = 1): Vec[T] =
-    apply(inputs, shift, LeftRotate, layerSize)
-
-  def rightRotate[T <: Data](inputs: Vec[T], shift: UInt, layerSize: Int = 1): Vec[T] =
-    apply(inputs, shift, RightRotate, layerSize)
-}
-
 object ZKN {
   val FN_Len         = 4
   def FN_AES_DS      =  0.U(FN_Len.W)
@@ -232,7 +169,8 @@ class CryptoNIST(xLen:Int) extends Module {
         Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
       })
     // Vec rightRotate = UInt rotateLeft as Vec is big endian while UInt is little endian
-    io.rs1 ^ barrel.rightRotate(asBytes(mixed_so), io.bs).asUInt
+    // FIXME: use chisel3.stdlib.BarrelShifter after chisel3 3.6.0
+    io.rs1 ^ BarrelShifter.rightRotate(asBytes(mixed_so), io.bs).asUInt
   } else {
     require(xLen == 64)
     // var name from rvk spec enc/dec
