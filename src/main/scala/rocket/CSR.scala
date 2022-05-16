@@ -154,12 +154,12 @@ object CSR
   // commands
   val SZ = 3
   def X = BitPat.dontCare(SZ)
-  def N = 0.U(SZ.W)
-  def R = 2.U(SZ.W)
-  def I = 4.U(SZ.W)
-  def W = 5.U(SZ.W)
-  def S = 6.U(SZ.W)
-  def C = 7.U(SZ.W)
+  def N = UInt(0,SZ)
+  def R = UInt(2,SZ)
+  def I = UInt(4,SZ)
+  def W = UInt(5,SZ)
+  def S = UInt(6,SZ)
+  def C = UInt(7,SZ)
 
   // mask a CSR cmd with a valid bit
   def maskCmd(valid: Bool, cmd: UInt): UInt = {
@@ -794,7 +794,7 @@ class CSRFile(
   val decoded_addr = {
     val addr = Cat(io.status.v, io.rw.addr)
     val pats = for (((k, _), i) <- read_mapping.zipWithIndex)
-      yield (BitPat(k.U(12.W)), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
+      yield (BitPat(k.U), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
     val decoded = DecodeLogic(addr, Seq.fill(read_mapping.size)(X), pats)
     val unvirtualized_mapping = for (((k, _), v) <- read_mapping zip decoded) yield k -> v.asBool
 
@@ -826,13 +826,13 @@ class CSRFile(
     usingHypervisor.option(      HFENCE_GVMA-> List(N,N,N,N,N,N,N,Y,N)) ++
     (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,N,Y)) else Seq())
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil =
-    DecodeLogic(io.rw.addr, decode_table(0)._2.map(x=>X), decode_table.map({ case (in, out) => (in(31, 20), out) })).map(system_insn && _.asBool)
+    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
 
   for (io_dec <- io.decode) {
     val addr = io_dec.inst(31, 20)
 
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => addr === k }.reduce(_||_)
-    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U(12.W)), (read_mapping -- s).keys.toList.map(_.U(12.W)))
+    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
 
     val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: is_hfence_vvma :: is_hfence_gvma :: is_hlsv :: Nil =
       DecodeLogic(io_dec.inst, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)

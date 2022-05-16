@@ -2,81 +2,80 @@
 
 package freechips.rocketchip.rocket.constants
 
-import chisel3._
-import chisel3.util.BitPat
+import Chisel._
 import freechips.rocketchip.util._
 
 trait ScalarOpConstants {
   val SZ_BR = 3
-  def BR_X    = BitPat.dontCare(3)
-  def BR_EQ   = 0.U(3.W)
-  def BR_NE   = 1.U(3.W)
-  def BR_J    = 2.U(3.W)
-  def BR_N    = 3.U(3.W)
-  def BR_LT   = 4.U(3.W)
-  def BR_GE   = 5.U(3.W)
-  def BR_LTU  = 6.U(3.W)
-  def BR_GEU  = 7.U(3.W)
+  def BR_X    = BitPat("b???")
+  def BR_EQ   = UInt(0, 3)
+  def BR_NE   = UInt(1, 3)
+  def BR_J    = UInt(2, 3)
+  def BR_N    = UInt(3, 3)
+  def BR_LT   = UInt(4, 3)
+  def BR_GE   = UInt(5, 3)
+  def BR_LTU  = UInt(6, 3)
+  def BR_GEU  = UInt(7, 3)
 
-  def A1_X    = BitPat.dontCare(2)
-  def A1_ZERO = 0.U(2.W)
-  def A1_RS1  = 1.U(2.W)
-  def A1_PC   = 2.U(2.W)
+  def A1_X    = BitPat("b??")
+  def A1_ZERO = UInt(0, 2)
+  def A1_RS1  = UInt(1, 2)
+  def A1_PC   = UInt(2, 2)
 
-  def IMM_X  = BitPat.dontCare(3)
-  def IMM_S  = 0.U(3.W)
-  def IMM_SB = 1.U(3.W)
-  def IMM_U  = 2.U(3.W)
-  def IMM_UJ = 3.U(3.W)
-  def IMM_I  = 4.U(3.W)
-  def IMM_Z  = 5.U(3.W)
+  def IMM_X  = BitPat("b???")
+  def IMM_S  = UInt(0, 3)
+  def IMM_SB = UInt(1, 3)
+  def IMM_U  = UInt(2, 3)
+  def IMM_UJ = UInt(3, 3)
+  def IMM_I  = UInt(4, 3)
+  def IMM_Z  = UInt(5, 3)
 
-  def A2_X    = BitPat.dontCare(2)
-  def A2_ZERO = 0.U(2.W)
-  def A2_SIZE = 1.U(2.W)
-  def A2_RS2  = 2.U(2.W)
-  def A2_IMM  = 3.U(2.W)
+  def A2_X    = BitPat("b??")
+  def A2_ZERO = UInt(0, 2)
+  def A2_SIZE = UInt(1, 2)
+  def A2_RS2  = UInt(2, 2)
+  def A2_IMM  = UInt(3, 2)
 
-  def X = BitPat.dontCare(1)
-  def N = BitPat.N()
-  def Y = BitPat.Y()
+  def X = BitPat("b?")
+  def N = BitPat("b0")
+  def Y = BitPat("b1")
 
   val SZ_DW = 1
   def DW_X  = X
-  def DW_32 = false.B
-  def DW_64 = true.B
+  def DW_32 = Bool(false)
+  def DW_64 = Bool(true)
   def DW_XPR = DW_64
 }
 
 trait MemoryOpConstants {
   val NUM_XA_OPS = 9
   val M_SZ      = 5
-  def M_X       = BitPat.dontCare(5)
-  def M_XRD     = "b00000".U(5.W) // int load
-  def M_XWR     = "b00001".U(5.W) // int store
-  def M_PFR     = "b00010".U(5.W) // prefetch with intent to read
-  def M_PFW     = "b00011".U(5.W) // prefetch with intent to write
-  def M_XA_SWAP = "b00100".U(5.W)
-  def M_FLUSH_ALL = "b00101".U(5.W)  // flush all lines
-  def M_XLR     = "b00110".U(5.W)
-  def M_XSC     = "b00111".U(5.W)
-  def M_XA_ADD  = "b01000".U(5.W)
-  def M_XA_XOR  = "b01001".U(5.W)
-  def M_XA_OR   = "b01010".U(5.W)
-  def M_XA_AND  = "b01011".U(5.W)
-  def M_XA_MIN  = "b01100".U(5.W)
-  def M_XA_MAX  = "b01101".U(5.W)
-  def M_XA_MINU = "b01110".U(5.W)
-  def M_XA_MAXU = "b01111".U(5.W)
-  def M_FLUSH   = "b10000".U(5.W) // write back dirty data and cede R/W permissions
-  def M_PWR     = "b10001".U(5.W) // partial (masked) store
-  def M_PRODUCE = "b10010".U(5.W) // write back dirty data and cede W permissions
-  def M_CLEAN   = "b10011".U(5.W) // write back dirty data and retain R/W permissions
-  def M_SFENCE  = "b10100".U(5.W) // SFENCE.VMA
-  def M_HFENCEV = "b10101".U(5.W) // HFENCE.VVMA
-  def M_HFENCEG = "b10110".U(5.W) // HFENCE.GVMA
-  def M_WOK     = "b10111".U(5.W) // check write permissions but don't perform a write
-  def M_HLVX    = "b10000".U(5.W) // HLVX instruction
+  def M_X       = BitPat("b?????");
+  def M_XRD     = UInt("b00000"); // int load
+  def M_XWR     = UInt("b00001"); // int store
+  def M_PFR     = UInt("b00010"); // prefetch with intent to read
+  def M_PFW     = UInt("b00011"); // prefetch with intent to write
+  def M_XA_SWAP = UInt("b00100");
+  def M_FLUSH_ALL = UInt("b00101")  // flush all lines
+  def M_XLR     = UInt("b00110");
+  def M_XSC     = UInt("b00111");
+  def M_XA_ADD  = UInt("b01000");
+  def M_XA_XOR  = UInt("b01001");
+  def M_XA_OR   = UInt("b01010");
+  def M_XA_AND  = UInt("b01011");
+  def M_XA_MIN  = UInt("b01100");
+  def M_XA_MAX  = UInt("b01101");
+  def M_XA_MINU = UInt("b01110");
+  def M_XA_MAXU = UInt("b01111");
+  def M_FLUSH   = UInt("b10000") // write back dirty data and cede R/W permissions
+  def M_PWR     = UInt("b10001") // partial (masked) store
+  def M_PRODUCE = UInt("b10010") // write back dirty data and cede W permissions
+  def M_CLEAN   = UInt("b10011") // write back dirty data and retain R/W permissions
+  def M_SFENCE  = UInt("b10100") // SFENCE.VMA
+  def M_HFENCEV = UInt("b10101") // HFENCE.VVMA
+  def M_HFENCEG = UInt("b10110") // HFENCE.GVMA
+  def M_WOK     = UInt("b10111") // check write permissions but don't perform a write
+  def M_HLVX    = UInt("b10000") // HLVX instruction
 
   def isAMOLogical(cmd: UInt) = cmd.isOneOf(M_XA_SWAP, M_XA_XOR, M_XA_OR, M_XA_AND)
   def isAMOArithmetic(cmd: UInt) = cmd.isOneOf(M_XA_ADD, M_XA_MIN, M_XA_MAX, M_XA_MINU, M_XA_MAXU)

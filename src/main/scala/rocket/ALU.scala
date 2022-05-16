@@ -10,21 +10,21 @@ import freechips.rocketchip.tile.CoreModule
 object ALU
 {
   val SZ_ALU_FN = 4
-  def FN_X    = BitPat.dontCare(4)
-  def FN_ADD  = 0.U(4.W)
-  def FN_SL   = 1.U(4.W)
-  def FN_SEQ  = 2.U(4.W)
-  def FN_SNE  = 3.U(4.W)
-  def FN_XOR  = 4.U(4.W)
-  def FN_SR   = 5.U(4.W)
-  def FN_OR   = 6.U(4.W)
-  def FN_AND  = 7.U(4.W)
-  def FN_SUB  = 10.U(4.W)
-  def FN_SRA  = 11.U(4.W)
-  def FN_SLT  = 12.U(4.W)
-  def FN_SGE  = 13.U(4.W)
-  def FN_SLTU = 14.U(4.W)
-  def FN_SGEU = 15.U(4.W)
+  def FN_X    = BitPat("b????")
+  def FN_ADD  = UInt(0)
+  def FN_SL   = UInt(1)
+  def FN_SEQ  = UInt(2)
+  def FN_SNE  = UInt(3)
+  def FN_XOR  = UInt(4)
+  def FN_SR   = UInt(5)
+  def FN_OR   = UInt(6)
+  def FN_AND  = UInt(7)
+  def FN_SUB  = UInt(10)
+  def FN_SRA  = UInt(11)
+  def FN_SLT  = UInt(12)
+  def FN_SGE  = UInt(13)
+  def FN_SLTU = UInt(14)
+  def FN_SGEU = UInt(15)
 
   def FN_DIV  = FN_XOR
   def FN_DIVU = FN_SR
