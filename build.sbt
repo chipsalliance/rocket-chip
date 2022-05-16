@@ -5,7 +5,7 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
-val chiselVersion = "3.5-SNAPSHOT"
+val chiselVersion = "3.5.0"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
