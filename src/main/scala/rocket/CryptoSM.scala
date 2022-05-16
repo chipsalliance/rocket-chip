@@ -1,4 +1,4 @@
-// See LICENSE.SiFive for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package freechips.rocketchip.rocket
 
