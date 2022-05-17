@@ -826,7 +826,7 @@ class CSRFile(
     usingHypervisor.option(      HFENCE_GVMA-> List(N,N,N,N,N,N,N,Y,N)) ++
     (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,N,Y)) else Seq())
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil =
-    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
+    DecodeLogic(io.rw.addr, decode_table(0)._2.map(x=>X), decode_table.map({ case (in, out) => (in(31, 20), out) })).map(system_insn && _.asBool)
 
   for (io_dec <- io.decode) {
     val addr = io_dec.inst(31, 20)
