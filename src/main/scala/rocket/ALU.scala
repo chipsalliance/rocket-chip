@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.{CoreModule, HasCoreParameters}
+import freechips.rocketchip.tile.CoreModule
 
 trait ALUFN {
   val SZ_ALU_FN = 4
@@ -88,7 +88,7 @@ object ALU extends ALUFN
 
 import ALU._
 
-trait HasALUIO extends HasCoreParameters {
+trait HasALUIO extends HasRocketCoreParameters {
   val io = new Bundle {
     val dw = Bits(INPUT, SZ_DW)
     val fn = Bits(INPUT, if (usingABLU) ABLU.SZ_ALU_FN else SZ_ALU_FN)

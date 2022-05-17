@@ -8,9 +8,8 @@ import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fi
 import Chisel.ImplicitConversions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.HasCoreParameters
 
-class MultiplierReq(dataBits: Int, tagBits: Int)(implicit val p: Parameters) extends Bundle with HasCoreParameters {
+class MultiplierReq(dataBits: Int, tagBits: Int)(implicit val p: Parameters) extends Bundle with HasRocketCoreParameters {
   val alu = if (usingABLU) ABLU else ALU
 
   val fn = Bits(alu.SZ_ALU_FN.W)
@@ -39,7 +38,7 @@ case class MulDivParams(
   divEarlyOutGranularity: Int = 1
 )
 
-class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with HasCoreParameters {
+class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with HasRocketCoreParameters {
   private def minDivLatency = (cfg.divUnroll > 0).option(if (cfg.divEarlyOut) 3 else 1 + w/cfg.divUnroll)
   private def minMulLatency = (cfg.mulUnroll > 0).option(if (cfg.mulEarlyOut) 2 else w/cfg.mulUnroll)
   def minLatency: Int = (minDivLatency ++ minMulLatency).min
@@ -185,7 +184,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
   io.req.ready := state === s_ready
 }
 
-class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with ShouldBeRetimed with HasCoreParameters {
+class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with ShouldBeRetimed with HasRocketCoreParameters {
   val io = IO(new Bundle {
     val req = Flipped(Valid(new MultiplierReq(width, log2Ceil(nXpr))))
     val resp = Valid(new MultiplierResp(width, log2Ceil(nXpr)))

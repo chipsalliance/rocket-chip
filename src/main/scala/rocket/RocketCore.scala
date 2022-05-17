@@ -77,6 +77,8 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
+  val usingABLU = usingBitManip || usingBitManipCrypto
+
   require(!fastLoadByte || fastLoadWord)
 }
 

@@ -5,19 +5,18 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._
 import freechips.rocketchip.scie.SCIE
 import Instructions._
 import CustomInstructions._
 
-abstract trait DecodeConstants extends HasCoreParameters
+abstract trait DecodeConstants extends HasRocketCoreParameters
 {
   val alu = if (usingABLU) ABLU else ALU
   val table: Array[(BitPat, List[BitPat])]
 }
 
-class IntCtrlSigs(implicit val p: Parameters) extends Bundle with HasCoreParameters {
+class IntCtrlSigs(implicit val p: Parameters) extends Bundle with HasRocketCoreParameters {
   val alu = if (usingABLU) ABLU else ALU
 
   val legal = Bool()
