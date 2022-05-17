@@ -13,7 +13,6 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.ICacheLogicalTreeNode
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(width = vaddrBitsExtended)
@@ -224,7 +223,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rviReturn = rviJALR && !rviBits(7) && BitPat("b00?01") === rviBits(19,15)
       val rviCall = (rviJALR || rviJump) && rviBits(7)
       val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
-      val rvcJAL = Bool(xLen == 32) && bits === Instructions.C_JAL
+      val rvcJAL = Bool(xLen == 32) && bits === Instructions32.C_JAL
       val rvcJump = bits === Instructions.C_J || rvcJAL
       val rvcImm = Mux(bits(14), new RVCDecoder(bits, xLen).bImm.asSInt, new RVCDecoder(bits, xLen).jImm.asSInt)
       val rvcJR = bits === Instructions.C_MV && bits(6,2) === 0
@@ -380,8 +379,6 @@ trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   // This should be a None in the case of not having an ITIM address, when we
   // don't actually use the device that is instantiated in the frontend.
   private val deviceOpt = if (tileParams.icache.get.itimAddr.isDefined) Some(frontend.icache.device) else None
-
-  val iCacheLogicalTreeNode = new ICacheLogicalTreeNode(frontend.icache, deviceOpt, tileParams.icache.get)
 }
 
 trait HasICacheFrontendModule extends CanHavePTWModule {

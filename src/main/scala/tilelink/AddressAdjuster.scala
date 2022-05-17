@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 
 class AddressAdjuster(
     val params: ReplicatedRegion, // only devices in this region get adjusted
-    val forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reacheable at id=0 even if in params.region
+    val forceLocal: Seq[AddressSet] = Nil, // ensure special devices (e.g. debug) remain reachable at id=0 even if in params.region
     val localBaseAddressDefault: Option[BigInt] = None, // default local base address used for reporting manager address metadata
     val ordered: Boolean = true // the replicated region should present with FIFO ordering
     )(implicit p: Parameters) extends LazyModule {
@@ -88,14 +88,14 @@ class AddressAdjuster(
     (covered, AddressSet.unify(holes))
   }
 
-  // Confirm that a subset of managers have homogeneous FIFO ids
+  /** Confirm that a subset of managers have homogeneous FIFO ids */
   def requireFifoHomogeneity(managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
     require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId,
       s"${m.name} had fifoId ${m.fifoId}, " +
       s"which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
   }
 
-  // Confirm that a particular manager r can successfully handle all operations targetting another manager l
+  /** Confirm that a particular manager r can successfully handle all operations targeting another manager l */
   def requireContainerSupport(l: TLSlaveParameters, r: TLSlaveParameters): Unit = {
     require (l.regionType >= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
     require (!l.executable || r.executable, s"Device ${l.name} cannot be executable if ${r.name} is not")

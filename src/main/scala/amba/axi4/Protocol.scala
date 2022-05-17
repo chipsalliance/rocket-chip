@@ -21,7 +21,7 @@ object AXI4Parameters
   def CACHE_MODIFIABLE = UInt(2, width = cacheBits)
   def CACHE_BUFFERABLE = UInt(1, width = cacheBits)
 
-  def PROT_PRIVILEDGED = UInt(1, width = protBits)
+  def PROT_PRIVILEGED  = UInt(1, width = protBits)
   def PROT_INSECURE    = UInt(2, width = protBits)
   def PROT_INSTRUCTION = UInt(4, width = protBits)
 

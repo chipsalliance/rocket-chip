@@ -10,7 +10,6 @@ import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters, ClockSinkNode}
@@ -82,8 +81,6 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   }
   val debugOpt = p(DebugModuleKey).map { params =>
     val debug = LazyModule(new TLDebugModule(tlbus.beatBytes))
-
-    LogicalModuleTree.add(logicalTreeNode, debug.logicalTreeNode)
 
     debug.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
     debug.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node

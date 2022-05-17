@@ -8,7 +8,11 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.min
 
-// pipe is only used if a queue has depth = 1
+/**
+  * Add buffers to AXI4 channels
+  *
+  * Pipe is only used if a queue has depth = 1
+  */
 class AXI4Buffer(
   aw: BufferParams,
   w:  BufferParams,

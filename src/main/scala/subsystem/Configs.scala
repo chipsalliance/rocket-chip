@@ -61,7 +61,11 @@ class WithIncoherentBusTopology extends Config((site, here, up) => {
       pbus = site(PeripheryBusKey),
       fbus = site(FrontBusKey),
       cbus = site(ControlBusKey),
-      xTypes = SubsystemCrossingParams()))
+      xTypes = SubsystemCrossingParams(
+        sbusToCbusXType = site(SbusToCbusXTypeKey),
+        cbusToPbusXType = site(CbusToPbusXTypeKey),
+        fbusToSbusXType = site(FbusToSbusXTypeKey)),
+      driveClocksFromSBus = site(DriveClocksFromSBus)))
 })
 
 class WithCoherentBusTopology extends Config((site, here, up) => {
@@ -271,6 +275,12 @@ class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
   }
 })
 
+class WithHypervisor(hext: Boolean = true) extends Config((site, here, up) => {
+  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
+    r.copy(core = r.core.copy(useHypervisor = hext))
+  }
+})
+
 class WithRoccExample extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {
@@ -324,6 +334,10 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
+})
+
+class WithClockGateModel(file: String = "/vsrc/EICG_wrapper.v") extends Config((site, here, up) => {
+  case ClockGateModelFile => Some(file)
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {

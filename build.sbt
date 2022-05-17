@@ -5,12 +5,12 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
-val chiselVersion = "3.5.0"
+val chiselVersion = "3.5.2"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2-SNAPSHOT",
-  scalaVersion := "2.12.10",
+  scalaVersion := "2.12.15",
   parallelExecution in Global := false,
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
