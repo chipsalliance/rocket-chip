@@ -13,6 +13,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import scala.collection.mutable.LinkedHashMap
 import Instructions._
+import CustomInstructions._
 
 class MStatus extends Bundle {
   // not truly part of mstatus, but convenient
@@ -448,7 +449,7 @@ class CSRFile(
 
   val reg_debug = Reg(init=Bool(false))
   val reg_dpc = Reg(UInt(width = vaddrBitsExtended))
-  val reg_dscratch = Reg(UInt(width = xLen))
+  val reg_dscratch0 = Reg(UInt(width = xLen))
   val reg_dscratch1 = (p(DebugModuleKey).map(_.nDscratch).getOrElse(1) > 1).option(Reg(UInt(width = xLen)))
   val reg_singleStepped = Reg(Bool())
 
@@ -626,7 +627,7 @@ class CSRFile(
   val debug_csrs = if (!usingDebug) LinkedHashMap() else LinkedHashMap[Int,Bits](
     CSRs.dcsr -> reg_dcsr.asUInt,
     CSRs.dpc -> readEPC(reg_dpc).sextTo(xLen),
-    CSRs.dscratch -> reg_dscratch.asUInt) ++
+    CSRs.dscratch0 -> reg_dscratch0.asUInt) ++
     reg_dscratch1.map(r => CSRs.dscratch1 -> r)
 
   val read_mnstatus = WireInit(0.U.asTypeOf(new MNStatus()))
@@ -634,10 +635,10 @@ class CSRFile(
   read_mnstatus.mpv := reg_mnstatus.mpv
   read_mnstatus.mie := reg_rnmie
   val nmi_csrs = if (!usingNMI) LinkedHashMap() else LinkedHashMap[Int,Bits](
-    CSRs.mnscratch -> reg_mnscratch,
-    CSRs.mnepc -> readEPC(reg_mnepc).sextTo(xLen),
-    CSRs.mncause -> reg_mncause,
-    CSRs.mnstatus -> read_mnstatus.asUInt)
+    CustomCSRs.mnscratch -> reg_mnscratch,
+    CustomCSRs.mnepc -> readEPC(reg_mnepc).sextTo(xLen),
+    CustomCSRs.mncause -> reg_mncause,
+    CustomCSRs.mnstatus -> read_mnstatus.asUInt)
 
   val context_csrs = LinkedHashMap[Int,Bits]() ++
     reg_mcontext.map(r => CSRs.mcontext -> r) ++
@@ -812,8 +813,8 @@ class CSRFile(
 
   val system_insn = io.rw.cmd === CSR.I
   val hlsv = Seq(HLV_B, HLV_BU, HLV_H, HLV_HU, HLV_W, HLV_WU, HLV_D, HSV_B, HSV_H, HSV_W, HSV_D, HLVX_HU, HLVX_WU)
-  val decode_table = Seq(        SCALL->       List(Y,N,N,N,N,N,N,N,N),
-                                 SBREAK->      List(N,Y,N,N,N,N,N,N,N),
+  val decode_table = Seq(        ECALL->       List(Y,N,N,N,N,N,N,N,N),
+                                 EBREAK->      List(N,Y,N,N,N,N,N,N,N),
                                  MRET->        List(N,N,Y,N,N,N,N,N,N),
                                  CEASE->       List(N,N,N,Y,N,N,N,N,N),
                                  WFI->         List(N,N,N,N,Y,N,N,N,N)) ++
@@ -826,7 +827,7 @@ class CSRFile(
     usingHypervisor.option(      HFENCE_GVMA-> List(N,N,N,N,N,N,N,Y,N)) ++
     (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,N,Y)) else Seq())
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil =
-    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
+    DecodeLogic(io.rw.addr, decode_table(0)._2.map(x=>X), decode_table.map({ case (in, out) => (in(31, 20), out) })).map(system_insn && _.asBool)
 
   for (io_dec <- io.decode) {
     val addr = io_dec.inst(31, 20)
@@ -850,7 +851,7 @@ class CSRFile(
     io_dec.fp_illegal := io.status.fs === 0 || reg_mstatus.v && reg_vsstatus.fs === 0 || !reg_misa('f'-'a')
     io_dec.vector_illegal := io.status.vs === 0 || reg_mstatus.v && reg_vsstatus.vs === 0 || !reg_misa('v'-'a')
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
-    io_dec.rocc_illegal := io.status.xs === 0 || reg_mstatus.v && reg_vsstatus.vs === 0 || !reg_misa('x'-'a')
+    io_dec.rocc_illegal := io.status.xs === 0 || reg_mstatus.v && reg_vsstatus.xs === 0 || !reg_misa('x'-'a')
     val csr_addr_legal = reg_mstatus.prv >= CSR.mode(addr) ||
       usingHypervisor && !reg_mstatus.v && reg_mstatus.prv === PRV.S && CSR.mode(addr) === PRV.H
     val csr_exists = decodeAny(read_mapping)
@@ -1212,10 +1213,10 @@ class CSRFile(
 
     if (usingNMI) {
       val new_mnstatus = new MNStatus().fromBits(wdata)
-      when (decoded_addr(CSRs.mnscratch)) { reg_mnscratch := wdata }
-      when (decoded_addr(CSRs.mnepc))     { reg_mnepc := formEPC(wdata) }
-      when (decoded_addr(CSRs.mncause))   { reg_mncause := wdata & UInt((BigInt(1) << (xLen-1)) + BigInt(3)) }
-      when (decoded_addr(CSRs.mnstatus))  {
+      when (decoded_addr(CustomCSRs.mnscratch)) { reg_mnscratch := wdata }
+      when (decoded_addr(CustomCSRs.mnepc))     { reg_mnepc := formEPC(wdata) }
+      when (decoded_addr(CustomCSRs.mncause))   { reg_mncause := wdata & UInt((BigInt(1) << (xLen-1)) + BigInt(3)) }
+      when (decoded_addr(CustomCSRs.mnstatus))  {
         reg_mnstatus.mpp := legalizePrivilege(new_mnstatus.mpp)
         reg_mnstatus.mpv := usingHypervisor && new_mnstatus.mpv
         reg_rnmie := reg_rnmie | new_mnstatus.mie  // mnie bit settable but not clearable from software
@@ -1252,7 +1253,7 @@ class CSRFile(
         if (usingHypervisor) reg_dcsr.v := new_dcsr.v
       }
       when (decoded_addr(CSRs.dpc))      { reg_dpc := formEPC(wdata) }
-      when (decoded_addr(CSRs.dscratch)) { reg_dscratch := wdata }
+      when (decoded_addr(CSRs.dscratch0)) { reg_dscratch0 := wdata }
       reg_dscratch1.foreach { r =>
         when (decoded_addr(CSRs.dscratch1)) { r := wdata }
       }
@@ -1342,7 +1343,6 @@ class CSRFile(
         reg_vsstatus.sum := new_vsstatus.sum
         reg_vsstatus.fs := formFS(new_vsstatus.fs)
         reg_vsstatus.vs := formVS(new_vsstatus.vs)
-        if (usingRoCC) reg_vsstatus.xs := Fill(2, new_vsstatus.xs.orR)
       }
       when (decoded_addr(CSRs.vsip)) {
         val new_vsip = new MIP().fromBits((read_hip & ~read_hideleg) | ((wdata << 1) & read_hideleg))
@@ -1483,6 +1483,7 @@ class CSRFile(
   if (!(vmIdBits > 0)) {
     reg_hgatp.asid := 0.U
   }
+  reg_vsstatus.xs := (if (usingRoCC) UInt(3) else UInt(0))
 
   if (nBreakpoints <= 1) reg_tselect := 0
   for (bpc <- reg_bp map {_.control}) {

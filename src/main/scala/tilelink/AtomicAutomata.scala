@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.{min,max}
 
-// Ensures that all downstream RW managers support Atomic operationss.
+// Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
 class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
@@ -301,7 +301,7 @@ object TLAtomicAutomata
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule {

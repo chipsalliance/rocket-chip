@@ -5,6 +5,9 @@ package freechips.rocketchip.amba
 import freechips.rocketchip.diplomacy.{HasClockDomainCrossing, _}
 import freechips.rocketchip.prci.{HasResetDomainCrossing}
 
+/**
+  * Provide bundles, adapters and devices etc for AMBA AXI4 protocol.
+  */
 package object axi4
 {
   type AXI4Node = SimpleNodeHandle[AXI4MasterPortParameters, AXI4SlavePortParameters, AXI4EdgeParameters, AXI4Bundle]

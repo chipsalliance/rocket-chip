@@ -6,7 +6,8 @@ import Chisel._
 
 object CRC
 {
-  // A divisor of 0x1d5 is interpretted to be x^8 + x^7 + x^6 + x^4 + x^2 + 1
+  // A divisor is interpretted using an explicit+1 CRC notation where bit 0 is required to be one.
+  // For example, a divisor of 0x1d5 is interpretted to be x^8 + x^7 + x^6 + x^4 + x^2 + 1
   // Let n be the highest term in the divisor; n=8 in 0x1d5.
   // Then, this function calculates c mod d, returning an n-bit UInt.
   // coefficient.width must be <= width
@@ -30,6 +31,6 @@ object CRC
     Cat(Seq.tabulate(n) { i => (UInt(array(i)) & coefficient).xorR } .reverse)
   }
 
-  // Find more great CRC polynomials here: https://users.ece.cmu.edu/~koopman/crc/
-  val CRC_16F_4_2 = BigInt(0x1a2eb) // HD=4 for <32751 bits and HD=6 for <93 bits
+  // Find more great CRC polynomials (using implicit+1 notation) here: https://users.ece.cmu.edu/~koopman/crc/
+  val CRC_16F_4_2 = BigInt(0x1a2eb) // HD=4 for <32751 bits and HD=6 for <93 bits, 0xd175 in implicit+1 notation
 }

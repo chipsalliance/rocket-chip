@@ -6,8 +6,6 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
-import freechips.rocketchip.diplomaticobjectmodel.model.{OMECC, TL_UL}
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 
@@ -18,7 +16,6 @@ class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with 
 
 class TLRAM(
     address: AddressSet,
-    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     cacheable: Boolean = true,
     executable: Boolean = true,
     atomics: Boolean = false,
@@ -60,25 +57,13 @@ class TLRAM(
     val indexBits = (outer.address.mask & ~(beatBytes-1)).bitCount
     val width = code.width(eccBytes*8)
     val lanes = beatBytes/eccBytes
-    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
+    val mem = makeSinglePortedByteWriteSeqMem(
       size = BigInt(1) << indexBits,
       lanes = lanes,
       bits = width)
     val eccCode = Some(ecc.code)
     val address = outer.address
     val laneDataBits = eccBytes * 8
-
-    parentLogicalTreeNode.map {
-      case parentLTN =>
-        def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
-          device = device,
-          omSRAMs = Seq(omSRAM),
-          busProtocol = new TL_UL(None),
-          dataECC = Some(OMECC.fromCode(ecc.code)),
-          hasAtomics = Some(atomics),
-          busProtocolSpecification = None)
-        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
-    }
 
     /* This block has a three-stage pipeline
      * Stage A is the combinational request from TileLink A channel
@@ -332,7 +317,6 @@ object TLRAM
 {
   def apply(
     address: AddressSet,
-    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     cacheable: Boolean = true,
     executable: Boolean = true,
     atomics: Boolean = false,
@@ -342,12 +326,12 @@ object TLRAM
     devName: Option[String] = None,
   )(implicit p: Parameters): TLInwardNode =
   {
-    val ram = LazyModule(new TLRAM(address, parentLogicalTreeNode, cacheable, executable, atomics, beatBytes, ecc, sramReg, devName))
+    val ram = LazyModule(new TLRAM(address, cacheable, executable, atomics, beatBytes, ecc, sramReg, devName))
     ram.node
   }
 }
 
-/** Synthesizeable unit testing */
+// Synthesizable unit testing
 import freechips.rocketchip.unittest._
 
 class TLRAMSimple(ramBeatBytes: Int, sramReg: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule {

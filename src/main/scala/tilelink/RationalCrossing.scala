@@ -118,7 +118,7 @@ class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: P
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLRAMRationalCrossingSource(name: String, txns: Int)(implicit p: Parameters) extends LazyModule {

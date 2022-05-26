@@ -8,7 +8,11 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
-// q is the probability to delay a request
+/**
+  * Delay AXI4 requests randomly
+  *
+  * @param q the probability to delay a request
+  */
 class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4AdapterNode()

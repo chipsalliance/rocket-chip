@@ -198,7 +198,7 @@ class ClockCrossingReg(w: Int = 1, doInit: Boolean) extends Module {
     val en = Input(Bool())
   })
 
-  val cdc_reg = if (doInit) RegEnable(next=io.d, init=0.U(w.W), enable=io.en) else RegEnable(next=io.d, enable=io.en)
+  val cdc_reg = if (doInit) RegEnable(io.d, 0.U(w.W), io.en) else RegEnable(io.d, io.en)
   io.q := cdc_reg
 }
 

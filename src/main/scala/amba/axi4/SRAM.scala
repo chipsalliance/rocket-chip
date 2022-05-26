@@ -5,17 +5,27 @@ package freechips.rocketchip.amba.axi4
 import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomaticobjectmodel.logicaltree.{BusMemoryLogicalTreeNode, LogicalModuleTree, LogicalTreeNode}
-import freechips.rocketchip.diplomaticobjectmodel.model.AXI4_Lite
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba._
 
-// Setting wcorrupt=true is not enough to enable the w.user field
-// You must also list AMBACorrupt in your master's requestFields
+/**
+  * AXI4 slave device to provide a RAM storage
+  *
+  * Setting wcorrupt=true is not enough to enable the w.user field
+  * You must also list AMBACorrupt in your master's requestFields
+  *
+  * @param address address range
+  * @param cacheable whether this ram is cacheable
+  * @param executable whether this ram is executable
+  * @param beatBytes number of bytes in each beat
+  * @param devName optional device name
+  * @param errors address ranges where all access should fail
+  * @param wcorrupt enable AMBACorrupt in w.user
+  */
+
 class AXI4RAM(
     address: AddressSet,
     cacheable: Boolean = true,
-    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,
@@ -41,24 +51,12 @@ class AXI4RAM(
   lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, edgeIn) = node.in(0)
     val laneDataBits = 8
-    val (mem, omSRAM, omMem) = makeSinglePortedByteWriteSeqMem(
+    val mem = makeSinglePortedByteWriteSeqMem(
       size = BigInt(1) << mask.filter(b=>b).size,
       lanes = beatBytes,
       bits = laneDataBits)
     val eccCode = None
     val address = outer.address
-
-    parentLogicalTreeNode.map {
-      case parentLTN =>
-        def sramLogicalTreeNode = new BusMemoryLogicalTreeNode(
-          device = device,
-          omSRAMs = Seq(omSRAM),
-          busProtocol = new AXI4_Lite(None),
-          dataECC = None,
-          hasAtomics = None,
-          busProtocolSpecification = None)
-        LogicalModuleTree.add(parentLTN, sramLogicalTreeNode)
-    }
 
     val corrupt = if (edgeIn.bundle.requestFields.contains(AMBACorrupt)) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
 
@@ -129,7 +127,6 @@ object AXI4RAM
   def apply(
     address: AddressSet,
     cacheable: Boolean = true,
-    parentLogicalTreeNode: Option[LogicalTreeNode] = None,
     executable: Boolean = true,
     beatBytes: Int = 4,
     devName: Option[String] = None,

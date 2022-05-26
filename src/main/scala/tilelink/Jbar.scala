@@ -50,7 +50,7 @@ object TLJbar
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLJbarTestImp(nClients: Int, nManagers: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
