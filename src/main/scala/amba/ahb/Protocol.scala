@@ -37,8 +37,8 @@ object AHBParameters
   def RESP_SPLIT = UInt(3, width=2)
 
   def PROT_DATA        = UInt(1, width = protBits)
-  def PROT_PRIVILEDGED = UInt(2, width = protBits)
+  def PROT_PRIVILEGED  = UInt(2, width = protBits)
   def PROT_BUFFERABLE  = UInt(4, width = protBits)
   def PROT_CACHEABLE   = UInt(8, width = protBits)
-  def PROT_DEFAULT = PROT_DATA | PROT_PRIVILEDGED
+  def PROT_DEFAULT = PROT_DATA | PROT_PRIVILEGED
 }

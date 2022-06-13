@@ -825,8 +825,10 @@ class CSRFile(
     usingHypervisor.option(      HFENCE_VVMA-> List(N,N,N,N,N,N,Y,N,N)) ++
     usingHypervisor.option(      HFENCE_GVMA-> List(N,N,N,N,N,N,N,Y,N)) ++
     (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,N,Y)) else Seq())
-  val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil =
-    DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
+  val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil = {
+    val insn = ECALL.value.U | (io.rw.addr << 20)
+    DecodeLogic(insn, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
+  }
 
   for (io_dec <- io.decode) {
     val addr = io_dec.inst(31, 20)
@@ -850,7 +852,7 @@ class CSRFile(
     io_dec.fp_illegal := io.status.fs === 0 || reg_mstatus.v && reg_vsstatus.fs === 0 || !reg_misa('f'-'a')
     io_dec.vector_illegal := io.status.vs === 0 || reg_mstatus.v && reg_vsstatus.vs === 0 || !reg_misa('v'-'a')
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
-    io_dec.rocc_illegal := io.status.xs === 0 || reg_mstatus.v && reg_vsstatus.vs === 0 || !reg_misa('x'-'a')
+    io_dec.rocc_illegal := io.status.xs === 0 || reg_mstatus.v && reg_vsstatus.xs === 0 || !reg_misa('x'-'a')
     val csr_addr_legal = reg_mstatus.prv >= CSR.mode(addr) ||
       usingHypervisor && !reg_mstatus.v && reg_mstatus.prv === PRV.S && CSR.mode(addr) === PRV.H
     val csr_exists = decodeAny(read_mapping)
@@ -1342,7 +1344,6 @@ class CSRFile(
         reg_vsstatus.sum := new_vsstatus.sum
         reg_vsstatus.fs := formFS(new_vsstatus.fs)
         reg_vsstatus.vs := formVS(new_vsstatus.vs)
-        if (usingRoCC) reg_vsstatus.xs := Fill(2, new_vsstatus.xs.orR)
       }
       when (decoded_addr(CSRs.vsip)) {
         val new_vsip = new MIP().fromBits((read_hip & ~read_hideleg) | ((wdata << 1) & read_hideleg))
@@ -1483,6 +1484,7 @@ class CSRFile(
   if (!(vmIdBits > 0)) {
     reg_hgatp.asid := 0.U
   }
+  reg_vsstatus.xs := (if (usingRoCC) UInt(3) else UInt(0))
 
   if (nBreakpoints <= 1) reg_tselect := 0
   for (bpc <- reg_bp map {_.control}) {

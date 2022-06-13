@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
 /** This adapter prunes all user bit fields of the echo type from request messages,
-  * storing them in queues and echoing them back when matching response messages are recevied.
+  * storing them in queues and echoing them back when matching response messages are received.
   *
   * It also optionally rate limits the number of transactions that can be in flight simultaneously
   * per FIFO domain / A[W|R]ID.

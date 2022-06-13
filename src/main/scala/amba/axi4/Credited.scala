@@ -83,7 +83,7 @@ object AXI4CreditedSink {
   def apply()(implicit p: Parameters): AXI4CreditedSinkNode = apply(CreditedDelay(1, 1))
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class AXI4RAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit p: Parameters) extends LazyModule {

@@ -9,6 +9,9 @@ import freechips.rocketchip.util._
 
 abstract class AXI4BundleBase(params: AXI4BundleParameters) extends GenericParameterizedBundle(params)
 
+/**
+  * Common signals of AW and AR channels of AXI4 protocol
+  */
 abstract class AXI4BundleA(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
   val id     = UInt(width = params.idBits)
@@ -32,15 +35,27 @@ abstract class AXI4BundleA(params: AXI4BundleParameters) extends AXI4BundleBase(
   }
 }
 
-// A non-standard bundle that can be both AR and AW
+/**
+  * A non-standard bundle that can be both AR and AW
+  */
 class AXI4BundleARW(params: AXI4BundleParameters) extends AXI4BundleA(params)
 {
   val wen = Bool()
 }
 
+/**
+  * AW channel of AXI4 protocol
+  */
 class AXI4BundleAW(params: AXI4BundleParameters) extends AXI4BundleA(params)
+
+/**
+  * AR channel of AXI4 protocol
+  */
 class AXI4BundleAR(params: AXI4BundleParameters) extends AXI4BundleA(params)
 
+/**
+  * W channel of AXI4 protocol
+  */
 class AXI4BundleW(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
   // id ... removed in AXI4
@@ -50,6 +65,9 @@ class AXI4BundleW(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val user = BundleMap(params.requestFields.filter(_.key.isData))
 }
 
+/**
+  * R channel of AXI4 protocol
+  */
 class AXI4BundleR(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
   val id   = UInt(width = params.idBits)
@@ -60,6 +78,9 @@ class AXI4BundleR(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val last = Bool()
 }
 
+/**
+  * B channel of AXI4 protocol
+  */
 class AXI4BundleB(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
   val id   = UInt(width = params.idBits)
@@ -68,6 +89,9 @@ class AXI4BundleB(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val echo = BundleMap(params.echoFields)
 }
 
+/**
+  * AXI4 protocol bundle
+  */
 class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
   val aw = Irrevocable(new AXI4BundleAW(params))

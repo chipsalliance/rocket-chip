@@ -241,7 +241,7 @@ object TLFuzzer
   }
 }
 
-/** Synthesizeable integration test */
+/** Synthesizable integration test */
 import freechips.rocketchip.unittest._
 
 class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
