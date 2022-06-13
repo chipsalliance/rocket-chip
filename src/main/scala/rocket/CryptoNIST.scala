@@ -47,16 +47,15 @@ object AES {
 
 class AESSBox extends Module {
   val io = IO(new Bundle {
-    val zkn_fn = Input(UInt(ZKN.FN_Len.W))
+    val isEnc = Input(Bool())
     val in = Input(UInt(8.W))
     val out = Output(UInt(8.W))
   })
 
-  val isEnc = io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_ESM || io.zkn_fn === ZKN.FN_AES_KS1
   val enc = SBoxAESEncIn(io.in)
   val dec = SBoxAESDecIn(io.in)
-  val mid = SBoxMid(Mux(isEnc, enc, dec))
-  io.out := Mux(isEnc, SBoxAESEncOut(mid), SBoxAESDecOut(mid))
+  val mid = SBoxMid(Mux(io.isEnc, enc, dec))
+  io.out := Mux(io.isEnc, SBoxAESEncOut(mid), SBoxAESDecOut(mid))
 }
 
 class GFMul(y: Int) extends Module {
@@ -148,6 +147,30 @@ class MixColumn64(enc: Boolean) extends Module {
 
 class CryptoNIST(xLen:Int) extends Module {
   val io = IO(new CryptoNISTInterface(xLen))
+  // ctrl signals, aes1H, out1H (9 bit)
+  val (pla_in, pla_out) = pla(Seq(
+    (BitPat("b0000"),BitPat("b0010 0001 0_0000_0001")),//FN_AES_DS
+    (BitPat("b0001"),BitPat("b0000 0010 0_0000_0001")),//FN_AES_DSM
+    (BitPat("b0010"),BitPat("b0011 0001 0_0000_0001")),//FN_AES_ES
+    (BitPat("b0011"),BitPat("b0001 0010 0_0000_0001")),//FN_AES_ESM
+    (BitPat("b0100"),BitPat("b1000 0010 0_0000_0001")),//FN_AES_IM
+    (BitPat("b0101"),BitPat("b0101 0100 0_0000_0001")),//FN_AES_KS1
+    (BitPat("b0110"),BitPat("b0000 1000 0_0000_0001")),//FN_AES_KS2
+    (BitPat("b0111"),BitPat("b0000 0001 0_0000_0010")),//FN_SHA256_SIG0
+    (BitPat("b1000"),BitPat("b0000 0001 0_0000_0100")),//FN_SHA256_SIG1
+    (BitPat("b1001"),BitPat("b0000 0001 0_0000_1000")),//FN_SHA256_SUM0
+    (BitPat("b1010"),BitPat("b0000 0001 0_0001_0000")),//FN_SHA256_SUM1
+    (BitPat("b1011"),BitPat("b0000 0001 0_0010_0000")),//FN_SHA512_SIG0
+    (BitPat("b1100"),BitPat("b0000 0001 0_0100_0000")),//FN_SHA512_SIG1
+    (BitPat("b1101"),BitPat("b0000 0001 0_1000_0000")),//FN_SHA512_SUM0
+    (BitPat("b1110"),BitPat("b0000 0001 1_0000_0000")),//FN_SHA512_SUM1
+  ))
+
+  pla_in := io.zkn_fn
+  // note that it is inverted
+  val isEnc :: isNotMix :: isKs1 :: isIm :: Nil = pla_out(16,13).asBools
+  val aes1H = pla_out(12,9)
+  val out1H = pla_out(8,0)
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
@@ -158,15 +181,15 @@ class CryptoNIST(xLen:Int) extends Module {
     val so = {
       val m = Module(new AESSBox)
       m.io.in := si
-      m.io.zkn_fn := io.zkn_fn
+      m.io.isEnc := isEnc
       m.io.out
     }
-    val mixed_so = Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_DS, Cat(0.U(24.W), so), {
+    val mixed_so = Mux(isNotMix, Cat(0.U(24.W), so), {
         val mc_enc = Module(new MixColumn8(true))
         val mc_dec = Module(new MixColumn8(false))
         mc_enc.io.in := so
         mc_dec.io.in := so
-        Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
+        Mux(isEnc, mc_enc.io.out, mc_dec.io.out)
       })
     // Vec rightRotate = UInt rotateLeft as Vec is big endian while UInt is little endian
     // FIXME: use chisel3.stdlib.BarrelShifter after chisel3 3.6.0
@@ -181,20 +204,28 @@ class CryptoNIST(xLen:Int) extends Module {
       sr_enc.io.in2 := io.rs2
       sr_dec.io.in1 := io.rs1
       sr_dec.io.in2 := io.rs2
-      Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_ESM, sr_enc.io.out, sr_dec.io.out)
+      Mux(isEnc, sr_enc.io.out, sr_dec.io.out)
     }
-    // TODO: for ks: how to handle illegal rcon
     // var name from rvk spec ks1
     val tmp1 = io.rs1(63,32)
     val tmp2 = Mux(io.rcon === 0xA.U, tmp1, tmp1.rotateRight(8))
     // reuse 8 Sbox here
-    val si = Mux(io.zkn_fn === ZKN.FN_AES_KS1, Cat(0.U(32.W), tmp2), sr)
+    val si = Mux(isKs1, Cat(0.U(32.W), tmp2), sr)
     val so = VecInit(asBytes(si).map(x => {
       val m = Module(new AESSBox)
       m.io.in := x
-      m.io.zkn_fn := io.zkn_fn
+      m.io.isEnc := isEnc
       m.io.out
     }).toSeq).asUInt
+    val mixed = {
+      val mc_in = Mux(isIm, io.rs1, so)
+      val mc_enc = Module(new MixColumn64(true))
+      val mc_dec = Module(new MixColumn64(false))
+      mc_enc.io.in := mc_in
+      mc_dec.io.in := mc_in
+      // for isIm, it is also dec
+      Mux(isEnc, mc_enc.io.out, mc_dec.io.out)
+    }
     // var name from rvk spec ks1
     val rc = VecInit(AES.rcon.map(_.U(8.W)).toSeq)(io.rcon)
     val tmp4 = so(31,0) ^ rc
@@ -203,21 +234,7 @@ class CryptoNIST(xLen:Int) extends Module {
     val w0 = tmp1 ^ io.rs2(31,0)
     val w1 = w0 ^ io.rs2(63,32)
     val ks2 = Cat(w1, w0)
-    // TODO: rewrite into Mux1H
-    Mux(io.zkn_fn === ZKN.FN_AES_ES ||
-      io.zkn_fn === ZKN.FN_AES_DS ||
-      io.zkn_fn === ZKN.FN_AES_KS1 ||
-      io.zkn_fn === ZKN.FN_AES_KS2,
-        Mux(io.zkn_fn === ZKN.FN_AES_ES || io.zkn_fn === ZKN.FN_AES_DS, so,
-          Mux(io.zkn_fn === ZKN.FN_AES_KS1, ks1, ks2)), {
-        val mc_in = Mux(io.zkn_fn === ZKN.FN_AES_IM, io.rs1, so)
-        val mc_enc = Module(new MixColumn64(true))
-        val mc_dec = Module(new MixColumn64(false))
-        mc_enc.io.in := mc_in
-        mc_dec.io.in := mc_in
-        // note the case io.zkn_fn === ZKN.FN_AES_IM! it is also dec
-        Mux(io.zkn_fn === ZKN.FN_AES_ESM, mc_enc.io.out, mc_dec.io.out)
-      })
+    Mux1H(aes1H, Seq(so, mixed, ks1, ks2))
   }
 
   // sha
@@ -271,11 +288,10 @@ class CryptoNIST(xLen:Int) extends Module {
     io.rs1.rotateRight(14) ^ io.rs1.rotateRight(18) ^ io.rs1.rotateRight(41)
   }
 
-  // according to FN_xxx above
-  io.rd := VecInit(Seq(
-    aes, aes, aes, aes, aes, aes, aes,
+  io.rd := Mux1H(out1H, Seq(
+    aes,
     sha256sig0, sha256sig1,
     sha256sum0, sha256sum1,
     sha512sig0, sha512sig1,
-    sha512sum0, sha512sum1))(io.zkn_fn)
+    sha512sum0, sha512sum1))
 }
