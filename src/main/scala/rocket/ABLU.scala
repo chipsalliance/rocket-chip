@@ -125,10 +125,9 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
       require(xLen == 64)
       (BigInt(1) << 63).U(64.W)
     }, in1_r)
-  // TODO: Merge shift and rotate (manual barrel)
+  // TODO: Merge shift and rotate (manual barrel or upstream to Chisel)
   val shout_r = (Cat(isSRA & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val roout_r = shin.rotateRight(shamt)(xLen-1,0)
-  // FIXME: add withZB option
   val shro_r = Mux(isRotate, roout_r, shout_r)
   // one arm: SL, ROL, SLLIUW, ZBS
   // another arm: SR, SRA, ROR
@@ -150,14 +149,14 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
   // note that when isCZ, isSub is 0 as ~0 = ~1+1 = -1
   val adder_in2 = Mux(isCZ,
     ~0.U(xLen.W), in2_inv)
-  val adder_out = adder_in1 + adder_in2 + isSub
+  // adder_out = adder_in1 + adder_in2 + isSub
+  val adder_out = (Cat(adder_in1, 1.U(1.W)) + Cat(adder_in2, isSub))(xLen,1)
   io.adder_out := adder_out
 
   // logic
   // AND, OR, XOR
   // ANDN, ORN, XNOR
   // BCLR, BEXT, BINV, BSET
-  // NOTE: can this be merged into in2_inv?
   val out_inv = Mux(isCZBCLR, ~Mux(isBCLR, shro, adder_out), shro)
   val logic_in2 = Mux(isCZZBS, out_inv, in2_inv)
   // also BINV
@@ -174,7 +173,7 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
   val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), adder_out(xLen-1),
     Mux(isUnsigned, io.in2(xLen-1), io.in1(xLen-1)))
-  val cmp = isInverted ^ Mux(isSEQSNE, ~xor.orR, slt)
+  val cmp = isInverted ^ Mux(isSEQSNE, ~(xor.orR), slt)
   io.cmp_out := cmp
   // MAX, MAXU, MIN, MINU
   val max_min = Mux(cmp, io.in2, io.in1)
@@ -208,20 +207,20 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
   val in1_bytes = asBytes(io.in1)
   val rev8 = VecInit(in1_bytes.reverse.toSeq).asUInt
-  // BREV8 only in Zbk
-  // discard that Mux when not withZBK
-  val orc_brev8 = VecInit(in1_bytes.map(x =>
-      Mux(isORC,
-        Mux(x.orR, 0xFF.U(8.W), 0.U(8.W)),
-        Reverse(x))
-    ).toSeq).asUInt
+  val orc_brev8 = VecInit(in1_bytes.map(x => {
+    val orc = Mux(x.orR, 0xFF.U(8.W), 0.U(8.W))
+    // BREV8 only in Zbk
+    if (usingBitManipCrypto)
+      Mux(isORC, orc, Reverse(x))
+    else orc
+  }).toSeq).asUInt
 
   // pack
   def sext(in: UInt): UInt = {
     val in_hi_32 = Fill(32, in(31))
     Cat(in_hi_32, in)
   }
-  val pack =
+  val pack = if (usingBitManipCrypto) {
     if (xLen == 32) Cat(io.in2(xLen/2-1,0), io.in1(xLen/2-1,0))
     else {
       require(xLen == 64)
@@ -229,16 +228,16 @@ class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
         Cat(io.in2(xLen/2-1,0), io.in1(xLen/2-1,0)),
         sext(Cat(io.in2(xLen/4-1,0), io.in1(xLen/4-1,0))))
     }
-  val packh = Cat(0.U((xLen-16).W), io.in2(7,0), io.in1(7,0))
+  } else 0.U
+  val packh = if (usingBitManipCrypto) Cat(0.U((xLen-16).W), io.in2(7,0), io.in1(7,0)) else 0.U
 
   // zip
-  // FIXME: use Option here for RV64?
-  val zip = if (xLen == 32) {
+  val zip = if (xLen == 32 && usingBitManipCrypto) {
     val lo = io.in1(15,0).asBools
     val hi = io.in1(31,16).asBools
     VecInit(lo.zip(hi).map { case (l, h) => VecInit(Seq(l, h)).asUInt }).asUInt
   } else 0.U
-  val unzip = if (xLen == 32) {
+  val unzip = if (xLen == 32 && usingBitManipCrypto) {
     val bits = io.in1.asBools.zipWithIndex
     val lo = VecInit(bits filter { case (_, i) => i % 2 == 0 } map { case (b, _) => b }).asUInt
     val hi = VecInit(bits filter { case (_, i) => i % 2 != 0 } map { case (b, _) => b }).asUInt
