@@ -433,7 +433,7 @@ class SCIEDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
     SCIE.opcode->
-                List(Y,N,N,N,N,N,Y,Y,Y,N,N, A2_ZERO,A1_RS1, IMM_X, DW_XPR, alu.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+                List(Y,N,N,N,N,N,Y,Y,Y,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,alu.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 class ZBADecode(implicit val p: Parameters) extends DecodeConstants

@@ -618,7 +618,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_mem_size := ex_reg_mem_size
     mem_reg_hls_or_dv := io.dmem.req.bits.dv
     mem_reg_pc := ex_reg_pc
-    mem_reg_wdata := Mux(ex_scie_unpipelined, ex_scie_unpipelined_wdata, Mux(ex_ctrl.zbk,ex_zbk_wdata, Mux(ex_ctrl.zkn,ex_zkn_wdata, Mux(ex_ctrl.zks,ex_zks_wdata,alu.io.out))))
+    // IDecode ensured they are 1H
+    mem_reg_wdata := Mux1H(Seq(
+      ex_scie_unpipelined -> ex_scie_unpipelined_wdata,
+      ex_ctrl.zbk         -> ex_zbk_wdata,
+      ex_ctrl.zkn         -> ex_zkn_wdata,
+      ex_ctrl.zks         -> ex_zks_wdata,
+      (!ex_scie_unpipelined && !ex_ctrl.zbk && !ex_ctrl.zkn && !ex_ctrl.zks)
+                          -> alu.io.out,
+    ))
     mem_br_taken := alu.io.cmp_out
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
