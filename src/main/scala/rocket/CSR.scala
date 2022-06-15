@@ -1464,6 +1464,9 @@ class CSRFile(
     reg_satp.mode  := 0.U
     reg_vsatp.mode := 0.U
     reg_hgatp.mode := 0.U
+    reg_satp.asid  := 0.U
+    reg_vsatp.asid := 0.U
+    reg_hgatp.asid := 0.U
   }
   if (!usingVM) {
     reg_satp.mode := 0.U
