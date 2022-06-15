@@ -25,6 +25,17 @@ class CryptoSMInterface(xLen: Int) extends Bundle {
 
 class CryptoSM(xLen:Int) extends Module {
   val io = IO(new CryptoSMInterface(xLen))
+  val (pla_in, pla_out) = pla(Seq(
+    (BitPat("b00"),BitPat("b01 01")),//FN_SM4ED
+    (BitPat("b01"),BitPat("b00 01")),//FN_SM4KS
+    (BitPat("b10"),BitPat("b10 10")),//FN_SM3P0
+    (BitPat("b11"),BitPat("b00 10")),//FN_SM3P1
+  ))
+
+  pla_in := io.zks_fn
+  // note that it is inverted
+  val isEd :: isP0 :: Nil = pla_out(3,2).asBools
+  val out1H = pla_out(1,0)
 
   // helper
   def sext(in: UInt): UInt = if (xLen == 32) in
@@ -41,7 +52,7 @@ class CryptoSM(xLen:Int) extends Module {
   // this can also be merged into AESSbox for rv32
   val so = SBoxSM4Out(SBoxMid(SBoxSM4In(si)))
   val x = Cat(0.U(24.W), so)
-  val y = Mux(io.zks_fn === ZKS.FN_SM4ED,
+  val y = Mux(isEd,
     x ^ (x << 8) ^ (x << 2) ^ (x << 18) ^ ((x & 0x3F.U) << 26) ^ ((x & 0xC0.U) << 10),
     x ^ ((x & 0x7.U) << 29) ^ ((x & 0xFE.U) << 7) ^ ((x & 0x1.U) << 23) ^ ((x & 0xF8.U) << 13))(31,0)
   // dynamic rotate should be merged into aes rv32 logic!
@@ -52,12 +63,9 @@ class CryptoSM(xLen:Int) extends Module {
 
   // sm3
   val r1 = io.rs1(31,0)
-  val sm3 = sext(Mux(io.zks_fn === ZKS.FN_SM3P0,
+  val sm3 = sext(Mux(isP0,
     r1 ^ r1.rotateLeft(9) ^ r1.rotateLeft(17),
     r1 ^ r1.rotateLeft(15) ^ r1.rotateLeft(23)))
 
-  // according to FN_xxx above
-  io.rd := VecInit(Seq(
-    sm4, sm4,
-    sm3, sm3))(io.zks_fn)
+  io.rd := Mux1H(out1H, Seq(sm4, sm3))
 }
