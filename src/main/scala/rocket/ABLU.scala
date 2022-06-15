@@ -78,7 +78,7 @@ object ABLU extends ALUFN
 }
 
 class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
-  // note that it is inverted
+  // note that it is reversed
   val isSub :: isIn2Inv :: isZBS :: isUW :: Nil = io.fn(25,22).asBools
   val isSRA :: isRotate :: isLeft :: isLeftZBS :: Nil = io.fn(29,26).asBools
   val isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = io.fn(33,30).asBools

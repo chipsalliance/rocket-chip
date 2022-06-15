@@ -18,6 +18,9 @@ abstract trait DecodeConstants extends HasRocketCoreParameters
 
 class IntCtrlSigs(implicit val p: Parameters) extends Bundle with HasRocketCoreParameters {
   val alu = if (usingABLU) ABLU else ALU
+  if (usingCryptoNIST) require(alu.SZ_ALU_FN >= ZKN.SZ_FN)
+  if (usingCryptoSM) require(alu.SZ_ALU_FN >= ZKS.SZ_FN)
+  if (usingBitManipCrypto) require(alu.SZ_ALU_FN >= ZBK.FN_Len)
 
   val legal = Bool()
   val fp = Bool()

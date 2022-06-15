@@ -7,35 +7,28 @@ import chisel3.util._
 import freechips.rocketchip.util._
 
 object ZKS {
-  val FN_Len      = 2
-  def FN_SM4ED    = 0.U(FN_Len.W)
-  def FN_SM4KS    = 1.U(FN_Len.W)
-  def FN_SM3P0    = 2.U(FN_Len.W)
-  def FN_SM3P1    = 3.U(FN_Len.W)
+  val SZ_FN    = 4
+  // ctrl signals, out1H
+  def FN_SM4ED = "b01_01".U(SZ_FN.W)
+  def FN_SM4KS = "b00_01".U(SZ_FN.W)
+  def FN_SM3P0 = "b10_10".U(SZ_FN.W)
+  def FN_SM3P1 = "b00_10".U(SZ_FN.W)
 }
 
 class CryptoSMInterface(xLen: Int) extends Bundle {
-  val zks_fn = Input(UInt(ZKS.FN_Len.W))
-  val valid  = Input(Bool())
-  val bs     = Input(UInt(2.W))
-  val rs1    = Input(UInt(xLen.W))
-  val rs2    = Input(UInt(xLen.W))
-  val rd     = Output(UInt(xLen.W))
+  val fn  = Input(UInt(ZKS.SZ_FN.W))
+  val bs  = Input(UInt(2.W))
+  val rs1 = Input(UInt(xLen.W))
+  val rs2 = Input(UInt(xLen.W))
+  val rd  = Output(UInt(xLen.W))
 }
 
 class CryptoSM(xLen:Int) extends Module {
   val io = IO(new CryptoSMInterface(xLen))
-  val (pla_in, pla_out) = pla(Seq(
-    (BitPat("b00"),BitPat("b01 01")),//FN_SM4ED
-    (BitPat("b01"),BitPat("b00 01")),//FN_SM4KS
-    (BitPat("b10"),BitPat("b10 10")),//FN_SM3P0
-    (BitPat("b11"),BitPat("b00 10")),//FN_SM3P1
-  ))
 
-  pla_in := io.zks_fn
-  // note that it is inverted
-  val isEd :: isP0 :: Nil = pla_out(3,2).asBools
-  val out1H = pla_out(1,0)
+  // note that it is reversed
+  val isEd :: isP0 :: Nil = io.fn(3,2).asBools
+  val out1H = io.fn(1,0)
 
   // helper
   def sext(in: UInt): UInt = if (xLen == 32) in

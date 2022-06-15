@@ -318,6 +318,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     d.io.insn := id_raw_inst(0)
     d.io
   }
+  // id_ctrl.alu_fn(15) === isKs1. This is documented in CryptoNIST module
+  val id_illegal_rnum = if (usingCryptoNIST) (id_ctrl.zkn && id_ctrl.alu_fn(15) && id_inst(0)(23,20) > 0xA.U(4.W)) else Bool(false)
   val id_illegal_insn = !id_ctrl.legal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
@@ -331,7 +333,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.scie && !(id_scie_decoder.unpipelined || id_scie_decoder.pipelined) ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
     !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal) ||
-    id_ctrl.zkn && id_ctrl.alu_fn(ZKN.FN_Len-1,0) === ZKN.FN_AES_KS1 && id_inst(0)(23,20) > 0xA.U(4.W)
+    id_illegal_rnum
   val id_virtual_insn = id_ctrl.legal &&
     ((id_csr_en && !(!id_csr_ren && csr.io.decode(0).write_illegal) && csr.io.decode(0).virtual_access_illegal) ||
      (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal))
@@ -451,11 +453,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val ex_zkn_wdata = if (!usingCryptoNIST) 0.U else {
       val zkn = Module(new CryptoNIST(xLen))
-      zkn.io.zkn_fn := ex_ctrl.alu_fn
-      zkn.io.valid  := ex_ctrl.zkn
+      zkn.io.fn     := ex_ctrl.alu_fn
       zkn.io.hl     := ex_reg_inst(27)
       zkn.io.bs     := ex_reg_inst(31,30)
-      zkn.io.rcon   := ex_reg_inst(23,20)
+      zkn.io.rnum   := ex_reg_inst(23,20)
       zkn.io.rs1    := ex_op1.asUInt
       zkn.io.rs2    := ex_op2.asUInt
       zkn.io.rd
@@ -463,8 +464,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val ex_zks_wdata = if (!usingCryptoSM) 0.U else {
       val zks = Module(new CryptoSM(xLen))
-      zks.io.zks_fn := ex_ctrl.alu_fn
-      zks.io.valid  := ex_ctrl.zks
+      zks.io.fn     := ex_ctrl.alu_fn
       zks.io.bs     := ex_reg_inst(31,30)
       zks.io.rs1    := ex_op1.asUInt
       zks.io.rs2    := ex_op2.asUInt
