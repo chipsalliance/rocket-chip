@@ -6,25 +6,29 @@ import chisel3._
 import chisel3.util._
 
 object ZBK {
-  val FN_Len = 3
-  def FN_CLMUL  =  0.U(FN_Len.W)
-  def FN_CLMULR =  1.U(FN_Len.W)
-  def FN_CLMULH =  2.U(FN_Len.W)
-  def FN_XPERM8 =  3.U(FN_Len.W)
-  def FN_XPERM4 =  4.U(FN_Len.W)
+  val SZ_FN     = 5
+  def FN_CLMUL  = "b00001".U(SZ_FN.W)
+  def FN_CLMULR = "b00010".U(SZ_FN.W)
+  def FN_CLMULH = "b00100".U(SZ_FN.W)
+  def FN_XPERM8 = "b01000".U(SZ_FN.W)
+  def FN_XPERM4 = "b10000".U(SZ_FN.W)
 }
 
 class BitManipCryptoInterface(xLen: Int) extends Bundle {
-  val zbk_fn = Input(UInt(ZBK.FN_Len.W))
-  val dw     = Input(Bool())
-  val valid  = Input(Bool())
-  val rs1    = Input(UInt(xLen.W))
-  val rs2    = Input(UInt(xLen.W))
-  val rd     = Output(UInt(xLen.W))
+  val fn  = Input(UInt(ZBK.SZ_FN.W))
+  val dw  = Input(Bool())
+  val rs1 = Input(UInt(xLen.W))
+  val rs2 = Input(UInt(xLen.W))
+  val rd  = Output(UInt(xLen.W))
 }
 
 class BitManipCrypto(xLen: Int) extends Module {
   val io = IO(new BitManipCryptoInterface(xLen))
+
+  // note that it is reversed
+  // reuse the 1H
+  val isClmul = io.fn(0)
+  val out1H = io.fn(4,0)
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
@@ -47,17 +51,16 @@ class BitManipCrypto(xLen: Int) extends Module {
   ).toSeq).asUInt
 
   // clmul
-  val clmul_rs1 = Mux(io.zbk_fn === ZBK.FN_CLMUL, io.rs1, Reverse(io.rs1))
-  val clmul_rs2 = Mux(io.zbk_fn === ZBK.FN_CLMUL, io.rs2, Reverse(io.rs2))
+  val clmul_rs1 = Mux(isClmul, io.rs1, Reverse(io.rs1))
+  val clmul_rs2 = Mux(isClmul, io.rs2, Reverse(io.rs2))
   val clmul = clmul_rs2.asBools.zipWithIndex.map({
     case (b, i) => Mux(b, clmul_rs1 << i, 0.U)
   }).reduce(_ ^ _)(xLen-1,0)
-  // clmul_raw also for clmulr
   val clmulr = Reverse(clmul)
   val clmulh = Cat(0.U(1.W), clmulr(xLen-1,1))
 
   // according to FN_xxx above
-  io.rd := VecInit(Seq(
+  io.rd := Mux1H(out1H, Seq(
     clmul, clmulr, clmulh,
-    xperm8, xperm4))(io.zbk_fn)
+    xperm8, xperm4))
 }

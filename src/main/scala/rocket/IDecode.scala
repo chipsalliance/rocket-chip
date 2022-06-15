@@ -20,7 +20,7 @@ class IntCtrlSigs(implicit val p: Parameters) extends Bundle with HasRocketCoreP
   val alu = if (usingABLU) ABLU else ALU
   if (usingCryptoNIST) require(alu.SZ_ALU_FN >= ZKN.SZ_FN)
   if (usingCryptoSM) require(alu.SZ_ALU_FN >= ZKS.SZ_FN)
-  if (usingBitManipCrypto) require(alu.SZ_ALU_FN >= ZBK.FN_Len)
+  if (usingBitManipCrypto || usingBitManip) require(alu.SZ_ALU_FN >= ZBK.SZ_FN)
 
   val legal = Bool()
   val fp = Bool()

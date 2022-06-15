@@ -440,36 +440,34 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     u.io.rd
   }
 
-  // FIXME: merge this into ABLU
   val ex_zbk_wdata = if (!usingBitManipCrypto && !usingBitManip) 0.U else {
-      val zbk = Module(new BitManipCrypto(xLen))
-      zbk.io.zbk_fn := ex_ctrl.alu_fn
-      zbk.io.dw     := ex_ctrl.alu_dw
-      zbk.io.valid  := ex_ctrl.zbk
-      zbk.io.rs1    := ex_op1.asUInt
-      zbk.io.rs2    := ex_op2.asUInt
-      zbk.io.rd
-    }
+    val zbk = Module(new BitManipCrypto(xLen))
+    zbk.io.fn  := ex_ctrl.alu_fn
+    zbk.io.dw  := ex_ctrl.alu_dw
+    zbk.io.rs1 := ex_op1.asUInt
+    zbk.io.rs2 := ex_op2.asUInt
+    zbk.io.rd
+  }
 
   val ex_zkn_wdata = if (!usingCryptoNIST) 0.U else {
-      val zkn = Module(new CryptoNIST(xLen))
-      zkn.io.fn     := ex_ctrl.alu_fn
-      zkn.io.hl     := ex_reg_inst(27)
-      zkn.io.bs     := ex_reg_inst(31,30)
-      zkn.io.rnum   := ex_reg_inst(23,20)
-      zkn.io.rs1    := ex_op1.asUInt
-      zkn.io.rs2    := ex_op2.asUInt
-      zkn.io.rd
-    }
+    val zkn = Module(new CryptoNIST(xLen))
+    zkn.io.fn   := ex_ctrl.alu_fn
+    zkn.io.hl   := ex_reg_inst(27)
+    zkn.io.bs   := ex_reg_inst(31,30)
+    zkn.io.rnum := ex_reg_inst(23,20)
+    zkn.io.rs1  := ex_op1.asUInt
+    zkn.io.rs2  := ex_op2.asUInt
+    zkn.io.rd
+  }
 
   val ex_zks_wdata = if (!usingCryptoSM) 0.U else {
-      val zks = Module(new CryptoSM(xLen))
-      zks.io.fn     := ex_ctrl.alu_fn
-      zks.io.bs     := ex_reg_inst(31,30)
-      zks.io.rs1    := ex_op1.asUInt
-      zks.io.rs2    := ex_op2.asUInt
-      zks.io.rd
-    }
+    val zks = Module(new CryptoSM(xLen))
+    zks.io.fn  := ex_ctrl.alu_fn
+    zks.io.bs  := ex_reg_inst(31,30)
+    zks.io.rs1 := ex_op1.asUInt
+    zks.io.rs2 := ex_op2.asUInt
+    zks.io.rd
+  }
 
   // multiplier and divider
   val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen))
