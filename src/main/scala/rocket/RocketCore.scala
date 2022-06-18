@@ -73,6 +73,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
   require(!fastLoadByte || fastLoadWord)
+  require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
 }
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {

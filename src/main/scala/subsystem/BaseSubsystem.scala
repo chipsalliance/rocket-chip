@@ -10,7 +10,7 @@ import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util._
 
 case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
-case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("clock_sources")))
+case object AsyncClockGroupsKey extends Field[() => ClockGroupEphemeralNode](() => ClockGroupEphemeralNode()(ValName("clock_sources")))
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
 case class TLManagerViewpointLocated(where: HierarchicalLocation) extends Field[Location[TLBusWrapper]](SBUS)
 
@@ -47,7 +47,7 @@ case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSyn
   */
 trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val ibus = LazyModule(new InterruptBusWrapper)
-  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)
+  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)()
   val clock_sources: ModuleValue[RecordMap[ClockBundle]] =
     p(SubsystemDriveAsyncClockGroupsKey)
       .map(_.drive(asyncClockGroupsNode))
