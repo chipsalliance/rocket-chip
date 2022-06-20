@@ -7,3 +7,6 @@
 [submodule "api-config-chipsalliance"]
 	path = api-config-chipsalliance
 	url = https://github.com/chipsalliance/api-config-chipsalliance.git
+[submodule "riscv-isa-sim"]
+	path = riscv-isa-sim
+	url = https://github.com/riscv-software-src/riscv-isa-sim.git
