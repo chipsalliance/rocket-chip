@@ -10,7 +10,6 @@ class TestConfig
       case ClockGateModelFile => Some("/vsrc/EICG_wrapper.v")
       case BootROMLocated(x) =>
         up(BootROMLocated(x), site).map(_.copy(contentFileName = {
-          val img = os.temp.dir() / "bootrom.img"
-          img.toString()
+          (os.pwd / "out" / "rocketchip" / "sanitytests" / "VerilatorTest" / "bootrom.img").toString()
         }))
     })

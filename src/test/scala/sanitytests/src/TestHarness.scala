@@ -45,6 +45,7 @@ case class TestHarness[M <: RawModule](
       os.read.lines(outputDirectory / firrtl.transforms.BlackBoxSourceHelper.defaultFileListName).map(Path(_))
     val verilatorBuildDir = outputDirectory / "build"
     val cmakefilelist = verilatorBuildDir / "CMakeLists.txt"
+    os.remove.all(verilatorBuildDir)
     os.makeDir(verilatorBuildDir)
     val verilatorArgs = Seq(
       // format: off
@@ -71,8 +72,8 @@ case class TestHarness[M <: RawModule](
       // format: off
       s"""cmake_minimum_required(VERSION 3.20)
          |project(emulator)
-         |include_directories(${resource("usr/include")})
-         |link_directories(${resource("usr/lib")})
+         |include_directories(${resourceOut("usr/include")})
+         |link_directories(${resourceOut("usr/lib")})
          |find_package(verilator)
          |add_executable(emulator $csrcs)
          |set(CMAKE_C_COMPILER "clang")

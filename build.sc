@@ -194,10 +194,9 @@ object rocketchip extends common.CommonRocketChip {
         "-static",
       ).call(outputDirectory)
       // build bootrom
-      val tmp = os.temp.dir()
-      val elf = tmp / "bootrom.elf"
-      val bin = tmp / "bootrom.bin"
-      val img = tmp / "bootrom.img"
+      val elf = outputDirectory / "bootrom.elf"
+      val bin = outputDirectory / "bootrom.bin"
+      val img = outputDirectory / "bootrom.img"
       // format: off
       os.proc(
         "clang",

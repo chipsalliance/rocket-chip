@@ -11,16 +11,18 @@ import org.scalatest.funsuite.AnyFunSuite
   */
 class VerilatorTest extends AnyFunSuite {
   val outputDirectory = os.pwd / "out" / "rocketchip" / "sanitytests" / "VerilatorTest"
-  test("build TestHarness emulator") {
+  test("build TestHarness emulator to run Hello World") {
+    info("Building TestHarness emulator")
     val testHarness = classOf[freechips.rocketchip.system.TestHarness]
     val configs = Seq(classOf[TestConfig], classOf[freechips.rocketchip.system.DefaultConfig])
     val emulator = TestHarness(testHarness, configs, Some(outputDirectory)).emulator
-    test("Hello World!") {
-      os.proc(
-        s"$emulator",
-        s"${resource("riscv64/pk")}",
-        "hello",
-      ).call(outputDirectory)
-    }
+//    val emulator: String = "/home/lucian/repo/playground/out/VerilatorTest/build/emulator"
+    info("Running Hello World")
+    os.proc(
+      s"$emulator",
+      s"${resourceOut("riscv64/pk")}",
+      "hello",
+    ).call(outputDirectory)
+
   }
 }
