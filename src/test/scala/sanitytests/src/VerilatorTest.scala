@@ -9,10 +9,8 @@ import org.scalatest.funsuite.AnyFunSuite
   * ninja -> fast verilator build tool
   * spike -> isa behavior model linking in emulator
   */
-object VerilatorTest extends AnyFunSuite {
-  val outputDirectory = os.pwd / "out" / "SanityTest"
-  os.remove.all(outputDirectory)
-  os.makeDir(outputDirectory)
+class VerilatorTest extends AnyFunSuite {
+  val outputDirectory = os.pwd / "out" / "rocketchip" / "sanitytests" / "VerilatorTest"
   test("build TestHarness emulator") {
     val testHarness = classOf[freechips.rocketchip.system.TestHarness]
     val configs = Seq(classOf[TestConfig], classOf[freechips.rocketchip.system.DefaultConfig])
