@@ -8,8 +8,8 @@
 `endif
 
 module TestDriver;
-
-  reg clock = 1'b0;
+  // Set `clock = 1'b1;` to avoid the first reset signal only using half of the clock cycle.
+  reg clock = 1'b1;
   reg reset = 1'b1;
 
   always #(`CLOCK_PERIOD/2.0) clock = ~clock;
