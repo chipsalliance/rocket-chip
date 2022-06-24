@@ -1,8 +1,12 @@
+import mill._
+import mill.scalalib._
+import mill.scalalib.publish._
+import coursier.maven.MavenRepository
+import mill.define.Sources
 import $file.common
 import $file.hardfloat.build
 import $file.`api-config-chipsalliance`.`build-rules`.mill.build
-import os.Path
-import mill._, scalalib._, mill.define.Sources
+import os._
 
 object configRocket extends `api-config-chipsalliance`.`build-rules`.mill.build.config with PublishModule {
   override def millSourcePath = os.pwd / "api-config-chipsalliance" / "design" / "craft"
@@ -160,37 +164,35 @@ object rocketchip extends common.CommonRocketChip {
 
     override def scalacPluginClasspath = T { super.scalacPluginClasspath() }
 
-//    def resource(file: String): Path = Path(java.nio.file.Paths.get(getClass().getClassLoader().getResource(file).toURI))
-//    val cwd = new java.io.File(".").getCanonicalPath
-
     def libraryResources = T.sources {
       val x86Dir = T.ctx.dest
       val riscv64Dir = T.ctx.dest / "riscv64"
-      def resource(file: String) = os.pwd.toString() + "/src/test/scala/sanitytests/resources/" + file
-      def lib(file: String) = s"${riscv64Dir}" + file
+      val testDir: Path = os.pwd / "src" / "test" / "scala" / "sanitytests"
+      os.copy.into(testDir / "resources", x86Dir)
+      def resource(file: String): Path = x86Dir / RelPath(file)
       os.proc("make", s"DESTDIR=${x86Dir}", "install").call(spike.compile())
       os.proc("make", s"DESTDIR=${riscv64Dir}", "install").call(compilerrt.compile())
       os.proc("make", s"DESTDIR=${riscv64Dir}", "install").call(musl.compile())
       os.copy.into(pk.compile(), riscv64Dir)
       // build hello world
-      val outputDirectory = os.pwd / "out" / "rocketchip" / "sanitytests" / "VerilatorTest"
+      val outputDirectory = x86Dir / "VerilatorTest"
       os.remove.all(outputDirectory)
       os.makeDir(outputDirectory)
       os.proc(
         "clang",
         "-o", "hello",
-        s"${resource("csrc/hello.c")}",
+        s"${resource("resources/csrc/hello.c")}",
         "--target=riscv64",
         "-mno-relax",
         "-nostdinc",
-        s"-I${lib("/usr/include")}",
+        s"-I${resource("riscv64/usr/include")}",
         "-fuse-ld=lld",
         "-nostdlib",
-        s"${lib("/usr/lib/crt1.o")}",
-        s"${lib("/usr/lib/crti.o")}",
-        s"${lib("/usr/lib/riscv64/libclang_rt.builtins-riscv64.a")}",
-        s"${lib("/usr/lib/libc.a")}",
-        s"${lib("/usr/lib/crtn.o")}",
+        s"${resource("riscv64/usr/lib/crt1.o")}",
+        s"${resource("riscv64/usr/lib/crti.o")}",
+        s"${resource("riscv64/usr/lib/riscv64/libclang_rt.builtins-riscv64.a")}",
+        s"${resource("riscv64/usr/lib/libc.a")}",
+        s"${resource("riscv64/usr/lib/crtn.o")}",
         "-static",
       ).call(outputDirectory)
       // build bootrom
@@ -205,8 +207,8 @@ object rocketchip extends common.CommonRocketChip {
         "-static",
         "-nostdlib",
         "-Wl,--no-gc-sections",
-        "-fuse-ld=lld", s"-T${resource("linker.ld")}",
-        s"${resource("bootrom.S")}",
+        "-fuse-ld=lld", s"-T${resource("resources/linker.ld")}",
+        s"${resource("resources/bootrom.S")}",
         "-o", elf
       ).call()
       os.proc(
