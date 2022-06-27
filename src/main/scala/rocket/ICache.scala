@@ -18,14 +18,19 @@ import chisel3.util.random.LFSR
 
 /** Parameter of [[ICache]].
   *
-  * @param nSets size of sets.
-  * @param nWays size of ways in each sets.
+  * @param nSets number of sets.
+  * @param nWays number of ways.
+  * @param rowBits L1Cache parameter
+  * @param nTLBSets TLB sets
+  * @param nTLBWays TLB ways
+  * @param nTLBBasePageSectors TLB BasePageSectors
+  * @param nTLBSuperpages TLB Superpages
   * @param tagECC tag ECC, will be parsed to [[freechips.rocketchip.util.Code]].
   * @param dataECC data ECC, will be parsed to [[freechips.rocketchip.util.Code]].
   * @param itimAddr optional base ITIM address,
   *                 if None, ITIM won't be generated,
-  *                 if Some, ITIM will be generated, with number as ITIM base address.
-  * @param prefetch if set, will send [[TLEdgeOut.Hint]] to manger.
+  *                 if Some, ITIM will be generated, with itimAddr as ITIM base address.
+  * @param prefetch if set, will send next-line[[TLEdgeOut.Hint]] to manger.
   * @param blockBytes size of a cacheline, calculates in byte.
   * @param latency latency of a instruction fetch, 1 or 2 are available
   * @param fetchBytes byte size fetched by CPU for each cycle.
@@ -33,17 +38,11 @@ import chisel3.util.random.LFSR
 case class ICacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
-    // @todo none-used parameter for ICache.
     rowBits: Int = 128,
-    // @todo none-used parameter for ICache.
     nTLBSets: Int = 1,
-    // @todo none-used parameter for ICache.
     nTLBWays: Int = 32,
-    // @todo none-used parameter for ICache.
     nTLBBasePageSectors: Int = 4,
-    // @todo none-used parameter for ICache.
     nTLBSuperpages: Int = 4,
-    // @todo none-used parameter.
     cacheIdBits: Int = 0,
     tagECC: Option[String] = None,
     dataECC: Option[String] = None,
@@ -74,9 +73,46 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 }
 
 /** [[ICache]] is a set associated cache I$(Instruction Cache) of Rocket.
-  * It can have an optional dynamic configurable ITIM sharing SRAM with I$ by configuring [[icacheParams.itimAddr]].
+ * {{{
+  * Keywords: Set-associated
+  *           3 stage pipeline
+  *           Virtually-Indexed Physically-Tagged (VIPT)
+  *           Parallel access to tag and data SRAM
+  *           Random replacement algorithm
+  * Optional Features:
+  *           Prefetch
+  *           ECC
+  *           Instruction Tightly Integrated Memory(ITIM)}}}
+  *{{{
+  * PipeLine:
+  *   Stage 0 : access data and tag SRAM in parallel
+  *   Stage 1 : receive paddr from CPU
+  *             compare tag and paddr when the entry is valid
+  *             if hit : pick up the target instruction
+  *             if miss : start refilling in stage 2
+  *   Stage 2 : respond to CPU or start a refill}}}
+  *{{{
+  * Note: Page size = 4KB thus paddr[11:0] = vaddr[11:0]
+  *       considering sets = 64, cachelineBytes =64
+  *       use vaddr[11:6] to access tag_array
+  *       use vaddr[11:2] to access data_array}}}
+  *{{{
+  * ITIM:
+  * │          tag         │    set    │offset│
+  *                    ├way┘                    → indicate way location
+  *                    │    line       │ }}}
+  *   if `way` == b11 (last way), deallocate
+  *   if write to ITIM all I$ will be invalidate
+  *
+  * The optional dynamic configurable ITIM sharing SRAM with I$ is set by  [[icacheParams.itimAddr]].
   * if PutFullData/PutPartialData to the ITIM address, it will dynamically allocate base address to the address of this accessing from SRAM.
   * if access to last way of ITIM, it set will change back to I$.
+  *
+  * If ITIM is configured:
+  *   set: if address to access is not to be configured to ITIM yet,
+  *        a memory accessing to ITIM address range will modify `scratchpadMax`,
+  *        from ITIM base to `scratchpadMax` will be used as ITIM.
+  *   unset: @todo
   *
   * There will always be one way(the last way) used for I$, which cannot be allocated to ITIM.
   *
@@ -86,7 +122,7 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new ICacheModule(this)
 
-  /** Diplomatic hardid bundle used for ITIM. */
+  /** Diplomatic hartid bundle used for ITIM. */
   val hartIdSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
   /** @todo base address offset for ITIM? */
   val mmioAddressPrefixSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
@@ -103,7 +139,7 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
     *
     * source Id range:
     * 0: use [[TLEdgeOut.Get]] to get instruction.
-    * 1: use [[TLEdgeOut.Hint]] to hint next level memory device fetching next page, if configured [[icacheParams.prefetch]].
+    * 1: use [[TLEdgeOut.Hint]] to hint next level memory device fetching next cache line, if configured [[icacheParams.prefetch]].
     *
     * @todo why if no [[useVM]], will have AMBAProtField in requestFields?
     */
@@ -138,7 +174,7 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
   /** @todo why [[wordBytes]] is defined by [[icacheParams.fetchBytes]], rather than 32 directly? */
   private val wordBytes = icacheParams.fetchBytes
 
-  /** @todo Instruction Tightly Integrated Memory node. */
+  /** Instruction Tightly Integrated Memory node. */
   val slaveNode =
     TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLSlavePortParameters.v1(
       Seq(TLSlaveParameters.v1(
@@ -175,32 +211,12 @@ class ICachePerfEvents extends Bundle {
 class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   /** first cycle requested from CPU. */
   val req = Decoupled(new ICacheReq).flip
-
-  /** delayed one cycle w.r.t. req
-    * wait for TLB.
-    */
-  val s1_paddr = UInt(INPUT, paddrBits)
-
-  /** delayed two cycles w.r.t. req.
-    * TODO: why?
-    * */
-  val s2_vaddr = UInt(INPUT, vaddrBits)
-
-  /** delayed one cycle w.r.t. req.
-    * TODO: doc this after main pipeline.
-    */
-  val s1_kill = Bool(INPUT)
-
-  /** delayed two cycles; prevents I$ miss emission.
-    * TODO: doc this after main pipeline.
-    */
-  val s2_kill = Bool(INPUT)
-
-  /** should I$ prefetch next line on a miss?
-    * TODO: doc this after BPU.
-    */
-  val s2_prefetch = Bool(INPUT)
-
+  val s1_paddr = UInt(INPUT, paddrBits) // delayed one cycle w.r.t. req
+  val s2_vaddr = UInt(INPUT, vaddrBits) // delayed two cycles w.r.t. req
+  val s1_kill = Bool(INPUT) // delayed one cycle w.r.t. req
+  val s2_kill = Bool(INPUT) // delayed two cycles; prevents I$ miss emission
+  val s2_cacheable = Bool(INPUT) // should L2 cache line on a miss?
+  val s2_prefetch = Bool(INPUT) // should I$ prefetch next line on a miss?
   /** response to CPU. */
   val resp = Valid(new ICacheResp(outer))
 
@@ -224,40 +240,6 @@ class ICacheBundle(val outer: ICache) extends CoreBundle()(outer.p) {
   val keep_clock_enabled = Bool(OUTPUT)
 }
 
-/** Rocket virtually-indexed physically-tagged (VIPT) L1 Instruction Cache module,
-  * which also can be used as an ITIM(Instruction Tightly Integrated Memory).
-  * If ITIM is configured:
-  *   set: if address to access is not to be configured to ITIM yet,
-  *        a memory accessing to ITIM address range will modify `scratchpadMax`,
-  *        from ITIM base to `scratchpadMax` will be used as ITIM.
-  *   unset: @todo
-  *
-  * It hides TLB access latency(Stage 0 -> Stage 1)
-  *
-  * Pipeline:
-  * Stage 0: access `tag_array` and `data_array` with `vaddr`.
-  * Stage 1: get data and tag.
-  *          TODO if hit in stage 0:
-  *          TODO tag comparison with paddr or variation of PT(mix of `vaddr` and `paddr`)
-  *          TODO if miss in stage 0:
-  * Stage 2: data way select + ecc dec
-  *
-  * `tag_array` read with vaddr at Stage 0,
-  *             write with `index(vaddr, paddr)`.
-  * `data_array` read with vaddr truncating TileLink beat count at Stage 0.
-  *              write with `index(vaddr, paddr)` truncating TileLink beat count.
-  *
-  *
-  * Stage 1: Tag ECC
-  * Stage 2: Data ECC
-  *
-  * ITIM:
-  * │          tag         │    set    │offset│
-  *                    │way│
-  *   There is always last way reserve to I$
-  *   if `way` == 11 (last way), deallocate
-  *   if write to ITIM all I$ will be invalidate
-  */
 class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   override val cacheParams = outer.icacheParams // Use the local parameters
@@ -275,9 +257,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     */
   val (tl_in, edge_in) = outer.slaveNode.in.headOption.unzip
 
-  /** tag ecc. */
   val tECC = cacheParams.tagCode
-  /** data ecc. */
   val dECC = cacheParams.dataCode
 
   require(isPow2(nSets) && isPow2(nWays))
@@ -292,17 +272,12 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val scratchpadOn = RegInit(false.B)
   /** a cut point to SRAM, indicates which SRAM will be used as SRAM or Cache. */
   val scratchpadMax = tl_in.map(tl => Reg(UInt(width = log2Ceil(nSets * (nWays - 1)))))
-  /** line is a minimal granularity accessing to SRAM, check if a line is in the scratchpad or not.
-    * Accessing from [[tl_in]]: convert address to line with `untagBits+log2Ceil(nWays)-1, blockOffBits`(slices from address)
-    * {{{
-    * │          tag         │    set    │offset│
-    *                    ├way┘                    → indicate way location
-    *                    │    line       │
-    * }}}
-    * Accessing from [[io]]: normal cache access @todo
+
+  /** Check if a line is in the scratchpad.
+    *
+    * line is a minimal granularity accessing to SRAM, calculated by [[scratchpadLine]]
     */
   def lineInScratchpad(line: UInt) = scratchpadMax.map(scratchpadOn && line <= _).getOrElse(false.B)
-
   /** scratchpad base address, if exist [[ICacheParams.itimAddr]], add [[ReplicatedRegion]] to base.
     * @todo seem [[io_hartid]] is not connected?
     *       maybe when implementing itim, LookupByHartId should be changed to [[]]?
@@ -313,13 +288,12 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   /** check an address in the scratchpad address range. */
   def addrMaybeInScratchpad(addr: UInt) = scratchpadBase.map(base => addr >= base && addr < base + outer.size).getOrElse(false.B)
-
-  /** check property this address exists in scratchpad.
+  /** check property this address(paddr) exists in scratchpad.
     * @todo seems duplicated in `addrMaybeInScratchpad(addr)` between `lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))`?
     */
   def addrInScratchpad(addr: UInt) = addrMaybeInScratchpad(addr) && lineInScratchpad(addr(untagBits+log2Ceil(nWays)-1, blockOffBits))
 
-  /** return the way which will be used as scratchpad for accessing address?
+  /** return the way which will be used as scratchpad for accessing address
     * {{{
     * │          tag         │    set    │offset│
     *                    └way┘
@@ -328,28 +302,26 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     */
   def scratchpadWay(addr: UInt) = addr.extract(untagBits+log2Ceil(nWays)-1, untagBits)
 
-  /** can this way being used by scratchpad?
-    * at least the last way should be reserved to cache.
+  /** check if the selected way is legal.
+    * note: the last way should be reserved to ICache.
     */
   def scratchpadWayValid(way: UInt) = way < nWays - 1
 
-  /** return the cacheline which will be used as scratchpad for accessing address?
+  /** return the cacheline which will be used as scratchpad for accessing address
     * {{{
     * │          tag         │    set    │offset│
     *                    ├way┘                    → indicate way location
     *                    │    line       │
     * }}}
     * @param addr address to be found.
+   *             applied to slave_addr
     */
   def scratchpadLine(addr: UInt) = addr(untagBits+log2Ceil(nWays)-1, blockOffBits)
 
-  /** scratchpad stage 0 to stage 1 valid. */
+  /** scratchpad access valid in stage N*/
   val s0_slaveValid = tl_in.map(_.a.fire()).getOrElse(false.B)
-  /** scratchpad stage 1 to stage 2 valid. */
   val s1_slaveValid = RegNext(s0_slaveValid, false.B)
-  /** scratchpad stage 2 to stage 3 valid. */
   val s2_slaveValid = RegNext(s1_slaveValid, false.B)
-  /** scratchpad stage 3 to stage 4 valid. */
   val s3_slaveValid = RegNext(false.B)
 
   /** valid signal for CPU accessing cache in stage 0. */
@@ -357,7 +329,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   /** virtual address from CPU in stage 0. */
   val s0_vaddr = io.req.bits.addr
 
-  /** valid signal for CPU accessing cache in stage 1.*/
+  /** valid signal for stage 1, drived by s0_valid.*/
   val s1_valid = Reg(init=Bool(false))
   /** virtual address from CPU in stage 1. */
   val s1_vaddr = RegEnable(s0_vaddr, s0_valid)
@@ -368,8 +340,10 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     * @note
     * for logic in `Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))`,
     * there are two different types based on latency:
+    *
     * if latency is 1: `s1_slaveValid === false.B` and `addrMaybeInScratchpad(io.s1_paddr) === false.B` ,
     *                   since in this case, ITIM must be empty.
+    *
     * if latency is 2: if `s1_slaveValid` is true, this SRAM accessing is coming from [[tl_in]], so it will hit.
     *                  if `s1_slaveValid` is false, but CPU is accessing memory range in scratchpad address, it will hit by default.
     *                  Hardware won't guarantee this access will access to a data which have been written in ITIM.
@@ -378,16 +352,15 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     */
   val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
   dontTouch(s1_hit)
-  /** stage 2 valid signal. */
   val s2_valid = RegNext(s1_valid && !io.s1_kill, Bool(false))
-  /** CPU I$ Hit in stage 2. */
   val s2_hit = RegNext(s1_hit)
 
-  /** status register to indicate flush is cache. */
+  /** status register to indicate a cache flush. */
   val invalidated = Reg(Bool())
-  /** status register to indicate there is a outstanding refill. */
   val refill_valid = RegInit(false.B)
-  /** register to indicate [[tl_out]] is performing a hint. */
+  /** register to indicate [[tl_out]] is performing a hint.
+   *  prefetch only happens after refilling
+   * */
   val send_hint = RegInit(false.B)
   /** indicate [[tl_out]] is performing a refill. */
   val refill_fire = tl_out.a.fire() && !send_hint
@@ -402,20 +375,15 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     * miss under miss won't trigger another burst.
     */
   val s2_request_refill = s2_miss && RegNext(s1_can_request_refill)
-  /** physical address to refill. */
   val refill_paddr = RegEnable(io.s1_paddr, s1_valid && s1_can_request_refill)
-  /** virtual address to refill. */
   val refill_vaddr = RegEnable(s1_vaddr, s1_valid && s1_can_request_refill)
-  /** tag of address to refill. */
   val refill_tag = refill_paddr >> pgUntagBits
-  /** index of address to refill. */
   val refill_idx = index(refill_vaddr, refill_paddr)
-  /** AccessAckData, is refilling I$, it will block request form CPU. */
+  /** AccessAckData, is refilling I$, it will block request from CPU. */
   val refill_one_beat = tl_out.d.fire() && edge_out.hasData(tl_out.d.bits)
 
   /** block request from CPU when refill or scratch pad access. */
   io.req.ready := !(refill_one_beat || s0_slaveValid || s3_slaveValid)
-  // @todo refactor to RegNext.
   s1_valid := s0_valid
 
   val (_, _, d_done, refill_cnt) = edge_out.count(tl_out.d)
@@ -438,28 +406,25 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     v
   }
 
-  // init tag SRAM, indexed with virtual memory, content with `eccError ## tag` after ECC.
+/**  Tag SRAM, indexed with virtual memory,
+ *   content with `refillError ## tag[19:0]` after ECC
+ * */
   val tag_array  = DescribedSRAM(
     name = "tag_array",
     desc = "ICache Tag Array",
     size = nSets,
     data = Vec(nWays, UInt(width = tECC.width(1 + tagBits)))
   )
-
-  /** read tag at stage 0 with virtual memory.
-    * `!refill_done && s0_valid` -> write will block read
-    */
   val tag_rdata = tag_array.read(s0_vaddr(untagBits-1,blockOffBits), !refill_done && s0_valid)
-
   /** register indicates the ongoing GetAckData transaction is corrupted. */
   val accruedRefillError = Reg(Bool())
   /** wire indicates the ongoing GetAckData transaction is corrupted. */
   val refillError = tl_out.d.bits.corrupt || (refill_cnt > 0 && accruedRefillError)
   when (refill_done) {
     // For AccessAckData, denied => corrupt
-    /** data write to [[tag_array]]. */
+    /** data written to [[tag_array]].
+     *  ECC encoded `refillError ## refill_tag`*/
     val enc_tag = tECC.encode(Cat(refillError, refill_tag))
-    // write tag array with ECC encoded `refillError ## refill_tag`
     tag_array.write(refill_idx, Vec.fill(nWays)(enc_tag), Seq.tabulate(nWays)(repl_way === _))
 
     ccover(refillError, "D_CORRUPT", "I$ D-channel corrupt")
@@ -470,14 +435,11 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   /** true indicate this cacheline is valid,
     * indexed by (wayIndex ## setIndex)
-    *
-    * after reset, all valid is false.
     * after refill_done and not FENCE.I, (repl_way ## refill_idx) set to true.
     */
   val vb_array = Reg(init=Bits(0, nSets*nWays))
   when (refill_one_beat) {
     accruedRefillError := refillError
-    // @todo seems comments are not corresponding to codes?
     // clear bit when refill starts so hit-under-miss doesn't fetch bad data
     vb_array := vb_array.bitSet(Cat(repl_way, refill_idx), refill_done && !invalidated)
   }
@@ -489,7 +451,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     invalidated := Bool(true)
   }
 
-  /** wire indicate that tag is correctable or uncorrectable.
+  /** wire indicates that tag is correctable or uncorrectable.
     * will trigger CPU to replay and I$ invalidating, if correctable.
     */
   val s1_tag_disparity = Wire(Vec(nWays, Bool()))
@@ -505,20 +467,20 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   /** address accessed by [[tl_in]] for ITIM. */
   val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
   /** address used at stage 1 and 3.
-    * @todo In stage 1, it caches TileLink data, store in stage 2 if ECC passed.
-    * @todo In stage 3, it caches corrected data from stage 2, and store in stage 4.
+    * {{{
+    * In stage 1, it caches TileLink data, store in stage 2 if ECC passed.
+    * In stage 3, it caches corrected data from stage 2, and store in stage 4.}}}
     */
   val s1s3_slaveAddr = Reg(UInt(width = log2Ceil(outer.size)))
   /** data used at stage 1 and 3.
+    * {{{
     * In stage 1, it caches TileLink data, store in stage 2.
-    * In stage 3, it caches corrected data from data ram, and return to d channel.
+    * In stage 3, it caches corrected data from data ram, and return to d channel.}}}
     */
   val s1s3_slaveData = Reg(UInt(width = wordBits))
 
   for (i <- 0 until nWays) {
-    /** set index from CPU request. */
     val s1_idx = index(s1_vaddr, io.s1_paddr)
-    /** tag from CPU paddr request. */
     val s1_tag = io.s1_paddr >> pgUntagBits
     /** this way is used by scratchpad.
       * [[tag_array]] corrupted.
@@ -534,40 +496,49 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         // @todo Accessing ITIM correspond address will be able to read cacheline?
         //       is this desired behavior?
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i)
-    /** new valid block after scratchpad accessing. */
     val s1_vb = vb_array(Cat(UInt(i), s1_idx)) && !s1_slaveValid
-    /** ECC decoded result form [[tag_rdata]]. */
     val enc_tag = tECC.decode(tag_rdata(i))
     /** [[tl_error]] ECC error bit.
       * [[tag]] of [[tag_array]] access.
       */
     val (tl_error, tag) = Split(enc_tag.uncorrected, tagBits)
-
-    /** way [[i]] access is matched to CPU access from [[io]]. */
     val tagMatch = s1_vb && tag === s1_tag
     /** tag error happens. */
     s1_tag_disparity(i) := s1_vb && enc_tag.error
-    // if tag matched but ecc checking failed, this access will trigger [[Causes.fetch_access]] exception.
+    /** if tag matched but ecc checking failed, this access will trigger [[Causes.fetch_access]] exception.*/
     s1_tl_error(i) := tagMatch && tl_error.asBool
-    // hit index [[i]] of [[tag_array]].
     s1_tag_hit(i) := tagMatch || scratchpadHit
   }
   assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
 
-  /** init data SRAM banks,
+  /** Data SRAM
+    *
     * banked with TileLink beat bytes / CPU fetch bytes,
     * indexed with [[index]] and multi-beats cycle,
     * content with `eccError ## wordBits` after ECC.
+    * {{{
     * │                          │xx│xxxxxx│xxx│x│xx│
     *                                            ↑word
     *                                          ↑bank
     *                            ↑way
     *                               └─set──┴─offset─┘
     *                               └────row───┘
+    *}}}
+    * Note:
+    *  Data SRAM is indexed with virtual memory(vaddr[11:2]),
+    *  - vaddr[11:3]->row,
+    *  - vaddr[2]->bank=i
+    *  - Cache line size = refillCycels(8) * bank(2) * datasize(4 bytes) = 64 bytes
+    *  - data width = 32
     *
-    *  TODO: timing issue here MusOH(data_arrays.read)
+    *  read:
+    *      read happens in stage 0
+    *
+    *  write:
+    *    It takes 8 beats to refill 16 instruction in each refilling cycle.
+    *    Data_array receives data[63:0](2 instructions) at once,they will be allocated in deferent bank according to vaddr[2]
     */
   val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
     i =>
@@ -580,17 +551,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   }
 
   for ((data_array , i) <- data_arrays zipWithIndex) {
-    /** Is this address access in this bank? */
+    /**  bank match (vaddr[2]) */
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i
-    /** return row correspond to a address. */
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
-    /** CPU or ITIM read match this bank. */
+    /** read_enable signal*/
     val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))
-    /** refill from [[tl_out]] or ITIM write. */
+    /** write_enable signal
+     * refill from [[tl_out]] or ITIM write. */
     val wen = (refill_one_beat && !invalidated) || (s3_slaveValid && wordMatch(s1s3_slaveAddr))
     /** index to access [[data_array]]. */
     val mem_idx =
-      // I$ refill.
+      // I$ refill. refill_idx[2:0] is the beats
       Mux(refill_one_beat, (refill_idx << log2Ceil(refillCycles)) | refill_cnt,
       // ITIM write.
                   Mux(s3_slaveValid, row(s1s3_slaveAddr),
@@ -599,7 +570,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       // CPU read.
                   row(s0_vaddr))))
     when (wen) {
+      //wr_data
       val data = Mux(s3_slaveValid, s1s3_slaveData, tl_out.d.bits.data(wordBits*(i+1)-1, wordBits*i))
+      //the way to be replaced/written
       val way = Mux(s3_slaveValid, scratchpadWay(s1s3_slaveAddr), repl_way)
       data_array.write(mem_idx, Vec.fill(nWays)(dECC.encode(data)), (0 until nWays).map(way === _))
     }
@@ -620,7 +593,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
   /** clock gate signal for [[s2_tag_hit]], [[s2_dout]], [[s2_tag_disparity]], [[s2_tl_error]], [[s2_scratchpad_hit]]. */
   val s1_clk_en = s1_valid || s1_slaveValid
-  /** stage 2 of [[s1_tag_hit]]. */
   val s2_tag_hit = RegEnable(Mux(s1_dont_read, 0.U.asTypeOf(s1_tag_hit), s1_tag_hit), s1_clk_en)
   /** way index to access [[data_arrays]]. */
   val s2_hit_way = OHToUInt(s2_tag_hit)
@@ -628,20 +600,14 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     * replace tag with way, word set to 0.
     */
   val s2_scratchpad_word_addr = Cat(s2_hit_way, Mux(s2_slaveValid, s1s3_slaveAddr, io.s2_vaddr)(untagBits-1, log2Ceil(wordBits/8)), UInt(0, log2Ceil(wordBits/8)))
-  /** stage 2 of [[s1_dout]]. */
   val s2_dout = RegEnable(s1_dout, s1_clk_en)
-  /** way selected from [[s2_dout]]. */
   val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
-
-  /** stage 2 of [[s1_tag_disparity]]. */
   val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_clk_en).asUInt.orR
-  /** stage 2 of [[s1_tl_error]]. */
   val s2_tl_error = RegEnable(s1_tl_error.asUInt.orR, s1_clk_en)
   /** ECC decode result for [[data_arrays]]. */
   val s2_data_decoded = dECC.decode(s2_way_mux)
   /** ECC error happened, correctable or uncorrectable, ask CPU to replay. */
   val s2_disparity = s2_tag_disparity || s2_data_decoded.error
-
   /** access hit in ITIM, if [[s1_slaveValid]], this access is from [[tl_in]], else from CPU [[io]]. */
   val s1_scratchpad_hit = Mux(s1_slaveValid, lineInScratchpad(scratchpadLine(s1s3_slaveAddr)), addrInScratchpad(io.s1_paddr))
   /** stage 2 of [[s1_scratchpad_hit]]. */
@@ -706,7 +672,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         // (de)allocate ITIM
         when (s0_slaveValid) {
           val a = tl.a.bits
-          // S1
+          // address
           s1s3_slaveAddr := tl.a.bits.address
           // store Put/PutP data
           s1s3_slaveData := tl.a.bits.data
@@ -714,6 +680,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           when (edge_in.get.hasData(a)) {
             // access data in 0 -> way - 2 allocate and enable, access data in way - 1(last way), deallocate.
             val enable = scratchpadWayValid(scratchpadWay(a.address))
+            //The address isn't in range,
             when (!lineInScratchpad(scratchpadLine(a.address))) {
               scratchpadMax.get := scratchpadLine(a.address)
               invalidate := true
@@ -738,7 +705,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
               && s2_valid && s2_data_decoded.error && !s2_tag_disparity) {
           // handle correctable errors on CPU accesses to the scratchpad.
           // if there is an in-flight slave-port access to the scratchpad,
-          // report the a miss but don't correct the error (as there is
+          // report the miss but don't correct the error (as there is
           // a structural hazard on s1s3_slaveData/s1s3_slaveAddress).
           s3_slaveValid := true
           s1s3_slaveData := s2_data_decoded.corrected
@@ -749,13 +716,12 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         // pull up [[respValid]] when [[s2_slaveValid]] until [[tl.d.fire()]]
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
         // if [[s2_full_word_write]] will overwrite data, and [[s2_data_decoded.uncorrectable]] can be ignored.
-        // TODO: I thought respError is for Get?
         val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable && !s1s2_full_word_write, s2_slaveValid)
         when (s2_slaveValid) {
           // need stage 3 if Put or correct decoding.
           // @todo if uncorrectable [[s2_data_decoded]]?
           when (edge_in.get.hasData(s1_a) || s2_data_decoded.error) { s3_slaveValid := true }
-          /** data not masked by the TileLink PutData/PutPartitalData.
+          /** data not masked by the TileLink PutData/PutPartialData.
             * means data is stored at [[s1s3_slaveData]] which was read at stage 1.
             */
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
@@ -774,9 +740,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           edge_in.get.AccessAck(s1_a),
           // Get -> AccessAckData
           edge_in.get.AccessAck(s1_a, UInt(0), denied = Bool(false), corrupt = respError))
-        // @todo why directly `edge_in.get.AccessAck(s1_a, s1s3_slaveData, denied = Bool(false), corrupt = respError)`
         tl.d.bits.data := s1s3_slaveData
-
         // Tie off unused channels
         tl.b.valid := false
         tl.c.ready := true
@@ -789,21 +753,19 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       }
   }
 
-  // refill
   tl_out.a.valid := s2_request_refill
   tl_out.a.bits := edge_out.Get(
                     fromSource = UInt(0),
                     toAddress = (refill_paddr >> blockOffBits) << blockOffBits,
                     lgSize = lgCacheBlockBytes)._2
 
-  // prefetch when not access cross a page.
+  // prefetch when next-line access does not cross a page
   if (cacheParams.prefetch) {
-    /** [[crosses_page]]  the last address of this current page is requested to refill.
-      * [[next_block]] next address to be accessed.
+    /** [[crosses_page]]  indicate if there is a crosses page access
+      * [[next_block]] : the address to be prefetched.
       */
     val (crosses_page, next_block) = Split(refill_paddr(pgIdxBits-1, blockOffBits) +& 1, pgIdxBits-blockOffBits)
 
-    // assign to [[send_hint]] and [[hint_outstanding]]
     when (tl_out.a.fire()) {
       send_hint := !hint_outstanding && io.s2_prefetch && !crosses_page
       when (send_hint) {
@@ -848,7 +810,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     x.readalloc   := io.s2_cacheable
     x.writealloc  := io.s2_cacheable
   }
-  // Tie off unused channels
   tl_out.b.ready := Bool(true)
   tl_out.c.valid := Bool(false)
   tl_out.e.valid := Bool(false)
@@ -866,7 +827,6 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     s1_valid || s2_valid || refill_valid || send_hint || hint_outstanding // I$
 
   /** index to access [[data_arrays]] and [[tag_array]].
-    * @todo why not VA directly?
     * @note
     * if [[untagBits]] > [[pgIdxBits]] in
     * {{{
@@ -882,6 +842,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     * }}}
     *
     * else use paddr directly.
+    * Note: if [[untagBits]] > [[pgIdxBits]], there will be a alias issue which isn't addressend by the icache yet.
     */
   def index(vaddr: UInt, paddr: UInt) = {
     /** [[paddr]] as LSB to be used for VIPT. */
