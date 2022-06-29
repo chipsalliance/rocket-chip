@@ -1,1 +1,0 @@
-../../../../../bootrom/linker.ld

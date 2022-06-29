@@ -196,6 +196,8 @@ object rocketchip extends common.CommonRocketChip {
         "-static",
       ).call(outputDirectory)
       // build bootrom
+      val linker = os.pwd / "bootrom" / "linker.ld"
+      val bootrom = os.pwd / "bootrom" / "bootrom.S"
       val elf = outputDirectory / "bootrom.elf"
       val bin = outputDirectory / "bootrom.bin"
       val img = outputDirectory / "bootrom.img"
@@ -207,8 +209,8 @@ object rocketchip extends common.CommonRocketChip {
         "-static",
         "-nostdlib",
         "-Wl,--no-gc-sections",
-        "-fuse-ld=lld", s"-T${resource("resources/linker.ld")}",
-        s"${resource("resources/bootrom.S")}",
+        "-fuse-ld=lld", s"-T$linker",
+        s"$bootrom",
         "-o", elf
       ).call()
       os.proc(
