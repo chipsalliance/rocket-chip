@@ -429,6 +429,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         count       := Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
         aux_count   := Mux(arb.io.out.bits.bits.vstage1, vsatp_initial_count, 0.U)
         aux_pte.ppn := Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp.ppn, arb.io.out.bits.bits.addr)
+        aux_pte.reserved_for_future := 0
         resp_ae_ptw := false
         resp_ae_final := false
         resp_pf := false
@@ -450,6 +451,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (stage2_pte_cache_hit) {
         aux_count := aux_count + 1
         aux_pte.ppn := stage2_pte_cache_data
+        aux_pte.reserved_for_future := 0
         pte_hit := true
       }.elsewhen (pte_cache_hit) {
         count := count + 1
