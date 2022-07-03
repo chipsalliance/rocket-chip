@@ -16,7 +16,7 @@ object configRocket extends `api-config-chipsalliance`.`build-rules`.mill.build.
   }
 
   override def pomSettings = T {
-    rocketchip.`pomSettings`()
+    rocketchip.pomSettings()
   }
 
   override def publishVersion = T {
@@ -164,24 +164,16 @@ object rocketchip extends common.CommonRocketChip {
 
     override def scalacPluginClasspath = T { super.scalacPluginClasspath() }
 
-    def libraryResources = T.sources {
-      val x86Dir = T.ctx.dest
-      val riscv64Dir = T.ctx.dest / "riscv64"
-      val testDir: Path = os.pwd / "src" / "test" / "scala" / "sanitytests"
-      os.copy.into(testDir / "resources", x86Dir)
-      def resource(file: String): Path = x86Dir / RelPath(file)
-      os.proc("make", s"DESTDIR=${x86Dir}", "install").call(spike.compile())
-      os.proc("make", s"DESTDIR=${riscv64Dir}", "install").call(compilerrt.compile())
-      os.proc("make", s"DESTDIR=${riscv64Dir}", "install").call(musl.compile())
-      os.copy.into(pk.compile(), riscv64Dir)
+    def compilePayloads(destDir: Path) = {
       // build hello world
-      val outputDirectory = x86Dir / "VerilatorTest"
+      def resource(file: String): Path = destDir / RelPath(file)
+      val outputDirectory = destDir / "VerilatorTest"
       os.remove.all(outputDirectory)
       os.makeDir(outputDirectory)
       os.proc(
         "clang",
         "-o", "hello",
-        s"${resource("resources/csrc/hello.c")}",
+        s"${resource("testcase/hello/hello.c")}",
         "--target=riscv64",
         "-mno-relax",
         "-nostdinc",
@@ -195,9 +187,13 @@ object rocketchip extends common.CommonRocketChip {
         s"${resource("riscv64/usr/lib/crtn.o")}",
         "-static",
       ).call(outputDirectory)
+    }
+
+    def compileBootrom(destDir: Path) = {
       // build bootrom
       val linker = os.pwd / "bootrom" / "linker.ld"
       val bootrom = os.pwd / "bootrom" / "bootrom.S"
+      val outputDirectory = destDir / "VerilatorTest"
       val elf = outputDirectory / "bootrom.elf"
       val bin = outputDirectory / "bootrom.bin"
       val img = outputDirectory / "bootrom.img"
@@ -226,6 +222,21 @@ object rocketchip extends common.CommonRocketChip {
         "bs=128",
         "count=1"
       ).call()
+    }
+
+    def libraryResources = T.sources {
+      val x86Dir = T.ctx.dest
+      val riscv64Dir = T.ctx.dest / "riscv64"
+      val testDir: Path = os.pwd / "src" / "test" / "scala" / "sanitytests"
+      os.copy.into(testDir / "resources", x86Dir)
+      os.copy.into(testDir / "testcase", x86Dir)
+      def resource(file: String): Path = x86Dir / RelPath(file)
+      os.proc("make", s"DESTDIR=${x86Dir}", "install").call(spike.compile())
+      os.proc("make", s"DESTDIR=${riscv64Dir}", "install").call(compilerrt.compile())
+      os.proc("make", s"DESTDIR=${riscv64Dir}", "install").call(musl.compile())
+      os.copy.into(pk.compile(), riscv64Dir)
+      compilePayloads(x86Dir)
+      compileBootrom(x86Dir)
       T.ctx.dest
     }
     override def resources: Sources = T.sources {
