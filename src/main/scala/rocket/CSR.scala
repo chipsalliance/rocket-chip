@@ -1357,7 +1357,7 @@ class CSRFile(
           reg_vsatp.mode := new_vsatp.mode & satp_valid_modes.reduce(_|_)
         }
         when (mode_ok || !reg_mstatus.v) {
-          reg_vsatp.ppn := new_vsatp.ppn(vpnBits-1,0)
+          reg_vsatp.ppn := new_vsatp.ppn(vpnBits.min(new_vsatp.ppn.getWidth)-1,0)
         }
         if (asIdBits > 0) reg_vsatp.asid := new_vsatp.asid(asIdBits-1,0)
       }
