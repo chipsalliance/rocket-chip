@@ -181,7 +181,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val (pte, invalid_paddr) = {
     val tmp = new PTE().fromBits(mem_resp_data)
     val res = Wire(init = tmp)
-    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits-1, 0), tmp.ppn(ppnBits-1, 0))
+    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits.min(tmp.ppn.getWidth)-1, 0), tmp.ppn(ppnBits-1, 0))
     when (tmp.r || tmp.w || tmp.x) {
       // for superpage mappings, make sure PPN LSBs are zero
       for (i <- 0 until pgLevels-1)
@@ -197,18 +197,21 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     val mask     = Mux(stage2 && count === r_hgatp_initial_count, ((1 << (hypervisorExtraAddrBits + pgLevelBits)) - 1).U, ((1 << pgLevelBits) - 1).U)
     val vpn_idx  = vpn_idxs(count) & mask
+    val raw_pte_addr = ((r_pte.ppn << pgLevelBits) | vpn_idx) << log2Ceil(xLen / 8)
     val size = if (usingHypervisor) vaddrBits else paddrBits
-    (((r_pte.ppn << pgLevelBits) | vpn_idx) << log2Ceil(xLen / 8))(size - 1, 0)
+    raw_pte_addr.apply(size.min(raw_pte_addr.getWidth) - 1, 0)
   }
   val pte_cache_addr = if (!usingHypervisor) pte_addr else {
     val vpn_idxs = (0 until pgLevels-1).map(i => (aux_pte.ppn >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
     val vpn_idx = vpn_idxs(count)
-    (Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8))(vaddrBits-1, 0)
+    val raw_pte_cache_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
+    raw_pte_cache_addr(vaddrBits.min(raw_pte_cache_addr.getWidth)-1, 0)
   }
   val stage2_pte_cache_addr = if (!usingHypervisor) 0.U else {
     val vpn_idxs = (0 until pgLevels - 1).map(i => (r_req.addr >> (pgLevels - i - 1) * pgLevelBits)(pgLevelBits - 1, 0))
     val vpn_idx  = vpn_idxs(aux_count)
-    (Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen / 8))(vaddrBits - 1, 0)
+    val raw_s2_pte_cache_addr = Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen / 8)
+    raw_s2_pte_cache_addr(vaddrBits.min(raw_s2_pte_cache_addr.getWidth) - 1, 0)
   }
 
   def makeFragmentedSuperpagePPN(ppn: UInt): Seq[UInt] = {
