@@ -254,14 +254,19 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   )
 })
 
-class WithRV32 extends Config((site, here, up) => {
-  case XLen => 32
-  case RocketTilesKey => up(RocketTilesKey, site) map { r =>
-    r.copy(core = r.core.copy(
-      fpu = r.core.fpu.map(_.copy(fLen = 32)),
-      mulDiv = Some(MulDivParams(mulUnroll = 8))))
-  }
-})
+class WithRV32 extends Config(
+  new Config((site, here, up) => {
+    case RocketTilesKey => up(RocketTilesKey) map { r =>
+      r.copy(core = r.core.copy(
+        fpu = r.core.fpu.map(_.copy(fLen = 32)),
+        mulDiv = Some(MulDivParams(mulUnroll = 8))
+      ))
+    }
+  }) ++
+    new Config((site, here, up) => {
+      case XLen => 32
+    })
+)
 
 class WithNonblockingL1(nMSHRs: Int) extends Config((site, here, up) => {
   case RocketTilesKey => up(RocketTilesKey, site) map { r =>
