@@ -275,7 +275,6 @@ case class TLBConfig(
   * @param lgMaxSize @todo seems granularity
   * @param cfg [[TLBConfig]]
   * @param edge collect SoC metadata.
-  *
   */
 class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
@@ -294,13 +293,14 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
   /** index for sectored_Entry */
   val memIdx = vpn.extract(cfg.nSectors.log2 + cfg.nSets.log2 - 1, cfg.nSectors.log2)
-  /** TLB Entry*/
+  /** TLB Entry */
   val sectored_entries = Reg(Vec(cfg.nSets, Vec(cfg.nWays / cfg.nSectors, new TLBEntry(cfg.nSectors, false, false))))
-  /** Superpage Entry*/
+  /** Superpage Entry */
   val superpage_entries = Reg(Vec(cfg.nSuperpageEntries, new TLBEntry(1, true, true)))
   /** Special Entry
     *
-    * If PMP granularity is less than page size, thus need additional "special" entry manage PMP. */
+    * If PMP granularity is less than page size, thus need additional "special" entry manage PMP.
+    */
   val special_entry = (!pageGranularityPMPs).option(Reg(new TLBEntry(1, true, false)))
   def ordinary_entries = sectored_entries(memIdx) ++ superpage_entries
   def all_entries = ordinary_entries ++ special_entry
@@ -332,7 +332,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val stage1_en = Bool(usingVM) && satp.mode(satp.mode.getWidth-1)
   /** VS-stage translation enable */
   val vstage1_en = Bool(usingHypervisor) && priv_v && io.ptw.vsatp.mode(io.ptw.vsatp.mode.getWidth-1)
-  /** G-stage translation enable*/
+  /** G-stage translation enable */
   val stage2_en  = Bool(usingHypervisor) && priv_v && io.ptw.hgatp.mode(io.ptw.hgatp.mode.getWidth-1)
   /** Enable Virtual Memory when:
     *  1. statically configured
@@ -439,7 +439,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         e.insert(r_refill_tag, refill_v, io.ptw.resp.bits.level, newEntry)
         when (invalidate_refill) { e.invalidate() }
       }
-      // refill sectored_hit
+    // refill sectored_hit
     }.otherwise {
       val r_memIdx = r_refill_tag.extract(cfg.nSectors.log2 + cfg.nSets.log2 - 1, cfg.nSectors.log2)
       val waddr = Mux(r_sectored_hit.valid, r_sectored_hit.bits, r_sectored_repl_addr)
@@ -506,7 +506,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val pal_array_if_cached = pal_array | Mux(usingAtomicsInCache, c_array, 0.U)
   val prefetchable_array = Cat((cacheable && homogeneous) << (nPhysicalEntries-1), normal_entries.map(_.c).asUInt)
 
-  //vaddr misaligned: vaddr[1:0]=b00
+  // vaddr misaligned: vaddr[1:0]=b00
   val misaligned = (io.req.bits.vaddr & (UIntToOH(io.req.bits.size) - 1)).orR
   def badVA(guestPA: Boolean): Bool = {
     val additionalPgLevels = (if (guestPA) io.ptw.hgatp else satp).additionalPgLevels
@@ -569,13 +569,13 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   val tlb_hit_if_not_gpa_miss = real_hits.orR
   val tlb_hit = (real_hits & gpa_hits).orR
-  //lead to s_request
+  // lead to s_request
   val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
 
   val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries.head.size, "plru")
   val superpage_plru = new PseudoLRU(superpage_entries.size)
   when (io.req.valid && vm_enabled) {
-    //replace
+    // replace
     when (sector_hits.orR) { sectored_plru.access(memIdx, OHToUInt(sector_hits)) }
     when (superpage_hits.orR) { superpage_plru.access(OHToUInt(superpage_hits)) }
   }
@@ -663,7 +663,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       // If CPU kills request(frontend.s2_redirect)
       when (io.kill) { state := s_ready }
     }
-    //sfence in refill will results in invalidate
+    // sfence in refill will results in invalidate
     when (state === s_wait && sfence) {
       state := s_wait_invalidate
     }
@@ -708,7 +708,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     * If there is a invalid entry, replace it with priorityencoder;
     * if not, replace the alt entry
     *
-    * @return mask for TLBEntry replacement */
+    * @return mask for TLBEntry replacement
+    */
   def replacementEntry(set: Seq[TLBEntry], alt: UInt) = {
     val valids = set.map(_.valid.orR).asUInt
     Mux(valids.andR, alt, PriorityEncoder(~valids))
