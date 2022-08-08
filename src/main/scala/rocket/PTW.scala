@@ -16,6 +16,10 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import scala.collection.mutable.ListBuffer
 
+/** PTE request from TLB to PTW
+  *
+  * TLB send a PTE request to PTW when TLB miss and it needs a page table walk
+  */
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
   val need_gpa = Bool()
@@ -23,18 +27,25 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val stage2 = Bool()
 }
 
+/** PTE info from PTW to TLB
+  *
+  * containing: target PTE, exceptions, two-satge tanslation info */
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae_ptw = Bool()
   val ae_final = Bool()
-  /**page fault  */
+  /** page fault  */
   val pf = Bool()
-  /**guest page fault  */
+  /** guest page fault  */
   val gf = Bool()
-  //hypervisor wrx
+  /** hypervisor read*/
   val hr = Bool()
+  /** hypervisor write*/
   val hw = Bool()
+  /** hypervisor execute*/
   val hx = Bool()
-  /**  return the target PTE */
+  /** target leaf PTE for a page table walk
+    *
+    * source: L2TLB */
   val pte = new PTE
   val level = UInt(width = log2Ceil(pgLevels))
   val fragmented_superpage = Bool()
@@ -43,7 +54,13 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
   val gpa_is_pte = Bool()
 }
 
-//send resp and CSRs info to TLB
+/** IO between TLB to PTW
+  *
+  * PTW receives :
+  *   - PTE request
+  *   - CSRs info
+  *   - pmp results from PMP(in TLB)
+  */
 class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val req = Decoupled(Valid(new PTWReq))
@@ -58,6 +75,7 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val customCSRs = coreParams.customCSRs.asInput
 }
 
+/** PTW performance statistics to CPU*/
 class PTWPerfEvents extends Bundle {
   val l2miss = Bool()
   val l2hit = Bool()
@@ -65,6 +83,12 @@ class PTWPerfEvents extends Bundle {
   val pte_hit = Bool()
 }
 
+/** IO between PTW and Core
+  *
+  * PTW receives CSRs info, pmp checks, sfence instruction info
+  *
+  * PTW sends its performance statistic to core
+  */
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val ptbr = new PTBR().asInput
@@ -80,7 +104,7 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val clock_enabled = Bool(OUTPUT)
 }
 /** Page table entry
- *  @see RV-priv spec 4.3.1 for pgae table entry format*/
+  * @see RV-priv spec 4.3.1 for pgae table entry format*/
 class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val reserved_for_future = UInt(width = 10)
   val ppn = UInt(width = 44)
@@ -93,9 +117,9 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val w = Bool()
   val r = Bool()
   val v = Bool()
-  //pointer to next level page table
+  /** return true if find a pointer to next level page table*/
   def table(dummy: Int = 0) = v && !r && !w && !x && !d && !a && !u && reserved_for_future === 0
-  //leaf judge
+  /** return true if find a leaf PTE*/
   def leaf(dummy: Int = 0) = v && (r || (x && !w)) && a
   def ur(dummy: Int = 0) = sr() && u
   def uw(dummy: Int = 0) = sw() && u
@@ -120,49 +144,49 @@ class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
   val r = Bool()
 
 }
-/** PTW is the L2TLB, which perfrom page table walk for high level TLB.
- *  It perform hierarchy page table query to mem for the desired leaf PTE and cache them in l2tlb.
- *  Besides leaf PTEs,it also caches not-leaf PTEs in pte_cache to accerlerate the process
- *
- *  ==Structure==
- *  - l2tlb : for leaf PTEs
- *   - set-associative
- *   - PLRU
- *  - pte_cache: for not-leaf PTEs
- *    - set-associative
- *    - LRU
- *  - s2_pte_cache: for not-leaf PTEs in 2-stage translation
- *    - set-associative
- *    - PLRU
- *
- * l2tlb Pipeline: 3 stage
- * {{{
- * stage 0 : read
- * stage 1 : decode
- * stage 2 : hit judge
- * }}}
- *  ==State Machine==
- *  s_ready: ready to reveive request from TLB
- *  s_req: request mem; pte_cache hit judge
- *  s_wait1: deal with l2tlb error
- *  s_wait2: final hit judge
- *  s_wait3: receive mem response
- *  s_fragment_superpage: for superpage PTE
- *
- *  @note l2tlb hit happens in s_req or s_wait1
- *  @see RV-priv spec 4.3-4.6 for Virtual-Memory System
- *  @see RV-priv spec 8.5 for Virtual-Memory System
- *  @todo details for two stage translation
- * */
+/** PTW contains L2TLB, the PTW performs page table walk for high level TLB, and cache queries from L1 TLBs(I$, D$, RoCC)
+  * It perform hierarchy page table query to mem for the desired leaf PTE and cache them in l2tlb.
+  * Besides leaf PTEs,it also caches not-leaf PTEs in pte_cache to accerlerate the process
+  *
+  * ==Structure==
+  *  - l2tlb : for leaf PTEs(configurable with [[CoreParams.nL2TLBEntries]]and [[CoreParams.nL2TLBWays]]))
+  *   - set-associative
+  *   - PLRU
+  *  - pte_cache: for not-leaf PTEs
+  *   - set-associative
+  *   - LRU
+  *  - s2_pte_cache: for not-leaf PTEs in 2-stage translation
+  *   - set-associative
+  *   - PLRU
+  *
+  * l2tlb Pipeline: 3 stage
+  * {{{
+  * stage 0 : read
+  * stage 1 : decode
+  * stage 2 : hit judge
+  * }}}
+  * ==State Machine==
+  * s_ready: ready to reveive request from TLB
+  * s_req: request mem; pte_cache hit judge
+  * s_wait1: deal with l2tlb error
+  * s_wait2: final hit judge
+  * s_wait3: receive mem response
+  * s_fragment_superpage: for superpage PTE
+  *
+  * @note l2tlb hit happens in s_req or s_wait1
+  * @see RV-priv spec 4.3-4.6 for Virtual-Memory System
+  * @see RV-priv spec 8.5 for Two-Stage Address Translation
+  * @todo details in two-stage translation
+  */
 @chiselName
 class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
     /** to n TLB */
     val requestor = Vec(n, new TLBPTWIO).flip
-    /**  to HellaCache */
+    /** to HellaCache */
     val mem = new HellaCacheIO
     /** to CPU
-     *  contains CSRs */
+      * contains CSRs */
     val dpath = new DatapathPTWIO
   }
 
@@ -202,7 +226,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   /** current selected way in arbitor */
   val r_req_dest = Reg(Bits())
     //to respond to L1TLB : l2_hit
-    //w
     //to construct mem.req.addr
   val r_pte = Reg(new PTE)
   val r_hgatp = Reg(new PTBR)
