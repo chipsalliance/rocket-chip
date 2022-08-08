@@ -184,10 +184,10 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
     }
   }
   /** Refill
-   *
-   *  find the target enty with tag
-   *  and replace the target entry with the input EntryData
-   */
+    *
+    *  find the target enty with tag
+    *  and replace the target entry with the input EntryData
+    */
   def insert(vpn: UInt, virtual: Bool, level: UInt, entry: TLBEntryData): Unit = {
     this.tag_vpn := vpn
     this.tag_v := virtual
@@ -335,25 +335,25 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   /** G-stage translation enable*/
   val stage2_en  = Bool(usingHypervisor) && priv_v && io.ptw.hgatp.mode(io.ptw.hgatp.mode.getWidth-1)
   /** Enable Virtual Memory when:
-   *   1. statically configured
-   *   1. satp highest bits enabled
-   *    i. RV32:
-   *      - 0 -> Bare
-   *      - 1 -> SV32
-   *    i. RV64:
-   *      - 0000 -> Bare
-   *      - 1000 -> SV39
-   *      - 1001 -> SV48
-   *      - 1010 -> SV57
-   *      - 1011 -> SV64
-   *   1. In virtualization mode, vsatp highest bits enabled
-   *   1. priv mode in U and S.
-   *   1. in H & M mode, disable VM.
-   *   1. no passthrough(micro-arch defined.)
-   *
-   * @see RV-priv spec 4.1.11 Supervisor Address Translation and Protection (satp) Register
-   * @see RV-priv spec 8.2.18 Virtual Supervisor Address Translation and Protection Register (vsatp)
-   */
+    *  1. statically configured
+    *  1. satp highest bits enabled
+    *   i. RV32:
+    *     - 0 -> Bare
+    *     - 1 -> SV32
+    *   i. RV64:
+    *     - 0000 -> Bare
+    *     - 1000 -> SV39
+    *     - 1001 -> SV48
+    *     - 1010 -> SV57
+    *     - 1011 -> SV64
+    *  1. In virtualization mode, vsatp highest bits enabled
+    *  1. priv mode in U and S.
+    *  1. in H & M mode, disable VM.
+    *  1. no passthrough(micro-arch defined.)
+    *
+    * @see RV-priv spec 4.1.11 Supervisor Address Translation and Protection (satp) Register
+    * @see RV-priv spec 8.2.18 Virtual Supervisor Address Translation and Protection Register (vsatp)
+    */
   val vm_enabled = (stage1_en || stage2_en) && priv_uses_vm && !io.req.bits.passthrough
 
   // flush guest entries on vsatp.MODE Bare <-> SvXX transitions
@@ -366,7 +366,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val do_refill = Bool(usingVM) && io.ptw.resp.valid
   /** sfence invalidate refill */
   val invalidate_refill = state.isOneOf(s_request /* don't care */, s_wait_invalidate) || io.sfence.valid
-  //PMP
+  // PMP
   val mpu_ppn = Mux(do_refill, refill_ppn,
                 Mux(vm_enabled && special_entry.nonEmpty, special_entry.map(e => e.ppn(vpn, e.getData(vpn))).getOrElse(0.U), io.req.bits.vaddr >> pgIdxBits))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
@@ -395,14 +395,14 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val prot_x = fastCheck(_.executable) && !deny_access_to_debug && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
-  //Hit check
+  // Hit check
   val sector_hits = sectored_entries(memIdx).map(_.sectorHit(vpn, priv_v))
   val superpage_hits = superpage_entries.map(_.hit(vpn, priv_v))
   val hitsVec = all_entries.map(vm_enabled && _.hit(vpn, priv_v))
   val real_hits = hitsVec.asUInt
   val hits = Cat(!vm_enabled, real_hits)
 
-  //use ptw response to refill
+  // use ptw response to refill
   // permission bit arrays
   when (do_refill) {
     val pte = io.ptw.resp.bits.pte
@@ -430,7 +430,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.paa := prot_aa
     newEntry.eff := prot_eff
     newEntry.fragmented_superpage := io.ptw.resp.bits.fragmented_superpage
-    //refill special_entry
+    // refill special_entry
     when (special_entry.nonEmpty && !io.ptw.resp.bits.homogeneous) {
       special_entry.foreach(_.insert(r_refill_tag, refill_v, io.ptw.resp.bits.level, newEntry))
     }.elsewhen (io.ptw.resp.bits.level < pgLevels-1) {
@@ -439,7 +439,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
         e.insert(r_refill_tag, refill_v, io.ptw.resp.bits.level, newEntry)
         when (invalidate_refill) { e.invalidate() }
       }
-      //refill sectored_hit
+      // refill sectored_hit
     }.otherwise {
       val r_memIdx = r_refill_tag.extract(cfg.nSectors.log2 + cfg.nSets.log2 - 1, cfg.nSectors.log2)
       val waddr = Mux(r_sectored_hit.valid, r_sectored_hit.bits, r_sectored_repl_addr)
@@ -589,19 +589,19 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   // only pull up req.ready when this is s_ready state.
   io.req.ready := state === s_ready
-  //page fault
+  // page fault
   io.resp.pf.ld := (bad_va && cmd_read) || (pf_ld_array & hits).orR
   io.resp.pf.st := (bad_va && cmd_write_perms) || (pf_st_array & hits).orR
   io.resp.pf.inst := bad_va || (pf_inst_array & hits).orR
-  //guest page fault
+  // guest page fault
   io.resp.gf.ld := (bad_gpa && cmd_read) || (gf_ld_array & hits).orR
   io.resp.gf.st := (bad_gpa && cmd_write_perms) || (gf_st_array & hits).orR
   io.resp.gf.inst := bad_gpa || (gf_inst_array & hits).orR
-  //access exception
+  // access exception
   io.resp.ae.ld := (ae_ld_array & hits).orR
   io.resp.ae.st := (ae_st_array & hits).orR
   io.resp.ae.inst := (~px_array & hits).orR
-  //misaligned
+  // misaligned
   io.resp.ma.ld := misaligned && cmd_read
   io.resp.ma.st := misaligned && cmd_write
   io.resp.ma.inst := false // this is up to the pipeline to figure out
@@ -704,11 +704,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     property.cover(cond, s"${if (instruction) "I" else "D"}TLB_$label", "MemorySystem;;" + desc)
   /** Decide which entry to be replaced
-   *
-   *  If there is a invalid entry, replace it with priorityencoder;
-   *  if not, replace the alt entry
-   *
-   * @return mask for TLBEntry replacement */
+    *
+    * If there is a invalid entry, replace it with priorityencoder;
+    * if not, replace the alt entry
+    *
+    * @return mask for TLBEntry replacement */
   def replacementEntry(set: Seq[TLBEntry], alt: UInt) = {
     val valids = set.map(_.valid.orR).asUInt
     Mux(valids.andR, alt, PriorityEncoder(~valids))
