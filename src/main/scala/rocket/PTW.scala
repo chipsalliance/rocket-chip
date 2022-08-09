@@ -242,7 +242,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   withClock (gated_clock) { // entering gated-clock domain
 
   val invalidated = Reg(Bool())
-  /** current PTE level */
+  /** current PTE level
+    * {{{
+    * 0 <= count <= pgLevel-1
+    * count = pgLevel - 1 : leaf PTE
+    * count < pgLevel - 1 : non-leaf PTE
+    * }}}
+    */
   val count = Reg(UInt(width = log2Ceil(pgLevels)))
   val resp_ae_ptw = Reg(Bool())
   val resp_ae_final = Reg(Bool())
