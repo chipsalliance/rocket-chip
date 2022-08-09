@@ -18,7 +18,7 @@ import scala.collection.mutable.ListBuffer
 
 /** PTE request from TLB to PTW
   *
-  * TLB send a PTE request to PTW when TLB miss and it needs a page table walk
+  * TLB send a PTE request to PTW when L1TLB miss
   */
 class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val addr = UInt(width = vpnBits)
@@ -27,12 +27,14 @@ class PTWReq(implicit p: Parameters) extends CoreBundle()(p) {
   val stage2 = Bool()
 }
 
-/** PTE info from PTW to TLB
+/** PTE info from L2TLB to TLB
   *
   * containing: target PTE, exceptions, two-satge tanslation info
   */
 class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
+  /** ptw access exception */
   val ae_ptw = Bool()
+  /** final access exception */
   val ae_final = Bool()
   /** page fault */
   val pf = Bool()
@@ -49,10 +51,15 @@ class PTWResp(implicit p: Parameters) extends CoreBundle()(p) {
     * source: L2TLB
     */
   val pte = new PTE
+  // todo
   val level = UInt(width = log2Ceil(pgLevels))
+  /** fragmented_superpage support */
   val fragmented_superpage = Bool()
+  /** homogeneous for both pma and pmp  */
   val homogeneous = Bool()
+  // todo
   val gpa = Valid(UInt(vaddrBits.W))
+  // todo
   val gpa_is_pte = Bool()
 }
 
@@ -84,7 +91,7 @@ class PTWPerfEvents extends Bundle {
   val pte_hit = Bool()
 }
 
-/** IO between PTW and Core
+/** Datapath IO between PTW and Core
   *
   * PTW receives CSRs info, pmp checks, sfence instruction info
   *
@@ -102,6 +109,7 @@ class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val pmp = Vec(nPMPs, new PMP).asInput
   val perf = new PTWPerfEvents().asOutput
   val customCSRs = coreParams.customCSRs.asInput
+  // todo
   val clock_enabled = Bool(OUTPUT)
 }
 /** Page table entry
@@ -111,23 +119,37 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val reserved_for_future = UInt(width = 10)
   val ppn = UInt(width = 44)
   val reserved_for_software = Bits(width = 2)
+  /** dirty bit */
   val d = Bool()
+  /** access bit */
   val a = Bool()
+  /** global mapping */
   val g = Bool()
+  /** user mode accessible */
   val u = Bool()
+  /** whether the page is executable */
   val x = Bool()
+  /** whether the page is writable */
   val w = Bool()
+  /** whether the page is readable */
   val r = Bool()
+  /** valid bit */
   val v = Bool()
   /** return true if find a pointer to next level page table */
   def table(dummy: Int = 0) = v && !r && !w && !x && !d && !a && !u && reserved_for_future === 0
   /** return true if find a leaf PTE */
   def leaf(dummy: Int = 0) = v && (r || (x && !w)) && a
+  /** user read */
   def ur(dummy: Int = 0) = sr() && u
+  /** user write*/
   def uw(dummy: Int = 0) = sw() && u
+  /** user execute */
   def ux(dummy: Int = 0) = sx() && u
+  /** supervisor read */
   def sr(dummy: Int = 0) = leaf() && r
+  /** supervisor write */
   def sw(dummy: Int = 0) = leaf() && w && d
+  /** supervisor execute */
   def sx(dummy: Int = 0) = leaf() && x
   def isFullPerm(dummy: Int = 0) = uw() && ux()
 }
@@ -138,26 +160,32 @@ class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
   val tagBits = maxSVAddrBits - pgIdxBits - idxBits + (if (usingHypervisor) 1 else 0)
   val tag = UInt(width = tagBits)
   val ppn = UInt(width = ppnBits)
+  /** dirty bit */
   val d = Bool()
+  /** access bit */
   val a = Bool()
+  /** user mode accessible */
   val u = Bool()
+  /** whether the page is executable */
   val x = Bool()
+  /** whether the page is writable */
   val w = Bool()
+  /** whether the page is readable */
   val r = Bool()
 
 }
 /** PTW contains L2TLB, the PTW performs page table walk for high level TLB, and cache queries from L1 TLBs(I$, D$, RoCC)
   * It perform hierarchy page table query to mem for the desired leaf PTE and cache them in l2tlb.
-  * Besides leaf PTEs,it also caches not-leaf PTEs in pte_cache to accerlerate the process
+  * Besides leaf PTEs,it also caches non-leaf PTEs in pte_cache to accerlerate the process
   *
   * ==Structure==
   *  - l2tlb : for leaf PTEs(configurable with [[CoreParams.nL2TLBEntries]]and [[CoreParams.nL2TLBWays]]))
   *   - set-associative
   *   - PLRU
-  *  - pte_cache: for not-leaf PTEs
+  *  - pte_cache: for non-leaf PTEs
   *   - set-associative
   *   - LRU
-  *  - s2_pte_cache: for not-leaf PTEs in 2-stage translation
+  *  - s2_pte_cache: for non-leaf PTEs in 2-stage translation
   *   - set-associative
   *   - PLRU
   *
@@ -188,7 +216,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     /** to HellaCache */
     val mem = new HellaCacheIO
     /** to Core
-      * contains CSRs */
+      *
+      * contains CSRs
+      */
     val dpath = new DatapathPTWIO
   }
 
@@ -268,7 +298,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     (res, Mux(do_both_stages && !stage2, (tmp.ppn >> vpnBits) =/= 0, (tmp.ppn >> ppnBits) =/= 0))
   }
-  // find not-leaf PTE, need traverse
+  // find non-leaf PTE, need traverse
   val traverse = pte.table() && !invalid_paddr && count < pgLevels-1
   /** address send to mem for enquerry */
   val pte_addr = if (!usingVM) 0.U else {
@@ -302,7 +332,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   def makeFragmentedSuperpagePPN(ppn: UInt): Seq[UInt] = {
     (pgLevels-1 until 0 by -1).map(i => Cat(ppn >> (pgLevelBits*i), r_req.addr(((pgLevelBits*i) min vpnBits)-1, 0).padTo(pgLevelBits*i)))
   }
-  /** PTECache cache not-leaf PTE
+  /** PTECache cache non-leaf PTE
     * @param s2 true: 2-stage address translation
     */
   def makePTECache(s2: Boolean): (Bool, UInt) = if (coreParams.nPTECacheEntries == 0) {
@@ -325,7 +355,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val hits = tags.map(_ === tag).asUInt & valid
     val hit = hits.orR && can_hit
-    // refill with pte.ppn
+    // refill with mem response
     when (mem_resp_valid && traverse && can_refill && !hits.orR && !invalidated) {
       val r = Mux(valid.andR, plru.way, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
@@ -598,7 +628,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   r_pte := OptimizationBarrier(
     // l2tlb hit->find a leaf PTE(l2_pte), respond to L1TLB
     Mux(l2_hit && !l2_error, l2_pte,
-    // pte cache hit->find a no-leaf PTE(pte_cache),continue to request mem
+    // pte cache hit->find a non-leaf PTE(pte_cache),continue to request mem
     Mux(state === s_req && !stage2_pte_cache_hit && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
     // 2-stage translation
     Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),

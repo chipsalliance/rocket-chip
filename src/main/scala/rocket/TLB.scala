@@ -60,7 +60,7 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   /** memory command. */
   val cmd  = Bits(width = M_SZ)
   val prv = UInt(PRV.SZ.W)
-  /** virtual mode */
+  /** virtualization mode */
   val v = Bool()
 
 }
@@ -77,7 +77,9 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val miss = Bool()
   /** physical address. */
   val paddr = UInt(width = paddrBits)
+  // todo
   val gpa = UInt(vaddrBitsExtended.W)
+  // todo
   val gpa_is_pte = Bool()
   /** page fault exception. */
   val pf = new TLBExceptions
@@ -87,8 +89,11 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val ae = new TLBExceptions
   /** misaligned access exception. */
   val ma = new TLBExceptions
+  /** if this address is cacheable */
   val cacheable = Bool()
+  /** if caches must allocate this address */
   val must_alloc = Bool()
+  /** if this address is prefetchable for caches*/
   val prefetchable = Bool()
 }
 
@@ -127,11 +132,17 @@ class TLBEntryData(implicit p: Parameters) extends CoreBundle()(p) {
   /** prot_r */
   val pr = Bool()
 
-  val ppp = Bool() // PutPartial
-  val pal = Bool() // AMO logical
-  val paa = Bool() // AMO arithmetic
-  val eff = Bool() // get/put effects
+  /** PutPartial */
+  val ppp = Bool()
+  /** AMO logical */
+  val pal = Bool()
+  /** AMO arithmetic */
+  val paa = Bool()
+  /** get/put effects */
+  val eff = Bool()
+  /** cacheable */
   val c = Bool()
+  /** fragmented_superpage support */
   val fragmented_superpage = Bool()
 }
 
@@ -140,14 +151,19 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   require(!superpageOnly || superpage)
 
   val level = UInt(width = log2Ceil(pgLevels))
+  /** use vpn as tag */
   val tag_vpn = UInt(width = vpnBits)
+  /** tag in vitualization mode */
   val tag_v = Bool()
+  /** TLBEntryData */
   val data = Vec(nSectors, UInt(width = new TLBEntryData().getWidth))
+  /** valid bit */
   val valid = Vec(nSectors, Bool())
+  /** @return all TLBEntryData in this entry */
   def entry_data = data.map(_.asTypeOf(new TLBEntryData))
   /** @return Index of sector */
   private def sectorIdx(vpn: UInt) = vpn.extract(nSectors.log2-1, 0)
-  /** @return Selected entry data */
+  /** @return the entry data matched with this vpn*/
   def getData(vpn: UInt) = OptimizationBarrier(data(sectorIdx(vpn)).asTypeOf(new TLBEntryData))
   /** @return Bool indicates sectorHit(in one sector/way)  */
   def sectorHit(vpn: UInt, virtual: Bool) = valid.orR && sectorTagMatch(vpn, virtual)
@@ -226,6 +242,13 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   }
 }
 
+/** TLB config
+  *
+  * @param nSets the number of sets of PTE, follow [[ICacheParams.nSets]]
+  * @param nWays the total number of wayss of PTE, follow [[ICacheParams.nWays]]
+  * @param nSectors the number of ways in a single PTE TLBEntry
+  * @param nSuperpageEntries the number of SuperpageEntries
+  */
 case class TLBConfig(
     nSets: Int,
     nWays: Int,
@@ -235,20 +258,26 @@ case class TLBConfig(
 /** =Overview=
   * [[TLB]] is a TLB template which contains PMA logic and PMP checker.
   *
-  * TLB cache PTE and accelerate the address translation process.
+  * TLB caches PTE and accelerates the address translation process.
   * When tlb miss happens, ask PTW(L2TLB) for Page Table Walk.
   * Perform PMP and PMA check during the translation and throw exception if there were any.
   *  ==Cache Structure==
   *  - Sectored Entry (PTE)
-  *   - set-associative(sector -> way)
-  *   - LRU
+  *   - set-associative or direct-mapped
+  *    - nsets = [[TLBConfig.nSets]]
+  *    - nways = [[TLBConfig.nWays]] / [[TLBConfig.nSectors]]
+  *    - PTEEntry( sectors = [[TLBConfig.nSectors]] )
+  *   - LRU(if set-associative)
   *
   *  - Superpage Entry(superpage PTE)
   *   - fully associative
+  *    - nsets = [[TLBConfig.nSuperpageEntries]]
+  *    - PTEEntry(sectors = 1)
   *   - PseudoLRU
   *
   *  - Special Entry(PTE across PMP)
-  *   - one entry
+  *   - nsets = 1
+  *   - PTEEntry(sectors = 1)
   *
   * ==State Machine==
   * {{{
@@ -278,15 +307,16 @@ case class TLBConfig(
   */
 class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    /** request from CPU. */
+    /** request from Core. */
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
-    /** response to CPU. */
+    /** response to Core. */
     val resp = new TLBResp().asOutput
     /** SFence Input. */
     val sfence = Valid(new SFenceReq).asInput
     /** IO to PTW. */
     val ptw = new TLBPTWIO
-    val kill = Bool(INPUT) // suppress a TLB refill, one cycle after a miss
+    /** suppress a TLB refill, one cycle after a miss. */
+    val kill = Bool(INPUT) //
   }
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
@@ -563,11 +593,13 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   val gpa_hits = {
     val need_gpa_mask = if (instruction) gf_inst_array else gf_ld_array | gf_st_array
+    // todo
     val hit_mask = Fill(ordinary_entries.size, r_gpa_valid && r_gpa_vpn === vpn) | Fill(all_entries.size, !vstage1_en)
     hit_mask | ~need_gpa_mask(all_entries.size-1, 0)
   }
 
   val tlb_hit_if_not_gpa_miss = real_hits.orR
+  //todo
   val tlb_hit = (real_hits & gpa_hits).orR
   // lead to s_request
   val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
