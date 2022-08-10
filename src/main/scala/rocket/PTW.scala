@@ -93,7 +93,7 @@ class PTWPerfEvents extends Bundle {
   *
   * PTW receives CSRs info, pmp checks, sfence instruction info
   *
-  * PTW sends its performance statistic to core
+  * PTW sends its performance statistics to core
   */
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
@@ -216,7 +216,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val mem = new HellaCacheIO
     /** to Core
       *
-      * contains CSRs
+      * contains CSRs info and performance statistics
       */
     val dpath = new DatapathPTWIO
   }

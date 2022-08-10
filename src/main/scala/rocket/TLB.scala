@@ -46,14 +46,14 @@ class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
 
 class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
   /** request address from CPU.
-   * {{{
+    * {{{
     * |vaddr                                                 |
     * |                 ppn/vpn                  | pgIndex   |
     * |                                          |           |
     * |           |nSets             |nSector    |           |}}}
     */
   val vaddr = UInt(width = vaddrBitsExtended)
-  /** don't lookup TLB, bypass vaddr as paddr. */
+  /** don't lookup TLB, bypass vaddr as paddr */
   val passthrough = Bool()
   /** granularity */
   val size = UInt(width = log2Ceil(lgMaxSize + 1))
@@ -75,19 +75,17 @@ class TLBExceptions(implicit p: Parameters) extends CoreBundle()(p) {
 class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   // lookup responses
   val miss = Bool()
-  /** physical address. */
+  /** physical address */
   val paddr = UInt(width = paddrBits)
-  // todo
   val gpa = UInt(vaddrBitsExtended.W)
-  // todo
   val gpa_is_pte = Bool()
-  /** page fault exception. */
+  /** page fault exception */
   val pf = new TLBExceptions
-  /** guest page fault exception. */
+  /** guest page fault exception */
   val gf = new TLBExceptions
-  /** access exception. */
+  /** access exception */
   val ae = new TLBExceptions
-  /** misaligned access exception. */
+  /** misaligned access exception */
   val ma = new TLBExceptions
   /** if this address is cacheable */
   val cacheable = Bool()
@@ -201,8 +199,8 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   }
   /** Refill
     *
-    *  find the target enty with tag
-    *  and replace the target entry with the input EntryData
+    * find the target enty with tag
+    * and replace the target entry with the input EntryData
     */
   def insert(vpn: UInt, virtual: Bool, level: UInt, entry: TLBEntryData): Unit = {
     this.tag_vpn := vpn
@@ -307,15 +305,15 @@ case class TLBConfig(
   */
 class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
   val io = new Bundle {
-    /** request from Core. */
+    /** request from Core */
     val req = Decoupled(new TLBReq(lgMaxSize)).flip
-    /** response to Core. */
+    /** response to Core */
     val resp = new TLBResp().asOutput
-    /** SFence Input. */
+    /** SFence Input */
     val sfence = Valid(new SFenceReq).asInput
-    /** IO to PTW. */
+    /** IO to PTW */
     val ptw = new TLBPTWIO
-    /** suppress a TLB refill, one cycle after a miss. */
+    /** suppress a TLB refill, one cycle after a miss */
     val kill = Bool(INPUT) //
   }
 
@@ -572,7 +570,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(misaligned, eff_array, 0.U) |
     Mux(cmd_lrsc, ~lrscAllowed, 0.U)
 
-  // access exception needs SoC information from PMA.
+  // access exception needs SoC information from PMA
   val ae_ld_array = Mux(cmd_read, ae_array | ~pr_array, 0.U)
   val ae_st_array =
     Mux(cmd_write_perms, ae_array | ~pw_array, 0.U) |
@@ -593,13 +591,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   val gpa_hits = {
     val need_gpa_mask = if (instruction) gf_inst_array else gf_ld_array | gf_st_array
-    // todo
     val hit_mask = Fill(ordinary_entries.size, r_gpa_valid && r_gpa_vpn === vpn) | Fill(all_entries.size, !vstage1_en)
     hit_mask | ~need_gpa_mask(all_entries.size-1, 0)
   }
 
   val tlb_hit_if_not_gpa_miss = real_hits.orR
-  //todo
   val tlb_hit = (real_hits & gpa_hits).orR
   // lead to s_request
   val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
