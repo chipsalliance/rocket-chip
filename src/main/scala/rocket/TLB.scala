@@ -45,13 +45,7 @@ class SFenceReq(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
-  /** request address from CPU.
-    * {{{
-    * |vaddr                                                 |
-    * |                 ppn/vpn                  | pgIndex   |
-    * |                                          |           |
-    * |           |nSets             |nSector    |           |}}}
-    */
+  /** request address from CPU. */
   val vaddr = UInt(width = vaddrBitsExtended)
   /** don't lookup TLB, bypass vaddr as paddr */
   val passthrough = Bool()
@@ -144,6 +138,7 @@ class TLBEntryData(implicit p: Parameters) extends CoreBundle()(p) {
   val fragmented_superpage = Bool()
 }
 
+/** basic cell for TLB data */
 class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boolean)(implicit p: Parameters) extends CoreBundle()(p) {
   require(nSectors == 1 || !superpage)
   require(!superpageOnly || superpage)
@@ -153,21 +148,21 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   val tag_vpn = UInt(width = vpnBits)
   /** tag in vitualization mode */
   val tag_v = Bool()
-  /** TLBEntryData */
+  /** entry data */
   val data = Vec(nSectors, UInt(width = new TLBEntryData().getWidth))
   /** valid bit */
   val valid = Vec(nSectors, Bool())
-  /** @return all TLBEntryData in this entry */
+  /** returns all entry data in this entry */
   def entry_data = data.map(_.asTypeOf(new TLBEntryData))
-  /** @return Index of sector */
+  /** returns the index of sector */
   private def sectorIdx(vpn: UInt) = vpn.extract(nSectors.log2-1, 0)
-  /** @return the entry data matched with this vpn*/
+  /** returns the entry data matched with this vpn*/
   def getData(vpn: UInt) = OptimizationBarrier(data(sectorIdx(vpn)).asTypeOf(new TLBEntryData))
-  /** @return Bool indicates sectorHit(in one sector/way)  */
+  /** returns whether a sector hits */
   def sectorHit(vpn: UInt, virtual: Bool) = valid.orR && sectorTagMatch(vpn, virtual)
-  /** @return Bool indicates tagmatch */
+  /** returns whether tag matches vpn */
   def sectorTagMatch(vpn: UInt, virtual: Bool) = (((tag_vpn ^ vpn) >> nSectors.log2) === 0) && (tag_v === virtual)
-  /** @return Hit signal */
+  /** returns hit signal */
   def hit(vpn: UInt, virtual: Bool): Bool = {
     if (superpage && usingVM) {
       var tagMatch = valid.head && (tag_v === virtual)
@@ -183,7 +178,7 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
       valid(idx) && sectorTagMatch(vpn, virtual)
     }
   }
-  /** @return ppn of the input TLBEntryData */
+  /** returns the ppn of the input TLBEntryData */
   def ppn(vpn: UInt, data: TLBEntryData) = {
     val supervisorVPNBits = pgLevels * pgLevelBits
     if (superpage && usingVM) {
@@ -197,10 +192,10 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
       data.ppn
     }
   }
-  /** Refill
+  /** does the refill
     *
-    * find the target enty with tag
-    * and replace the target entry with the input EntryData
+    * find the target entry with vpn tag
+    * and replace the target entry with the input entry data
     */
   def insert(vpn: UInt, virtual: Bool, level: UInt, entry: TLBEntryData): Unit = {
     this.tag_vpn := vpn
@@ -259,6 +254,7 @@ case class TLBConfig(
   * TLB caches PTE and accelerates the address translation process.
   * When tlb miss happens, ask PTW(L2TLB) for Page Table Walk.
   * Perform PMP and PMA check during the translation and throw exception if there were any.
+  *
   *  ==Cache Structure==
   *  - Sectored Entry (PTE)
   *   - set-associative or direct-mapped
@@ -276,6 +272,13 @@ case class TLBConfig(
   *  - Special Entry(PTE across PMP)
   *   - nsets = 1
   *   - PTEEntry(sectors = 1)
+  *
+  * ==Address structure==
+  * {{{
+  * |vaddr                                                 |
+  * |ppn/vpn                                   | pgIndex   |
+  * |                                          |           |
+  * |           |nSets             |nSector    |           |}}}
   *
   * ==State Machine==
   * {{{
@@ -314,7 +317,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     /** IO to PTW */
     val ptw = new TLBPTWIO
     /** suppress a TLB refill, one cycle after a miss */
-    val kill = Bool(INPUT) //
+    val kill = Bool(INPUT)
   }
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
@@ -423,7 +426,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val prot_x = fastCheck(_.executable) && !deny_access_to_debug && pmp.io.x
   val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
 
-  // Hit check
+  // hit check
   val sector_hits = sectored_entries(memIdx).map(_.sectorHit(vpn, priv_v))
   val superpage_hits = superpage_entries.map(_.hit(vpn, priv_v))
   val hitsVec = all_entries.map(vm_enabled && _.hit(vpn, priv_v))
@@ -597,7 +600,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   val tlb_hit_if_not_gpa_miss = real_hits.orR
   val tlb_hit = (real_hits & gpa_hits).orR
-  // lead to s_request
+  // leads to s_request
   val tlb_miss = vm_enabled && !vsatp_mode_mismatch && !bad_va && !tlb_hit
 
   val sectored_plru = new SetAssocLRU(cfg.nSets, sectored_entries.head.size, "plru")
@@ -731,7 +734,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
 
   def ccover(cond: Bool, label: String, desc: String)(implicit sourceInfo: SourceInfo) =
     property.cover(cond, s"${if (instruction) "I" else "D"}TLB_$label", "MemorySystem;;" + desc)
-  /** Decide which entry to be replaced
+  /** Decides which entry to be replaced
     *
     * If there is a invalid entry, replace it with priorityencoder;
     * if not, replace the alt entry
