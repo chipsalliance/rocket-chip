@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # This file was originally written by Matthew Naylor, University of
 # Cambridge.
@@ -6,15 +6,15 @@
 # This software was partly developed by the University of Cambridge
 # Computer Laboratory under DARPA/AFRL contract FA8750-10-C-0237
 # ("CTSRD"), as part of the DARPA CRASH research programme.
-# 
+#
 # This software was partly developed by the University of Cambridge
 # Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249
 # ("MRC2"), as part of the DARPA MRC research programme.
-# 
+#
 # This software was partly developed by the University of Cambridge
 # Computer Laboratory as part of the Rigorous Engineering of
 # Mainstream Systems (REMS) project, funded by EPSRC grant
-# EP/K008528/1. 
+# EP/K008528/1.
 
 # -------
 # Outline
@@ -27,7 +27,6 @@
 
 import sys
 import re
-import sets
 
 def main():
 
@@ -82,7 +81,7 @@ def main():
     m = re.search(' *([0-9]+) *: *([^ ]*) (.*)', line)
     if m == None: error("Expected: <thread-id> ':' <command>")
     tid, cmd, line = m.group(1), m.group(2), m.group(3)
-  
+
     if cmd == 'fence-req':
       # Parse time
       m = re.search(' *@ *([0-9]+)', line)
@@ -135,7 +134,7 @@ def main():
       # Find corresponding response
       tag = m.group(2)
       if not ((tid, tag) in tagMap) or tagMap[(tid, tag)] == None:
-        error("resp without associated req with tag " + tag + 
+        error("resp without associated req with tag " + tag +
               " on thread " + tid)
       opId = tagMap[(tid, tag)]
       (c, val, addr, start, lr) = ops[opId]
@@ -176,7 +175,7 @@ def main():
         ops[opId] = (op,)
     else:
       error("Unknown command '" + cmd + "'")
-    
+
     lineCount = lineCount+1
 
   # Print statistics
@@ -185,7 +184,7 @@ def main():
     print("# LRSC_Success_Rate=" + scSuccessRate)
     if statsFile != None:
       statsFile.write("LRSC_Success_Rate=" + scSuccessRate + "\n")
-    
+
   if (loadCount > 0):
     loadExtRate = str(loadExtCount/float(loadCount))[0:6]
     print("# Load_External_Rate=" + loadExtRate)
@@ -197,12 +196,12 @@ def main():
 
   # Print address map in comments
   for addr in addrMap:
-    print ("# &M[" + str(addrMap[addr]) + "] == " + addr)
+    print("# &M[" + str(addrMap[addr]) + "] == " + addr)
 
   # Print axe trace
   for op in ops:
     if op != None and isinstance(op, tuple) and len(op) == 1:
-      print op[0]
+      print(op[0])
 
 try:
   main()
