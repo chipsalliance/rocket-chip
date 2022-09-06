@@ -159,10 +159,10 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
     val prioBits = log2Ceil(nPriorities+1)
     val priority =
-      if (nPriorities > 0) Reg(Vec(nDevices, UInt(width=prioBits)))
+      if (nPriorities > 0) Reg(init=Vec.fill(nDevices)(0.U(prioBits.W)))
       else Wire(init=Vec.fill(nDevices max 1)(UInt(1)))
     val threshold =
-      if (nPriorities > 0) Reg(Vec(nHarts, UInt(width=prioBits)))
+      if (nPriorities > 0) Reg(init=Vec.fill(nHarts)(0.U(prioBits.W)))
       else Wire(init=Vec.fill(nHarts)(UInt(0)))
     val pending = Reg(init=Vec.fill(nDevices max 1){Bool(false)})
 
@@ -170,21 +170,21 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val firstEnable = nDevices min 7
     val fullEnables = (nDevices - firstEnable) / 8
     val tailEnable  = nDevices - firstEnable - 8*fullEnables
-    def enableRegs = (Reg(UInt(width = firstEnable)) +:
-                      Seq.fill(fullEnables) { Reg(UInt(width = 8)) }) ++
-                     (if (tailEnable > 0) Some(Reg(UInt(width = tailEnable))) else None)
+    def enableRegs = (Reg(init = 0.U(firstEnable.W)) +:
+                      Seq.fill(fullEnables) { Reg(init = 0.U(8.W)) }) ++
+                     (if (tailEnable > 0) Some(Reg(init = 0.U(tailEnable.W))) else None)
     val enables = Seq.fill(nHarts) { enableRegs }
     val enableVec = Vec(enables.map(x => Cat(x.reverse)))
     val enableVec0 = Vec(enableVec.map(x => Cat(x, UInt(0, width=1))))
     
-    val maxDevs = Reg(Vec(nHarts, UInt(width = log2Ceil(nDevices+1))))
+    val maxDevs = Reg(init = Vec.fill(nHarts)(0.U(log2Ceil(nDevices+1).W)))
     val pendingUInt = Cat(pending.reverse)
     for (hart <- 0 until nHarts) {
       val fanin = Module(new PLICFanIn(nDevices, prioBits))
       fanin.io.prio := priority
       fanin.io.ip   := enableVec(hart) & pendingUInt
       maxDevs(hart) := fanin.io.dev
-      harts(hart)   := ShiftRegister(Reg(next = fanin.io.max) > threshold(hart), params.intStages)
+      harts(hart)   := ShiftRegister(Reg(next = fanin.io.max, init = 0.U) > threshold(hart), params.intStages)
     }
 
     // Priority registers are 32-bit aligned so treat each as its own group.
