@@ -1,19 +1,19 @@
 // See LICENSE.SiFive for license details.
 
 module RoccBlackBox
-  #( parameter xLen,
-     PRV_SZ,
-     coreMaxAddrBits,
-     dcacheReqTagBits,
-     M_SZ,
-     mem_req_bits_size_width,
-     coreDataBits,
-     coreDataBytes,
-     paddrBits,
-     vaddrBitsExtended,
-     FPConstants_RM_SZ,
-     fLen,
-     FPConstants_FLAGS_SZ )
+  #( parameter xLen = 64,
+     PRV_SZ = 2,
+     coreMaxAddrBits = 40,
+     dcacheReqTagBits = 9,
+     M_SZ = 5,
+     mem_req_bits_size_width = 2,
+     coreDataBits = 64,
+     coreDataBytes = 8,
+     paddrBits = 32,
+     vaddrBitsExtended = 40,
+     FPConstants_RM_SZ = 3,
+     fLen = 64,
+     FPConstants_FLAGS_SZ  = 5)
   ( input clock,
     input reset,
     output rocc_cmd_ready,
@@ -164,7 +164,6 @@ module RoccBlackBox
     input [FPConstants_FLAGS_SZ-1:0] rocc_fpu_resp_bits_exc );
 
   assign rocc_cmd_ready = 1'b1;
-  assign rocc_resp_valid = 1'b0;
 
   assign rocc_mem_req_valid = 1'b0;
   assign rocc_mem_s1_kill = 1'b0;
@@ -182,20 +181,22 @@ module RoccBlackBox
   reg [4:0] rocc_cmd_bits_inst_rd_d;
   always @ (posedge clock) begin
     if (reset) begin
-      acc <= 0;
+      acc <= {xLen{1'b0}};
+      doResp <= 1'b0;
+      rocc_cmd_bits_inst_rd_d <= 5'b0;
     end
-    if (rocc_cmd_valid && rocc_cmd_ready) begin
+    else if (rocc_cmd_valid && rocc_cmd_ready) begin
       doResp                  <= rocc_cmd_bits_inst_xd;
       rocc_cmd_bits_inst_rd_d <= rocc_cmd_bits_inst_rd;
       acc                     <= acc + rocc_cmd_bits_rs1 + rocc_cmd_bits_rs2;
     end
     else begin
-      doResp <= 0;
+      doResp <= 1'b0;
     end
   end
 
   assign rocc_resp_valid = doResp;
-  assign rocc_resp_bits_rd = rocc_cmd_bits_inst_rd;
+  assign rocc_resp_bits_rd = rocc_cmd_bits_inst_rd_d;
   assign rocc_resp_bits_data = acc;
 
 endmodule
