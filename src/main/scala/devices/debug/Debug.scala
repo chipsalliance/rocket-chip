@@ -101,7 +101,7 @@ object DebugAbstractCommandType extends scala.Enumeration {
   *  @param hasHartResets Feature to reset all the currently selected harts
   *  @param hasImplicitEbreak There is an additional RO program buffer word containing an ebreak
   *  @param crossingHasSafeReset Include "safe" logic in Async Crossings so that only one side needs to be reset.
-  **/
+  */
 
 case class DebugModuleParams (
   baseAddress : BigInt = BigInt(0),
