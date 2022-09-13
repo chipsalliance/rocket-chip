@@ -231,7 +231,7 @@ object Code {
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class ECCTest(k: Int, timeout: Int = 500000) extends UnitTest(timeout) {

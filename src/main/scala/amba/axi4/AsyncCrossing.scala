@@ -9,6 +9,11 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
 
+/**
+  * Source(Master) side for AXI4 crossing clock domain
+  *
+  * @param sync synchronization stages
+  */
 class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends LazyModule
 {
   def this(x: Int)(implicit p: Parameters) = this(Some(x))
@@ -29,6 +34,11 @@ class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends
   }
 }
 
+/**
+  * Sink(Slave) side for AXI4 crossing clock domain
+  *
+  * @param params async queue params
+  */
 class AXI4AsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4AsyncSinkNode(params)
@@ -86,9 +96,15 @@ class AXI4AsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit 
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
+/**
+  * Unit tests for AXI4RAM with Async Crossing
+  * 
+  * topology: AXI4RAM <-< AXI4CrossingSink <-< AXI4CrossingSource <-<
+  *   TLToAXI4 <-< TLRAMModel <-< TLFuzzer
+  */
 class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
   val model = LazyModule(new TLRAMModel("AsyncCrossing"))
   val fuzz = LazyModule(new TLFuzzer(txns))

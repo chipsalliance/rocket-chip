@@ -3,17 +3,29 @@
 package freechips.rocketchip.util
 
 import chisel3._
+import chisel3.util.{HasBlackBoxResource, HasBlackBoxPath}
 import freechips.rocketchip.config.{Field, Parameters}
 
-case object ClockGateImpl extends Field[() => ClockGate](() => new EICG_wrapper)
+import java.nio.file.{Files, Paths}
 
-abstract class ClockGate extends BlackBox {
+case object ClockGateImpl extends Field[() => ClockGate](() => new EICG_wrapper)
+case object ClockGateModelFile extends Field[Option[String]](None)
+
+abstract class ClockGate extends BlackBox
+  with HasBlackBoxResource with HasBlackBoxPath {
   val io = IO(new Bundle{
     val in = Input(Clock())
     val test_en = Input(Bool())
     val en = Input(Bool())
     val out = Output(Clock())
   })
+
+  def addVerilogResource(vsrc: String): Unit = {
+    if (Files.exists(Paths.get(vsrc)))
+      addPath(vsrc)
+    else
+      addResource(vsrc)
+  }
 }
 
 object ClockGate {
@@ -23,6 +35,8 @@ object ClockGate {
       name: Option[String] = None)(implicit p: Parameters): Clock = {
     val cg = Module(p(ClockGateImpl)())
     name.foreach(cg.suggestName(_))
+    p(ClockGateModelFile).map(cg.addVerilogResource(_))
+
     cg.io.in := in
     cg.io.test_en := false.B
     cg.io.en := en

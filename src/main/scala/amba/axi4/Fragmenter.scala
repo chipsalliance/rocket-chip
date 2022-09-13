@@ -15,6 +15,9 @@ import chisel3.util.UIntToOH
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)
 
+/**
+  * AXI4 fragmenter. It breaks AXI4 burst transfer to single beat transfers.
+  */
 class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 {
   val maxBeats = 1 << AXI4Parameters.lenBits

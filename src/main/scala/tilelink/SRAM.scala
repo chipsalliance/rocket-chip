@@ -331,7 +331,7 @@ object TLRAM
   }
 }
 
-/** Synthesizeable unit testing */
+// Synthesizable unit testing
 import freechips.rocketchip.unittest._
 
 class TLRAMSimple(ramBeatBytes: Int, sramReg: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule {

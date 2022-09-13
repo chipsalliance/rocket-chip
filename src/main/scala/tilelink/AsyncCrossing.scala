@@ -122,7 +122,7 @@ class TLAsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit p:
   }
 }
 
-/** Synthesizeable unit tests */
+// Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
 class TLRAMAsyncCrossing(txns: Int, params: AsynchronousCrossing = AsynchronousCrossing())(implicit p: Parameters) extends LazyModule {

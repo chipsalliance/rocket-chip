@@ -62,7 +62,7 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
   }
 }
 
-/** Synthesizeable unit testing */
+// Synthesizable unit testing
 import freechips.rocketchip.unittest._
 
 class TLRAMZeroDelay(ramBeatBytes: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
