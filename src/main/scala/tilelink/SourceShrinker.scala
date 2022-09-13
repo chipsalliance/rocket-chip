@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -36,12 +37,12 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
       require (!edgeIn.client.anySupportProbe || 
                !edgeOut.manager.anySupportAcquireB)
 
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
+      out.b.ready := true.B
+      out.c.valid := false.B
+      out.e.valid := false.B
+      in.b.valid := false.B
+      in.c.ready := true.B
+      in.e.ready := true.B
 
       if (noShrinkRequired(edgeIn.client)) {
         out.a <> in.a
@@ -49,7 +50,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
       } else {
         // State tracking
         val sourceIdMap = Mem(maxInFlight, in.a.bits.source)
-        val allocated = RegInit(UInt(0, width = maxInFlight))
+        val allocated = RegInit(0.U(maxInFlight.W))
         val nextFreeOH = ~(leftOR(~allocated) << 1) & ~allocated
         val nextFree = OHToUInt(nextFreeOH)
         val full = allocated.andR()
@@ -63,19 +64,19 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         out.a.bits := in.a.bits
         out.a.bits.source := nextFree holdUnless a_first
 
-        val bypass = Bool(edgeOut.manager.minLatency == 0) && in.a.valid && !full && a_first && nextFree === out.d.bits.source
+        val bypass = (edgeOut.manager.minLatency == 0).asBool && in.a.valid && !full && a_first && nextFree === out.d.bits.source
         in.d <> out.d
         in.d.bits.source := Mux(bypass, in.a.bits.source, sourceIdMap(out.d.bits.source))
 
-        when (a_first && in.a.fire()) {
+        when (a_first && in.a.fire) {
           sourceIdMap(nextFree) := in.a.bits.source
         }
 
-        val alloc = a_first && in.a.fire()
-        val free = d_last && in.d.fire()
-        val alloc_id = Mux(alloc, nextFreeOH, UInt(0))
-        val free_id = Mux(free, UIntToOH(out.d.bits.source), UInt(0))
-        allocated := (allocated | alloc_id) & ~free_id
+        val alloc = a_first && in.a.fire
+        val free = d_last && in.d.fire
+        val alloc_id = Mux(alloc, nextFreeOH, 0.U)
+        val free_id = Mux(free, UIntToOH(out.d.bits.source), 0.U)
+        allocated := (allocated | alloc_id) & (~free_id).asUInt
       }
     }
   }

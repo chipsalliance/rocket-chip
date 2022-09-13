@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -14,7 +15,7 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
 
   lazy val module = new LazyModuleImp(this) {
     def feed[T <: Data](sink: DecoupledIO[T], source: DecoupledIO[T], noise: T): Unit = {
-      val allow = UInt((q * 65535.0).toInt) <= LFSRNoiseMaker(16, source.valid)
+      val allow = ((q * 65535.0).toInt).U <= LFSRNoiseMaker(16, source.valid)
       sink.valid := source.valid && allow
       source.ready := sink.ready && allow
       sink.bits := source.bits

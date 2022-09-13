@@ -82,7 +82,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       val d_echo   = RegEnable(a.bits.echo,   enable_d)
 
       when (a_sel)    { a_enable := true.B }
-      when (d.fire()) { a_enable := false.B }
+      when (d.fire) { a_enable := false.B }
 
       out.psel    := a_sel
       out.penable := a_enable

@@ -3,16 +3,11 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.{min,max}
-import chisel3.util.PriorityMux
-import chisel3.util.Cat
-import chisel3.util.FillInterleaved
-import chisel3.util.Mux1H
-import chisel3.util.MuxLookup
-import chisel3.util.log2Up
 
 // Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
@@ -124,7 +119,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val take_max = a_cam_a.bits.param(0)
         val adder = a_cam_a.bits.param(2)
         val mask = a_cam_a.bits.mask
-        val signSel = ~(~mask | (mask >> 1))
+        val signSel = (~((~mask).asUInt | (mask >> 1).asUInt)).asUInt
         val signbits_a = Cat(Seq.tabulate(beatBytes) { i => a_a(8*i+7,8*i+7) } .reverse)
         val signbits_d = Cat(Seq.tabulate(beatBytes) { i => a_d(8*i+7,8*i+7) } .reverse)
         // Move the selected sign bit into the first byte position it will extend
@@ -137,7 +132,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val a_a_ext = (a_a & wide_mask) | signext_a
         val a_d_ext = (a_d & wide_mask) | signext_d
         val a_d_inv = Mux(adder, a_d_ext, ~a_d_ext)
-        val adder_out = a_a_ext + a_d_inv
+        val adder_out = a_a_ext + a_d_inv.asUInt
         val h = 8*beatBytes-1 // now sign-extended; use biggest bit
         val a_bigger_uneq = unsigned === a_a_ext(h) // result if high bits are unequal
         val a_bigger = Mux(a_a_ext(h) === a_d_ext(h), !adder_out(h), a_bigger_uneq)
@@ -177,7 +172,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (0.U, source_c), (edgeOut.numBeats1(in.a.bits), source_i))
 
         // Capture the A state into the CAM
-        when (source_i.fire() && !a_isSupported) {
+        when (source_i.fire && !a_isSupported) {
           (a_cam_sel_free zip cam_a) foreach { case (en, r) =>
             when (en) {
               r.fifoId := a_fifoId
@@ -197,7 +192,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         }
 
         // Advance the put state
-        when (source_c.fire()) {
+        when (source_c.fire) {
           (a_cam_sel_put zip cam_s) foreach { case (en, r) =>
             when (en) {
               r.state := ACK
@@ -219,7 +214,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val d_ackd = out.d.bits.opcode === TLMessages.AccessAckData
         val d_ack  = out.d.bits.opcode === TLMessages.AccessAck
 
-        when (out.d.fire() && d_first) {
+        when (out.d.fire && d_first) {
           (d_cam_sel zip cam_d) foreach { case (en, r) =>
             when (en && d_ackd) {
               r.data := out.d.bits.data
