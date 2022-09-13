@@ -143,7 +143,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   when (io.dmi.req.valid) {
     busyReg := true.B
   }
-  when (io.dmi.resp.fire()) {
+  when (io.dmi.resp.fire) {
     busyReg := false.B
   }
 
@@ -200,7 +200,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   // Drive Ready Valid Interface
 
   val dmiReqValidCheck = WireInit(false.B)
-  assert(!(dmiReqValidCheck && io.dmi.req.fire()), "Conflicting updates for dmiReqValidReg, should not happen.");
+  assert(!(dmiReqValidCheck && io.dmi.req.fire), "Conflicting updates for dmiReqValidReg, should not happen.");
 
   when (dmiAccessChain.io.update.valid) {
     when (stickyBusyReg) {
@@ -217,7 +217,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
     }
   }
 
-  when (io.dmi.req.fire()) {
+  when (io.dmi.req.fire) {
     dmiReqValidReg := false.B
   }
 

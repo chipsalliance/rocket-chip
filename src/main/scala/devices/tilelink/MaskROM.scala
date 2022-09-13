@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation}
@@ -28,22 +29,22 @@ class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
 
     val rom = ROMGenerator(ROMConfig(c.name, c.depth, c.width))
     rom.io.clock := clock
-    rom.io.address := edge.addr_hi(in.a.bits.address - UInt(c.address))(log2Ceil(c.depth)-1, 0)
-    rom.io.oe := Bool(true) // active high tri state enable
-    rom.io.me := in.a.fire()
+    rom.io.address := edge.addr_hi(in.a.bits.address - (c.address).U)(log2Ceil(c.depth)-1, 0)
+    rom.io.oe := true.B // active high tri state enable
+    rom.io.me := in.a.fire
 
-    val d_full = RegInit(Bool(false))
+    val d_full = RegInit(false.B)
     val d_size = Reg(UInt())
     val d_source = Reg(UInt())
-    val d_data = rom.io.q holdUnless RegNext(in.a.fire())
+    val d_data = rom.io.q holdUnless RegNext(in.a.fire)
 
     // Flow control
-    when (in.d.fire()) { d_full := Bool(false) }
-    when (in.a.fire()) { d_full := Bool(true)  }
+    when (in.d.fire) { d_full := false.B }
+    when (in.a.fire) { d_full := true.B  }
     in.d.valid := d_full
     in.a.ready := in.d.ready || !d_full
 
-    when (in.a.fire()) {
+    when (in.a.fire) {
       d_size   := in.a.bits.size
       d_source := in.a.bits.source
     }
@@ -51,9 +52,9 @@ class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
     in.d.bits := edge.AccessAck(d_source, d_size, d_data)
 
     // Tie off unused channels
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(true)
-    in.e.ready := Bool(true)
+    in.b.valid := false.B
+    in.c.ready := true.B
+    in.e.ready := true.B
   }
 }
 
