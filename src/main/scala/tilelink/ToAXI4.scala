@@ -111,6 +111,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val map = new TLtoAXI4IdMap(edgeIn.client)
       val sourceStall = Wire(Vec(edgeIn.client.endSourceId, Bool()))
       val sourceTable = Wire(Vec(edgeIn.client.endSourceId, out.aw.bits.id.cloneType))
+      sourceTable.foreach(_ := out.aw.bits.id)
       val idStall = WireInit(VecInit.fill(edgeOut.master.endId)(false.B))
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
 
