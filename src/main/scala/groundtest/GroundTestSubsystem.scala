@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.groundtest
 
-import Chisel._
-import chisel3.dontTouch
+import chisel3._
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
@@ -30,7 +29,7 @@ class GroundTestSubsystem(implicit p: Parameters)
 }
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
-  val success = IO(Bool(OUTPUT))
+  val success = IO(Output(Bool()))
   val status = dontTouch(DebugCombiner(outer.tileStatusNodes.map(_.bundle)))
   success := outer.tileCeaseSinkNode.in.head._1.asUInt.andR
 }
