@@ -2,11 +2,11 @@
 
 package freechips.rocketchip
 
-import Chisel._
+import chisel3._
 
 package object unittest
 {
   implicit class LazyUnitTestSeq(val seq: Seq[LazyUnitTest]) {
-    def finished = seq.map(_.module.finished).foldLeft(Bool(true))(_ && _)
+    def finished = seq.map(_.module.finished).foldLeft(true.B)(_ && _)
   }
 }
