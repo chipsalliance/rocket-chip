@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.regmapper
 
-import Chisel._
-import chisel3.util.{ReadyValidIO}
+import chisel3._
+import chisel3.util._
 
 import org.json4s.JsonDSL._
 import org.json4s.JsonAST.JValue
@@ -32,14 +32,14 @@ object RegReadFn
   implicit def apply(x: Bool => (Bool, UInt)) =
     new RegReadFn(true, { case (_, oready) =>
       val (ovalid, data) = x(oready)
-      (Bool(true), ovalid, data)
+      (true.B, ovalid, data)
     })
   // read from a ReadyValidIO (only safe if there is a consistent source of data)
   implicit def apply(x: ReadyValidIO[UInt]):RegReadFn = RegReadFn(ready => { x.ready := ready; (x.valid, x.bits) })
   // read from a register
-  implicit def apply(x: UInt):RegReadFn = RegReadFn(ready => (Bool(true), x))
+  implicit def apply(x: UInt):RegReadFn = RegReadFn(ready => (true.B, x))
   // noop
-  implicit def apply(x: Unit):RegReadFn = RegReadFn(UInt(0))
+  implicit def apply(x: Unit):RegReadFn = RegReadFn(0.U)
 }
 
 case class RegWriteFn private(combinational: Boolean, fn: (Bool, Bool, UInt) => (Bool, Bool))
@@ -65,15 +65,15 @@ object RegWriteFn
   implicit def apply(x: (Bool, UInt) => Bool) =
     // combinational => data valid on oready
     new RegWriteFn(true, { case (_, oready, data) =>
-      (Bool(true), x(oready, data))
+      (true.B, x(oready, data))
     })
   // write to a DecoupledIO (only safe if there is a consistent sink draining data)
   // NOTE: this is not an IrrevocableIO (even on TL2) because other fields could cause a lowered valid
   implicit def apply(x: DecoupledIO[UInt]): RegWriteFn = RegWriteFn((valid, data) => { x.valid := valid; x.bits := data; x.ready })
   // updates a register (or adds a mux to a wire)
-  implicit def apply(x: UInt): RegWriteFn = RegWriteFn((valid, data) => { when (valid) { x := data }; Bool(true) })
+  implicit def apply(x: UInt): RegWriteFn = RegWriteFn((valid, data) => { when (valid) { x := data }; true.B })
   // noop
-  implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { Bool(true) })
+  implicit def apply(x: Unit): RegWriteFn = RegWriteFn((valid, data) => { true.B })
 }
 
 case class RegField(width: Int, read: RegReadFn, write: RegWriteFn, desc: Option[RegFieldDesc])
@@ -125,7 +125,7 @@ object RegField
   // and to clear bits when the bus writes bits of value 1.
   // Setting takes priority over clearing.
   def w1ToClear(n: Int, reg: UInt, set: UInt, desc: Option[RegFieldDesc] = None): RegField =
-    RegField(n, reg, RegWriteFn((valid, data) => { reg := ~(~reg | Mux(valid, data, UInt(0))) | set; Bool(true) }),
+    RegField(n, reg, RegWriteFn((valid, data) => { reg := (~((~reg).asUInt | Mux(valid, data, 0.U))).asUInt | set; true.B }),
       desc.map{_.copy(access = RegFieldAccessType.RW, wrType=Some(RegFieldWrType.ONE_TO_CLEAR), volatile = true)})
 
   // This RegField wraps an explicit register
@@ -134,7 +134,7 @@ object RegField
     RegField(n, bb.q, RegWriteFn((valid, data) => {
       bb.en := valid
       bb.d := data
-      Bool(true)
+      true.B
     }), desc)
 
   // Create byte-sized read-write RegFields out of a large UInt register.
@@ -147,16 +147,16 @@ object RegField
     val numFullBytes = reg.getWidth/8
     val numPartialBytes  = if ((reg.getWidth % 8) > 0) 1 else 0
     val numPadBytes = numBytes - numFullBytes - numPartialBytes
-    val pad = reg | UInt(0, width = 8*numBytes)
-    val oldBytes = Vec.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
-    val newBytes = Wire(init = oldBytes)
-    val valids = Wire(init = Vec.fill(numBytes) { Bool(false) })
+    val pad = reg | 0.U( (8*numBytes).W)
+    val oldBytes = VecInit.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
+    val newBytes = WireDefault(oldBytes)
+    val valids = WireDefault(VecInit.fill(numBytes) { false.B })
     when (valids.reduce(_ || _)) { reg := newBytes.asUInt }
 
     def wrFn(i: Int): RegWriteFn = RegWriteFn((valid, data) => {
       valids(i) := valid
       when (valid) {newBytes(i) := data}
-      Bool(true)
+      true.B
     })
 
     val fullBytes = Seq.tabulate(numFullBytes) { i =>
