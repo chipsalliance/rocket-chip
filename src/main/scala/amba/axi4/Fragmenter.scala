@@ -3,14 +3,10 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util.IrrevocableIO
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import chisel3.util.log2Ceil
-import chisel3.util.Mux1H
-import chisel3.util.Queue
-import chisel3.util.UIntToOH
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)
@@ -90,7 +86,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
          *   fill the bits from highest to lowest, and shift right by one bit.
          */
         val fillLow  = rightOR(len) >> 1   // set   all bits in positions <  a set     bit
-        val wipeHigh = ~leftOR(~len)       // clear all bits in position  >= a cleared bit
+        val wipeHigh = ~((~len))       // clear all bits in position  >= a cleared bit
         val remain1  = fillLow | wipeHigh  // MSB(a.len+1)-1
         val align1   = ~leftOR(alignment)  // transfer size limited by address alignment
         val maxSupported1 = remain1 & align1 & support1 // Take the minimum of all the limits
@@ -128,7 +124,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
         // offset cannot cause a premature wrap-around.
         out.bits.addr := ~(~addr | UIntToOH1(a.bits.size, lgBytes))
 
-        when (out.fire()) {
+        when (out.fire) {
           busy := !last
           r_addr := mux_addr
           r_len  := len - beats
@@ -158,7 +154,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       val wbeats_ready = Wire(Bool())
       val wbeats_valid = Wire(Bool())
       when (wbeats_valid && wbeats_ready) { wbeats_latched := true.B }
-      when (out.aw.fire()) { wbeats_latched := false.B }
+      when (out.aw.fire) { wbeats_latched := false.B }
 
       // AW flow control
       out.aw.valid := in_aw.valid && (wbeats_ready || wbeats_latched)
@@ -172,8 +168,8 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       val w_idle = w_counter === 0.U
       val w_todo = Mux(w_idle, Mux(wbeats_valid, w_beats, 0.U), w_counter)
       val w_last = w_todo === 1.U
-      w_counter := w_todo - out.w.fire()
-      assert (!out.w.fire() || w_todo =/= 0.U) // underflow impossible
+      w_counter := w_todo - out.w.fire
+      assert (!out.w.fire || w_todo =/= 0.U) // underflow impossible
 
       // W flow control
       wbeats_ready := w_idle
@@ -199,7 +195,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       val error = RegInit(VecInit.fill(edgeIn.master.endId)(0.U(AXI4Parameters.respBits.W)))
       in.b.bits.resp := out.b.bits.resp | error(out.b.bits.id)
       (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).asBools) foreach { case (reg, sel) =>
-        when (sel && out.b.fire()) { reg := Mux(b_last, 0.U, reg | out.b.bits.resp) }
+        when (sel && out.b.fire) { reg := Mux(b_last, 0.U, reg | out.b.bits.resp) }
       }
     }
   }

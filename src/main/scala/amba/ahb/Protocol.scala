@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
+import chisel3._
 
 object AHBParameters
 {
@@ -14,31 +14,31 @@ object AHBParameters
   val userBits  = 3
   val hrespBits = 2  // AHB full
 
-  def TRANS_IDLE   = UInt(0, width = transBits) // No transfer requested, not in a burst
-  def TRANS_BUSY   = UInt(1, width = transBits) // No transfer requested, in a burst
-  def TRANS_NONSEQ = UInt(2, width = transBits) // First (potentially only) request in a burst
-  def TRANS_SEQ    = UInt(3, width = transBits) // Following requests in a burst
+  def TRANS_IDLE   = 0.U(transBits.W) // No transfer requested, not in a burst
+  def TRANS_BUSY   = 1.U(transBits.W) // No transfer requested, in a burst
+  def TRANS_NONSEQ = 2.U(transBits.W) // First (potentially only) request in a burst
+  def TRANS_SEQ    = 3.U(transBits.W) // Following requests in a burst
 
-  def BURST_SINGLE = UInt(0, width = burstBits) // Single access (no burst)
-  def BURST_INCR   = UInt(1, width = burstBits) // Incrementing burst of arbitrary length, not crossing 1KB
-  def BURST_WRAP4  = UInt(2, width = burstBits) // 4-beat wrapping burst
-  def BURST_INCR4  = UInt(3, width = burstBits) // 4-beat incrementing burst
-  def BURST_WRAP8  = UInt(4, width = burstBits) // 8-beat wrapping burst
-  def BURST_INCR8  = UInt(5, width = burstBits) // 8-beat incrementing burst
-  def BURST_WRAP16 = UInt(6, width = burstBits) // 16-beat wrapping burst
-  def BURST_INCR16 = UInt(7, width = burstBits) // 16-beat incrementing burst
+  def BURST_SINGLE = 0.U(burstBits.W) // Single access (no burst)
+  def BURST_INCR   = 1.U(burstBits.W) // Incrementing burst of arbitrary length, not crossing 1KB
+  def BURST_WRAP4  = 2.U(burstBits.W) // 4-beat wrapping burst
+  def BURST_INCR4  = 3.U(burstBits.W) // 4-beat incrementing burst
+  def BURST_WRAP8  = 4.U(burstBits.W) // 8-beat wrapping burst
+  def BURST_INCR8  = 5.U(burstBits.W) // 8-beat incrementing burst
+  def BURST_WRAP16 = 6.U(burstBits.W) // 16-beat wrapping burst
+  def BURST_INCR16 = 7.U(burstBits.W) // 16-beat incrementing burst
 
   val maxTransfer = 16
 
-  def RESP_OKAY  = UInt(0, width=2)
-  def RESP_ERROR = UInt(1, width=2)
+  def RESP_OKAY  = 0.U(2.W)
+  def RESP_ERROR = 1.U(2.W)
   // Only in AHB-Full:
-  def RESP_RETRY = UInt(2, width=2)
-  def RESP_SPLIT = UInt(3, width=2)
+  def RESP_RETRY = 2.U(2.W)
+  def RESP_SPLIT = 3.U(2.W)
 
-  def PROT_DATA        = UInt(1, width = protBits)
-  def PROT_PRIVILEGED  = UInt(2, width = protBits)
-  def PROT_BUFFERABLE  = UInt(4, width = protBits)
-  def PROT_CACHEABLE   = UInt(8, width = protBits)
-  def PROT_DEFAULT = PROT_DATA | PROT_PRIVILEGED
+  def PROT_DATA        = 1.U(protBits.W)
+  def PROT_PRIVILEDGED = 2.U(protBits.W)
+  def PROT_BUFFERABLE  = 4.U(protBits.W)
+  def PROT_CACHEABLE   = 8.U(protBits.W)
+  def PROT_DEFAULT = PROT_DATA | PROT_PRIVILEDGED
 }

@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._

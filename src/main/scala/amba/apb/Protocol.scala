@@ -2,15 +2,15 @@
 
 package freechips.rocketchip.amba.apb
 
-import Chisel._
+import chisel3._
 
 object APBParameters
 {
   // These are all fixed by the AHB standard:
   val protBits  = 3
 
-  def PROT_PRIVILEGED  = UInt(1, width = protBits)
-  def PROT_NONSECURE   = UInt(2, width = protBits)
-  def PROT_INSTRUCTION = UInt(4, width = protBits)
-  def PROT_DEFAULT = PROT_PRIVILEGED
+  def PROT_PRIVILEDGED = 1.U(protBits.W)
+  def PROT_NONSECURE   = 2.U(protBits.W)
+  def PROT_INSTRUCTION = 4.U(protBits.W)
+  def PROT_DEFAULT = PROT_PRIVILEDGED
 }
