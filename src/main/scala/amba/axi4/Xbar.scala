@@ -98,8 +98,8 @@ class AXI4Xbar(
       if (io_out.size > 1) {
         // Block A[RW] if we switch ports, to ensure responses stay ordered (also: beware the dining philosophers)
         val endId = edgesIn(i).master.endId
-        val arFIFOMap = WireInit(VecInit.fill(endId) { true.B })
-        val awFIFOMap = WireInit(VecInit.fill(endId) { true.B })
+        val arFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
+        val awFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
         val arSel = UIntToOH(io_in(i).ar.bits.id, endId)
         val awSel = UIntToOH(io_in(i).aw.bits.id, endId)
         val rSel  = UIntToOH(io_in(i).r .bits.id, endId)
@@ -230,7 +230,7 @@ object AXI4Xbar
 
   // Replicate an input port to each output port
   def fanout[T <: AXI4BundleBase](input: IrrevocableIO[T], select: Seq[Bool]) = {
-    val filtered = Wire(Vec(select.size, input))
+    val filtered = WireDefault(VecInit.fill(select.size)(input))
     for (i <- 0 until select.size) {
       filtered(i).bits :<= input.bits
       filtered(i).valid := input.valid && select(i)

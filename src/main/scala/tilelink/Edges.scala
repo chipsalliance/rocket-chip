@@ -273,17 +273,17 @@ class TLEdge(
 
   // Does the request need T permissions to be executed?
   def needT(a: TLBundleA): Bool = {
-    val acq_needT = MuxLookup(a.param, Wire(Bool()), Array(
+    val acq_needT = MuxLookup(a.param, WireDefault(false.B), Array(
       TLPermissions.NtoB -> false.B,
       TLPermissions.NtoT -> true.B,
       TLPermissions.BtoT -> true.B))
-    MuxLookup(a.opcode, Wire(Bool()), Array(
+    MuxLookup(a.opcode, WireDefault(false.B), Array(
       TLMessages.PutFullData    -> true.B,
       TLMessages.PutPartialData -> true.B,
       TLMessages.ArithmeticData -> true.B,
       TLMessages.LogicalData    -> true.B,
       TLMessages.Get            -> false.B,
-      TLMessages.Hint           -> MuxLookup(a.param, Wire(Bool()), Array(
+      TLMessages.Hint           -> MuxLookup(a.param, WireDefault(false.B), Array(
         TLHints.PREFETCH_READ   -> false.B,
         TLHints.PREFETCH_WRITE  -> true.B)),
       TLMessages.AcquireBlock   -> acq_needT,
@@ -446,6 +446,7 @@ class TLEdgeOut(
     require (manager.anySupportGet, s"TileLink: No managers visible from this edge support Gets, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsGetFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
+    a := 0.U.asTypeOf(a)
     a.opcode  := TLMessages.Get
     a.param   := 0.U
     a.size    := lgSize
@@ -464,6 +465,7 @@ class TLEdgeOut(
     require (manager.anySupportPutFull, s"TileLink: No managers visible from this edge support Puts, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsPutFullFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
+    a := 0.U.asTypeOf(a)
     a.opcode  := TLMessages.PutFullData
     a.param   := 0.U
     a.size    := lgSize
@@ -482,6 +484,7 @@ class TLEdgeOut(
     require (manager.anySupportPutPartial, s"TileLink: No managers visible from this edge support masked Puts, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsPutPartialFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
+    a := 1.U.asTypeOf(a)
     a.opcode  := TLMessages.PutPartialData
     a.param   := 0.U
     a.size    := lgSize
