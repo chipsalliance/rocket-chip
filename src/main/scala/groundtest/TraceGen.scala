@@ -20,7 +20,7 @@
 package freechips.rocketchip.groundtest
  
 import chisel3._
-import chisel3.util._
+import chisel3.util.{log2Up, MuxLookup, Cat, log2Ceil, Enum}
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.diplomacy.{ClockCrossingType}
 import freechips.rocketchip.rocket._
@@ -159,7 +159,7 @@ case class TraceGenTileAttachParams(
 //  back.
 
 class TagMan(val logNumTags : Int) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     // Is there a tag available?
     val available = Output(Bool())
     // If so, which one?
@@ -170,7 +170,7 @@ class TagMan(val logNumTags : Int) extends Module {
     val put       = Input(Bool())
     // And the tag put back is
     val tagIn     = Input(UInt((logNumTags.W)))
-  }
+  })
 
   // Total number of tags available
   val numTags = 1 << logNumTags
@@ -210,13 +210,13 @@ class TagMan(val logNumTags : Int) extends Module {
 
 class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) extends Module
     with HasTraceGenParams {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val finished = Output(Bool())
     val timeout = Output(Bool())
     val mem = new HellaCacheIO
     val hartid = Input(UInt(log2Up(numGens).W))
     val fence_rdy = Input(Bool())
-  }
+  })
 
   val totalNumAddrs = addressBag.size + numExtraAddrs
   val initCount = RegInit(0.U(log2Up(totalNumAddrs).W))
