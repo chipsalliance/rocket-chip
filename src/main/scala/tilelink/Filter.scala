@@ -155,6 +155,11 @@ object TLFilter
     if (c.supports.probe) Some(c) else None
   }
 
+  // removes resources from managers
+  def mResourceRemover: ManagerFilter = { m =>
+    Some(m.v2copy(resources=Nil))
+  }
+
   // default application applies neither type of filter unless overridden
   def apply(
     mfilter: ManagerFilter = TLFilter.mIdentity,

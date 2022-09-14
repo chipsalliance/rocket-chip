@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.subsystem
 
+import chisel3._
+
 import freechips.rocketchip.config.Field
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -19,7 +21,8 @@ case class MasterPortParams(
 
 /** Specifies the width of external slave ports */
 case class SlavePortParams(beatBytes: Int, idBits: Int, sourceBits: Int)
-case class MemoryPortParams(master: MasterPortParams, nMemoryChannels: Int)
+// if incohBase is set, creates an incoherent alias for the region that hangs off the sbus
+case class MemoryPortParams(master: MasterPortParams, nMemoryChannels: Int, incohBase: Option[BigInt] = None)
 
 case object ExtMem extends Field[Option[MemoryPortParams]](None)
 case object ExtBus extends Field[Option[MasterPortParams]](None)
@@ -33,7 +36,8 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
   private val portName = "axi4"
   private val device = new MemoryDevice
   private val idBits = memPortParamsOpt.map(_.master.idBits).getOrElse(1)
-  val memAXI4Node = AXI4SlaveNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels) =>
+
+  val memAXI4Node = AXI4SlaveNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels, _) =>
     Seq.tabulate(nMemoryChannels) { channel =>
       val base = AddressSet.misaligned(memPortParams.base, memPortParams.size)
       val filter = AddressSet(channel * mbus.blockBytes, ~((nMemoryChannels-1) * mbus.blockBytes))
@@ -51,13 +55,44 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
     }
   }).toList.flatten)
 
-  mbus.coupleTo(s"memory_controller_port_named_$portName") {
-    (memAXI4Node
-      :*= AXI4UserYanker()
-      :*= AXI4IdIndexer(idBits)
-      :*= TLToAXI4()
-      :*= TLWidthWidget(mbus.beatBytes)
-      :*= _)
+  for (i <- 0 until memAXI4Node.portParams.size) {
+    val mem_bypass_xbar = mbus { TLXbar() }
+
+    // Create an incoherent alias for the AXI4 memory
+    memPortParamsOpt.foreach(memPortParams => {
+      memPortParams.incohBase.foreach(incohBase => {
+        val cohRegion = AddressSet(0, incohBase-1)
+        val incohRegion = AddressSet(incohBase, incohBase-1)
+        val replicator = sbus {
+          val replicator = LazyModule(new RegionReplicator(ReplicatedRegion(cohRegion, cohRegion.widen(incohBase))))
+          val prefixSource = BundleBridgeSource[UInt](() => UInt(1.W))
+          replicator.prefix := prefixSource
+          // prefix is unused for TL uncached, so this is ok
+          InModuleBody { prefixSource.bundle := 0.U(1.W) }
+          replicator
+        }
+        sbus.coupleTo(s"memory_controller_bypass_port_named_$portName") {
+          (mbus.crossIn(mem_bypass_xbar)(ValName("bus_xing"))(p(SbusToMbusXTypeKey))
+            := TLWidthWidget(sbus.beatBytes)
+            := replicator.node
+            := TLFilter(TLFilter.mSubtract(cohRegion))
+            := TLFilter(TLFilter.mResourceRemover)
+            := _
+          )
+        }
+      })
+    })
+
+    mbus.coupleTo(s"memory_controller_port_named_$portName") {
+      (memAXI4Node
+        := AXI4UserYanker()
+        := AXI4IdIndexer(idBits)
+        := TLToAXI4()
+        := TLWidthWidget(mbus.beatBytes)
+        := mem_bypass_xbar
+        := _
+      )
+    }
   }
 
   val mem_axi4 = InModuleBody { memAXI4Node.makeIOs() }
