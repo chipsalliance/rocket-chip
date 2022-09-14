@@ -62,7 +62,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         // Fortunately, no masters we know of behave this way!
 
         // Take requests from A to A or D (if BtoT Acquire)
-        val a_a = Wire(out.a)
+        val a_a = (out.a)
         val a_d = Wire(in.d)
         val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
         val toD = (in.a.bits.opcode === AcquireBlock && in.a.bits.param === TLPermissions.BtoT) ||
