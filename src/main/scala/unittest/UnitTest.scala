@@ -37,9 +37,9 @@ abstract class UnitTest(val timeout: Int = 4096) extends Module with UnitTestLeg
 case object UnitTests extends Field[Parameters => Seq[UnitTest]]
 
 class UnitTestSuite(implicit p: Parameters) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val finished = Output(Bool())
-  }
+  })
 
   val tests = p(UnitTests)(p)
 

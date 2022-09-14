@@ -6,6 +6,6 @@ import chisel3._
 import freechips.rocketchip.config.Parameters
 
 class TestHarness(implicit val p: Parameters) extends Module {
-  val io = new Bundle { val success = Output(Bool()) }
+  val io = IO(new Bundle { val success = Output(Bool()) })
   io.success := Module(new UnitTestSuite).io.finished
 }
