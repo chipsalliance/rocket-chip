@@ -3,7 +3,7 @@
 package freechips.rocketchip.regmapper
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{DecoupledIO, ReadyValidIO}
 
 import org.json4s.JsonDSL._
 import org.json4s.JsonAST.JValue
@@ -125,7 +125,7 @@ object RegField
   // and to clear bits when the bus writes bits of value 1.
   // Setting takes priority over clearing.
   def w1ToClear(n: Int, reg: UInt, set: UInt, desc: Option[RegFieldDesc] = None): RegField =
-    RegField(n, reg, RegWriteFn((valid, data) => { reg := (~((~reg).asUInt | Mux(valid, data, 0.U))).asUInt | set; true.B }),
+    RegField(n, reg, RegWriteFn((valid, data) => { reg := (~((~reg) | Mux(valid, data, 0.U))) | set; true.B }),
       desc.map{_.copy(access = RegFieldAccessType.RW, wrType=Some(RegFieldWrType.ONE_TO_CLEAR), volatile = true)})
 
   // This RegField wraps an explicit register

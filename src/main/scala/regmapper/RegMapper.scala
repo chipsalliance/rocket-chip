@@ -4,7 +4,7 @@ package freechips.rocketchip.regmapper
 
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.util._
+import chisel3.util.{DecoupledIO, Decoupled, Queue, Cat, FillInterleaved, UIntToOH}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
@@ -86,8 +86,8 @@ object RegMapper
     def regIndexU(x: UInt) = if (maskBits == 0) 0.U else
       Cat((maskFilter zip x.asBools).filter(_._1).map(_._2).reverse)
 
-    val findex = (front.bits.index & maskMatch.asUInt).asUInt
-    val bindex = (back .bits.index & maskMatch.asUInt).asUInt
+    val findex = front.bits.index & maskMatch
+    val bindex = back .bits.index & maskMatch
 
     // Protection flag for undefined registers
     val iRightReg = Array.fill(regSize) { true.B }

@@ -3,13 +3,13 @@
 package freechips.rocketchip.regmapper
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Decoupled, Irrevocable}
 
 import freechips.rocketchip.util.{AsyncQueue,AsyncQueueParams,AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val bypass                  = Input(Bool())
     val master_request_valid    = Input(Bool())
     val master_request_ready    = Output(Bool())
@@ -18,7 +18,7 @@ class BusyRegisterCrossing extends Module {
     val crossing_request_valid  = Output(Bool())
     val crossing_request_ready  = Input(Bool())
     // ... no crossing_response_ready; we are always ready
-  }
+  })
 
   val busy   = RegInit(false.B)
   val bypass = Reg(Bool())
@@ -37,10 +37,10 @@ class BusyRegisterCrossing extends Module {
 }
 
 class RegisterCrossingAssertion extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val master_bypass = Input(Bool())
     val slave_reset = Input(Bool())
-  }
+  })
 
   val up = RegInit(false.B)
   up := !io.slave_reset
@@ -90,7 +90,7 @@ class RegisterWriteCrossingIO[T <: Data](gen: T) extends Bundle {
 }
 
 class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
-  val io = new RegisterWriteCrossingIO(gen)
+  val io = IO(new RegisterWriteCrossingIO(gen))
   // The crossing must only allow one item inflight at a time
   val control = Module(new BusyRegisterCrossing)
   val crossing = Module(new AsyncQueue(gen, AsyncQueueParams.singleton(sync)))
@@ -144,7 +144,7 @@ class RegisterReadCrossingIO[T <: Data](gen: T) extends Bundle {
 }
 
 class RegisterReadCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
-  val io = new RegisterReadCrossingIO(gen)
+  val io = IO(new RegisterReadCrossingIO(gen))
   // The crossing must only allow one item inflight at a time
   val control = Module(new BusyRegisterCrossing)
   val crossing = Module(new AsyncQueue(gen, AsyncQueueParams.singleton(sync)))

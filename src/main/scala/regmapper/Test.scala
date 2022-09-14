@@ -3,7 +3,7 @@
 package freechips.rocketchip.regmapper
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Cat, log2Ceil}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.LazyModuleImp
 import freechips.rocketchip.util.{Pow2ClockDivider}
@@ -21,14 +21,14 @@ object LFSR16Seed
 
 class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => Bool) extends Module
 {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val rvalid = Output(Bool())
     val rready = Input(Bool())
     val rdata  = Output(UInt(bits.W))
     val wvalid = Input(Bool())
     val wready = Output(Bool())
     val wdata  = Input(UInt(bits.W))
-  }
+  })
 
   val reg = RegInit(0.U(bits.W))
 
@@ -71,7 +71,7 @@ class RRTestRequest(val bits: Int,
   rflow: (Bool, Bool, UInt) => (Bool, Bool, UInt),
   wflow: (Bool, Bool, UInt) => (Bool, Bool, UInt)) extends Module
 {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val rivalid = Input(Bool())
     val riready = Output(Bool())
     val rovalid = Output(Bool())
@@ -82,7 +82,7 @@ class RRTestRequest(val bits: Int,
     val wovalid = Output(Bool())
     val woready = Input(Bool())
     val wdata  = Input(UInt(bits.W))
-  }
+  })
 
   val (riready, rovalid, _)     = rflow(io.rivalid, io.roready, 0.U(1.W))
   val (wiready, wovalid, wdata) = wflow(io.wivalid, io.woready, io.wdata)
