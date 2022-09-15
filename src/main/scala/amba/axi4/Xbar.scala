@@ -123,7 +123,7 @@ class AXI4Xbar(
               when (req_fire) { last := port }
               // No need to track where it went if we cap it at 1 request
               val portMatch = if (flight == 1) { true.B } else { last === port }
-              (count === 0.U || portMatch) && ((!canOverflow).asBool || count =/= flight.U)
+              (count === 0.U || portMatch) && ((!canOverflow).B || count =/= flight.U)
             }
           }
 
@@ -183,7 +183,7 @@ class AXI4Xbar(
         out(i).w.ready := io_out(i).w.ready && awOut(i).io.deq.valid
         awOut(i).io.deq.ready := out(i).w.valid && out(i).w.bits.last && io_out(i).w.ready
       } else {
-        awOut(i).io := DontCare
+        awOut(i).io := DontCare // aw out queue is not used when outsize == 1
       }
     }
 

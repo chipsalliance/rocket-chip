@@ -9,8 +9,8 @@ object APBParameters
   // These are all fixed by the AHB standard:
   val protBits  = 3
 
-  def PROT_PRIVILEDGED = 1.U(protBits.W)
+  def PROT_PRIVILEGED = 1.U(protBits.W)
   def PROT_NONSECURE   = 2.U(protBits.W)
   def PROT_INSTRUCTION = 4.U(protBits.W)
-  def PROT_DEFAULT = PROT_PRIVILEDGED
+  def PROT_DEFAULT = PROT_PRIVILEGED
 }

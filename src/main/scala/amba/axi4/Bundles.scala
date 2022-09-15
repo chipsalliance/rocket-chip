@@ -98,29 +98,6 @@ class AXI4Bundle(params: AXI4BundleParameters) extends AXI4BundleBase(params)
   val b  = Flipped(Irrevocable(new AXI4BundleB (params)))
   val ar = Irrevocable(new AXI4BundleAR(params))
   val r  = Flipped(Irrevocable(new AXI4BundleR (params)))
-
-//  def tieoff(): Unit = {
-//    ar.ready.dir match {
-//      case INPUT =>
-//        ar.ready := false.B
-//        aw.ready := false.B
-//        w.ready  := false.B
-//        r.valid  := false.B
-//        r.bits   := DontCare
-//        b.valid  := false.B
-//        b.bits   := DontCare
-//      case OUTPUT =>
-//        ar.valid := false.B
-//        ar.bits  := DontCare
-//        aw.valid := false.B
-//        aw.bits  := DontCare
-//        w.valid  := false.B
-//        w.bits   := DontCare
-//        r.ready  := false.B
-//        b.ready  := false.B
-//      case _ =>
-//    }
-//  }
 }
 
 object AXI4Bundle

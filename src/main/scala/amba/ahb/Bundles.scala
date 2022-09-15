@@ -36,30 +36,6 @@ class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle
   // Split signals
   val hmaster   = if (params.lite) None else Some(Output(UInt(4.W)))
   val hsplit    = if (params.lite) None else Some(Input(UInt(16.W)))
-
-//  def tieoff(): Unit = {
-//    // RFC: https://github.com/chipsalliance/chisel3/issues/668
-//    hrdata.dir match {
-//      case INPUT =>
-//        hreadyout := false.B
-//        hduser    :<= BundleMap()
-//        hresp     := AHBParameters.RESP_OKAY
-//        hrdata    := 0.U
-//      case OUTPUT => 
-//        hmastlock := false.B
-//        hsel      := false.B
-//        hready    := false.B
-//        htrans    := AHBParameters.TRANS_IDLE
-//        hsize     := 0.U
-//        hburst    := AHBParameters.BURST_SINGLE
-//        hwrite    := false.B
-//        hprot     := AHBParameters.PROT_DEFAULT
-//        haddr     := 0.U
-//        hauser    :<= BundleMap()
-//        hwdata    := 0.U
-//      case _ =>
-//    }
-//  }
 }
 
 class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
@@ -94,29 +70,6 @@ class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
   // D-phase response from arbiter to master
   val hresp   = Input(UInt(params.hrespBits.W))
   val hrdata  = Input(UInt(params.dataBits.W))
-
-//  def tieoff(): Unit = {
-//    hrdata.dir match {
-//      case INPUT =>
-//        hgrant.foreach { _ := false.B }
-//        hready    := false.B
-//        hduser    :<= BundleMap()
-//        hresp     := AHBParameters.RESP_OKAY
-//        hrdata    := 0.U
-//      case OUTPUT =>
-//        lock()    := false.B
-//        busreq()  := false.B
-//        htrans    := AHBParameters.TRANS_IDLE
-//        hsize     := 0.U
-//        hburst    := AHBParameters.BURST_SINGLE
-//        hwrite    := false.B
-//        hprot     := AHBParameters.PROT_DEFAULT
-//        haddr     := 0.U
-//        hauser    :<= BundleMap()
-//        hwdata    := 0.U
-//      case _ =>
-//    }
-//  }
 }
 
 object AHBSlaveBundle

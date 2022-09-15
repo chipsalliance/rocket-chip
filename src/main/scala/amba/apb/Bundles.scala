@@ -24,24 +24,6 @@ class APBBundle(val params: APBBundleParameters) extends Bundle
   val pslverr   = Input(Bool())
   val prdata    = Input(UInt(params.dataBits.W))
   val pduser    = BundleMap(params.responseFields)
-
-//  def tieoff(): Unit = {
-//    pready.dir match {
-//      case INPUT =>
-//        pready  := false.B
-//        pslverr := false.B
-//        prdata  := 0.U
-//        pduser :<= BundleMap()
-//      case OUTPUT =>
-//        pwrite  := false.B
-//        paddr   := 0.U
-//        pprot   := APBParameters.PROT_DEFAULT
-//        pwdata  := 0.U
-//        pstrb   := 0.U
-//        pauser :<= BundleMap()
-//      case _ =>
-//    }
-//  }
 }
 
 object APBBundle

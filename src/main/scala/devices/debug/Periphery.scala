@@ -324,7 +324,6 @@ object Debug {
       }
 
       debug.apb.foreach { apb =>
-        //apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
         apb.pready := false.B

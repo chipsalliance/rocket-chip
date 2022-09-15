@@ -94,9 +94,9 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 
       val r_out = WireDefault(out.a)
       val r_size1 = in.ar.bits.bytes1()
-      val r_size = OH1ToUInt(r_size1).asUInt
+      val r_size = OH1ToUInt(r_size1)
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)
-      val r_addr = Mux(r_ok, in.ar.bits.addr, error.asUInt | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
+      val r_addr = Mux(r_ok, in.ar.bits.addr, error.U | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
       val r_count = RegInit(VecInit.fill(numIds) { 0.U(txnCountBits.W) })
       val r_id = if (maxFlight == 1) {
         Cat(in.ar.bits.id, 0.U(1.W))
