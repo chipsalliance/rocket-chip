@@ -122,7 +122,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         }
         if (tlId.size < edgeIn.client.endSourceId) {
           for (i <- tlId.size until edgeIn.client.endSourceId) {
-            sourceTable(i) := DontCare
+            sourceTable(i) := 0.U.asTypeOf(sourceTable(i))
           }
         }
         if (fifo) { idCount(axi4Id.start) = Some(tlId.size) }

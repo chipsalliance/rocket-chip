@@ -62,8 +62,8 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         // Fortunately, no masters we know of behave this way!
 
         // Take requests from A to A or D (if BtoT Acquire)
-        val a_a = (out.a)
-        val a_d = Wire(in.d)
+        val a_a = WireDefault(out.a)
+        val a_d = WireDefault(in.d)
         val isPut = in.a.bits.opcode === PutFullData || in.a.bits.opcode === PutPartialData
         val toD = (in.a.bits.opcode === AcquireBlock && in.a.bits.param === TLPermissions.BtoT) ||
                   (in.a.bits.opcode === AcquirePerm)
@@ -89,7 +89,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
           capPermissions = TLPermissions.toT)
 
         // Take ReleaseData from C to A; Release from C to D
-        val c_a = Wire(out.a)
+        val c_a = WireDefault(out.a)
         c_a.valid := in.c.valid && in.c.bits.opcode === ReleaseData
         c_a.bits := edgeOut.Put(
           fromSource = (in.c.bits.source << 1),
@@ -100,7 +100,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         c_a.bits.user :<= in.c.bits.user
 
         // Releases without Data succeed instantly
-        val c_d = Wire(in.d)
+        val c_d = WireDefault(in.d)
         c_d.valid := in.c.valid && in.c.bits.opcode === Release
         c_d.bits := edgeIn.ReleaseAck(in.c.bits)
 
@@ -119,7 +119,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         pool.io.free.valid := in.e.fire
         pool.io.free.bits  := in.e.bits.sink
 
-        val in_d = Wire(in.d)
+        val in_d = WireDefault(in.d)
         val d_first = edgeOut.first(in_d)
         val d_grant = in_d.bits.opcode === GrantData || in_d.bits.opcode === Grant
         pool.io.alloc.ready := in.d.fire && d_first && d_grant
@@ -129,7 +129,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         in.d.bits.sink := pool.io.alloc.bits holdUnless d_first
 
         // Take responses from D and transform them
-        val d_d = Wire(in.d)
+        val d_d = WireDefault(in.d)
         d_d <> out.d
         d_d.bits.source := out.d.bits.source >> 1
 

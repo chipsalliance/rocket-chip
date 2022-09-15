@@ -118,7 +118,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val d_what = out.d.bits.source(d_high+1, d_high)
       val d_drop = d_what === DROP
       val d_hasData = edgeOut.hasData(out.d.bits)
-      val d_normal = Wire(in.d)
+      val d_normal = in.d
       val (d_first, d_last, _) = edgeIn.firstlast(d_normal)
       val d_trackerOH = VecInit(trackers.map { t => t.need_d && t.source === d_normal.bits.source }).asUInt holdUnless d_first
 
@@ -178,8 +178,8 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
           in.c.bits.param === TLPermissions.BtoB)
       }
 
-      val releaseack = Wire(in.d)
-      val putfull = Wire(out.a)
+      val releaseack = in.d
+      val putfull = out.a
 
       in.c.ready := c_probeack || Mux(c_release, releaseack.ready, putfull.ready)
 
