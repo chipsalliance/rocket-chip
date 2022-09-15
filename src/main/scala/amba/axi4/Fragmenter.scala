@@ -58,7 +58,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
       /* Returns the number of beats to execute and the new address */
       def fragment(a: IrrevocableIO[AXI4BundleA], supportedSizes1: Seq[Int]): (IrrevocableIO[AXI4BundleA], Bool, UInt) = {
-        val out = a
+        val out = WireDefault(a)
 
         val busy   = RegInit(false.B)
         val r_addr = Reg(UInt(a.bits.params.addrBits.W))

@@ -110,7 +110,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       // Construct the source=>ID mapping table
       val map = new TLtoAXI4IdMap(edgeIn.client)
       val sourceStall = WireDefault(VecInit.fill(edgeIn.client.endSourceId)(false.B))
-      val sourceTable = WireDefault(VecInit.fill(edgeIn.client.endSourceId)(out.aw.bits.id))
+      val sourceTable = Wire(Vec(edgeIn.client.endSourceId, chiselTypeOf(out.aw.bits.id)))
       val idStall = WireInit(VecInit.fill(edgeOut.master.endId)(false.B))
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
 
@@ -119,6 +119,11 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
           val id = axi4Id.start + (if (fifo) 0 else i)
           sourceStall(tlId.start + i) := idStall(id)
           sourceTable(tlId.start + i) := id.U
+        }
+        if (tlId.size < edgeIn.client.endSourceId) {
+          for (i <- tlId.size until edgeIn.client.endSourceId) {
+            sourceTable(i) := DontCare
+          }
         }
         if (fifo) { idCount(axi4Id.start) = Some(tlId.size) }
       }

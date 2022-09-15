@@ -146,7 +146,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           Mux(a_cam_a.bits.opcode(0), logic_out, arith_out)
 
         // Potentially mutate the message from inner
-        val source_i = in.a
+        val source_i = WireDefault(in.a)
         val a_allow = !a_cam_busy && (a_isSupported || a_cam_any_free)
         in.a.ready := source_i.ready && a_allow
         source_i.valid := in.a.valid && a_allow
@@ -157,7 +157,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         }
 
         // Potentially take the message from the CAM
-        val source_c = Wire(in.a.cloneType)
+        val source_c = WireDefault(in.a)
         source_c.valid := a_cam_any_put
         source_c.bits := edgeOut.Put(
           fromSource = a_cam_a.bits.source,

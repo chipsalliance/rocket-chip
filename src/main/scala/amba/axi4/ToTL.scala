@@ -92,7 +92,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       require (errorDev.supportsGet.contains(edgeOut.manager.maxTransfer),
         s"Error device supports ${errorDev.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
 
-      val r_out = out.a
+      val r_out = WireDefault(out.a)
       val r_size1 = in.ar.bits.bytes1()
       val r_size = OH1ToUInt(r_size1)
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)

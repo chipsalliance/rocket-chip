@@ -22,7 +22,7 @@ class IDMapGenerator(numIds: Int) extends Module {
   // True indicates that the id is available
   val bitmap = RegInit(((BigInt(1) << numIds) -  1).U(numIds.W))
 
-  val select = ~(leftOR(bitmap) << 1)) & bitmap
+  val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
   io.alloc.valid := bitmap.orR()
 
