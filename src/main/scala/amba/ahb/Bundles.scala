@@ -3,7 +3,6 @@
 package freechips.rocketchip.amba.ahb
 
 import chisel3._
-import chisel3.util._
 import freechips.rocketchip.util._
 
 // Signal directions are from the master's point-of-view

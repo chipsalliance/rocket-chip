@@ -327,6 +327,10 @@ object Debug {
         //apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
+        apb.pready := false.B
+        apb.pslverr := false.B
+        apb.prdata := 0.U
+        apb.pduser := 0.U.asTypeOf(chiselTypeOf(apb.pduser))
         apb.psel := false.B
         apb.penable := false.B
       }
