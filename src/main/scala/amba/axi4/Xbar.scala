@@ -82,7 +82,7 @@ class AXI4Xbar(
     val wide_bundle = AXI4BundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))
 
     // Transform input bundles
-    val in = Wire(Vec(io_in.size, AXI4Bundle(wide_bundle)))
+    val in = Wire(Vec(io_in.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until in.size) {
       in(i) :<> io_in(i)
 
@@ -159,11 +159,13 @@ class AXI4Xbar(
         in(i).w.valid := io_in(i).w.valid && awIn(i).io.deq.valid // depends on awvalid (but not awready)
         io_in(i).w.ready := in(i).w.ready && awIn(i).io.deq.valid
         awIn(i).io.deq.ready := io_in(i).w.valid && io_in(i).w.bits.last && in(i).w.ready
+      } else {
+        awIn(i).io := DontCare // aw in queue is not used when outsize == 1
       }
     }
 
     // Transform output bundles
-    val out = Wire(Vec(io_out.size, AXI4Bundle(wide_bundle)))
+    val out = Wire(Vec(io_out.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until out.size) {
       io_out(i) :<> out(i)
 
@@ -180,6 +182,8 @@ class AXI4Xbar(
         io_out(i).w.valid := out(i).w.valid && awOut(i).io.deq.valid // depends on awvalid (but not awready)
         out(i).w.ready := io_out(i).w.ready && awOut(i).io.deq.valid
         awOut(i).io.deq.ready := out(i).w.valid && out(i).w.bits.last && io_out(i).w.ready
+      } else {
+        awOut(i).io := DontCare
       }
     }
 
@@ -230,7 +234,7 @@ object AXI4Xbar
 
   // Replicate an input port to each output port
   def fanout[T <: AXI4BundleBase](input: IrrevocableIO[T], select: Seq[Bool]) = {
-    val filtered = Wire(Vec(select.size, input))
+    val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
       filtered(i).bits :<= input.bits
       filtered(i).valid := input.valid && select(i)

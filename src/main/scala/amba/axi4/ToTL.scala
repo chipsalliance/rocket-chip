@@ -92,7 +92,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       require (errorDev.supportsGet.contains(edgeOut.manager.maxTransfer),
         s"Error device supports ${errorDev.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
 
-      val r_out = Wire(out.a)
+      val r_out = WireDefault(out.a)
       val r_size1 = in.ar.bits.bytes1()
       val r_size = OH1ToUInt(r_size1).asUInt
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)
@@ -125,7 +125,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
         when (in.ar.fire && s) { r := r + 1.U }
       }
 
-      val w_out = Wire(out.a)
+      val w_out = WireDefault(out.a)
       val w_size1 = in.aw.bits.bytes1()
       val w_size = OH1ToUInt(w_size1)
       val w_ok = edgeOut.manager.supportsPutPartialSafe(in.aw.bits.addr, w_size)
@@ -163,8 +163,8 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 
       TLArbiter(TLArbiter.roundRobin)(out.a, (0.U, r_out), (in.aw.bits.len, w_out))
 
-      val ok_b  = Wire(in.b)
-      val ok_r  = Wire(in.r)
+      val ok_b  = WireDefault(in.b)
+      val ok_r  = WireDefault(in.r)
 
       val d_resp = Mux(out.d.bits.denied || out.d.bits.corrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
       val d_hasData = edgeOut.hasData(out.d.bits)

@@ -69,8 +69,8 @@ class AXI4RAM(
     val w_full = RegInit(false.B)
     val w_id   = Reg(UInt())
     val w_echo = Reg(BundleMap(in.params.echoFields))
-    val r_sel1 = Reg(r_sel0)
-    val w_sel1 = Reg(w_sel0)
+    val r_sel1 = RegNext(r_sel0)
+    val w_sel1 = RegNext(w_sel0)
 
     when (in. b.fire) { w_full := false.B }
     when (in.aw.fire) { w_full := true.B }
