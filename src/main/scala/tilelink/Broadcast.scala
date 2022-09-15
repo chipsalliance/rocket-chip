@@ -159,7 +159,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val c_probeackdata = in.c.bits.opcode === TLMessages.ProbeAckData
       val c_releasedata  = in.c.bits.opcode === TLMessages.ReleaseData
       val c_release      = in.c.bits.opcode === TLMessages.Release
-      val c_trackerOH    = trackers.map { t => t.line === (in.c.bits.address >> lineShift).asUInt }
+      val c_trackerOH    = trackers.map { t => t.line === (in.c.bits.address >> lineShift) }
       val c_trackerSrc   = Mux1H(c_trackerOH, trackers.map { _.source })
 
       // Record if this inner cache no longer has the block
@@ -171,9 +171,9 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       // Decrement the tracker's outstanding probe counter
       (trackers zip c_trackerOH) foreach { case (tracker, select) =>
-        tracker.clearOH := Mux(select.asBool, clearOH, 0.U)
-        tracker.probenack := in.c.fire && c_probeack && select.asBool
-        tracker.probesack := in.c.fire && select.asBool && (c_probeack || c_probeackdata) && (
+        tracker.clearOH := Mux(select, clearOH, 0.U)
+        tracker.probenack := in.c.fire && c_probeack && select
+        tracker.probesack := in.c.fire && select && (c_probeack || c_probeackdata) && (
           in.c.bits.param === TLPermissions.TtoB ||
           in.c.bits.param === TLPermissions.BtoB)
       }

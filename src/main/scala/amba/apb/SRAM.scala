@@ -50,8 +50,8 @@ class APBRAM(
       mem.write(paddr, VecInit.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.asBools)
     }
 
-    in.pready  := !fuzzReady.asBool || LFSRNoiseMaker(1)(0)
-    in.pslverr := RegEnable(!legal, !in.penable) || (fuzzError.asBool && LFSRNoiseMaker(1)(0))
+    in.pready  := !fuzzReady.B || LFSRNoiseMaker(1)(0)
+    in.pslverr := RegEnable(!legal, !in.penable) || (fuzzError.B && LFSRNoiseMaker(1)(0))
     in.prdata  := mem.readAndHold(paddr, read).asUInt
   }
 }

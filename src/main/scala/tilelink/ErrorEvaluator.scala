@@ -23,7 +23,7 @@ object RequestPattern
     pattern.map { case p =>
       val pbase = p.base.U
       val pmask = (p.mask & ((BigInt(1) << a.params.addressBits) - 1)).U
-      (amask | pmask | (~((abase ^ pbase))).asUInt).andR
+      (amask | pmask | ~((abase ^ pbase))).andR
     }.reduce(_ || _)
   }
 

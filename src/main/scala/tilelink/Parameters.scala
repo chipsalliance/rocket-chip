@@ -668,7 +668,7 @@ class TLSlavePortParameters private(
     simplified.map { case (s, a) =>
     // s is a size, you are checking for this size either the size of the operation is in s
     // We return an or-reduction of all the cases, checking whether any contains both the dynamic size and dynamic address on the wire.
-      ((Some(s) == range).asBool || s.containsLg(lgSize)) &&
+      ((Some(s) == range).B || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)
     }.foldLeft(false.B)(_||_)
   }

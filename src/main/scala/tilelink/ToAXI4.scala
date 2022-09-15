@@ -150,7 +150,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       // We need these Queues because AXI4 queues are irrevocable
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
-      val out_w = Wire(out.w.cloneType)
+      val out_w = out.w
       out.w :<> Queue.irrevocable(out_w, entries=depth, flow=combinational)
       val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
 
@@ -175,7 +175,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.burst := AXI4Parameters.BURST_INCR
       arw.lock  := 0.U // not exclusive (LR/SC unsupported b/c no forward progress guarantee)
       arw.cache := 0.U // do not allow AXI to modify our transactions
-      arw.prot  := AXI4Parameters.PROT_PRIVILEDGED
+      arw.prot  := AXI4Parameters.PROT_PRIVILEGED
       arw.qos   := 0.U // no QoS
       arw.user :<= in.a.bits.user
       arw.echo :<= in.a.bits.echo

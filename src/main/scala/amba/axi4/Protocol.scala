@@ -21,7 +21,7 @@ object AXI4Parameters
   def CACHE_MODIFIABLE = 2.U(cacheBits.W)
   def CACHE_BUFFERABLE = 1.U(cacheBits.W)
 
-  def PROT_PRIVILEDGED = 1.U(protBits.W)
+  def PROT_PRIVILEGED = 1.U(protBits.W)
   def PROT_INSECURE    = 2.U(protBits.W)
   def PROT_INSTRUCTION = 4.U(protBits.W)
 

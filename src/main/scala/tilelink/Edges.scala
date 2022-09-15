@@ -108,7 +108,7 @@ class TLEdge(
         //    opcode === TLMessages.GrantData
       case e: TLBundleE => false.B
     }
-    staticHasData(x).map((_).asBool).getOrElse(opdata)
+    staticHasData(x).map((_).B).getOrElse(opdata)
   }
 
   def opcode(x: TLDataChannel): UInt = {
@@ -205,7 +205,7 @@ class TLEdge(
         val cutoff = log2Ceil(manager.beatBytes)
         val small = if (manager.maxTransfer <= manager.beatBytes) true.B else size <= cutoff.U
         val decode = UIntToOH(size, maxLgSize+1) >> cutoff
-        Mux(hasData, decode.asUInt | small.asUInt, 1.U)
+        Mux(hasData, decode | small.asUInt, 1.U)
       }
     }
   }
@@ -217,7 +217,7 @@ class TLEdge(
         if (maxLgSize == 0) {
           0.U
         } else {
-          val decode = (UIntToOH1(size(bundle), maxLgSize) >> log2Ceil(manager.beatBytes)).asUInt
+          val decode = UIntToOH1(size(bundle), maxLgSize) >> log2Ceil(manager.beatBytes)
           Mux(hasData(bundle), decode, 0.U)
         }
       }
@@ -231,7 +231,7 @@ class TLEdge(
     val first = counter === 0.U
     val last  = counter === 1.U || beats1 === 0.U
     val done  = last && fire
-    val count = (beats1 & (~counter1).asUInt)
+    val count = (beats1 & ~counter1)
     when (fire) {
       counter := Mux(first, beats1, counter1)
     }
@@ -266,24 +266,24 @@ class TLEdge(
 
   def addr_inc(bits: TLChannel, fire: Bool): (Bool, Bool, Bool, UInt) = {
     val r = firstlastHelper(bits, fire)
-    (r._1, r._2, r._3, (r._4 << log2Ceil(manager.beatBytes)).asUInt)
+    (r._1, r._2, r._3, r._4 << log2Ceil(manager.beatBytes))
   }
   def addr_inc(x: DecoupledIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.fire)
   def addr_inc(x: ValidIO[TLChannel]): (Bool, Bool, Bool, UInt) = addr_inc(x.bits, x.valid)
 
   // Does the request need T permissions to be executed?
   def needT(a: TLBundleA): Bool = {
-    val acq_needT = MuxLookup(a.param, WireDefault(false.B), Array(
+    val acq_needT = MuxLookup(a.param, false.B, Array(
       TLPermissions.NtoB -> false.B,
       TLPermissions.NtoT -> true.B,
       TLPermissions.BtoT -> true.B))
-    MuxLookup(a.opcode, WireDefault(false.B), Array(
+    MuxLookup(a.opcode, false.B, Array(
       TLMessages.PutFullData    -> true.B,
       TLMessages.PutPartialData -> true.B,
       TLMessages.ArithmeticData -> true.B,
       TLMessages.LogicalData    -> true.B,
       TLMessages.Get            -> false.B,
-      TLMessages.Hint           -> MuxLookup(a.param, WireDefault(false.B), Array(
+      TLMessages.Hint           -> MuxLookup(a.param, false.B, Array(
         TLHints.PREFETCH_READ   -> false.B,
         TLHints.PREFETCH_WRITE  -> true.B)),
       TLMessages.AcquireBlock   -> acq_needT,
@@ -484,7 +484,7 @@ class TLEdgeOut(
     require (manager.anySupportPutPartial, s"TileLink: No managers visible from this edge support masked Puts, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsPutPartialFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
-    a := 1.U.asTypeOf(a)
+    a := DontCare
     a.opcode  := TLMessages.PutPartialData
     a.param   := 0.U
     a.size    := lgSize

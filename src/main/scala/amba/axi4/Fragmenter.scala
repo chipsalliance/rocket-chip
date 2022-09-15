@@ -58,7 +58,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
       /* Returns the number of beats to execute and the new address */
       def fragment(a: IrrevocableIO[AXI4BundleA], supportedSizes1: Seq[Int]): (IrrevocableIO[AXI4BundleA], Bool, UInt) = {
-        val out = Wire(a.cloneType)
+        val out = a
 
         val busy   = RegInit(false.B)
         val r_addr = Reg(UInt(a.bits.params.addrBits.W))
@@ -86,7 +86,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
          *   fill the bits from highest to lowest, and shift right by one bit.
          */
         val fillLow  = rightOR(len) >> 1   // set   all bits in positions <  a set     bit
-        val wipeHigh = ~((~len))       // clear all bits in position  >= a cleared bit
+        val wipeHigh = ~leftOR(~len)       // clear all bits in position  >= a cleared bit
         val remain1  = fillLow | wipeHigh  // MSB(a.len+1)-1
         val align1   = ~leftOR(alignment)  // transfer size limited by address alignment
         val maxSupported1 = remain1 & align1 & support1 // Take the minimum of all the limits

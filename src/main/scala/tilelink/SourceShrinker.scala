@@ -64,7 +64,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         out.a.bits := in.a.bits
         out.a.bits.source := nextFree holdUnless a_first
 
-        val bypass = (edgeOut.manager.minLatency == 0).asBool && in.a.valid && !full && a_first && nextFree === out.d.bits.source
+        val bypass = (edgeOut.manager.minLatency == 0).B && in.a.valid && !full && a_first && nextFree === out.d.bits.source
         in.d <> out.d
         in.d.bits.source := Mux(bypass, in.a.bits.source, sourceIdMap(out.d.bits.source))
 
@@ -76,7 +76,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         val free = d_last && in.d.fire
         val alloc_id = Mux(alloc, nextFreeOH, 0.U)
         val free_id = Mux(free, UIntToOH(out.d.bits.source), 0.U)
-        allocated := (allocated | alloc_id) & (~free_id).asUInt
+        allocated := (allocated | alloc_id) & ~free_id
       }
     }
   }

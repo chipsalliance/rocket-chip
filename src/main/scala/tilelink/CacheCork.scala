@@ -71,13 +71,13 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
 
         a_a.valid := in.a.valid && !toD
         a_a.bits := in.a.bits
-        a_a.bits.source := (in.a.bits.source << 1).asUInt | Mux(isPut, 1.U, 0.U)
+        a_a.bits.source := (in.a.bits.source << 1) | Mux(isPut, 1.U, 0.U)
 
         // Transform Acquire into Get
         when (in.a.bits.opcode === AcquireBlock || in.a.bits.opcode === AcquirePerm) {
           a_a.bits.opcode := Get
           a_a.bits.param  := 0.U
-          a_a.bits.source := (in.a.bits.source << 1).asUInt | 1.U
+          a_a.bits.source := (in.a.bits.source << 1) | 1.U
         }
 
         // Upgrades are instantly successful
@@ -92,7 +92,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         val c_a = Wire(out.a)
         c_a.valid := in.c.valid && in.c.bits.opcode === ReleaseData
         c_a.bits := edgeOut.Put(
-          fromSource = (in.c.bits.source << 1).asUInt,
+          fromSource = (in.c.bits.source << 1),
           toAddress  = in.c.bits.address,
           lgSize     = in.c.bits.size,
           data       = in.c.bits.data,
@@ -136,9 +136,9 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         // Record if a target was writable and auto-promote toT if it was
         // This is structured so that the vector can be constant prop'd away
         val wSourceVec = Reg(Vec(edgeIn.client.endSourceId, Bool()))
-        val aWOk = edgeIn.manager.fastProperty(in.a.bits.address, !_.supportsPutFull.none, (b:Boolean) => b.asBool)
+        val aWOk = edgeIn.manager.fastProperty(in.a.bits.address, !_.supportsPutFull.none, (b:Boolean) => b.B)
         val dWOk = wSourceVec(d_d.bits.source)
-        val bypass = (edgeIn.manager.minLatency == 0).asBool && in.a.valid && in.a.bits.source === d_d.bits.source
+        val bypass = (edgeIn.manager.minLatency == 0).B && in.a.valid && in.a.bits.source === d_d.bits.source
         val dWHeld = Mux(bypass, aWOk, dWOk) holdUnless d_first
 
         when (in.a.fire) {
@@ -147,7 +147,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
 
         // Wipe out any unused registers
         edgeIn.client.unusedSources.foreach { id =>
-          wSourceVec(id) := edgeIn.manager.anySupportPutFull.asBool
+          wSourceVec(id) := (edgeIn.manager.anySupportPutFull).B
         }
 
         when (out.d.bits.opcode === AccessAckData && out.d.bits.source(0)) {

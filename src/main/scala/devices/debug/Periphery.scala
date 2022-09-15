@@ -324,11 +324,14 @@ object Debug {
       }
 
       debug.apb.foreach { apb =>
-        //apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
         apb.psel := false.B
         apb.penable := false.B
+        apb.pready  := false.B
+        apb.pslverr := false.B
+        apb.prdata  := DontCare
+        apb.pduser :<= BundleMap()
       }
 
       debug.extTrigger.foreach { t =>

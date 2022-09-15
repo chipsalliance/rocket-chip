@@ -123,7 +123,7 @@ class AXI4Xbar(
               when (req_fire) { last := port }
               // No need to track where it went if we cap it at 1 request
               val portMatch = if (flight == 1) { true.B } else { last === port }
-              (count === 0.U || portMatch) && ((!canOverflow).asBool || count =/= flight.U)
+              (count === 0.U || portMatch) && ((!canOverflow).B || count =/= flight.U)
             }
           }
 

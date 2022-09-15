@@ -22,7 +22,7 @@ class IDMapGenerator(numIds: Int) extends Module {
   // True indicates that the id is available
   val bitmap = RegInit(((BigInt(1) << numIds) -  1).U(numIds.W))
 
-  val select = (~(leftOR(bitmap) << 1)).asUInt & bitmap
+  val select = ~(leftOR(bitmap) << 1)) & bitmap
   io.alloc.bits := OHToUInt(select)
   io.alloc.valid := bitmap.orR()
 
@@ -32,8 +32,8 @@ class IDMapGenerator(numIds: Int) extends Module {
   val set = WireInit(0.U(numIds.W))
   when (io.free.fire) { set := UIntToOH(io.free.bits) }
 
-  bitmap := (bitmap & (~clr).asUInt) | set
-  assert (!io.free.valid || !(bitmap & (~clr).asUInt)(io.free.bits)) // No double freeing
+  bitmap := (bitmap & ~clr) | set
+  assert (!io.free.valid || !(bitmap & ~clr)(io.free.bits)) // No double freeing
 }
 
 object LFSR64
@@ -152,7 +152,7 @@ class TLFuzzer(
     val amo_size  = 2.U + noiseMaker(1, inc, 0) // word or dword
     val size      = noiseMaker(sizeBits, inc, 0)
     val rawAddr   = noiseMaker(addressBits, inc, 2)
-    val addr      = overrideAddress.map(_.legalize(rawAddr)).getOrElse(rawAddr) & (~UIntToOH1(size, addressBits)).asUInt
+    val addr      = overrideAddress.map(_.legalize(rawAddr)).getOrElse(rawAddr) & ~UIntToOH1(size, addressBits)
     val mask      = noiseMaker(beatBytes, inc_beat, 2) & edge.mask(addr, size)
     val data      = noiseMaker(dataBits, inc_beat, 2)
 
@@ -181,10 +181,10 @@ class TLFuzzer(
 
     val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
       "b000".U -> glegal,
-      "b001".U -> (pflegal && !noModify.asBool),
-      "b010".U -> (pplegal && !noModify.asBool),
-      "b011".U -> (alegal && !noModify.asBool),
-      "b100".U -> (llegal && !noModify.asBool),
+      "b001".U -> (pflegal && !noModify.B),
+      "b010".U -> (pplegal && !noModify.B),
+      "b011".U -> (alegal && !noModify.B),
+      "b100".U -> (llegal && !noModify.B),
       "b101".U -> hlegal))
 
     val bits = MuxLookup(a_type_sel, gbits, Seq(

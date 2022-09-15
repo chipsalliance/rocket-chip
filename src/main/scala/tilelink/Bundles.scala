@@ -7,7 +7,6 @@ import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
 import chisel3.util.Decoupled
 import chisel3.util.DecoupledIO
-import chisel3.experimental.DataMirror
 
 abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 
@@ -266,23 +265,6 @@ class TLBundle(val params: TLBundleParameters) extends Record
     if (params.hasBCE) ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
     else ListMap("d" -> d, "a" -> a)
 
-  def tieoff(): Unit = {
-    DataMirror.specifiedDirectionOf(a.ready) match {
-      case SpecifiedDirection.Input =>
-        a.ready := false.B
-        c.ready := false.B
-        e.ready := false.B
-        b.valid := false.B
-        d.valid := false.B
-      case SpecifiedDirection.Output =>
-        a.valid := false.B
-        c.valid := false.B
-        e.valid := false.B
-        b.ready := false.B
-        d.ready := false.B
-      case _ =>
-    }
-  }
 }
 
 object TLBundle
