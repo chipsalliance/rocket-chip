@@ -55,7 +55,7 @@ object RRTestCombinational
   def delay(x: Int): Bool => Bool = { ready =>
     val reg = RegInit(0.U(log2Ceil(x+1).W))
     val valid = reg === 0.U
-    reg := Mux(ready && valid, (x).U, Mux(valid, 0.U, reg - 1.U))
+    reg := Mux(ready && valid, x.U, Mux(valid, 0.U, reg - 1.U))
     valid
   }
 

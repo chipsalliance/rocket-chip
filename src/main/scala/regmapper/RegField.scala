@@ -147,7 +147,7 @@ object RegField
     val numFullBytes = reg.getWidth/8
     val numPartialBytes  = if ((reg.getWidth % 8) > 0) 1 else 0
     val numPadBytes = numBytes - numFullBytes - numPartialBytes
-    val pad = reg | 0.U( (8*numBytes).W)
+    val pad = reg | 0.U((8*numBytes).W)
     val oldBytes = VecInit.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
     val newBytes = WireDefault(oldBytes)
     val valids = WireDefault(VecInit.fill(numBytes) { false.B })

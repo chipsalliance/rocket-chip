@@ -216,7 +216,7 @@ object AsyncRWSlaveRegField {
     async_slave_reg.io.en := wr_crossing.io.slave_valid
     async_slave_reg.io.d  := wr_crossing.io.slave_register
 
-    val rd_crossing = Module (new RegisterReadCrossing(UInt( width.W )))
+    val rd_crossing = Module (new RegisterReadCrossing(UInt(width.W)))
     name.foreach(n => rd_crossing.suggestName(s"${n}_rcrossing"))
 
     rd_crossing.io.master_clock  := master_clock
