@@ -40,10 +40,10 @@ class DCacheDataReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
 }
 
 class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val req = Valid(new DCacheDataReq).flip
     val resp = Vec(nWays, UInt(width = req.bits.wdata.getWidth)).asOutput
-  }
+  })
 
   require(rowBits % subWordBits == 0, "rowBits must be a multiple of subWordBits")
   val eccMask = if (eccBits == subWordBits) Seq(true.B) else io.req.bits.eccMask.asBools
