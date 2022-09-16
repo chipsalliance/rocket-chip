@@ -202,13 +202,21 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     raw_pte_addr.apply(size.min(raw_pte_addr.getWidth) - 1, 0)
   }
   val pte_cache_addr = if (!usingHypervisor) pte_addr else {
-    val vpn_idxs = (0 until pgLevels-1).map(i => (aux_pte.ppn >> (pgLevels-i-1)*pgLevelBits)(pgLevelBits-1,0))
+    val vpn_idxs = (0 until pgLevels-1).map { i =>
+      val vpn_shifted = (aux_pte.ppn >> (pgLevels-i-1)*pgLevelBits)
+      val vpn_padded  = vpn_shifted.padTo(vpn_shifted.getWidth.max(pgLevelBits))
+      vpn_padded(pgLevelBits-1,0)
+    }
     val vpn_idx = vpn_idxs(count)
     val raw_pte_cache_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
     raw_pte_cache_addr(vaddrBits.min(raw_pte_cache_addr.getWidth)-1, 0)
   }
   val stage2_pte_cache_addr = if (!usingHypervisor) 0.U else {
-    val vpn_idxs = (0 until pgLevels - 1).map(i => (r_req.addr >> (pgLevels - i - 1) * pgLevelBits)(pgLevelBits - 1, 0))
+    val vpn_idxs = (0 until pgLevels - 1).map { i =>
+      val vpn_shifted = (r_req.addr >> (pgLevels - i - 1) * pgLevelBits)
+      val vpn_padded  = vpn_shifted.padTo(vpn_shifted.getWidth.max(pgLevelBits))
+      vpn_padded(pgLevelBits - 1, 0)
+    }
     val vpn_idx  = vpn_idxs(aux_count)
     val raw_s2_pte_cache_addr = Cat(aux_pte.ppn, vpn_idx) << log2Ceil(xLen / 8)
     raw_s2_pte_cache_addr(vaddrBits.min(raw_s2_pte_cache_addr.getWidth) - 1, 0)
