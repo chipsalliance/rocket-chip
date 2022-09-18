@@ -2,12 +2,12 @@
 
 package freechips.rocketchip.regmapper
 
-import Chisel._
-
+import chisel3._
+import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.util.{DecoupledIO, Decoupled, Queue, Cat, FillInterleaved, UIntToOH}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
-import chisel3.internal.sourceinfo.SourceInfo
 
 // A bus agnostic register interface to a register-based device
 
@@ -16,16 +16,16 @@ case class RegMapperParams(indexBits: Int, maskBits: Int, extraFields: Seq[Bundl
 class RegMapperInput(val params: RegMapperParams) extends Bundle
 {
   val read  = Bool()
-  val index = UInt(width = params.indexBits)
-  val data  = UInt(width = params.maskBits*8)
-  val mask  = UInt(width = params.maskBits)
+  val index = UInt((params.indexBits).W)
+  val data  = UInt((params.maskBits*8).W)
+  val mask  = UInt((params.maskBits).W)
   val extra = BundleMap(params.extraFields)
 }
 
 class RegMapperOutput(val params: RegMapperParams) extends Bundle
 {
   val read  = Bool()
-  val data  = UInt(width = params.maskBits*8)
+  val data  = UInt((params.maskBits*8).W)
   val extra = BundleMap(params.extraFields)
 }
 
@@ -76,28 +76,28 @@ object RegMapper
 
     // Find the minimal mask that can decide the register map
     val mask = AddressDecoder(wordmap.keySet.toList)
-    val maskMatch = ~UInt(mask, width = inBits)
+    val maskMatch = ~mask.U(inBits.W)
     val maskFilter = toBits(mask)
     val maskBits = maskFilter.filter(x => x).size
 
     // Calculate size and indexes into the register map
     val regSize = 1 << maskBits
     def regIndexI(x: Int) = ofBits((maskFilter zip toBits(x)).filter(_._1).map(_._2))
-    def regIndexU(x: UInt) = if (maskBits == 0) UInt(0) else
+    def regIndexU(x: UInt) = if (maskBits == 0) 0.U else
       Cat((maskFilter zip x.asBools).filter(_._1).map(_._2).reverse)
 
     val findex = front.bits.index & maskMatch
     val bindex = back .bits.index & maskMatch
 
     // Protection flag for undefined registers
-    val iRightReg = Array.fill(regSize) { Bool(true) }
-    val oRightReg = Array.fill(regSize) { Bool(true) }
+    val iRightReg = Array.fill(regSize) { true.B }
+    val oRightReg = Array.fill(regSize) { true.B }
 
     // Transform the wordmap into minimal decoded indexes, Seq[(index, bit, field)]
     val flat = wordmap.toList.map { case (word, fields) =>
       val index = regIndexI(word)
       if (undefZero) {
-        val uint = UInt(word & ~mask, width = inBits)
+        val uint = (word & ~mask).U(inBits.W)
         iRightReg(index) = findex === uint
         oRightReg(index) = bindex === uint
       }
@@ -124,7 +124,7 @@ object RegMapper
     val wofire = Array.fill(regSize) { Nil:List[(Bool, Bool)] }
 
     // The output values for each register
-    val dataOut = Array.fill(regSize) { UInt(0) }
+    val dataOut = Array.fill(regSize) { 0.U }
 
     // Which bits are touched?
     val frontMask = FillInterleaved(8, front.bits.mask)
@@ -162,7 +162,7 @@ object RegMapper
         property.cover(f_wovalid && f_woready, fname + "_Reg_write_out",   fdesc + " RegField Write Request Complete")
       }
 
-      def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) Bool(true) else x || y
+      def litOR(x: Bool, y: Bool) = if (x.isLit && x.litValue == 1) true.B else x || y
       // Add this field to the ready-valid signals for the register
       rifire(reg) = (rivalid(i), litOR(f_riready, !rimask)) +: rifire(reg)
       wifire(reg) = (wivalid(i), litOR(f_wiready, !wimask)) +: wifire(reg)
@@ -170,8 +170,8 @@ object RegMapper
       wofire(reg) = (woready(i), litOR(f_wovalid, !womask)) +: wofire(reg)
 
       // ... this loop iterates from smallest to largest bit offset
-      val prepend = if (low == 0) { f_data } else { Cat(f_data, dataOut(reg) | UInt(0, width=low)) }
-      dataOut(reg) = (prepend | UInt(0, width=high+1))(high, 0)
+      val prepend = if (low == 0) { f_data } else { Cat(f_data, dataOut(reg) | 0.U(low.W)) }
+      dataOut(reg) = (prepend | 0.U((high+1).W))(high, 0)
     }
 
     // Which register is touched?
@@ -182,7 +182,7 @@ object RegMapper
 
     // Compute: is the selected register ready? ... and cross-connect all ready-valids
     def mux(index: UInt, valid: Bool, select: Seq[Bool], guard: Seq[Bool], flow: Seq[Seq[(Bool, Bool)]]): Bool =
-      MuxSeq(index, Bool(true), ((select zip guard) zip flow).map { case ((s, g), f) =>
+      MuxSeq(index, true.B, ((select zip guard) zip flow).map { case ((s, g), f) =>
         val out = Wire(Bool())
         ReduceOthers((out, valid && s && g) +: f)
         out || !g
@@ -204,9 +204,9 @@ object RegMapper
     out.valid   := back.valid  && oready
 
     out.bits.read  := back.bits.read
-    out.bits.data  := Mux(MuxSeq(oindex, Bool(true), oRightReg),
-                          MuxSeq(oindex, UInt(0), dataOut),
-                          UInt(0))
+    out.bits.data  := Mux(MuxSeq(oindex, true.B, oRightReg),
+                          MuxSeq(oindex, 0.U, dataOut),
+                          0.U)
     out.bits.extra := back.bits.extra
 
     out
