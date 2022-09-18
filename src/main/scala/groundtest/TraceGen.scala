@@ -581,7 +581,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val done = reqCount  === numReqsPerGen.U &&
              respCount === numReqsPerGen.U
 
-  val donePulse = done && !RegNext(done, init=false.B)
+  val donePulse = done && !RegNext(done, false.B)
 
   // Emit that this thread has completed
   when (donePulse) {
