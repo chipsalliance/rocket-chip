@@ -205,7 +205,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val pageValid = RegInit(init = 0.U(nPages.W))
   val pagesMasked = (pageValid.asBools zip pages).map { case (v, p) => Mux(v, p, 0.U) }
 
-  val isValid = RegInit(init = 0.U(entries.W))
+  val isValid = RegInit(0.U(entries.W))
   val cfiType = Reg(Vec(entries, CFIType()))
   val brIdx = Reg(Vec(entries, UInt(log2Up(fetchWidth).W)))
 
