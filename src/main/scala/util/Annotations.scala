@@ -170,12 +170,12 @@ trait DontTouch { self: RawModule =>
     *   (after Module(...))
     */
   def dontTouchPorts(): this.type = {
-    self.getModulePorts.foreach(dontTouch(_))
+    self.getModulePorts.map(_._1).foreach(dontTouch(_))
     self
   }
 
   def dontTouchPortsExcept(f: Data => Boolean): this.type = {
-    self.getModulePorts.filterNot(f).foreach(dontTouch(_))
+    self.getModulePorts.map(_._1).filterNot(f).foreach(dontTouch(_))
     self
   }
 }
