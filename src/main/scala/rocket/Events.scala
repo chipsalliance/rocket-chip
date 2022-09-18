@@ -3,13 +3,14 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3._
+import chisel3.util.log2Ceil
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 
 class EventSet(val gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bool)]) {
   def size = events.size
-  val hits = Wire(Vec(size, Bool()))
+  val hits = WireDefault(VecInit(Seq.fill(size)(false.B)))
   def check(mask: UInt) = {
     hits := events.map(_._2())
     gate(mask, hits.asUInt)
