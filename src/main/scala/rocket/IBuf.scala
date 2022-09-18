@@ -37,7 +37,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   val pcWordMask = (coreInstBytes*fetchWidth-1).U(vaddrBitsExtended.W)
 
   val pcWordBits = io.imem.bits.pc.extract(log2Ceil(fetchWidth*coreInstBytes)-1, log2Ceil(coreInstBytes))
-  val nReady = WireDefault(init = 0.U(log2Ceil(fetchWidth+1).W))
+  val nReady = WireDefault(0.U(log2Ceil(fetchWidth+1).W))
   val nIC = Mux(io.imem.bits.btb.taken, io.imem.bits.btb.bridx +& 1.U, fetchWidth.U) - pcWordBits
   val nICReady = nReady - nBufValid
   val nValid = Mux(io.imem.valid, nIC, 0.U) + nBufValid
