@@ -599,12 +599,6 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       intnode_out(component)(0) := debugIntRegs(component) | io.hgDebugInt(component)
     }
 
-    // Halt request registers are set & cleared by writes to DMCONTROL.haltreq
-    // resumereq also causes the core to execute a 'dret',
-    // so resumereq is passed through to Inner.
-    // hartsel/hasel/hamask must also be used by the DebugModule state machine,
-    // so it is passed to Inner.
-
     // sends debug interruption to Core when dmcs.haltreq is set,
     for (component <- 0 until nComponents) {
       when (~dmactive || ~dmAuthenticated) {
@@ -616,6 +610,11 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
         }
       }
     }
+    // Halt request registers are set & cleared by writes to DMCONTROL.haltreq
+    // resumereq also causes the core to execute a 'dret',
+    // so resumereq is passed through to Inner.
+    // hartsel/hasel/hamask must also be used by the DebugModule state machine,
+    // so it is passed to Inner.
 
     // These registers ensure that requests to dmInner are not lost if inner clock isn't running or requests occur too close together.
     // If the innerCtrl async queue is not ready, the notification will be posted and held until ready is received.
