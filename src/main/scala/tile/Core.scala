@@ -140,18 +140,18 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
   val io = new CoreBundle()(p) {
-    val hartid = UInt(hartIdLen.W).asInput
-    val reset_vector = UInt(resetVectorLen.W).asInput
-    val interrupts = new CoreInterrupts().asInput
+    val hartid = Input(UInt(hartIdLen.W))
+    val reset_vector = Input(UInt(resetVectorLen.W))
+    val interrupts = Input(new CoreInterrupts())
     val imem  = new FrontendIO
     val dmem = new HellaCacheIO
-    val ptw = new DatapathPTWIO().flip
-    val fpu = new FPUCoreIO().flip
-    val rocc = new RoCCCoreIO().flip
-    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
-    val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
-    val cease = Bool().asOutput
-    val wfi = Bool().asOutput
-    val traceStall = Bool().asInput
+    val ptw = Flipped(new DatapathPTWIO())
+    val fpu = Flipped(new FPUCoreIO())
+    val rocc = Flipped(new RoCCCoreIO())
+    val trace = Output(Vec(coreParams.retireWidth, new TracedInstruction))
+    val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
+    val cease = Output(Bool())
+    val wfi = Output(Bool())
+    val traceStall = Input(Bool())
   }
 }
