@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
-import chisel3.util.Decoupled
+import chisel3._
+import chisel3.util._
 
 class CrossingIO[T <: Data](gen: T) extends Bundle {
   // Enqueue clock domain
