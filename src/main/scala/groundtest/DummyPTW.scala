@@ -12,9 +12,9 @@ import freechips.rocketchip.tile.CoreModule
 import freechips.rocketchip.util.ParameterizedBundle
 
 class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val requestors = Flipped(Vec(n, new TLBPTWIO))
-  }
+  })
 
   val req_arb = Module(new RRArbiter(Valid(new PTWReq), n))
   req_arb.io.in <> io.requestors.map(_.req)
