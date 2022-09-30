@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.DontCare
-import chisel3.util.Irrevocable
 import freechips.rocketchip.util._
 
 abstract class AXI4BundleBase(params: AXI4BundleParameters) extends GenericParameterizedBundle(params)
