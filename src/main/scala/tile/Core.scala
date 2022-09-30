@@ -140,7 +140,7 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
 
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
-  val io = new CoreBundle()(p) {
+  val io = IO(new CoreBundle()(p) {
     val hartid = Input(UInt(hartIdLen.W))
     val reset_vector = Input(UInt(resetVectorLen.W))
     val interrupts = Input(new CoreInterrupts())
@@ -154,5 +154,5 @@ trait HasCoreIO extends HasTileParameters {
     val cease = Output(Bool())
     val wfi = Output(Bool())
     val traceStall = Input(Bool())
-  }
+  })
 }
