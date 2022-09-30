@@ -3,6 +3,9 @@
 
 package freechips.rocketchip.groundtest
 
+import chisel3._
+import chisel3.util._
+
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile.CoreModule
