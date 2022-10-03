@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 import chisel3.{withClockAndReset, withReset}
 
 /** Reset: asynchronous assert,
@@ -14,10 +14,10 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
 
   override def desiredName = s"ResetCatchAndSync_d${sync}"
 
-  val io = new Bundle {
-    val sync_reset = Bool(OUTPUT)
-    val psd = new PSDTestMode().asInput
-  }
+  val io = IO(new Bundle {
+    val sync_reset = Output(Bool())
+    val psd = Input(new PSDTestMode())
+  })
 
   // Bypass both the resets to the flops themselves (to prevent DFT holes on
   // those flops) and on the output of the synchronizer circuit (to control
@@ -26,7 +26,7 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
   val post_psd_reset = Mux(io.psd.test_mode, io.psd.test_mode_reset, reset)
   withReset(post_psd_reset) {
     io.sync_reset := Mux(io.psd.test_mode, io.psd.test_mode_reset,
-      ~AsyncResetSynchronizerShiftReg(Bool(true), sync))
+      ~AsyncResetSynchronizerShiftReg(true.B, sync))
   }
 }
 
@@ -38,7 +38,7 @@ object ResetCatchAndSync {
     withClockAndReset(clk, rst) {
       val catcher = Module (new ResetCatchAndSync(sync))
       if (name.isDefined) {catcher.suggestName(name.get)}
-      catcher.io.psd <> psd.getOrElse(Wire(new PSDTestMode()).fromBits(UInt(0)))
+      catcher.io.psd <> psd.getOrElse(WireDefault(0.U.asTypeOf(new PSDTestMode())))
       catcher.io.sync_reset
     }
   }
