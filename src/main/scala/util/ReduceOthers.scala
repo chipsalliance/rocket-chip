@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 
 object ReduceOthers {
   // Given a list of bools, create this output:
@@ -12,13 +12,13 @@ object ReduceOthers {
 
     val falses = literals.count(_.litValue == 0)
     if (falses > 2) {
-      Seq.fill(x.size) { Bool(false) }
+      Seq.fill(x.size) { false.B }
     } else if (falses == 1) {
       x.map { b =>
         if (b.isLit && b.litValue == 0) {
-          variables.foldLeft(Bool(true))(_ && _)
+          variables.foldLeft(true.B)(_ && _)
         } else {
-          Bool(false)
+          false.B
         }
       }
     } else {
@@ -40,7 +40,7 @@ object ReduceOthers {
   }
   private def helper(x: Seq[Bool]): (Seq[Bool], Bool) = {
     if (x.size <= 1) {
-      (Seq.fill(x.size) { Bool(true) }, x.headOption.getOrElse(Bool(true)))
+      (Seq.fill(x.size) { true.B }, x.headOption.getOrElse(true.B))
     } else if (x.size <= 3) {
       (Seq.tabulate(x.size) { i =>
         (x.take(i) ++ x.drop(i+1)).reduce(_ && _)
