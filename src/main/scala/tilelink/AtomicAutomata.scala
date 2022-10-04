@@ -157,7 +157,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         }
 
         // Potentially take the message from the CAM
-        val source_c = Wire(chiselTypeOf(in.a.))
+        val source_c = Wire(chiselTypeOf(in.a))
         source_c.valid := a_cam_any_put
         source_c.bits := edgeOut.Put(
           fromSource = a_cam_a.bits.source,
