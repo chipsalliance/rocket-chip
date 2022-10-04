@@ -58,7 +58,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
       /* Returns the number of beats to execute and the new address */
       def fragment(a: IrrevocableIO[AXI4BundleA], supportedSizes1: Seq[Int]): (IrrevocableIO[AXI4BundleA], Bool, UInt) = {
-        val out = Wire(a.cloneType)
+        val out = Wire(chiselTypeOf(a))
 
         val busy   = RegInit(false.B)
         val r_addr = Reg(UInt(a.bits.params.addrBits.W))
@@ -102,7 +102,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
         val inc_addr = addr + (beats << a.bits.size) // address after adding transfer
         val wrapMask = a.bits.bytes1() // only these bits may change, if wrapping
-        val mux_addr = WireInit(inc_addr)
+        val mux_addr = WireDefault(inc_addr)
         when (a.bits.burst === AXI4Parameters.BURST_WRAP) {
           mux_addr := (inc_addr & wrapMask) | ~(~a.bits.addr | wrapMask)
         }

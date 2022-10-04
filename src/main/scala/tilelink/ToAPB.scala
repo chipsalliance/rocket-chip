@@ -8,10 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.amba._
 import APBParameters._
-import chisel3.util.RegEnable
-import chisel3.util.Queue
-import chisel3.util.log2Ceil
-import chisel3.util.Cat
+import chisel3.util.{RegEnable, Queue, log2Ceil, Cat}
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { cp =>

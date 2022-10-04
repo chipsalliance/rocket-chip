@@ -183,7 +183,7 @@ class AXI4Xbar(
         out(i).w.ready := io_out(i).w.ready && awOut(i).io.deq.valid
         awOut(i).io.deq.ready := out(i).w.valid && out(i).w.bits.last && io_out(i).w.ready
       } else {
-        awOut(i).io := DontCare // aw out queue is not used when outsize == 1
+        awOut(i).io := DontCare // aw out queue is not used when io_in.size == 1
       }
     }
 

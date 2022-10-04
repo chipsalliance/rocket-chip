@@ -255,11 +255,11 @@ class TLBundle(val params: TLBundleParameters) extends Record
   private val optD = Some                (Flipped(Decoupled(new TLBundleD(params))))
   private val optE = params.hasBCE.option(Decoupled(new TLBundleE(params)))
 
-  def a: DecoupledIO[TLBundleA] = optA.getOrElse(WireInit(0.U.asTypeOf(Decoupled(new TLBundleA(params)))))
-  def b: DecoupledIO[TLBundleB] = optB.getOrElse(WireInit(0.U.asTypeOf(Decoupled(new TLBundleB(params)))))
-  def c: DecoupledIO[TLBundleC] = optC.getOrElse(WireInit(0.U.asTypeOf(Decoupled(new TLBundleC(params)))))
-  def d: DecoupledIO[TLBundleD] = optD.getOrElse(WireInit(0.U.asTypeOf(Decoupled(new TLBundleD(params)))))
-  def e: DecoupledIO[TLBundleE] = optE.getOrElse(WireInit(0.U.asTypeOf(Decoupled(new TLBundleE(params)))))
+  def a: DecoupledIO[TLBundleA] = optA.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleA(params)))))
+  def b: DecoupledIO[TLBundleB] = optB.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleB(params)))))
+  def c: DecoupledIO[TLBundleC] = optC.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleC(params)))))
+  def d: DecoupledIO[TLBundleD] = optD.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleD(params)))))
+  def e: DecoupledIO[TLBundleE] = optE.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleE(params)))))
 
   override def cloneType: this.type = (new TLBundle(params)).asInstanceOf[this.type]
   val elements =

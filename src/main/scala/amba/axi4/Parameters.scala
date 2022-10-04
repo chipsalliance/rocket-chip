@@ -7,8 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.max
-import chisel3.util.isPow2
-import chisel3.util.log2Up
+import chisel3.util.{isPow2, log2Up}
 
 /**
   * Parameters for AXI4 slave

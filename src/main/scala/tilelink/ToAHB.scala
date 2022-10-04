@@ -9,10 +9,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import AHBParameters._
-import chisel3.util.RegEnable
-import chisel3.util.Queue
-import chisel3.util.Cat
-import chisel3.util.log2Ceil
+import chisel3.util.{RegEnable, Queue, Cat, log2Ceil}
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { cp =>
@@ -90,9 +87,9 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
 
       // The stages of the combinational pipeline
       val reg  = RegInit(resetState)
-      val send = WireInit(reg)
-      val step = WireInit(send)
-      val next = WireInit(step)
+      val send = WireDefault(reg)
+      val step = WireDefault(send)
+      val next = WireDefault(step)
       reg := next
 
       // A- and D-phase readiness

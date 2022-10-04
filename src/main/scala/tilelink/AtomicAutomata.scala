@@ -7,12 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.{min,max}
-import chisel3.util.PriorityMux
-import chisel3.util.Cat
-import chisel3.util.FillInterleaved
-import chisel3.util.Mux1H
-import chisel3.util.MuxLookup
-import chisel3.util.log2Up
+import chisel3.util.{PriorityMux, Cat, FillInterleaved, Mux1H, MuxLookup, log2Up}
 
 // Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
@@ -151,7 +146,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           Mux(a_cam_a.bits.opcode(0), logic_out, arith_out)
 
         // Potentially mutate the message from inner
-        val source_i = Wire(in.a.cloneType)
+        val source_i = Wire(chiselTypeOf(in.a))
         val a_allow = !a_cam_busy && (a_isSupported || a_cam_any_free)
         in.a.ready := source_i.ready && a_allow
         source_i.valid := in.a.valid && a_allow
@@ -162,7 +157,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         }
 
         // Potentially take the message from the CAM
-        val source_c = Wire(in.a.cloneType)
+        val source_c = Wire(chiselTypeOf(in.a.))
         source_c.valid := a_cam_any_put
         source_c.bits := edgeOut.Put(
           fromSource = a_cam_a.bits.source,

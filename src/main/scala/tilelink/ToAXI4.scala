@@ -8,11 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.amba._
-import chisel3.util.log2Ceil
-import chisel3.util.UIntToOH
-import chisel3.util.Queue
-import chisel3.util.Decoupled
-import chisel3.util.Cat
+import chisel3.util.{log2Ceil, UIntToOH, Queue, Decoupled, Cat}
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)
@@ -111,7 +107,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val map = new TLtoAXI4IdMap(edgeIn.client)
       val sourceStall = WireDefault(VecInit.fill(edgeIn.client.endSourceId)(false.B))
       val sourceTable = WireDefault(VecInit.fill(edgeIn.client.endSourceId)(0.U.asTypeOf(out.aw.bits.id)))
-      val idStall = WireInit(VecInit.fill(edgeOut.master.endId)(false.B))
+      val idStall = WireDefault(VecInit.fill(edgeOut.master.endId)(false.B))
       var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
 
       map.mapping.foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
@@ -150,7 +146,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       // We need these Queues because AXI4 queues are irrevocable
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
-      val out_w = Wire(out.w.cloneType)
+      val out_w = Wire(chiselTypeOf(out.w))
       out.w :<> Queue.irrevocable(out_w, entries=depth, flow=combinational)
       val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
 
