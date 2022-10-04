@@ -3,33 +3,34 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util.{PriorityEncoder, Valid, log2Up}
 
 /** Timer with a statically-specified period.
   * Can take multiple inflight start-stop events with ID
   * Will continue to count down as long as at least one event is inflight
   */
 class Timer(initCount: Int, maxInflight: Int) extends Module {
-  val io = new Bundle {
-    val start = Valid(UInt(width = log2Up(maxInflight))).flip
-    val stop = Valid(UInt(width = log2Up(maxInflight))).flip
-    val timeout = Valid(UInt(width = log2Up(maxInflight)))
-  }
+  val io = IO(new Bundle {
+    val start = Flipped(Valid(UInt(log2Up(maxInflight).W)))
+    val stop = Flipped(Valid(UInt(log2Up(maxInflight).W)))
+    val timeout = Valid(UInt(log2Up(maxInflight).W))
+  })
 
-  val inflight = Reg(init = Vec.fill(maxInflight) { Bool(false) })
-  val countdown = Reg(UInt(width = log2Up(initCount)))
+  val inflight = RegInit(VecInit(Seq.fill(maxInflight) { false.B }))
+  val countdown = Reg(UInt(log2Up(initCount).W))
   val active = inflight.reduce(_ || _)
 
-  when (active) { countdown := countdown - UInt(1) }
+  when (active) { countdown := countdown - 1.U }
 
   when (io.start.valid) {
-    inflight(io.start.bits) := Bool(true)
-    countdown := UInt(initCount - 1)
+    inflight(io.start.bits) := true.B
+    countdown := (initCount - 1).U
   }
 
-  when (io.stop.valid) { inflight(io.stop.bits) := Bool(false) }
+  when (io.stop.valid) { inflight(io.stop.bits) := false.B }
 
-  io.timeout.valid := countdown === UInt(0) && active
+  io.timeout.valid := countdown === 0.U && active
   io.timeout.bits := PriorityEncoder(inflight)
 
   assert(!io.stop.valid || inflight(io.stop.bits),
@@ -40,25 +41,25 @@ class Timer(initCount: Int, maxInflight: Int) extends Module {
   * Can be stopped repeatedly, even when not active.
   */
 class SimpleTimer(initCount: Int) extends Module {
-  val io = new Bundle {
-    val start = Bool(INPUT)
-    val stop = Bool(INPUT)
-    val timeout = Bool(OUTPUT)
-  }
+  val io = IO(new Bundle {
+    val start = Input(Bool())
+    val stop = Input(Bool())
+    val timeout = Output(Bool())
+  })
 
-  val countdown = Reg(UInt(width = log2Up(initCount)))
-  val active = Reg(init = Bool(false))
+  val countdown = Reg(UInt(log2Up(initCount).W))
+  val active = RegInit(false.B)
 
-  when (active) { countdown := countdown - UInt(1) }
+  when (active) { countdown := countdown - 1.U }
 
   when (io.start) {
-    active := Bool(true)
-    countdown := UInt(initCount - 1)
+    active := true.B
+    countdown := (initCount - 1).U
   }
 
-  when (io.stop) { active := Bool(false) }
+  when (io.stop) { active := false.B }
 
-  io.timeout := countdown === UInt(0) && active
+  io.timeout := countdown === 0.U && active
 }
 
 object SimpleTimer {
@@ -72,24 +73,24 @@ object SimpleTimer {
 
 /** Timer with a dynamically-specified period.  */
 class DynamicTimer(w: Int) extends Module {
-  val io = new Bundle {
-    val start   = Bool(INPUT)
-    val period  = UInt(INPUT, w)
-    val stop    = Bool(INPUT)
-    val timeout = Bool(OUTPUT)
-  }
+  val io = IO(new Bundle {
+    val start   = Input(Bool())
+    val period  = Input(UInt(w.W))
+    val stop    = Input(Bool())
+    val timeout = Output(Bool())
+  })
 
-  val countdown = Reg(init = UInt(0, w))
-  val active = Reg(init = Bool(false))
+  val countdown = RegInit(0.U(w.W))
+  val active = RegInit(false.B)
 
   when (io.start) {
     countdown := io.period
-    active := Bool(true)
-  } .elsewhen (io.stop || countdown === UInt(0)) {
-    active := Bool(false)
+    active := true.B
+  } .elsewhen (io.stop || countdown === 0.U) {
+    active := false.B
   } .elsewhen (active) {
-    countdown := countdown - UInt(1)
+    countdown := countdown - 1.U
   }
 
-  io.timeout := countdown === UInt(0) && active
+  io.timeout := countdown === 0.U && active
 }

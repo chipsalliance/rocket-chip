@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.groundtest
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
