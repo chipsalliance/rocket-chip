@@ -186,35 +186,80 @@ object TLXbar
 object TLXbar_ACancel
 {
   def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]): Unit = {
+    // Get [[Data]] and [[Edges]] from nodes directly.
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 
-    // Not every master need connect to every slave on every channel; determine which connections are necessary
-    val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
-      cp.client.clients.exists { c => mp.manager.managers.exists { m =>
-        c.visibility.exists { ca => m.address.exists { ma =>
-          ca.overlaps(ma)}}}}
-      }.toVector}.toVector
-    val probeIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
-      (edgesOut zip reachableO).map { case (mp, reachable) =>
-        reachable && cp.client.anySupportProbe && mp.manager.managers.exists(_.regionType >= RegionType.TRACKED)
-      }.toVector}.toVector
-    val releaseIO = (edgesIn zip reachableIO).map { case (cp, reachableO) =>
-      (edgesOut zip reachableO).map { case (mp, reachable) =>
-        reachable && cp.client.anySupportProbe && mp.manager.anySupportAcquireB
-      }.toVector}.toVector
+    // Not every master need connect to every slave on every channel; determine which connections are necessary. It will generate a 2 dimensional array interconnect matrix. which represents the connectability of a master port to a slave port.
+    val reachableIO = edgesIn.map {
+      // Each parameters from master.
+      cp => edgesOut.map { 
+        // Each parameters from managers (sinks).
+        mp => 
+          cp
+          // Master port parameters.
+          .client
+          // All master parameters on the port.
+          .clients
+          .exists { 
+            c => 
+              mp
+              // Slave port parameters.
+              .manager
+              // All slave parameters on the port.
+              .managers
+              .exists {
+                m =>
+                  // fill true in the matrix, if master address sets have overlaps to any address of a slave on a port.
+                  c.visibility.exists { ca => m.address.exists { ma => ca.overlaps(ma)}}
+              }
+          }
+      }.toVector
+    }.toVector
+    // Another interconnect matrix, support slave probe master.
+    val probeIO = 
+      // Using zip to match each [[edgesIn]], [[edgesOut]] and [[reachableIO]], [[cp]], [[mp]] and [[reachable]] represents if this pair is connectable.
+      (edgesIn zip reachableIO).map {
+        case (cp, reachableO) =>
+          (edgesOut zip reachableO).map {
+            case (mp, reachable) =>
+              // Fill true in the matrix, if exist any master support probe, and exist any slave can probe.
+              reachable && cp.client.anySupportProbe && mp.manager.managers.exists(_.regionType >= RegionType.TRACKED)
+        }.toVector
+      }.toVector
+    // Another interconnect matrix, support slave probe master. support master release data.
+    val releaseIO = 
+    // Using zip to match each [[edgesIn]], [[edgesOut]] and [[reachableIO]],[[cp]], [[mp]] and [[reachable]] represents if this pair is connectable.
+      (edgesIn zip reachableIO).map { 
+        case (cp, reachableO) =>
+          (edgesOut zip reachableO).map { 
+            case (mp, reachable) =>
+              // Fill true in the matrix, if exist any master support probe, and exist any slave can probe.            
+              reachable && cp.client.anySupportProbe && mp.manager.anySupportAcquireB
+        }.toVector
+      }.toVector
 
+    // Interconnect matrix of A channel from master to slave.
     val connectAIO = reachableIO
+    // Interconnect matrix of B channel from master to slave.
     val connectBIO = probeIO
+    // Interconnect matrix of C channel from master to slave.
     val connectCIO = releaseIO
+    // Interconnect matrix of D channel from master to slave.
     val connectDIO = reachableIO
+    // Interconnect matrix of E channel from master to slave.
     val connectEIO = releaseIO
 
     def transpose[T](x: Seq[Seq[T]]) = if (x.isEmpty) Nil else Vector.tabulate(x(0).size) { i => Vector.tabulate(x.size) { j => x(j)(i) } }
+    // Interconnect matrix of A channel from slave to master.
     val connectAOI = transpose(connectAIO)
+    // Interconnect matrix of B channel from slave to master.
     val connectBOI = transpose(connectBIO)
+    // Interconnect matrix of C channel from slave to master.
     val connectCOI = transpose(connectCIO)
+    // Interconnect matrix of D channel from slave to master.
     val connectDOI = transpose(connectDIO)
+    // Interconnect matrix of E channel from slave to master.
     val connectEOI = transpose(connectEIO)
 
     // Grab the port ID mapping
