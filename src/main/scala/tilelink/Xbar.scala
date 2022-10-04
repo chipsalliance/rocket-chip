@@ -30,7 +30,9 @@ object ForceFanout
 private case class ForceFanoutParams(a: Boolean, b: Boolean, c: Boolean, d: Boolean, e: Boolean)
 private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false, false, false, false))
 
-class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
+class TLXbar(
+  policy: TLArbiter.Policy = TLArbiter.roundRobin // use option "roundRobin" which can check all the ports
+  )(implicit p: Parameters) extends LazyModule
 {
   val node = new TLNexusNode(
     clientFn  = { seq =>
@@ -190,6 +192,7 @@ object TLXbar_ACancel
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 
+    // "client" is master, "manager" is slave.
     // Not every master need connect to every slave on every channel; determine which connections are necessary. It will generate a 2 dimensional array interconnect matrix. which represents the connectability of a master port to a slave port.
     val reachableIO = edgesIn.map {
       // Each parameters from master.
@@ -229,7 +232,7 @@ object TLXbar_ACancel
       }.toVector
     // Another interconnect matrix, support slave probe master. support master release data.
     val releaseIO = 
-    // Using zip to match each [[edgesIn]], [[edgesOut]] and [[reachableIO]],[[cp]], [[mp]] and [[reachable]] represents if this pair is connectable.
+      // Using zip to match each [[edgesIn]], [[edgesOut]] and [[reachableIO]],[[cp]], [[mp]] and [[reachable]] represents if this pair is connectable.
       (edgesIn zip reachableIO).map { 
         case (cp, reachableO) =>
           (edgesOut zip reachableO).map { 
@@ -278,9 +281,11 @@ object TLXbar_ACancel
       val r = inputIdRanges(i)
 
       if (connectAIO(i).exists(x=>x)) {
+        // if reachable
         in(i).a :<> io_in(i).a
         in(i).a.bits.source := io_in(i).a.bits.source | r.start.U
       } else {
+        // if not reachable
         in(i).a.earlyValid := false.B
         in(i).a.lateCancel := DontCare
         in(i).a.bits       := DontCare
@@ -391,6 +396,7 @@ object TLXbar_ACancel
     val requiredAC = (connectAIO ++ connectCIO).distinct
     val outputPortFns: Map[Vector[Boolean], Seq[UInt => Bool]] = requiredAC.map { connectO =>
       val port_addrs = edgesOut.map(_.manager.managers.flatMap(_.address))
+      // choose best decoder scheme with lower resource consumptions by "AddressDecoder"
       val routingMask = AddressDecoder(filter(port_addrs, connectO))
       val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
 
@@ -427,6 +433,7 @@ object TLXbar_ACancel
     val requestDOI = out.map { o => inputIdRanges.map  { i => i.contains(o.d.bits.source) } }
     val requestEIO = in.map  { i => outputIdRanges.map { o => o.contains(i.e.bits.sink) } }
 
+    // "beats" represents the maximum bits in one burst transmission
     val beatsAI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.a.bits) }
     val beatsBO = (out zip edgesOut) map { case (o, e) => e.numBeats1(o.b.bits) }
     val beatsCI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.c.bits) }
