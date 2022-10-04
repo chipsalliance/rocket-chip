@@ -1503,7 +1503,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val flags = WireInit(VecInit(Seq.fill(1 << selectedHartReg.getWidth) {0.U.asTypeOf(new flagBundle())} ))
     assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
-      s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
+      cf"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size.toString} for it to work.")
     flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
 
     for (component <- 0 until nComponents) {

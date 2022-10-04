@@ -585,7 +585,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
   // Emit that this thread has completed
   when (donePulse) {
-    printf(s"FINISHED ${numGens}\n")
+    printf(cf"FINISHED ${numGens.toString}\n")
   }
 
   io.finished := done
@@ -631,5 +631,5 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
   status.timeout.bits := 0.U
   status.error.valid := false.B
 
-  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.hartId}: request timed out")
+  assert(!tracegen.io.timeout, cf"TraceGen tile ${outer.tileParams.hartId.toString}: request timed out")
 }

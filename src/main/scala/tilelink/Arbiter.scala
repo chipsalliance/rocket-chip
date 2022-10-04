@@ -197,7 +197,7 @@ class TLDecoupledArbiterLowestTest(txns: Int = 128, timeout: Int = 500000)(impli
 {
   def assertLowest(id: Int): Unit = {
     when (sources(id).valid) {
-      assert((numSources-1 until id by -1).map(!sources(_).fire).foldLeft(true.B)(_&&_), s"$id was valid but a higher valid source was granted ready.")
+      assert((numSources-1 until id by -1).map(!sources(_).fire).foldLeft(true.B)(_&&_), cf"${id.toString} was valid but a higher valid source was granted ready.")
     }
   }
 
@@ -212,7 +212,7 @@ class TLDecoupledArbiterHighestTest(txns: Int = 128, timeout: Int = 500000)(impl
 {
   def assertHighest(id: Int): Unit = {
     when (sources(id).valid) {
-      assert((0 until id).map(!sources(_).fire).foldLeft(true.B)(_&&_), s"$id was valid but a lower valid source was granted ready.")
+      assert((0 until id).map(!sources(_).fire).foldLeft(true.B)(_&&_), cf"${id.toString} was valid but a lower valid source was granted ready.")
     }
   }
 

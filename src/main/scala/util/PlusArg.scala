@@ -61,7 +61,8 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
   })
   val max = Module(new plusarg_reader(format, default, docstring, width)).io.out
   when (max > 0.U) {
-    assert (io.count < max, s"Timeout exceeded: $docstring")
+    val msg = s"Timeout exceeded: $docstring"
+    assert (io.count < max, msg)
   }
 }
 
