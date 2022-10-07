@@ -45,21 +45,21 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
     in.d.valid := in.a.valid
 
     val hasData = edge.hasData(in.a.bits)
-    val wdata = Vec.tabulate(beatBytes) { i => in.a.bits.data(8*(i+1)-1, 8*i) }
+    val wdata = VecInit.tabulate(beatBytes) { i => in.a.bits.data(8*(i+1)-1, 8*i) }
 
     in.d.bits := edge.AccessAck(in.a.bits)
     in.d.bits.data := Cat(mem(memAddress).reverse)
-    in.d.bits.corrupt := !hasData && bad(memAddress) && Bool(trackCorruption)
+    in.d.bits.corrupt := !hasData && bad(memAddress) && trackCorruption.B
     in.d.bits.opcode := Mux(hasData, TLMessages.AccessAck, TLMessages.AccessAckData)
-    when (in.a.fire() && hasData) {
+    when (in.a.fire && hasData) {
       mem.write(memAddress, wdata, in.a.bits.mask.asBools)
       bad.write(memAddress, in.a.bits.corrupt)
     }
 
     // Tie off unused channels
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(true)
-    in.e.ready := Bool(true)
+    in.b.valid := false.B
+    in.c.ready := true.B
+    in.e.ready := true.B
   }
 }
 
