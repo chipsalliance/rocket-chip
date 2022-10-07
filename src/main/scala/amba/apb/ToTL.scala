@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.apb
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -51,11 +52,11 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
 
 
       val beat = TransferSizes(beatBytes, beatBytes)
-      // The double negative here is to work around Chisel's broken implementation of widening ~x.
-      val aligned_addr =  ~(~in.paddr | (beatBytes-1).U)
+      //TODO: The double negative here is to work around Chisel's broken implementation of widening ~x.
+      val aligned_addr =  ~in.paddr
       require(beatBytes == in.params.dataBits/8,
               s"TL beatBytes(${beatBytes}) doesn't match expected APB data width(${in.params.dataBits})")
-      val data_size = UInt(log2Ceil(beatBytes))
+      val data_size = (log2Ceil(beatBytes)).U
       
       // Is this access allowed? Illegal addresses are a violation of tile link protocol.
       // If an illegal address is provided, return an error instead of sending over tile link.
@@ -72,8 +73,8 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       in.pready := out.d.valid  || error_in_flight_reg
       out.d.ready := true.B
 
-      when (out.a.fire()){in_flight_reg := true.B}
-      when (out.d.fire()){in_flight_reg := false.B}
+      when (out.a.fire){in_flight_reg := true.B}
+      when (out.d.fire){in_flight_reg := false.B}
 
       // Default to false except when actually returning error.
       error_in_flight_reg := false.B
@@ -82,9 +83,9 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       // Write
       // PutPartial because of pstrb masking.
       out.a.bits.opcode  := Mux(in.pwrite, TLMessages.PutPartialData, TLMessages.Get)
-      out.a.bits.param   := UInt(0)
+      out.a.bits.param   := 0.U
       out.a.bits.size    := data_size
-      out.a.bits.source  := UInt(0)
+      out.a.bits.source  := 0.U
       // TL requires addresses be aligned to their size.
       out.a.bits.address := aligned_addr
       out.a.bits.user :<= in.pauser
@@ -97,12 +98,12 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
         prot.readalloc  :=  true.B
         prot.writealloc :=  true.B
       }
-      when (out.a.fire()) {
+      when (out.a.fire) {
         assert(in.paddr === out.a.bits.address, "Do not expect to have to perform alignment in APB2TL Conversion")
       }
       out.a.bits.data    := in.pwdata
       out.a.bits.mask    := Mux(in.pwrite, in.pstrb, ~0.U(beatBytes.W))
-      out.a.bits.corrupt := Bool(false)
+      out.a.bits.corrupt := false.B
       // Note: we ignore in.pprot
       // Read
       in.prdata := out.d.bits.data
@@ -112,9 +113,9 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
       in.pslverr := out.d.bits.corrupt || out.d.bits.denied || error_in_flight_reg
 
       // Unused channels
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
+      out.b.ready := true.B
+      out.c.valid := false.B
+      out.e.valid := false.B
     }
   }
 }

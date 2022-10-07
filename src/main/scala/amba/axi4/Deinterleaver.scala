@@ -92,8 +92,8 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
           case (_, i) => {       // i is an id in use
             val count = RegInit(0.U(log2Ceil(beats+1).W))
             val next = Wire(chiselTypeOf(count))
-            val inc = enq_OH(i) && out.r.fire() && out.r.bits.last
-            val dec = deq_OH(i) && in.r.fire() && in.r.bits.last
+            val inc = enq_OH(i) && out.r.fire && out.r.bits.last
+            val dec = deq_OH(i) && in.r.fire && in.r.bits.last
             next := count + inc.asUInt - dec.asUInt
             count := next
             // Bounds checking
@@ -105,7 +105,7 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
 
         // Select which Q will we start sending next cycle
         val winner  = pending & ~(leftOR(pending) << 1)
-        when (!locked || (in.r.fire() && in.r.bits.last)) {
+        when (!locked || (in.r.fire && in.r.bits.last)) {
           locked := pending.orR
           deq_id := OHToUInt(winner)
         }
@@ -117,7 +117,7 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
         val deq_OH_bools = deq_OH.asBools
         require(deq_OH_bools.size == qs.size, s"deq_OH.size != qs.size (${deq_OH_bools.size} vs ${qs.size})")
         (deq_OH_bools zip qs) foreach { case (s, q) =>
-          q.deq.ready := s && in.r.fire()
+          q.deq.ready := s && in.r.fire
         }
 
         val enq_OH_bools = enq_OH.asBools

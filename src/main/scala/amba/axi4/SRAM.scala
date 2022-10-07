@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -59,30 +60,30 @@ class AXI4RAM(
     val eccCode = None
     val address = outer.address
 
-    val corrupt = if (edgeIn.bundle.requestFields.contains(AMBACorrupt)) Some(SeqMem(1 << mask.filter(b=>b).size, UInt(width=2))) else None
+    val corrupt = if (edgeIn.bundle.requestFields.contains(AMBACorrupt)) Some(SyncReadMem(1 << mask.filter(b=>b).size, UInt(2.W))) else None
 
     val r_addr = Cat((mask zip (in.ar.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val w_addr = Cat((mask zip (in.aw.bits.addr >> log2Ceil(beatBytes)).asBools).filter(_._1).map(_._2).reverse)
     val r_sel0 = address.contains(in.ar.bits.addr)
     val w_sel0 = address.contains(in.aw.bits.addr)
 
-    val w_full = RegInit(Bool(false))
+    val w_full = RegInit(false.B)
     val w_id   = Reg(UInt())
     val w_echo = Reg(BundleMap(in.params.echoFields))
-    val r_sel1 = Reg(r_sel0)
-    val w_sel1 = Reg(w_sel0)
+    val r_sel1 = RegNext(r_sel0)
+    val w_sel1 = RegNext(w_sel0)
 
-    when (in. b.fire()) { w_full := Bool(false) }
-    when (in.aw.fire()) { w_full := Bool(true) }
+    when (in. b.fire) { w_full := false.B }
+    when (in.aw.fire) { w_full := true.B }
 
-    when (in.aw.fire()) {
+    when (in.aw.fire) {
       w_id := in.aw.bits.id
       w_sel1 := w_sel0
       w_echo :<= in.aw.bits.echo
     }
 
-    val wdata = Vec.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
-    when (in.aw.fire() && w_sel0) {
+    val wdata = VecInit.tabulate(beatBytes) { i => in.w.bits.data(8*(i+1)-1, 8*i) }
+    when (in.aw.fire && w_sel0) {
       mem.write(w_addr, wdata, in.w.bits.strb.asBools)
       corrupt.foreach { _.write(w_addr, in.w.bits.user(AMBACorrupt).asUInt) }
     }
@@ -95,22 +96,22 @@ class AXI4RAM(
     in.b.bits.resp := Mux(w_sel1, AXI4Parameters.RESP_OKAY, AXI4Parameters.RESP_DECERR)
     in.b.bits.echo :<= w_echo
 
-    val r_full = RegInit(Bool(false))
+    val r_full = RegInit(false.B)
     val r_id   = Reg(UInt())
     val r_echo = Reg(BundleMap(in.params.echoFields))
 
-    when (in. r.fire()) { r_full := Bool(false) }
-    when (in.ar.fire()) { r_full := Bool(true) }
+    when (in. r.fire) { r_full := false.B }
+    when (in.ar.fire) { r_full := true.B }
 
-    when (in.ar.fire()) {
+    when (in.ar.fire) {
       r_id := in.ar.bits.id
       r_sel1 := r_sel0
       r_echo :<= in.ar.bits.echo
     }
 
-    val ren = in.ar.fire()
+    val ren = in.ar.fire
     val rdata = mem.readAndHold(r_addr, ren)
-    val rcorrupt = corrupt.map(_.readAndHold(r_addr, ren)(0)).getOrElse(Bool(false))
+    val rcorrupt = corrupt.map(_.readAndHold(r_addr, ren)(0)).getOrElse(false.B)
 
     in. r.valid := r_full
     in.ar.ready := in.r.ready || !r_full
@@ -119,7 +120,7 @@ class AXI4RAM(
     in.r.bits.resp := Mux(r_sel1, Mux(rcorrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY), AXI4Parameters.RESP_DECERR)
     in.r.bits.data := Cat(rdata.reverse)
     in.r.bits.echo :<= r_echo
-    in.r.bits.last := Bool(true)
+    in.r.bits.last := true.B
   }
 }
 

@@ -193,10 +193,7 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
     dutio.dmiReset := tbreset
 
     tbsuccess := io.exit === 1.U
-    when (io.exit >= 2.U) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
-    }
+    assert(io.exit < 2.U, "*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
   }
 
   addResource("/vsrc/SimDTM.v")
@@ -229,10 +226,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     // Success is determined by the gdbserver
     // which is controlling this simulation.
     tbsuccess := io.exit === 1.U
-    when (io.exit >= 2.U) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
-    }
+    assert(io.exit < 2.U, "*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
   }
 
   addResource("/vsrc/SimJTAG.v")
@@ -331,9 +325,12 @@ object Debug {
       }
 
       debug.apb.foreach { apb =>
-        apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
+        apb.pready := false.B
+        apb.pslverr := false.B
+        apb.prdata := 0.U
+        apb.pduser := 0.U.asTypeOf(chiselTypeOf(apb.pduser))
         apb.psel := false.B
         apb.penable := false.B
       }

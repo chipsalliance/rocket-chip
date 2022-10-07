@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.apb
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}

@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.apb
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -40,7 +41,7 @@ class APBFanout()(implicit p: Parameters) extends LazyModule {
       val routingMask = AddressDecoder(port_addrs)
       val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 
-      val sel = Vec(route_addrs.map(seq => seq.map(_.contains(in.paddr)).reduce(_ || _)))
+      val sel = VecInit(route_addrs.map(seq => seq.map(_.contains(in.paddr)).reduce(_ || _)))
       (sel zip io_out) foreach { case (sel, out) =>
         out :<> in
         out.psel    := sel && in.psel
