@@ -526,3 +526,17 @@ class WithControlBusFrequency(freqMHz: Double) extends Config((site, here, up) =
 class WithDontDriveBusClocksFromSBus extends Config((site, here, up) => {
   case DriveClocksFromSBus => false
 })
+
+class WithCloneRocketTiles(n: Int = 1, cloneHart: Int = 0, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => {
+    val prev = up(TilesLocated(InSubsystem), site)
+    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val tileAttachParams = prev(cloneHart).asInstanceOf[RocketTileAttachParams]
+    (0 until n).map { i =>
+      CloneTileAttachParams(cloneHart, tileAttachParams.copy(
+        tileParams = tileAttachParams.tileParams.copy(hartId = i + idOffset)
+      ))
+    } ++ prev
+  }
+})
+
