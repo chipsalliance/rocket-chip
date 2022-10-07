@@ -6,7 +6,6 @@ package freechips.rocketchip.tile
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-import chisel3.util.ImplicitConversions._
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
@@ -272,8 +271,8 @@ case class FType(exp: Int, sig: Int) {
     val fractOut = fractIn << to.sig >> sig
     val expOut = {
       val expCode = expIn(exp, exp - 2)
-      val commonCase = (expIn + (1 << to.exp)) - (1 << exp)
-      Mux(expCode === 0 || expCode >= 6, Cat(expCode, commonCase(to.exp - 3, 0)), commonCase(to.exp, 0))
+      val commonCase = (expIn + (1 << to.exp).U) - (1 << exp).U
+      Mux(expCode === 0.U || expCode >= 6.U, Cat(expCode, commonCase(to.exp - 3, 0)), commonCase(to.exp, 0))
     }
     Cat(sign, expOut, fractOut)
   }
@@ -478,13 +477,13 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
   when (in.rm(0)) {
     val classify_out = (floatTypes.map(t => t.classify(maxType.unsafeConvert(in.in1, t))): Seq[UInt])(tag)
     toint := classify_out | (store >> minXLen << minXLen)
-    intType := 0
+    intType := false.B
   }
 
   when (in.wflags) { // feq/flt/fle, fcvt
     toint := (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR | (store >> minXLen << minXLen)
     io.out.bits.exc := dcmp.io.exceptionFlags
-    intType := 0
+    intType := false.B
 
     when (!in.ren2) { // fcvt
       val cvtType = in.typ.extract(log2Ceil(nIntTypes), 1)
@@ -498,7 +497,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
 
       for (i <- 0 until nIntTypes-1) {
         val w = minXLen << i
-        when (cvtType === i) {
+        when (cvtType === i.U) {
           val narrow = Module(new hardfloat.RecFNToIN(maxExpWidth, maxSigWidth, w))
           narrow.io.in := in.in1
           narrow.io.roundingMode := in.rm
@@ -536,7 +535,7 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
     val res = WireDefault(in.bits.in1.asSInt)
     for (i <- 0 until nIntTypes-1) {
       val smallInt = in.bits.in1((minXLen << i) - 1, 0)
-      when (in.bits.typ.extract(log2Ceil(nIntTypes), 1) === i) {
+      when (in.bits.typ.extract(log2Ceil(nIntTypes), 1) === i.U) {
         res := Mux(in.bits.typ(0), smallInt.zext, smallInt.asSInt)
       }
     }
@@ -594,7 +593,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
   val outTag = in.bits.typeTagOut
   val mux = WireDefault(fsgnjMux)
   for (t <- floatTypes.init) {
-    when (outTag === typeTag(t)) {
+    when (outTag === typeTag(t).U) {
       mux.data := Cat(fsgnjMux.data >> t.recodedWidth, maxType.unsafeConvert(fsgnjMux.data, t))
     }
   }
@@ -609,7 +608,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
       // narrowing conversions require rounding (for RVQ, this could be
       // optimized to use a single variable-position rounding unit, rather
       // than two fixed-position ones)
-      for (outType <- floatTypes.init) when (outTag === typeTag(outType) && (typeTag(outType) == 0 || outTag < inTag)) {
+      for (outType <- floatTypes.init) when (outTag === typeTag(outType).U && ((typeTag(outType) == 0).B || outTag < inTag)) {
         val narrower = Module(new hardfloat.RecFNToRecFN(maxType.exp, maxType.sig, outType.exp, outType.sig))
         narrower.io.in := in.bits.in1
         narrower.io.roundingMode := in.bits.rm
@@ -797,7 +796,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     regfile(load_wb_tag) := wdata
     assert(consistent(wdata))
     if (enableCommitLog)
-      printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32, load_wb_data)
+      printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32.U, load_wb_data)
     frfWriteBundle(0).wrdst := load_wb_tag
     frfWriteBundle(0).wrenf := true.B
     frfWriteBundle(0).wrdata := ieee(wdata)
@@ -935,7 +934,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     assert(consistent(wdata))
     regfile(waddr) := wdata
     if (enableCommitLog) {
-      printf("f%d p%d 0x%x\n", waddr, waddr + 32, ieee(wdata))
+      printf("f%d p%d 0x%x\n", waddr, waddr + 32.U, ieee(wdata))
     }
     frfWriteBundle(1).wrdst := waddr
     frfWriteBundle(1).wrenf := true.B
@@ -965,7 +964,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   io.sboard_clra := waddr
   ccover(io.sboard_clr && load_wb, "DUAL_WRITEBACK", "load and FMA writeback on same cycle")
   // we don't currently support round-max-magnitude (rm=4)
-  io.illegal_rm := io.inst(14,12).isOneOf(5, 6) || io.inst(14,12) === 7 && io.fcsr_rm >= 5
+  io.illegal_rm := io.inst(14,12).isOneOf(5.U, 6.U) || io.inst(14,12) === 7.U && io.fcsr_rm >= 5.U
 
   if (cfg.divSqrt) {
     val divSqrt_inValid = mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt) && !divSqrt_inFlight
@@ -981,30 +980,30 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     for (t <- floatTypes) {
       val tag = mem_ctrl.typeTagOut
       val divSqrt = withReset(divSqrt_killed) { Module(new hardfloat.DivSqrtRecFN_small(t.exp, t.sig, 0)) }
-      divSqrt.io.inValid := divSqrt_inValid && tag === typeTag(t)
+      divSqrt.io.inValid := divSqrt_inValid && tag === typeTag(t).U
       divSqrt.io.sqrtOp := mem_ctrl.sqrt
       divSqrt.io.a := maxType.unsafeConvert(fpiu.io.out.bits.in.in1, t)
       divSqrt.io.b := maxType.unsafeConvert(fpiu.io.out.bits.in.in2, t)
       divSqrt.io.roundingMode := fpiu.io.out.bits.in.rm
       divSqrt.io.detectTininess := hardfloat.consts.tininess_afterRounding
 
-      when (!divSqrt.io.inReady) { divSqrt_inFlight := true } // only 1 in flight
+      when (!divSqrt.io.inReady) { divSqrt_inFlight := true.B } // only 1 in flight
 
       when (divSqrt.io.outValid_div || divSqrt.io.outValid_sqrt) {
         divSqrt_wen := !divSqrt_killed
         divSqrt_wdata := sanitizeNaN(divSqrt.io.out, t)
         divSqrt_flags := divSqrt.io.exceptionFlags
-        divSqrt_typeTag := typeTag(t)
+        divSqrt_typeTag := typeTag(t).U
       }
     }
 
-    when (divSqrt_killed) { divSqrt_inFlight := false }
+    when (divSqrt_killed) { divSqrt_inFlight := false.B }
   } else {
-    when (id_ctrl.div || id_ctrl.sqrt) { io.illegal_rm := true }
+    when (id_ctrl.div || id_ctrl.sqrt) { io.illegal_rm := true.B }
   }
 
   // gate the clock
-  clock_en_reg := !useClockGating ||
+  clock_en_reg := !useClockGating.B ||
     io.keep_clock_enabled || // chicken bit
     io.valid || // ID stage
     req_valid || // EX stage
