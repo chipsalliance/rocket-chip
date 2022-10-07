@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
+import chisel3._
+import chisel3.util.Counter
 import freechips.rocketchip.diplomacy.{LazyModuleImp, DTSTimebase}
 import freechips.rocketchip.devices.tilelink.CanHavePeripheryCLINT
 
