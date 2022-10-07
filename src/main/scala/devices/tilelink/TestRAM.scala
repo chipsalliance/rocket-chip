@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -36,7 +37,7 @@ class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int 
 
     val addrBits = (mask zip edge.addr_hi(in.a.bits).asBools).filter(_._1).map(_._2)
     val memAddress = Cat(addrBits.reverse)
-    val mem = Mem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8)))
+    val mem = Mem(1 << addrBits.size, Vec(beatBytes, Bits(width = 8.W)))
     val bad = Mem(1 << addrBits.size, Bool())
 
     // "Flow control"
