@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -16,13 +17,13 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
 {
   require (params.addressBits > params.pageBits)
 
-  val l = UInt(width = 1) // locked
-  val a = UInt(width = 1) // LSB of A (0=disabled, 1=TOR)
-  val r = UInt(width = 1)
-  val w = UInt(width = 1)
+  val l = UInt(1.W) // locked
+  val a = UInt(1.W) // LSB of A (0=disabled, 1=TOR)
+  val r = UInt(1.W)
+  val w = UInt(1.W)
 
-  val addr_hi = UInt(width = params.addressBits-params.pageBits)
-  def address = Cat(addr_hi, UInt(0, width=params.pageBits))
+  val addr_hi = UInt((params.addressBits-params.pageBits).W)
+  def address = Cat(addr_hi, 0.U(params.pageBits.W))
   def blockPriorAddress = l(0) && a(0)
 
   def fields(blockAddress: Bool, initial: PMPInitialValue): Seq[RegField] = {
@@ -52,7 +53,7 @@ class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(para
     def field(bits: Int, reg: UInt, desc: RegFieldDesc, lock: Bool = l(0)) =
       RegField(bits, RegReadFn(reg), RegWriteFn((wen, data) => {
         when (wen && !lock) { reg := data }
-        Bool(true)
+        true.B
       }), Some(desc))
 
     Seq(
@@ -85,11 +86,11 @@ case class PMPInitialValueInt(addr_hi: BigInt = 0, l: Int, a: Int, r: Int, w: In
 object DevicePMP
 {
   /** Create DevicePMP bundle with appropriate initial value intended for use in RegInit
-    *  
+    *
     *  @param addressBits width of addresses
     *  @param pageBits number of address bits per page
     *  @param initial optional initial value. 0 is used for all fields if not specified.
-    *  
+    *
     */
 
   def apply(addressBits: Int, pageBits: Int, initial: Option[PMPInitialValue] = None): DevicePMP = {
@@ -143,17 +144,17 @@ case class PhysicalFilterParams(
 }
 
 /** The PhyisicalFilter provides physical memory protection for Tile Link bus traffic, granting or denying accesses based on address and access type.
-  *  
+  *
   *  The PhysicalFilter uses a set of DevicePMP registers to control whether
   *  accesses of certain types are allowed or denied.
   *  For transactions in flight, the PhysicalFilter will only prevent acquisition of NEW permissions;
   *  it will not shoot down permissions acquired previously.
-  *  
+  *
   *  The blocking behavior is controlled by a series of PMP registers which are accessible via memory mapped reads and writes.
   *  The list is a priority allow list. If no PMP matches the transaction will be denied. Otherwise the first PMP which is active
   *  and address matches is compared against the requested read and/or write permissions. 
   *  When an access is denied the Phyiscal Filter crafts and responds with a Tile Link Denied response message.
-  *  
+  *
   *  When a device PMP register's `a` bit is set, it is enabled and Top of Range (TOR) matching is applied.
   *  For a given PMP register, the associated address register forms the top of the
   *  address range, and the preceding PMP address register forms the bottom of the
@@ -162,16 +163,16 @@ case class PhysicalFilterParams(
   *  If PMP[0].a is set (TOR is applied), zero is used for the lower bound, and so
   *  it matches any address `y < PMP[0].address`.
   *  Note that the addresses bits stored in the PMP registers are addr_hi, or page address.
-  * 
+  *
   *  Accesses which need write access are anything but Get, AcquireBlock, or NtoB.
   *  Accesses which need read access are anything but PutFull data or PutPartial Data.
-  * 
+  *
   *  Setting a PMP's r or w bit set grants read or write access respectively.
   *
   *  PMP registers are protected by a lock bit. Once lock bit is set the PMP register can no
   *  longer be modified. In addition, if the following PMP access is set to TOR, the PMP's address
   *  cannot be modified, even if its own lock bit is not set.
-  * 
+  *
   *  @param params sets the base address and width of the control registers, the number of PMP registers and their initial values.
   */
 
@@ -191,8 +192,8 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
   lazy val module = new LazyModuleImp(this) {
     // We need to be able to represent +1 larger than the largest populated address
     val addressBits = log2Ceil(node.edges.out.map(_.manager.maxAddress).max+1+1)
-    val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
-    val blocks = pmps.tail.map(_.blockPriorAddress) :+ Bool(false)
+    val pmps = RegInit(VecInit(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))
+    val blocks = pmps.tail.map(_.blockPriorAddress) :+ false.B
     controlNode.regmap(0 -> ((pmps zip blocks) zip params.pmpRegisters).zipWithIndex.map{ case (((p, b), init), i) =>
       RegFieldGroup(s"devicepmp${i}", Some(s"Physical Filter Device PMP Register ${i}"), p.fields(b, init))
     }.toList.flatten)
@@ -201,7 +202,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       out <> in
 
       // Generally useful wires needed below
-      val mySinkId = UInt(edgeOut.manager.endSinkId)
+      val mySinkId = edgeOut.manager.endSinkId.U
       val a_first = edgeIn.first(in.a)
       val (d_first, d_last, _) = edgeIn.firstlast(in.d)
 
@@ -209,49 +210,49 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val needW = in.a.bits.opcode =/= TLMessages.Get &&
                   (in.a.bits.opcode =/= TLMessages.AcquireBlock ||
                    in.a.bits.param  =/= TLPermissions.NtoB ||
-                   Bool(!edgeIn.manager.anySupportAcquireB))
+                   (!edgeIn.manager.anySupportAcquireB).B)
       val needR = in.a.bits.opcode =/= TLMessages.PutFullData &&
                   in.a.bits.opcode =/= TLMessages.PutPartialData
-      val lt = Bool(false) +: pmps.map(in.a.bits.address < _.address)
+      val lt = false.B +: pmps.map(in.a.bits.address < _.address)
       // sel[i] is true if PMP[i].a is set and PMP[i-1].address <= address < PMP[i].address
       val sel = (pmps.map(_.a) zip (lt.init zip lt.tail)) map { case (a, (l, r)) => a(0) && !l && r }
       val ok = pmps.map(p => (p.r(0) || !needR) && (p.w(0) || !needW))
       // If PMP[i] matches the address and is active, apply PMP[i].r/w permissions.
-      val allowFirst = PriorityMux(sel :+ Bool(true), ok :+ Bool(false)) // deny if no match
+      val allowFirst = PriorityMux(sel :+ true.B, ok :+ false.B) // deny if no match
       val allow = allowFirst holdUnless a_first // don't change our mind mid-transaction
 
       // Track the progress of transactions from A => D
-      val d_rack  = Bool(edgeIn.manager.anySupportAcquireB) && in.d.bits.opcode === TLMessages.ReleaseAck
-      val flight = RegInit(UInt(0, width = log2Ceil(edgeIn.client.endSourceId+1+1))) // +1 for inclusive range +1 for a_first vs. d_last
-      val denyWait = RegInit(Bool(false)) // deny already inflight?
-      flight := flight + (a_first && in.a.fire()) - (d_last && !d_rack && in.d.fire())
+      val d_rack  = edgeIn.manager.anySupportAcquireB.B && in.d.bits.opcode === TLMessages.ReleaseAck
+      val flight = RegInit(0.U(log2Ceil(edgeIn.client.endSourceId+1+1).W)) // +1 for inclusive range +1 for a_first vs. d_last
+      val denyWait = RegInit(false.B) // deny already inflight?
+      flight := flight + (a_first && in.a.fire) - (d_last && !d_rack && in.d.fire)
 
       // Discard denied A traffic, but first block it until there is nothing in-flight
-      val deny_ready = !denyWait && flight === UInt(0)
+      val deny_ready = !denyWait && flight === 0.U
       in.a.ready := Mux(allow, out.a.ready, !a_first || deny_ready)
       out.a.valid := in.a.valid && allow
 
       // Frame an appropriate deny message
-      val denyValid = RegInit(Bool(false))
+      val denyValid = RegInit(false.B)
       val deny = Reg(in.d.bits)
       val d_opcode = TLMessages.adResponse(in.a.bits.opcode)
-      val d_grant = Bool(edgeIn.manager.anySupportAcquireB) && deny.opcode === TLMessages.Grant
+      val d_grant = edgeIn.manager.anySupportAcquireB.B && deny.opcode === TLMessages.Grant
       when (in.a.valid && !allow && deny_ready && a_first) {
-        denyValid    := Bool(true)
-        denyWait     := Bool(true)
+        denyValid    := true.B
+        denyWait     := true.B
         deny.opcode  := d_opcode
-        deny.param   := UInt(0) // toT, but error grants must be handled transiently (ie: you don't keep permissions)
+        deny.param   := 0.U // toT, but error grants must be handled transiently (ie: you don't keep permissions)
         deny.size    := in.a.bits.size
         deny.source  := in.a.bits.source
         deny.sink    := mySinkId
-        deny.denied  := Bool(true)
-        deny.data    := UInt(0)
+        deny.denied  := true.B
+        deny.data    := 0.U
         deny.corrupt := d_opcode(0)
       }
       when (denyValid && in.d.ready && d_last) {
-        denyValid := Bool(false)
+        denyValid := false.B
         when (!d_grant) {
-          denyWait := Bool(false)
+          denyWait := false.B
         }
       }
 
@@ -270,7 +271,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
         val wSourceVec = Reg(Vec(edgeIn.client.endSourceId, Bool()))
         val aWOk = PriorityMux(sel, pmps.map(_.w(0)))
         val dWOk = wSourceVec(in.d.bits.source)
-        val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.valid && in.a.bits.source === in.d.bits.source
+        val bypass = (edgeIn.manager.minLatency == 0).B && in.a.valid && in.a.bits.source === in.d.bits.source
         val d_grant = in.d.bits.opcode === TLMessages.Grant || in.d.bits.opcode === TLMessages.GrantData
         val dWHeld = Mux(bypass, aWOk, dWOk) holdUnless d_first
 
@@ -278,12 +279,12 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
           in.d.bits.param := TLPermissions.toB
         }
 
-        when (in.a.fire() && a_first) {
+        when (in.a.fire && a_first) {
           wSourceVec(in.a.bits.source) := aWOk
         }
 
         edgeIn.client.unusedSources.foreach { id =>
-          wSourceVec(id) := Bool(true)
+          wSourceVec(id) := true.B
         }
 
         // Swallow GrantAcks
@@ -291,8 +292,8 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
         out.e.valid := in.e.valid && !isMyId
         in.e.ready := out.e.ready || isMyId
 
-        when (in.e.fire() && isMyId) {
-          denyWait := Bool(false)
+        when (in.e.fire && isMyId) {
+          denyWait := false.B
         }
       }
     }
