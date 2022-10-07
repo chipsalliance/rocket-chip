@@ -115,7 +115,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val long_latency_stall = Reg(Bool())
   val id_reg_pause = Reg(Bool())
   val imem_might_request_reg = Reg(Bool())
-  val clock_en = WireInit(true.B)
+  val clock_en = WireDefault(true.B)
   val gated_clock =
     if (!rocketParams.clockGate) clock
     else ClockGate(clock, clock_en, "rocket_clock_gate")
@@ -329,7 +329,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_rocc_busy = usingRoCC.B &&
     (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
      mem_reg_valid && mem_ctrl.rocc || wb_reg_valid && wb_ctrl.rocc)
-  val id_do_fence = WireInit(id_rocc_busy && id_ctrl.fence ||
+  val id_do_fence = WireDefault(id_rocc_busy && id_ctrl.fence ||
     id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
 
   val bpu = Module(new BreakpointUnit(nBreakpoints))
@@ -675,9 +675,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
 
   div.io.resp.ready := !wb_wxd
-  val ll_wdata = WireInit(div.io.resp.bits.data)
-  val ll_waddr = WireInit(div.io.resp.bits.tag)
-  val ll_wen = WireInit(div.io.resp.fire)
+  val ll_wdata = WireDefault(div.io.resp.bits.data)
+  val ll_waddr = WireDefault(div.io.resp.bits.tag)
+  val ll_wen = WireDefault(div.io.resp.fire)
   if (usingRoCC) {
     io.rocc.resp.ready := !wb_wxd
     when (io.rocc.resp.fire) {
