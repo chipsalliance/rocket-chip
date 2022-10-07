@@ -354,7 +354,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.gpa.bits := gpa
 
   // performance events
-  io.cpu.perf := icache.io.perf
+  io.cpu.perf.acquire := icache.io.perf.acquire
   io.cpu.perf.tlbMiss := io.ptw.req.fire
   io.errors := icache.io.errors
 
