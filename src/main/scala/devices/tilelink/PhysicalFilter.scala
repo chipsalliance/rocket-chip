@@ -225,7 +225,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
       val d_rack  = edgeIn.manager.anySupportAcquireB.B && in.d.bits.opcode === TLMessages.ReleaseAck
       val flight = RegInit(0.U(log2Ceil(edgeIn.client.endSourceId+1+1).W)) // +1 for inclusive range +1 for a_first vs. d_last
       val denyWait = RegInit(false.B) // deny already inflight?
-      flight := flight + (a_first && in.a.fire()) - (d_last && !d_rack && in.d.fire())
+      flight := flight + (a_first && in.a.fire) - (d_last && !d_rack && in.d.fire)
 
       // Discard denied A traffic, but first block it until there is nothing in-flight
       val deny_ready = !denyWait && flight === 0.U
