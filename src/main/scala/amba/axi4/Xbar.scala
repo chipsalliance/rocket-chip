@@ -98,8 +98,8 @@ class AXI4Xbar(
       if (io_out.size > 1) {
         // Block A[RW] if we switch ports, to ensure responses stay ordered (also: beware the dining philosophers)
         val endId = edgesIn(i).master.endId
-        val arFIFOMap = WireInit(VecInit.fill(endId) { true.B })
-        val awFIFOMap = WireInit(VecInit.fill(endId) { true.B })
+        val arFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
+        val awFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
         val arSel = UIntToOH(io_in(i).ar.bits.id, endId)
         val awSel = UIntToOH(io_in(i).aw.bits.id, endId)
         val rSel  = UIntToOH(io_in(i).r .bits.id, endId)
