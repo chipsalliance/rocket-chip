@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
+import chisel3.util._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci._

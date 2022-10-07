@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
+import chisel3._
 import chisel3.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
@@ -417,13 +417,13 @@ trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
   val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
 
-  val meip = if(outer.meipNode.isDefined) Some(IO(Vec(outer.meipNode.get.out.size, Bool()).asInput)) else None
+  val meip = if(outer.meipNode.isDefined) Some(IO(Input(Vec(outer.meipNode.get.out.size, Bool())))) else None
   meip.foreach { m =>
     m.zipWithIndex.foreach{ case (pin, i) =>
       (outer.meipNode.get.out(i)._1)(0) := pin
     }
   }
-  val seip = if(outer.seipNode.isDefined) Some(IO(Vec(outer.seipNode.get.out.size, Bool()).asInput)) else None
+  val seip = if(outer.seipNode.isDefined) Some(IO(Input(Vec(outer.seipNode.get.out.size, Bool())))) else None
   seip.foreach { s =>
     s.zipWithIndex.foreach{ case (pin, i) =>
       (outer.seipNode.get.out(i)._1)(0) := pin
