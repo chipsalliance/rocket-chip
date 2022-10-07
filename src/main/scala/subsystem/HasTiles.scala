@@ -9,7 +9,7 @@ import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugM
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile.{BaseTile, LookupByHartIdImpl, TileParams, InstantiableTileParams, MaxHartIdBits, TilePRCIDomain, NMI}
+import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType}
 import freechips.rocketchip.util._
@@ -243,13 +243,12 @@ trait CanAttachTile {
   type TileContextType <: DefaultTileContextType
   def tileParams: InstantiableTileParams[TileType]
   def crossingParams: TileCrossingParamsLike
-  def lookup: LookupByHartIdImpl
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
-  def instantiate(implicit p: Parameters): TilePRCIDomain[TileType] = {
+  def instantiate(allTileParams: Seq[TileParams])(implicit p: Parameters): TilePRCIDomain[TileType] = {
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(s"${tileParams.name.getOrElse("core")}_${tileParams.hartId}"))
     val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
-      val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, lookup)) }
+      val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
     })
     tile_prci_domain
   }
@@ -384,14 +383,13 @@ trait InstantiatesTiles { this: BaseSubsystem =>
     * may or may not be those actually reflected at runtime in e.g. the $mhartid CSR
     */
   val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
-
+  val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
+  val tileCrossingTypes: Seq[ClockCrossingType] = tileAttachParams.map(_.crossingParams.crossingType)
   /** The actual list of instantiated tiles in this subsystem. */
-  val tile_prci_domains: Seq[TilePRCIDomain[_]] = tileAttachParams.map(_.instantiate(p))
+  val tile_prci_domains: Seq[TilePRCIDomain[_]] = tileAttachParams.map(_.instantiate(tileParams)(p))
   val tiles: Seq[BaseTile] = tile_prci_domains.map(_.tile.asInstanceOf[BaseTile])
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
-  val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
-  val tileCrossingTypes: Seq[ClockCrossingType] = tileAttachParams.map(_.crossingParams.crossingType)
   def nTiles: Int = tileAttachParams.size
   def hartIdList: Seq[Int] = tileParams.map(_.hartId)
   def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)

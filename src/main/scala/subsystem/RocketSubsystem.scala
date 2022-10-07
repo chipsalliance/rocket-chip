@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.{Field, Parameters}
+import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing}
 import freechips.rocketchip.tile._
@@ -18,12 +18,8 @@ case class RocketCrossingParams(
 
 case class RocketTileAttachParams(
   tileParams: RocketTileParams,
-  crossingParams: RocketCrossingParams,
-  lookup: LookupByHartIdImpl
+  crossingParams: RocketCrossingParams
 ) extends CanAttachTile { type TileType = RocketTile }
-
-case object RocketTilesKey extends Field[Seq[RocketTileParams]](Nil)
-case object RocketCrossingKey extends Field[Seq[RocketCrossingParams]](List(RocketCrossingParams()))
 
 trait HasRocketTiles extends HasTiles { this: BaseSubsystem =>
   val rocketTiles = tiles.collect { case r: RocketTile => r }
