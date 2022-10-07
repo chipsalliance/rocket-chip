@@ -3,9 +3,10 @@
 
 package freechips.rocketchip.tile
 
-import Chisel.{defaultCompileOptions => _, _}
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-import Chisel.ImplicitConversions._
+import chisel3.util.ImplicitConversions._
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.config.Parameters
@@ -51,8 +52,8 @@ class FPUCtrlSigs extends Bundle with HasFPUCtrlSigs
 
 class FPUDecoder(implicit p: Parameters) extends FPUModule()(p) {
   val io = new Bundle {
-    val inst = Bits(INPUT, 32)
-    val sigs = new FPUCtrlSigs().asOutput
+    val inst = Input(Bits(32.W))
+    val sigs = Output(new FPUCtrlSigs())
   }
 
   private val X2 = BitPat.dontCare(2)
@@ -179,58 +180,58 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val hartid = Input(UInt(hartIdLen.W))
   val time = Input(UInt(xLen.W))
 
-  val inst = Bits(INPUT, 32)
-  val fromint_data = Bits(INPUT, xLen)
+  val inst = Input(Bits(32.W))
+  val fromint_data = Input(Bits(xLen.W))
 
-  val fcsr_rm = Bits(INPUT, FPConstants.RM_SZ)
-  val fcsr_flags = Valid(Bits(width = FPConstants.FLAGS_SZ))
+  val fcsr_rm = Input(Bits(FPConstants.RM_SZ.W))
+  val fcsr_flags = Valid(Bits(FPConstants.FLAGS_SZ.W))
 
-  val store_data = Bits(OUTPUT, fLen)
-  val toint_data = Bits(OUTPUT, xLen)
+  val store_data = Output(Bits(fLen.W))
+  val toint_data = Output(Bits(xLen.W))
 
-  val dmem_resp_val = Bool(INPUT)
-  val dmem_resp_type = Bits(INPUT, 3)
-  val dmem_resp_tag = UInt(INPUT, 5)
-  val dmem_resp_data = Bits(INPUT, fLen)
+  val dmem_resp_val = Input(Bool())
+  val dmem_resp_type = Input(Bits(3.W))
+  val dmem_resp_tag = Input(UInt(5.W))
+  val dmem_resp_data = Input(Bits(fLen.W))
 
-  val valid = Bool(INPUT)
-  val fcsr_rdy = Bool(OUTPUT)
-  val nack_mem = Bool(OUTPUT)
-  val illegal_rm = Bool(OUTPUT)
-  val killx = Bool(INPUT)
-  val killm = Bool(INPUT)
-  val dec = new FPUCtrlSigs().asOutput
-  val sboard_set = Bool(OUTPUT)
-  val sboard_clr = Bool(OUTPUT)
-  val sboard_clra = UInt(OUTPUT, 5)
+  val valid = Input(Bool())
+  val fcsr_rdy = Output(Bool())
+  val nack_mem = Output(Bool())
+  val illegal_rm = Output(Bool())
+  val killx = Input(Bool())
+  val killm = Input(Bool())
+  val dec = Output(new FPUCtrlSigs())
+  val sboard_set = Output(Bool())
+  val sboard_clr = Output(Bool())
+  val sboard_clra = Output(UInt(5.W))
 
-  val keep_clock_enabled = Bool(INPUT)
+  val keep_clock_enabled = Input(Bool())
 }
 
 class FPUIO(implicit p: Parameters) extends FPUCoreIO ()(p) {
-  val cp_req = Decoupled(new FPInput()).flip //cp doesn't pay attn to kill sigs
+  val cp_req = Flipped(Decoupled(new FPInput())) //cp doesn't pay attn to kill sigs
   val cp_resp = Decoupled(new FPResult())
 }
 
 class FPResult(implicit p: Parameters) extends CoreBundle()(p) {
-  val data = Bits(width = fLen+1)
-  val exc = Bits(width = FPConstants.FLAGS_SZ)
+  val data = Bits((fLen+1).W)
+  val exc = Bits(FPConstants.FLAGS_SZ.W)
 }
 
 class IntToFPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSigs {
-  val rm = Bits(width = FPConstants.RM_SZ)
-  val typ = Bits(width = 2)
-  val in1 = Bits(width = xLen)
+  val rm = Bits(FPConstants.RM_SZ.W)
+  val typ = Bits(2.W)
+  val in1 = Bits(xLen.W)
 }
 
 class FPInput(implicit p: Parameters) extends CoreBundle()(p) with HasFPUCtrlSigs {
-  val rm = Bits(width = FPConstants.RM_SZ)
-  val fmaCmd = Bits(width = 2)
-  val typ = Bits(width = 2)
-  val fmt = Bits(width = 2)
-  val in1 = Bits(width = fLen+1)
-  val in2 = Bits(width = fLen+1)
-  val in3 = Bits(width = fLen+1)
+  val rm = Bits(FPConstants.RM_SZ.W)
+  val fmaCmd = Bits(2.W)
+  val typ = Bits(2.W)
+  val fmt = Bits(2.W)
+  val in1 = Bits((fLen+1).W)
+  val in2 = Bits((fLen+1).W)
+  val in3 = Bits((fLen+1).W)
 
 }
 
@@ -238,8 +239,8 @@ case class FType(exp: Int, sig: Int) {
   def ieeeWidth = exp + sig
   def recodedWidth = ieeeWidth + 1
 
-  def ieeeQNaN = UInt((BigInt(1) << (ieeeWidth - 1)) - (BigInt(1) << (sig - 2)), ieeeWidth)
-  def qNaN = UInt((BigInt(7) << (exp + sig - 3)) + (BigInt(1) << (sig - 2)), recodedWidth)
+  def ieeeQNaN = ((BigInt(1) << (ieeeWidth - 1)) - (BigInt(1) << (sig - 2))).U(ieeeWidth.W)
+  def qNaN = ((BigInt(7) << (exp + sig - 3)) + (BigInt(1) << (sig - 2))).U(recodedWidth.W)
   def isNaN(x: UInt) = x(sig + exp - 1, sig + exp - 3).andR
   def isSNaN(x: UInt) = isNaN(x) && !x(sig - 2)
 
@@ -247,12 +248,12 @@ case class FType(exp: Int, sig: Int) {
     val sign = x(sig + exp)
     val code = x(exp + sig - 1, exp + sig - 3)
     val codeHi = code(2, 1)
-    val isSpecial = codeHi === UInt(3)
+    val isSpecial = codeHi === 3.U
 
-    val isHighSubnormalIn = x(exp + sig - 3, sig - 1) < UInt(2)
-    val isSubnormal = code === UInt(1) || codeHi === UInt(1) && isHighSubnormalIn
-    val isNormal = codeHi === UInt(1) && !isHighSubnormalIn || codeHi === UInt(2)
-    val isZero = code === UInt(0)
+    val isHighSubnormalIn = x(exp + sig - 3, sig - 1) < 2.U
+    val isSubnormal = code === 1.U || codeHi === 1.U && isHighSubnormalIn
+    val isNormal = codeHi === 1.U && !isHighSubnormalIn || codeHi === 2.U
+    val isZero = code === 0.U
     val isInf = isSpecial && !code(0)
     val isNaN = code.andR
     val isSNaN = isNaN && !x(sig-2)
@@ -315,13 +316,13 @@ trait HasFPUParameters {
   def maxExpWidth = maxType.exp
   def maxSigWidth = maxType.sig
   def typeTag(t: FType) = floatTypes.indexOf(t)
-  def typeTagWbOffset = UInt(FType.all.indexOf(minType) + 1)
-  def typeTagGroup(t: FType) = UInt(if (floatTypes.contains(t)) typeTag(t) else typeTag(maxType))
+  def typeTagWbOffset = (FType.all.indexOf(minType) + 1).U
+  def typeTagGroup(t: FType) = (if (floatTypes.contains(t)) typeTag(t) else typeTag(maxType)).U
   // typeTag
   def H = typeTagGroup(FType.H)
   def S = typeTagGroup(FType.S)
   def D = typeTagGroup(FType.D)
-  def I = UInt(typeTag(maxType))
+  def I = typeTag(maxType).U
 
   private def isBox(x: UInt, t: FType): Bool = x(t.sig + t.exp, t.sig + t.exp - 4).andR
 
@@ -388,8 +389,8 @@ trait HasFPUParameters {
       x
     } else {
       val nt = floatTypes(typeTag(t) + 1)
-      val bigger = box(UInt((BigInt(1) << nt.recodedWidth)-1), nt, x, t)
-      bigger | UInt((BigInt(1) << maxType.recodedWidth) - (BigInt(1) << nt.recodedWidth))
+      val bigger = box(((BigInt(1) << nt.recodedWidth)-1).U, nt, x, t)
+      bigger | ((BigInt(1) << maxType.recodedWidth) - (BigInt(1) << nt.recodedWidth)).U
     }
   }
 
@@ -404,7 +405,7 @@ trait HasFPUParameters {
     if (typeTag(t) == 0) {
       x
     } else {
-      val maskedNaN = x & ~UInt((BigInt(1) << (t.sig-1)) | (BigInt(1) << (t.sig+t.exp-4)), t.recodedWidth)
+      val maskedNaN = x & ~((BigInt(1) << (t.sig-1)) | (BigInt(1) << (t.sig+t.exp-4))).U(t.recodedWidth.W)
       Mux(t.isNaN(x), maskedNaN, x)
     }
   }
@@ -421,7 +422,7 @@ trait HasFPUParameters {
     }
 
     // fill MSBs of subword loads to emulate a wider load of a NaN-boxed value
-    val boxes = floatTypes.map(t => UInt((BigInt(1) << maxType.ieeeWidth) - (BigInt(1) << t.ieeeWidth)))
+    val boxes = floatTypes.map(t => ((BigInt(1) << maxType.ieeeWidth) - (BigInt(1) << t.ieeeWidth)).U)
     helper(boxes(tag) | x, maxType)
   }
 
@@ -448,17 +449,17 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
   class Output extends Bundle {
     val in = new FPInput
     val lt = Bool()
-    val store = Bits(width = fLen)
-    val toint = Bits(width = xLen)
-    val exc = Bits(width = FPConstants.FLAGS_SZ)
+    val store = Bits(fLen.W)
+    val toint = Bits(xLen.W)
+    val exc = Bits(FPConstants.FLAGS_SZ.W)
   }
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Flipped(Valid(new FPInput))
     val out = Valid(new Output)
   }
 
   val in = RegEnable(io.in.bits, io.in.valid)
-  val valid = Reg(next=io.in.valid)
+  val valid = RegNext(io.in.valid)
 
   val dcmp = Module(new hardfloat.CompareRecFN(maxExpWidth, maxSigWidth))
   dcmp.io.a := in.in1
@@ -468,11 +469,11 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
   val tag = in.typeTagOut
   val store = (floatTypes.map(t => if (t == FType.H) Fill(maxType.ieeeWidth / minXLen,   ieee(in.in1)(15, 0).sextTo(minXLen))
                                    else              Fill(maxType.ieeeWidth / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1, 0))): Seq[UInt])(tag)
-  val toint = Wire(init = store)
-  val intType = Wire(init = in.fmt(0))
+  val toint = WireDefault(store)
+  val intType = WireDefault(in.fmt(0))
   io.out.bits.store := store
   io.out.bits.toint := ((0 until nIntTypes).map(i => toint((minXLen << i) - 1, 0).sextTo(xLen)): Seq[UInt])(intType)
-  io.out.bits.exc := Bits(0)
+  io.out.bits.exc := 0.U
 
   when (in.rm(0)) {
     val classify_out = (floatTypes.map(t => t.classify(maxType.unsafeConvert(in.in1, t))): Seq[UInt])(tag)
@@ -493,7 +494,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
       conv.io.roundingMode := in.rm
       conv.io.signedOut := ~in.typ(0)
       toint := conv.io.out
-      io.out.bits.exc := Cat(conv.io.intExceptionFlags(2, 1).orR, UInt(0, 3), conv.io.intExceptionFlags(0))
+      io.out.bits.exc := Cat(conv.io.intExceptionFlags(2, 1).orR, 0.U(3.W), conv.io.intExceptionFlags(0))
 
       for (i <- 0 until nIntTypes-1) {
         val w = minXLen << i
@@ -507,7 +508,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
           val excOut = Cat(conv.io.signedOut === excSign, Fill(w-1, !excSign))
           val invalid = conv.io.intExceptionFlags(2) || narrow.io.intExceptionFlags(1)
           when (invalid) { toint := Cat(conv.io.out >> w, excOut) }
-          io.out.bits.exc := Cat(invalid, UInt(0, 3), !invalid && conv.io.intExceptionFlags(0))
+          io.out.bits.exc := Cat(invalid, 0.U(3.W), !invalid && conv.io.intExceptionFlags(0))
         }
       }
     }
@@ -520,7 +521,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
 
 class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
-    val in = Valid(new IntToFPInput).flip
+    val in = Flipped(Valid(new IntToFPInput))
     val out = Valid(new FPResult)
   }
 
@@ -528,11 +529,11 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
   val tag = in.bits.typeTagIn
 
   val mux = Wire(new FPResult)
-  mux.exc := Bits(0)
+  mux.exc := 0.U
   mux.data := recode(in.bits.in1, tag)
 
   val intValue = {
-    val res = Wire(init = in.bits.in1.asSInt)
+    val res = WireDefault(in.bits.in1.asSInt)
     for (i <- 0 until nIntTypes-1) {
       val smallInt = in.bits.in1((minXLen << i) - 1, 0)
       when (in.bits.typ.extract(log2Ceil(nIntTypes), 1) === i) {
@@ -565,9 +566,9 @@ class IntToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) w
 
 class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetimed {
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Flipped(Valid(new FPInput))
     val out = Valid(new FPResult)
-    val lt = Bool(INPUT) // from FPToInt
+    val lt = Input(Bool()) // from FPToInt
   }
 
   val in = Pipe(io.in)
@@ -576,7 +577,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
   val fsgnj = Cat(signNum(fLen), in.bits.in1(fLen-1, 0))
 
   val fsgnjMux = Wire(new FPResult)
-  fsgnjMux.exc := UInt(0)
+  fsgnjMux.exc := 0.U
   fsgnjMux.data := fsgnj
 
   when (in.bits.wflags) { // fmin/fmax
@@ -591,7 +592,7 @@ class FPToFP(val latency: Int)(implicit p: Parameters) extends FPUModule()(p) wi
 
   val inTag = in.bits.typeTagIn
   val outTag = in.bits.typeTagOut
-  val mux = Wire(init = fsgnjMux)
+  val mux = WireDefault(fsgnjMux)
   for (t <- floatTypes.init) {
     when (outTag === typeTag(t)) {
       mux.data := Cat(fsgnjMux.data >> t.recodedWidth, maxType.unsafeConvert(fsgnjMux.data, t))
@@ -628,16 +629,16 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     require(latency<=2)
 
     val io = new Bundle {
-        val validin = Bool(INPUT)
-        val op = Bits(INPUT, 2)
-        val a = Bits(INPUT, expWidth + sigWidth + 1)
-        val b = Bits(INPUT, expWidth + sigWidth + 1)
-        val c = Bits(INPUT, expWidth + sigWidth + 1)
-        val roundingMode   = UInt(INPUT, 3)
-        val detectTininess = UInt(INPUT, 1)
-        val out = Bits(OUTPUT, expWidth + sigWidth + 1)
-        val exceptionFlags = Bits(OUTPUT, 5)
-        val validout = Bool(OUTPUT)
+        val validin = Input(Bool())
+        val op = Input(Bits(2.W))
+        val a = Bits((expWidth + sigWidth + 1).W)
+        val b = Bits((expWidth + sigWidth + 1).W)
+        val c = Bits((expWidth + sigWidth + 1).W)
+        val roundingMode   = Input(UInt(3.W))
+        val detectTininess = Input(UInt(1.W))
+        val out = Output(Bits((expWidth + sigWidth + 1).W))
+        val exceptionFlags = Output(Bits(5.W))
+        val validout = Output(Bool())
     }
 
     //------------------------------------------------------------------------
@@ -657,8 +658,8 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
             mulAddRecFNToRaw_preMul.io.mulAddC
 
     val valid_stage0 = Wire(Bool())
-    val roundingMode_stage0 = Wire(UInt(width=3))
-    val detectTininess_stage0 = Wire(UInt(width=1))
+    val roundingMode_stage0 = Wire(UInt(3.W))
+    val detectTininess_stage0 = Wire(UInt(1.W))
 
     val postmul_regs = if(latency>0) 1 else 0
     mulAddRecFNToRaw_postMul.io.fromPreMul   := Pipe(io.validin, mulAddRecFNToRaw_preMul.io.toPostMul, postmul_regs).bits
@@ -680,7 +681,7 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     roundRawFNToRecFN.io.detectTininess     := Pipe(valid_stage0, detectTininess_stage0, round_regs).bits
     io.validout                             := Pipe(valid_stage0, false.B, round_regs).valid
 
-    roundRawFNToRecFN.io.infiniteExc := Bool(false)
+    roundRawFNToRecFN.io.infiniteExc := false.B
 
     io.out            := roundRawFNToRecFN.io.out
     io.exceptionFlags := roundRawFNToRecFN.io.exceptionFlags
@@ -691,15 +692,15 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   require(latency>0)
 
   val io = new Bundle {
-    val in = Valid(new FPInput).flip
+    val in = Flipped(Valid(new FPInput))
     val out = Valid(new FPResult)
   }
 
-  val valid = Reg(next=io.in.valid)
+  val valid = RegNext(io.in.valid)
   val in = Reg(new FPInput)
   when (io.in.valid) {
-    val one = UInt(1) << (t.sig + t.exp - 1)
-    val zero = (io.in.bits.in1 ^ io.in.bits.in2) & (UInt(1) << (t.sig + t.exp))
+    val one = 1.U << (t.sig + t.exp - 1)
+    val zero = (io.in.bits.in1 ^ io.in.bits.in2) & (1.U << (t.sig + t.exp))
     val cmd_fma = io.in.bits.ren3
     val cmd_addsub = io.in.bits.swap23
     in := io.in.bits
@@ -740,13 +741,13 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   fp_decoder.io.inst := io.inst
   val id_ctrl = fp_decoder.io.sigs
 
-  val ex_reg_valid = Reg(next=io.valid, init=Bool(false))
+  val ex_reg_valid = RegNext(io.valid, false.B)
   val ex_reg_inst = RegEnable(io.inst, io.valid)
   val ex_reg_ctrl = RegEnable(id_ctrl, io.valid)
   val ex_ra = List.fill(3)(Reg(UInt()))
 
   // load response
-  val load_wb = Reg(next=io.dmem_resp_val)
+  val load_wb = RegInit(io.dmem_resp_val)
   val load_wb_typeTag = RegEnable(io.dmem_resp_type(1,0) - typeTagWbOffset, io.dmem_resp_val)
   val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
@@ -754,9 +755,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   class FPUImpl { // entering gated-clock domain
 
   val req_valid = ex_reg_valid || io.cp_req.valid
-  val ex_cp_valid = io.cp_req.fire()
-  val mem_cp_valid = Reg(next=ex_cp_valid, init=Bool(false))
-  val wb_cp_valid = Reg(next=mem_cp_valid, init=Bool(false))
+  val ex_cp_valid = io.cp_req.fire
+  val mem_cp_valid = RegNext(ex_cp_valid, false.B)
+  val wb_cp_valid = RegNext(mem_cp_valid, false.B)
   val mem_reg_valid = RegInit(false.B)
   val killm = (io.killm || io.nack_mem) && !mem_cp_valid
   // Kill X-stage instruction if M-stage is killed.  This prevents it from
@@ -765,12 +766,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val killx = io.killx || mem_reg_valid && killm
   mem_reg_valid := ex_reg_valid && !killx || ex_cp_valid
   val mem_reg_inst = RegEnable(ex_reg_inst, ex_reg_valid)
-  val wb_reg_valid = Reg(next=mem_reg_valid && (!killm || mem_cp_valid), init=Bool(false))
+  val wb_reg_valid = RegNext(mem_reg_valid && (!killm || mem_cp_valid), false.B)
 
   val cp_ctrl = Wire(new FPUCtrlSigs)
   cp_ctrl <> io.cp_req.bits
-  io.cp_resp.valid := Bool(false)
-  io.cp_resp.bits.data := UInt(0)
+  io.cp_resp.valid := false.B
+  io.cp_resp.bits.data := 0.U
 
   val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, ex_reg_ctrl)
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
@@ -790,7 +791,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   // regfile
-  val regfile = Mem(32, Bits(width = fLen+1))
+  val regfile = Mem(32, Bits((fLen+1).W))
   when (load_wb) {
     val wdata = recode(load_wb_data, load_wb_typeTag)
     regfile(load_wb_tag) := wdata
@@ -815,7 +816,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     }
     when (id_ctrl.ren3) { ex_ra(2) := io.inst(31,27) }
   }
-  val ex_rm = Mux(ex_reg_inst(14,12) === Bits(7), io.fcsr_rm, ex_reg_inst(14,12))
+  val ex_rm = Mux(ex_reg_inst(14,12) === 7.U, io.fcsr_rm, ex_reg_inst(14,12))
 
   def fuInput(minT: Option[FType]): FPInput = {
     val req = Wire(new FPInput)
@@ -849,7 +850,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   io.toint_data := fpiu.io.out.bits.toint
   when(fpiu.io.out.valid && mem_cp_valid && mem_ctrl.toint){
     io.cp_resp.bits.data := fpiu.io.out.bits.toint
-    io.cp_resp.valid := Bool(true)
+    io.cp_resp.valid := true.B
   }
 
   val ifpu = Module(new IntToFP(2))
@@ -862,12 +863,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   fpmu.io.in.bits := fpiu.io.in.bits
   fpmu.io.lt := fpiu.io.out.bits.lt
 
-  val divSqrt_wen = Wire(init = false.B)
-  val divSqrt_inFlight = Wire(init = false.B)
-  val divSqrt_waddr = Reg(UInt(width = 5))
-  val divSqrt_typeTag = Wire(UInt(width = log2Up(floatTypes.size)))
-  val divSqrt_wdata = Wire(UInt(width = fLen+1))
-  val divSqrt_flags = Wire(UInt(width = FPConstants.FLAGS_SZ))
+  val divSqrt_wen = WireDefault(false.B)
+  val divSqrt_inFlight = WireDefault(false.B)
+  val divSqrt_waddr = Reg(UInt(5.W))
+  val divSqrt_typeTag = Wire(UInt(log2Up(floatTypes.size).W))
+  val divSqrt_wdata = Wire(UInt((fLen+1).W))
+  val divSqrt_flags = Wire(UInt(FPConstants.FLAGS_SZ.W))
 
   // writeback arbitration
   case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, res: FPResult)
@@ -889,20 +890,20 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
         })
   def latencyMask(c: FPUCtrlSigs, offset: Int) = {
     require(pipes.forall(_.lat >= offset))
-    pipes.map(p => Mux(p.cond(c), UInt(1 << p.lat-offset), UInt(0))).reduce(_|_)
+    pipes.map(p => Mux(p.cond(c), (1 << p.lat-offset).U, 0.U)).reduce(_|_)
   }
-  def pipeid(c: FPUCtrlSigs) = pipes.zipWithIndex.map(p => Mux(p._1.cond(c), UInt(p._2), UInt(0))).reduce(_|_)
+  def pipeid(c: FPUCtrlSigs) = pipes.zipWithIndex.map(p => Mux(p._1.cond(c), p._2.U, 0.U)).reduce(_|_)
   val maxLatency = pipes.map(_.lat).max
   val memLatencyMask = latencyMask(mem_ctrl, 2)
 
   class WBInfo extends Bundle {
-    val rd = UInt(width = 5)
-    val typeTag = UInt(width = log2Up(floatTypes.size))
+    val rd = UInt(5.W)
+    val typeTag = UInt(log2Up(floatTypes.size).W)
     val cp = Bool()
-    val pipeid = UInt(width = log2Ceil(pipes.size))
+    val pipeid = UInt(log2Ceil(pipes.size).W)
   }
 
-  val wen = Reg(init=Bits(0, maxLatency-1))
+  val wen = RegInit(0.U((maxLatency-1).W))
   val wbInfo = Reg(Vec(maxLatency-1, new WBInfo))
   val mem_wen = mem_reg_valid && (mem_ctrl.fma || mem_ctrl.fastpipe || mem_ctrl.fromint)
   val write_port_busy = RegEnable(mem_wen && (memLatencyMask & latencyMask(ex_ctrl, 1)).orR || (wen & latencyMask(ex_ctrl, 0)).orR, req_valid)
@@ -942,7 +943,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
   when (wbInfo(0).cp && wen(0)) {
     io.cp_resp.bits.data := wdata
-    io.cp_resp.valid := Bool(true)
+    io.cp_resp.valid := true.B
   }
   io.cp_req.ready := !ex_reg_valid
 
@@ -950,17 +951,17 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
   io.fcsr_flags.valid := wb_toint_valid || divSqrt_wen || wen(0)
   io.fcsr_flags.bits :=
-    Mux(wb_toint_valid, wb_toint_exc, UInt(0)) |
-    Mux(divSqrt_wen, divSqrt_flags, UInt(0)) |
-    Mux(wen(0), wexc, UInt(0))
+    Mux(wb_toint_valid, wb_toint_exc, 0.U) |
+    Mux(divSqrt_wen, divSqrt_flags, 0.U) |
+    Mux(wen(0), wexc, 0.U)
 
   val divSqrt_write_port_busy = (mem_ctrl.div || mem_ctrl.sqrt) && wen.orR
   io.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_inFlight)
   io.nack_mem := write_port_busy || divSqrt_write_port_busy || divSqrt_inFlight
   io.dec <> fp_decoder.io.sigs
-  def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(Bool(false))(_||_)
-  io.sboard_set := wb_reg_valid && !wb_cp_valid && Reg(next=useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
-  io.sboard_clr := !wb_cp_valid && (divSqrt_wen || (wen(0) && useScoreboard(x => wbInfo(0).pipeid === UInt(x._2))))
+  def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(false.B)(_||_)
+  io.sboard_set := wb_reg_valid && !wb_cp_valid && RegNext(useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
+  io.sboard_clr := !wb_cp_valid && (divSqrt_wen || (wen(0) && useScoreboard(x => wbInfo(0).pipeid === x._2.U)))
   io.sboard_clra := waddr
   ccover(io.sboard_clr && load_wb, "DUAL_WRITEBACK", "load and FMA writeback on same cycle")
   // we don't currently support round-max-magnitude (rm=4)
