@@ -2,60 +2,61 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
+import chisel3._
+import chisel3.experimental.{DataMirror, Direction}
 import freechips.rocketchip.util._
 
 // Signal directions are from the master's point-of-view
 class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle
 {
   // Control signals from the arbiter to slave
-  val hmastlock = Bool(OUTPUT)
-  val hsel      = Bool(OUTPUT)
+  val hmastlock = Output(Bool())
+  val hsel      = Output(Bool())
 
   // Flow control signals (hreadyout=FALSE => hready=FALSE)
-  val hready    = Bool(OUTPUT) // from arbiter
-  val hreadyout = Bool(INPUT)  // to arbiter
+  val hready    = Output(Bool()) // from arbiter
+  val hreadyout = Input(Bool())  // to arbiter
 
   // A-phase signals from arbiter to slave
-  val htrans    = UInt(OUTPUT, width = params.transBits)
-  val hsize     = UInt(OUTPUT, width = params.sizeBits)
-  val hburst    = UInt(OUTPUT, width = params.burstBits)
-  val hwrite    = Bool(OUTPUT)
-  val hprot     = UInt(OUTPUT, width = params.protBits)
-  val haddr     = UInt(OUTPUT, width = params.addrBits)
+  val htrans    = Output(UInt(params.transBits.W))
+  val hsize     = Output(UInt(params.sizeBits.W))
+  val hburst    = Output(UInt(params.burstBits.W))
+  val hwrite    = Output(Bool())
+  val hprot     = Output(UInt(params.protBits.W))
+  val haddr     = Output(UInt(params.addrBits.W))
   val hauser    = BundleMap(params.requestFields)
 
   // D-phase signals from arbiter to slave
   val hduser    = BundleMap(params.responseFields)
-  val hwdata    = UInt(OUTPUT, width = params.dataBits)
+  val hwdata    = Output(UInt(params.dataBits.W))
 
   // D-phase signals from slave to arbiter
-  val hresp     = UInt(INPUT, width = params.hrespBits)
-  val hrdata    = UInt(INPUT, width = params.dataBits)
+  val hresp     = Input(UInt(params.hrespBits.W))
+  val hrdata    = Input(UInt(params.dataBits.W))
 
   // Split signals
-  val hmaster   = if (params.lite) None else Some(UInt(OUTPUT, width = 4))
-  val hsplit    = if (params.lite) None else Some(UInt(INPUT, width = 16))
+  val hmaster   = if (params.lite) None else Some(Output(UInt(4.W)))
+  val hsplit    = if (params.lite) None else Some(Input(UInt(16.W)))
 
   def tieoff(): Unit = {
-    hrdata.dir match {
-      case INPUT =>
-        hreadyout := Bool(false)
+    DataMirror.directionOf(hrdata) match {
+      case Direction.Input =>
+        hreadyout := 0.B
         hduser    :<= BundleMap()
         hresp     := AHBParameters.RESP_OKAY
-        hrdata    := UInt(0)
-      case OUTPUT => 
-        hmastlock := Bool(false)
-        hsel      := Bool(false)
-        hready    := Bool(false)
+        hrdata    := 0.U
+      case Direction.Output =>
+        hmastlock := false.B
+        hsel      := false.B
+        hready    := false.B
         htrans    := AHBParameters.TRANS_IDLE
-        hsize     := UInt(0)
+        hsize     := 0.U
         hburst    := AHBParameters.BURST_SINGLE
-        hwrite    := Bool(false)
+        hwrite    := false.B
         hprot     := AHBParameters.PROT_DEFAULT
-        haddr     := UInt(0)
+        haddr     := 0.U
         hauser    :<= BundleMap()
-        hwdata    := UInt(0)
+        hwdata    := 0.U
       case _ =>
     }
   }
@@ -64,55 +65,55 @@ class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle
 class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
 {
   // Control signals from master to arbiter
-  val hmastlock = if (params.lite) Some(Bool(OUTPUT)) else None
-  val hlock     = if (params.lite) None else Some(Bool(OUTPUT))
-  val hbusreq   = if (params.lite) None else Some(Bool(OUTPUT))
+  val hmastlock = if (params.lite) Some(Output(Bool())) else None
+  val hlock     = if (params.lite) None else Some(Output(Bool()))
+  val hbusreq   = if (params.lite) None else Some(Output(Bool()))
 
   // Flow control from arbiter to master
-  val hgrant  = if (params.lite) None else Some(Bool(INPUT))
-  val hready  = Bool(INPUT)
+  val hgrant  = if (params.lite) None else Some(Input(Bool()))
+  val hready  = Input(Bool())
 
   // Handy methods that don't care about lite
   def lock():   Bool = if (params.lite) hmastlock.get else hlock.get
-  def busreq(): Bool = if (params.lite) Wire(init = Bool(true)) else hbusreq.get
-  def grant():  Bool = if (params.lite) Wire(init = Bool(true)) else hgrant.get
+  def busreq(): Bool = if (params.lite) WireInit(true.B) else hbusreq.get
+  def grant():  Bool = if (params.lite) WireInit(true.B) else hgrant.get
 
   // A-phase signals from master to arbiter
-  val htrans  = UInt(OUTPUT, width = params.transBits)
-  val hsize   = UInt(OUTPUT, width = params.sizeBits)
-  val hburst  = UInt(OUTPUT, width = params.burstBits)
-  val hwrite  = Bool(OUTPUT)
-  val hprot   = UInt(OUTPUT, width = params.protBits)
-  val haddr   = UInt(OUTPUT, width = params.addrBits)
+  val htrans  = Output(UInt(params.transBits.W))
+  val hsize   = Output(UInt(params.sizeBits.W))
+  val hburst  = Output(UInt(params.burstBits.W))
+  val hwrite  = Output(Bool())
+  val hprot   = Output(UInt(params.protBits.W))
+  val haddr   = Output(UInt(params.addrBits.W))
   val hauser  = BundleMap(params.requestFields)
 
   // D-phase signals from master to arbiter
   val hduser    = BundleMap(params.responseFields)
-  val hwdata  = UInt(OUTPUT, width = params.dataBits)
+  val hwdata  = Output(UInt(params.dataBits.W))
 
   // D-phase response from arbiter to master
-  val hresp   = UInt(INPUT, width = params.hrespBits)
-  val hrdata  = UInt(INPUT, width = params.dataBits)
+  val hresp   = Input(UInt(params.hrespBits.W))
+  val hrdata  = Input(UInt(params.dataBits.W))
 
   def tieoff(): Unit = {
-    hrdata.dir match {
-      case INPUT =>
-        hgrant.foreach { _ := Bool(false) }
-        hready    := Bool(false)
+    DataMirror.directionOf(hrdata) match {
+      case Direction.Input =>
+        hgrant.foreach { _ := false.B }
+        hready    := false.B
         hduser    :<= BundleMap()
         hresp     := AHBParameters.RESP_OKAY
-        hrdata    := UInt(0)
-      case OUTPUT =>
-        lock()    := Bool(false)
-        busreq()  := Bool(false)
+        hrdata    := 0.U
+      case Direction.Output =>
+        lock()    := false.B
+        busreq()  := false.B
         htrans    := AHBParameters.TRANS_IDLE
-        hsize     := UInt(0)
+        hsize     := 0.U
         hburst    := AHBParameters.BURST_SINGLE
-        hwrite    := Bool(false)
+        hwrite    := false.B
         hprot     := AHBParameters.PROT_DEFAULT
-        haddr     := UInt(0)
+        haddr     := 0.U
         hauser    :<= BundleMap()
-        hwdata    := UInt(0)
+        hwdata    := 0.U
       case _ =>
     }
   }

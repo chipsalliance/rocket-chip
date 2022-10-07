@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -16,7 +16,7 @@ class AHBLite()(implicit p: Parameters) extends LazyModule {
       require (edgeOut.slave.lite) // or else this adapter is pointless
 
       out.hmastlock.get := in.hlock.get
-      in.hgrant.get := Bool(true)
+      in.hgrant.get := true.B
       in.hresp := out.hresp // zero-extended
 
       in.hready := out.hready
