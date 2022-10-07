@@ -10,8 +10,8 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   require(entries > 1)
 
   val do_flow = Wire(Bool())
-  val do_enq = io.enq.fire() && !do_flow
-  val do_deq = io.deq.fire() && !do_flow
+  val do_enq = io.enq.fire && !do_flow
+  val do_deq = io.deq.fire && !do_flow
 
   val maybe_full = RegInit(false.B)
   val enq_ptr = Counter(do_enq, entries)._1
