@@ -2,11 +2,12 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.{min,max}
+import chisel3.util.{PriorityMux, Cat, FillInterleaved, Mux1H, MuxLookup, log2Up}
 
 // Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
@@ -63,17 +64,17 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       def camFifoId(m: TLSlaveParameters) = m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)
 
       // CAM entry state machine
-      val FREE = UInt(0) // unused                   waiting on Atomic from A
-      val GET  = UInt(3) // Get sent down A          waiting on AccessDataAck from D
-      val AMO  = UInt(2) // AccessDataAck sent up D  waiting for A availability
-      val ACK  = UInt(1) // Put sent down A          waiting for PutAck from D
+      val FREE = 0.U // unused                   waiting on Atomic from A
+      val GET  = 3.U // Get sent down A          waiting on AccessDataAck from D
+      val AMO  = 2.U // AccessDataAck sent up D  waiting for A availability
+      val ACK  = 1.U // Put sent down A          waiting for PutAck from D
 
       val params = TLAtomicAutomata.CAMParams(out.a.bits.params, domainsNeedingHelp.size)
       // Do we need to do anything at all?
       if (camSize > 0) {
         val initval = Wire(new TLAtomicAutomata.CAM_S(params))
         initval.state := FREE
-        val cam_s = RegInit(Vec.fill(camSize)(initval))
+        val cam_s = RegInit(VecInit.fill(camSize)(initval))
         val cam_a = Reg(Vec(camSize, new TLAtomicAutomata.CAM_A(params)))
         val cam_d = Reg(Vec(camSize, new TLAtomicAutomata.CAM_D(params)))
 
@@ -85,15 +86,15 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         // Can the manager already handle this message?
         val a_address = edgeIn.address(in.a.bits)
         val a_size = edgeIn.size(in.a.bits)
-        val a_canLogical    = Bool(passthrough) && edgeOut.manager.supportsLogicalFast   (a_address, a_size)
-        val a_canArithmetic = Bool(passthrough) && edgeOut.manager.supportsArithmeticFast(a_address, a_size)
+        val a_canLogical    = passthrough.B && edgeOut.manager.supportsLogicalFast   (a_address, a_size)
+        val a_canArithmetic = passthrough.B && edgeOut.manager.supportsArithmeticFast(a_address, a_size)
         val a_isLogical    = in.a.bits.opcode === TLMessages.LogicalData
         val a_isArithmetic = in.a.bits.opcode === TLMessages.ArithmeticData
-        val a_isSupported = Mux(a_isLogical, a_canLogical, Mux(a_isArithmetic, a_canArithmetic, Bool(true)))
+        val a_isSupported = Mux(a_isLogical, a_canLogical, Mux(a_isArithmetic, a_canArithmetic, true.B))
 
         // Must we do a Put?
         val a_cam_any_put = cam_amo.reduce(_ || _)
-        val a_cam_por_put = cam_amo.scanLeft(Bool(false))(_||_).init
+        val a_cam_por_put = cam_amo.scanLeft(false.B)(_||_).init
         val a_cam_sel_put = (cam_amo zip a_cam_por_put) map { case (a, b) => a && !b }
         val a_cam_a = PriorityMux(cam_amo, cam_a)
         val a_cam_d = PriorityMux(cam_amo, cam_d)
@@ -101,12 +102,12 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val a_d = a_cam_d.data
 
         // Does the A request conflict with an inflight AMO?
-        val a_fifoId  = edgeOut.manager.fastProperty(a_address, camFifoId _, (i:Int) => UInt(i))
+        val a_fifoId  = edgeOut.manager.fastProperty(a_address, camFifoId _, (i:Int) => i.U)
         val a_cam_busy = (cam_abusy zip cam_a.map(_.fifoId === a_fifoId)) map { case (a,b) => a&&b } reduce (_||_)
 
         // (Where) are we are allocating in the CAM?
         val a_cam_any_free = cam_free.reduce(_ || _)
-        val a_cam_por_free = cam_free.scanLeft(Bool(false))(_||_).init
+        val a_cam_por_free = cam_free.scanLeft(false.B)(_||_).init
         val a_cam_sel_free = (cam_free zip a_cam_por_free) map { case (a,b) => a && !b }
 
         // Logical AMO
@@ -145,18 +146,18 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
           Mux(a_cam_a.bits.opcode(0), logic_out, arith_out)
 
         // Potentially mutate the message from inner
-        val source_i = Wire(in.a)
+        val source_i = Wire(chiselTypeOf(in.a))
         val a_allow = !a_cam_busy && (a_isSupported || a_cam_any_free)
         in.a.ready := source_i.ready && a_allow
         source_i.valid := in.a.valid && a_allow
         source_i.bits  := in.a.bits
         when (!a_isSupported) { // minimal mux difference
           source_i.bits.opcode := TLMessages.Get
-          source_i.bits.param  := UInt(0)
+          source_i.bits.param  := 0.U
         }
 
         // Potentially take the message from the CAM
-        val source_c = Wire(in.a)
+        val source_c = Wire(chiselTypeOf(in.a))
         source_c.valid := a_cam_any_put
         source_c.bits := edgeOut.Put(
           fromSource = a_cam_a.bits.source,
@@ -168,7 +169,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         source_c.bits.echo :<= a_cam_a.bits.echo
 
         // Finishing an AMO from the CAM has highest priority
-        TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (UInt(0), source_c), (edgeOut.numBeats1(in.a.bits), source_i))
+        TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (0.U, source_c), (edgeOut.numBeats1(in.a.bits), source_i))
 
         // Capture the A state into the CAM
         when (source_i.fire() && !a_isSupported) {
@@ -176,11 +177,11 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
             when (en) {
               r.fifoId := a_fifoId
               r.bits   := in.a.bits
-              r.lut    := MuxLookup(in.a.bits.param(1, 0), UInt(0, width = 4), Array(
-                TLAtomics.AND  -> UInt(0x8),
-                TLAtomics.OR   -> UInt(0xe),
-                TLAtomics.XOR  -> UInt(0x6),
-                TLAtomics.SWAP -> UInt(0xc)))
+              r.lut    := MuxLookup(in.a.bits.param(1, 0), 0.U(4.W), Array(
+                TLAtomics.AND  -> 0x8.U,
+                TLAtomics.OR   -> 0xe.U,
+                TLAtomics.XOR  -> 0x6.U,
+                TLAtomics.SWAP -> 0xc.U))
             }
           }
           (a_cam_sel_free zip cam_s) foreach { case (en, r) =>
@@ -206,7 +207,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val d_cam_data = Mux1H(d_cam_sel_match, cam_d.map(_.data))
         val d_cam_denied = Mux1H(d_cam_sel_match, cam_d.map(_.denied))
         val d_cam_corrupt = Mux1H(d_cam_sel_match, cam_d.map(_.corrupt))
-        val d_cam_sel_bypass = if (edgeOut.manager.minLatency > 0) Bool(false) else
+        val d_cam_sel_bypass = if (edgeOut.manager.minLatency > 0) false.B else
                                out.d.bits.source === in.a.bits.source && in.a.valid && !a_isSupported
         val d_cam_sel = (a_cam_sel_free zip d_cam_sel_match) map { case (a,d) => Mux(d_cam_sel_bypass, a, d) }
         val d_cam_sel_any = d_cam_sel_bypass || d_cam_sel_match.reduce(_ || _)
@@ -265,12 +266,12 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         in.e.ready := out.e.ready
         out.e.bits := in.e.bits
       } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
+        in.b.valid := false.B
+        in.c.ready := true.B
+        in.e.ready := true.B
+        out.b.ready := true.B
+        out.c.valid := false.B
+        out.e.valid := false.B
       }
     }
   }
@@ -287,15 +288,15 @@ object TLAtomicAutomata
   case class CAMParams(a: TLBundleParameters, domainsNeedingHelp: Int)
 
   class CAM_S(params: CAMParams) extends GenericParameterizedBundle(params) {
-    val state = UInt(width = 2)
+    val state = UInt(2.W)
   }
   class CAM_A(params: CAMParams) extends GenericParameterizedBundle(params) {
     val bits    = new TLBundleA(params.a)
-    val fifoId  = UInt(width = log2Up(params.domainsNeedingHelp))
-    val lut     = UInt(width = 4)
+    val fifoId  = UInt(log2Up(params.domainsNeedingHelp).W)
+    val lut     = UInt(4.W)
   }
   class CAM_D(params: CAMParams) extends GenericParameterizedBundle(params) {
-    val data    = UInt(width = params.a.dataBits)
+    val data    = UInt(params.a.dataBits.W)
     val denied  = Bool()
     val corrupt = Bool()
   }
