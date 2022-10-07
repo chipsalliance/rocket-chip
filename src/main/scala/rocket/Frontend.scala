@@ -123,8 +123,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
   val ntpc = s1_base_pc + fetchBytes.U
-  val predicted_npc = WireInit(ntpc)
-  val predicted_taken = WireInit(false.B)
+  val predicted_npc = WireDefault(ntpc)
+  val predicted_taken = WireDefault(false.B)
 
   val s2_replay = Wire(Bool())
   s2_replay := (s2_valid && !fq.io.enq.fire) || RegNext(s2_replay && !s0_valid, true.B)
@@ -138,7 +138,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     else true.B
   s1_speculative := Mux(io.cpu.req.valid, io.cpu.req.bits.speculative, Mux(s2_replay, s2_speculative, s0_speculative))
 
-  val s2_redirect = WireInit(io.cpu.req.valid)
+  val s2_redirect = WireDefault(io.cpu.req.valid)
   s2_valid := false
   when (!s2_replay) {
     s2_valid := !s2_redirect
@@ -215,8 +215,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     val s2_base_pc = ~(~s2_pc | (fetchBytes-1))
     val taken_idx = Wire(UInt())
     val after_idx = Wire(UInt())
-    val useRAS = WireInit(false.B)
-    val updateBTB = WireInit(false.B)
+    val useRAS = WireDefault(false.B)
+    val updateBTB = WireDefault(false.B)
 
     def scanInsns(idx: Int, prevValid: Bool, prevBits: UInt, prevTaken: Bool): Bool = {
       def insnIsRVC(bits: UInt) = bits(1,0) =/= 3
