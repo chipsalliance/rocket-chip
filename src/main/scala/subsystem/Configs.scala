@@ -3,6 +3,7 @@
 
 package freechips.rocketchip.subsystem
 
+import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.devices.tilelink._
