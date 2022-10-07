@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -27,11 +28,11 @@ class MuteMaster(name: String = "MuteMaster", maxProbe: Int = 0)(implicit p: Par
 
   lazy val module = new LazyModuleImp(this) {
     val Seq((out, edgeOut)) = node.out
-    out.a.valid := Bool(false)
+    out.a.valid := false.B
     out.b.ready := out.c.ready
     out.c.valid := out.b.valid
-    out.d.ready := Bool(true)
-    out.e.valid := Bool(false)
+    out.d.ready := true.B
+    out.e.valid := false.B
 
     out.c.bits := edgeOut.ProbeAck(out.b.bits, TLPermissions.NtoN)
   }
@@ -43,8 +44,8 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val bypass = Bool(INPUT)
-      val pending = Bool(OUTPUT)
+      val bypass = Input(Bool())
+      val pending = Output(Bool())
     })
 
     val Seq((in0, edgeIn0), (in1, edgeIn1)) = node.in
@@ -55,7 +56,7 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
     val (flight, next_flight) = edgeOut.inFlight(out)
 
     io.pending := (flight > 0.U)
-    when (next_flight === UInt(0)) { bypass := io.bypass }
+    when (next_flight === 0.U) { bypass := io.bypass }
     val stall = (bypass =/= io.bypass) && edgeOut.first(out.a)
 
     in0.a.ready := !stall && out.a.ready &&  bypass
@@ -89,17 +90,17 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
       def castE(x: TLBundleE) = { val ret = Wire(out.e.bits); ret <> x; ret }
       out.e.bits := Mux(bypass, castE(in0.e.bits), castE(in1.e.bits))
     } else {
-      in0.b.valid := Bool(false)
-      in0.c.ready := Bool(true)
-      in0.e.ready := Bool(true)
+      in0.b.valid := false.B
+      in0.c.ready := true.B
+      in0.e.ready := true.B
 
-      in1.b.valid := Bool(false)
-      in1.c.ready := Bool(true)
-      in1.e.ready := Bool(true)
+      in1.b.valid := false.B
+      in1.c.ready := true.B
+      in1.e.ready := true.B
 
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
+      out.b.ready := true.B
+      out.c.valid := false.B
+      out.e.valid := false.B
     }
   }
 }
@@ -121,7 +122,7 @@ class TLMasterMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   lazy val module = new LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz1.module.io.finished && fuzz2.module.io.finished
-    mux.module.io.bypass := LFSR64(Bool(true))(0)
+    mux.module.io.bypass := LFSR64(true.B)(0)
   }
 }
 
