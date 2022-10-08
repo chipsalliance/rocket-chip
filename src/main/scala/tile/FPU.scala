@@ -630,9 +630,9 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
     val io = IO(new Bundle {
         val validin = Input(Bool())
         val op = Input(Bits(2.W))
-        val a = Bits((expWidth + sigWidth + 1).W)
-        val b = Bits((expWidth + sigWidth + 1).W)
-        val c = Bits((expWidth + sigWidth + 1).W)
+        val a = Input(Bits((expWidth + sigWidth + 1).W))
+        val b = Input(Bits((expWidth + sigWidth + 1).W))
+        val c = Input(Bits((expWidth + sigWidth + 1).W))
         val roundingMode   = Input(UInt(3.W))
         val detectTininess = Input(UInt(1.W))
         val out = Output(Bits((expWidth + sigWidth + 1).W))
