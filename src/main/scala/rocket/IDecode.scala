@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.HasCoreParameters
 import freechips.rocketchip.util._
@@ -27,13 +28,13 @@ class IntCtrlSigs extends Bundle {
   val rxs2 = Bool()
   val rxs1 = Bool()
   val scie = Bool()
-  val sel_alu2 = Bits(width = A2_X.getWidth)
-  val sel_alu1 = Bits(width = A1_X.getWidth)
-  val sel_imm = Bits(width = IMM_X.getWidth)
+  val sel_alu2 = Bits(A2_X.getWidth.W)
+  val sel_alu1 = Bits(A1_X.getWidth.W)
+  val sel_imm = Bits(IMM_X.getWidth.W)
   val alu_dw = Bool()
-  val alu_fn = Bits(width = FN_X.getWidth)
+  val alu_fn = Bits(FN_X.getWidth.W)
   val mem = Bool()
-  val mem_cmd = Bits(width = M_SZ)
+  val mem_cmd = Bits(M_SZ.W)
   val rfs1 = Bool()
   val rfs2 = Bool()
   val rfs3 = Bool()
@@ -41,7 +42,7 @@ class IntCtrlSigs extends Bundle {
   val mul = Bool()
   val div = Bool()
   val wxd = Bool()
-  val csr = Bits(width = CSR.SZ)
+  val csr = Bits(CSR.SZ.W)
   val fence_i = Bool()
   val fence = Bool()
   val amo = Bool()
