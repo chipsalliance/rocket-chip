@@ -185,7 +185,7 @@ class SECDEDCode extends Code
     // parity bit, which also does not appear in the decoding
     val toggle_lo = Cat(poison.asUInt, poison.asUInt)
     val toggle_hi = toggle_lo << (sec.width(x.getWidth)-1)
-    par.encode(sec.encode(x)) ^ toggle_hi.asUInt
+    par.encode(sec.encode(x)) ^ toggle_hi
   }
   def swizzle(x: UInt) = par.swizzle(sec.swizzle(x))
   def decode(x: UInt) = new Decoding {
