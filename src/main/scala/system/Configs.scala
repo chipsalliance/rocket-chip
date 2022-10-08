@@ -86,3 +86,5 @@ class MMIOPortOnlyConfig extends Config(
 
 class BaseFPGAConfig extends Config(new BaseConfig ++ new WithCoherentBusTopology)
 class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
+
+class CloneTileConfig extends Config(new WithCloneRocketTiles(7) ++ new WithNBigCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)
