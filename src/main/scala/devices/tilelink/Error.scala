@@ -21,7 +21,7 @@ class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)
     val (in, edge) = node.in(0)
     val a = if (buffer) {Queue(in.a, 1)} else in.a
 
-    val da = Wire(in.d)
+    val da = WireDefault(in.d)
     val idle = RegInit(true.B)
 
     val a_last = edge.last(a)
