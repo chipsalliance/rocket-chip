@@ -746,7 +746,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val ex_ra = List.fill(3)(Reg(UInt()))
 
   // load response
-  val load_wb = RegInit(io.dmem_resp_val)
+  val load_wb = RegNext(io.dmem_resp_val)
   val load_wb_typeTag = RegEnable(io.dmem_resp_type(1,0) - typeTagWbOffset, io.dmem_resp_val)
   val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
