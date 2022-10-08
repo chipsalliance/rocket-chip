@@ -455,6 +455,7 @@ class DMSTATUSFields extends Bundle {
 
 }
 
+/** @todo replace reserved0 with setkeepalive and clrkeepalive to confrom with Debug Spec v1.0 */
 class DMCONTROLFields extends Bundle {
 
   /* Writing 0 clears the halt request bit for all currently selected

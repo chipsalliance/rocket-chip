@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.apb
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -30,20 +31,20 @@ case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
     // Only send the request to the RR once
-    val taken = RegInit(Bool(false))
-    when (in.fire())  { taken := Bool(true)  }
-    when (out.fire()) { taken := Bool(false) }
+    val taken = RegInit(false.B)
+    when (in.fire)  { taken := true.B  }
+    when (out.fire) { taken := false.B }
 
     in.bits.read  := !apb.pwrite
     in.bits.index := apb.paddr >> log2Ceil(beatBytes)
     in.bits.data  := apb.pwdata
-    in.bits.mask  := Mux(apb.pwrite, apb.pstrb, UInt((1<<beatBytes) - 1))
+    in.bits.mask  := Mux(apb.pwrite, apb.pstrb, ((1<<beatBytes) - 1).U)
 
     in.valid := apb.psel && !taken
     out.ready := apb.penable
 
     apb.pready  := out.valid
-    apb.pslverr := Bool(false)
+    apb.pslverr := false.B
     apb.prdata  := out.bits.data
   }
 }

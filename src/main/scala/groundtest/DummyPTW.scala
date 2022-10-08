@@ -4,7 +4,7 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{RRArbiter, Valid, log2Up, RegEnable}
 
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._

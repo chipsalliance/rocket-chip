@@ -42,6 +42,7 @@ class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) {
   val reset = Reset()
 }
 
+
 class DebugIO(implicit val p: Parameters) extends Bundle {
   val clock = Input(Clock())
   val reset = Input(Reset())
@@ -175,7 +176,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm
   }
 }
-
+/** BlackBox to export DMI interface */
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk = Input(Clock())
@@ -192,16 +193,13 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
     dutio.dmiReset := tbreset
 
     tbsuccess := io.exit === 1.U
-    when (io.exit >= 2.U) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
-    }
+    assert(io.exit < 2.U, "*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
   }
 
   addResource("/vsrc/SimDTM.v")
   addResource("/csrc/SimDTM.cc")
 }
-
+/** BlackBox to export JTAG interface */
 class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
   with HasBlackBoxResource {
   val io = IO(new Bundle {
@@ -228,10 +226,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     // Success is determined by the gdbserver
     // which is controlling this simulation.
     tbsuccess := io.exit === 1.U
-    when (io.exit >= 2.U) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
-    }
+    assert(io.exit < 2.U, "*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
   }
 
   addResource("/vsrc/SimJTAG.v")
@@ -330,9 +325,12 @@ object Debug {
       }
 
       debug.apb.foreach { apb =>
-        apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
+        apb.pready := false.B
+        apb.pslverr := false.B
+        apb.prdata := 0.U
+        apb.pduser := 0.U.asTypeOf(chiselTypeOf(apb.pduser))
         apb.psel := false.B
         apb.penable := false.B
       }

@@ -7,7 +7,6 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.{withClock,withReset}
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
@@ -75,7 +74,6 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p) {
   val errors = new ICacheErrors
 }
 
-@chiselName
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasRocketCoreParameters
     with HasL1ICacheParameters {
