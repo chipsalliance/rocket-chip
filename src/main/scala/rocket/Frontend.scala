@@ -157,6 +157,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid && !s2_replay
+  tlb.io.req.bits.cmd := M_XRD // Frontend only reads
   tlb.io.req.bits.vaddr := s1_pc
   tlb.io.req.bits.passthrough := false.B
   tlb.io.req.bits.size := log2Ceil(coreInstBytes*fetchWidth)
@@ -197,7 +198,9 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     btb.io.btb_update := io.cpu.btb_update
     btb.io.bht_update := io.cpu.bht_update
     btb.io.ras_update.valid := false
+    btb.io.ras_update.bits := DontCare
     btb.io.bht_advance.valid := false
+    btb.io.bht_advance.bits := DontCare
     when (!s2_replay) {
       btb.io.req.valid := !s2_redirect
       s2_btb_resp_valid := btb.io.resp.valid
@@ -217,6 +220,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     val after_idx = Wire(UInt())
     val useRAS = WireDefault(false.B)
     val updateBTB = WireDefault(false.B)
+
+    // If !prevTaken, ras_update / bht_update is always invalid. 
+    taken_idx := DontCare
+    after_idx := DontCare
 
     def scanInsns(idx: Int, prevValid: Bool, prevBits: UInt, prevTaken: Bool): Bool = {
       def insnIsRVC(bits: UInt) = bits(1,0) =/= 3
