@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 
 object CRC
 {
@@ -14,7 +15,7 @@ object CRC
   def apply(divisor: BigInt, coefficient: UInt, width: Integer): UInt = {
     require (divisor > 0 && divisor.testBit(0))
     require (width > 0)
-    assert (coefficient >> width === UInt(0))
+    assert (coefficient >> width === 0.U)
     val n = log2Floor(divisor)
     val m = width
     if (m <= n) return coefficient
@@ -28,7 +29,7 @@ object CRC
       if divisor.testBit(j)
     } array(i-(n-j)) ^= array(i)
     // Construct the circuit
-    Cat(Seq.tabulate(n) { i => (UInt(array(i)) & coefficient).xorR } .reverse)
+    Cat(Seq.tabulate(n) { i => (array(i).U & coefficient).xorR } .reverse)
   }
 
   // Find more great CRC polynomials (using implicit+1 notation) here: https://users.ece.cmu.edu/~koopman/crc/
