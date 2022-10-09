@@ -329,12 +329,12 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 }
 
 class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val prio = Flipped(Vec(nDevices, UInt(prioBits.W)))
     val ip   = Flipped(UInt(nDevices.W))
     val dev  = UInt(log2Ceil(nDevices+1).W)
     val max  = UInt(prioBits.W)
-  }
+  })
 
   def findMax(x: Seq[UInt]): (UInt, UInt) = {
     if (x.length > 1) {
