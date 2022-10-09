@@ -184,7 +184,7 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
       fanin.io.prio := priority
       fanin.io.ip   := enableVec(hart) & pendingUInt
       maxDevs(hart) := fanin.io.dev
-      harts(hart)   := ShiftRegister(RegNext(next = fanin.io.max) > threshold(hart), params.intStages)
+      harts(hart)   := ShiftRegister(RegNext(fanin.io.max) > threshold(hart), params.intStages)
     }
 
     // Priority registers are 32-bit aligned so treat each as its own group.
@@ -315,11 +315,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
       val ep = enables(0).asUInt & pending.asUInt
       val ep2 = RegNext(ep)
-      val diff = ep & (~ep2).asUInt
+      val diff = ep & ~ep2
       property.cover((diff & (diff - 1.U)) =/= 0.U, "TWO_INTS_PENDING", "two enabled interrupts became pending on same cycle")
 
       if (nPriorities > 0)
-        ccover(maxDevs(0) > (1.U << priority(0).getWidth).asUInt && maxDevs(0) <= Cat(1.U, threshold(0)),
+        ccover(maxDevs(0) > (1.U << priority(0).getWidth) && maxDevs(0) <= Cat(1.U, threshold(0)),
                "THRESHOLD", "interrupt pending but less than threshold")
     }
 
