@@ -3,11 +3,7 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-<<<<<<< HEAD
 import chisel3.util.ShiftRegister
-=======
-import chisel3.util._
->>>>>>> bump devices/tilelink/* to chisel3
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
