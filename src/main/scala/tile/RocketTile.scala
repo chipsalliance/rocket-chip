@@ -3,7 +3,10 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
+import chisel3._
+import chisel3.util._
+import chisel3.DontCare
+
 import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
