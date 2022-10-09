@@ -4,6 +4,7 @@ package freechips.rocketchip.tile
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.IO
 
 import freechips.rocketchip.config._
 import freechips.rocketchip.rocket._
