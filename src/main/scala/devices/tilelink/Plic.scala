@@ -25,12 +25,12 @@ class GatewayPLICIO extends Bundle {
 }
 
 class LevelGateway extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val interrupt = Input(Bool())
     val plic = new GatewayPLICIO
-  }
+  })
 
-  val inFlight = RegInit(init=false.B)
+  val inFlight = RegInit(false.B)
   when (io.interrupt && io.plic.ready) { inFlight := true.B }
   when (io.plic.complete) { inFlight := false.B }
   io.plic.valid := io.interrupt && !inFlight
@@ -160,11 +160,11 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     val prioBits = log2Ceil(nPriorities+1)
     val priority =
       if (nPriorities > 0) Reg(Vec(nDevices, UInt(prioBits.W)))
-      else WireInit(init=VecInit.fill(nDevices max 1)(1.U))
+      else WireDefault(VecInit.fill(nDevices max 1)(1.U))
     val threshold =
       if (nPriorities > 0) Reg(Vec(nHarts, UInt(prioBits.W)))
-      else WireInit(init=VecInit.fill(nHarts)(0.U))
-    val pending = RegInit(init=VecInit.fill(nDevices max 1){false.B})
+      else WireDefault(VecInit.fill(nHarts)(0.U))
+    val pending = RegInit(VecInit.fill(nDevices max 1){false.B})
 
     /* Construct the enable registers, chunked into 8-bit segments to reduce verilog size */
     val firstEnable = nDevices min 7
