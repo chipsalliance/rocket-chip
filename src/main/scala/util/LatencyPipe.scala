@@ -2,11 +2,12 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 
 class LatencyPipe[T <: Data](typ: T, latency: Int) extends Module {
   val io = new Bundle {
-    val in = Decoupled(typ).flip
+    val in = Flipped(Decoupled(typ))
     val out = Decoupled(typ)
   }
 
