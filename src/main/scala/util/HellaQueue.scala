@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.util._
 
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
-  val io = new QueueIO(data, entries)
+  val io = IO(new QueueIO(data, entries))
   require(entries > 1)
 
   val do_flow = Wire(Bool())
@@ -36,10 +36,13 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   io.deq.valid := Mux(empty, io.enq.valid, ram_out_valid)
   io.enq.ready := !full
   io.deq.bits := Mux(empty, io.enq.bits, ram.read(raddr, ren))
+
+  // Count was never correctly set. To keep the same behavior across chisel3 upgrade, we are explicitly setting it to DontCare
+  io.count := DontCare
 }
 
 class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module {
-  val io = new QueueIO(data, entries)
+  val io = IO(new QueueIO(data, entries))
 
   val fq = Module(new HellaFlowQueue(entries)(data))
   fq.io.enq <> io.enq
