@@ -9,7 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
 // Trades off slave port proximity against routing resource cost
-object ForceFanout
+object ForceFanout // actually not unused
 {
   def apply[T](
     a: TriStateValue = TriStateValue.unset,
@@ -31,9 +31,10 @@ private case class ForceFanoutParams(a: Boolean, b: Boolean, c: Boolean, d: Bool
 private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false, false, false, false))
 
 class TLXbar(
-  policy: TLArbiter.Policy = TLArbiter.roundRobin // use option "roundRobin" which can check all the ports
+  policy: TLArbiter.Policy = TLArbiter.roundRobin // use option "roundRobin" which has similar property of MUX
   )(implicit p: Parameters) extends LazyModule
 {
+  // initialize parameters of master and slave
   val node = new TLNexusNode(
     clientFn  = { seq =>
       seq(0).v1copy(
@@ -69,6 +70,7 @@ class TLXbar(
     override def circuitIdentity = outputs.size == 1 && inputs.size == 1
   }
 
+  // implementation
   lazy val module = new LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
@@ -188,7 +190,7 @@ object TLXbar
 object TLXbar_ACancel
 {
   def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]): Unit = {
-    // Get [[Data]] and [[Edges]] from nodes directly.
+    // Get [[Data]] and [[Edges]] (parameters of each port) from nodes directly.
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 
@@ -266,10 +268,10 @@ object TLXbar_ACancel
     val connectEOI = transpose(connectEIO)
 
     // Grab the port ID mapping
-    val inputIdRanges = TLXbar.mapInputIds(edgesIn.map(_.client))
-    val outputIdRanges = TLXbar.mapOutputIds(edgesOut.map(_.manager))
+    val inputIdRanges = TLXbar.mapInputIds(edgesIn.map(_.client)) // grab source id
+    val outputIdRanges = TLXbar.mapOutputIds(edgesOut.map(_.manager)) // grab sink id
 
-    // We need an intermediate size of bundle with the widest possible identifiers
+    // We need an intermediate size of bundle with the widest possible identifiers (choose the maximum size)
     val wide_bundle = TLBundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))
 
     // Handle size = 1 gracefully (Chisel3 empty range is broken)
@@ -277,6 +279,7 @@ object TLXbar_ACancel
 
     // Transform input bundle sources (sinks use global namespace on both sides)
     val in = Wire(Vec(io_in.size, TLBundle_ACancel(wide_bundle)))
+    // Initialize [[in]] using reachable matrix
     for (i <- 0 until in.size) {
       val r = inputIdRanges(i)
 
@@ -336,6 +339,7 @@ object TLXbar_ACancel
 
     // Transform output bundle sinks (sources use global namespace on both sides)
     val out = Wire(Vec(io_out.size, TLBundle_ACancel(wide_bundle)))
+    // Initialize [[out]]
     for (o <- 0 until out.size) {
       val r = outputIdRanges(o)
 
@@ -394,10 +398,10 @@ object TLXbar_ACancel
 
     // Based on input=>output connectivity, create per-input minimal address decode circuits
     val requiredAC = (connectAIO ++ connectCIO).distinct
+    // choose the optimal decoder scheme with lower resource consumptions
     val outputPortFns: Map[Vector[Boolean], Seq[UInt => Bool]] = requiredAC.map { connectO =>
       val port_addrs = edgesOut.map(_.manager.managers.flatMap(_.address))
-      // choose best decoder scheme with lower resource consumptions by "AddressDecoder"
-      val routingMask = AddressDecoder(filter(port_addrs, connectO))
+      val routingMask = AddressDecoder(filter(port_addrs, connectO)) // some `or` operations
       val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
 
       // Print the address mapping
@@ -473,12 +477,14 @@ object TLXbar_ACancel
 
   // Replicate an input port to each output port
   def fanout[T <: TLChannel](input: ReadyValidCancel[T], select: Seq[Bool], force: Seq[Boolean] = Nil): Seq[ReadyValidCancel[T]] = {
+    // from input to output
     val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
       filtered(i).bits := (if (force.lift(i).getOrElse(false)) IdentityModule(input.bits) else input.bits)
       filtered(i).lateCancel := input.lateCancel
       filtered(i).earlyValid := input.earlyValid && (select(i) || (select.size == 1).B)
     }
+    // from output to input
     input.ready := Mux1H(select, filtered.map(_.ready))
     filtered
   }
