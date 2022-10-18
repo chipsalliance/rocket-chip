@@ -7,7 +7,7 @@ Some highlights to be included in the next release:
 
 * Bump to chisel 3.5.4 (https://github.com/chipsalliance/rocket-chip/pull/3105)
 
-* As Scala FIRRTL Compiler (SFC) is being sunset, update chisel2 legacy code to chisel3 (https://github.com/chipsalliance/rocket-chip/pull/3097)
+* As Chisel compatability layer is being sunset, update chisel2 legacy code to chisel3 (https://github.com/chipsalliance/rocket-chip/pull/3097)
 
 * Removal of `RocketTilesKey` and `RocketCrossingKey` (https://github.com/chipsalliance/rocket-chip/pull/3133)
 
@@ -16,7 +16,7 @@ Some highlights to be included in the next release:
 10 Oct 2022
 
 ### Added
-* Support for Chisel 3.5.3 (https://github.com/chipsalliance/rocket-chip/pull/2931, https://github.com/chipsalliance/rocket-chip/pull/2937, https://github.com/chipsalliance/rocket-chip/pull/2947, https://github.com/chipsalliance/rocket-chip/pull/3005)
+* Bump to Chisel 3.5.3 (https://github.com/chipsalliance/rocket-chip/pull/2931, https://github.com/chipsalliance/rocket-chip/pull/2937, https://github.com/chipsalliance/rocket-chip/pull/2947, https://github.com/chipsalliance/rocket-chip/pull/3005)
 * Support for Scala 2.12.15 (https://github.com/chipsalliance/rocket-chip/pull/2947)
 * Properly-sized don't cares for FPU typeTag fields (https://github.com/chipsalliance/rocket-chip/pull/2949)
 * Add a `virtual` argument to `TLBEntry.sectorHit` function (https://github.com/chipsalliance/rocket-chip/pull/2952)
