@@ -52,7 +52,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     when (io.dmem.s2_nack) { state := s_replay }
     when (dmem_req_valid && io.dmem.req.ready) { state := s_wait1 }
 
-    val acq = Reg(tl_in.a.bits)
+    val acq = Reg(tl_in.a.bits.cloneType)
     when (tl_in.a.fire) { acq := tl_in.a.bits }
 
     def formCacheReq(a: TLBundleA) = {
