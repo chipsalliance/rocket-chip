@@ -31,7 +31,8 @@ class AHBFuzzNative(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   ram.node  := xbar.node
   gpio.controlNode := xbar.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -64,7 +65,8 @@ class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
      := model.node
      := fuzz.node)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val finished = Bool(OUTPUT)
     })
@@ -95,7 +97,8 @@ class AHBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
 
   slave.node := master.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := master.module.io.finished
   }
 }

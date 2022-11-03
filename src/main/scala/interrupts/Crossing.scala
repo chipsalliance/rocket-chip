@@ -12,7 +12,8 @@ class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
 {
   val intnode = IntAdapterNode()
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (intnode.in zip intnode.out) foreach { case ((in, _), (out, _)) =>
       out := SynchronizerShiftReg(in, sync)
     }
@@ -33,7 +34,8 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 {
   val node = IntSyncSourceNode(alreadyRegistered)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       if (alreadyRegistered) {
         out.sync := in
@@ -60,7 +62,8 @@ class IntSyncAsyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends La
 {
   val node = IntSyncSinkNode(sync)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := SynchronizerShiftReg(in.sync, sync)
     }
@@ -80,7 +83,8 @@ class IntSyncSyncCrossingSink()(implicit p: Parameters) extends LazyModule
 {
   val node = IntSyncSinkNode(0)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := in.sync
     }
@@ -100,7 +104,8 @@ class IntSyncRationalCrossingSink()(implicit p: Parameters) extends LazyModule
 {
   val node = IntSyncSinkNode(1)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := RegNext(in.sync)
     }

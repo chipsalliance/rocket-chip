@@ -18,7 +18,8 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
   val node = AXI4AdapterNode()
   require (0.0 <= q && q < 1)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     def feed[T <: Data](sink: IrrevocableIO[T], source: IrrevocableIO[T], noise: T): Unit = {
       // irrevocable requires that we not lower valid
       val hold = RegInit(Bool(false))

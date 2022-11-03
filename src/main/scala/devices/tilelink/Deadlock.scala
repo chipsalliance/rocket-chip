@@ -14,7 +14,8 @@ class TLDeadlock(params: DevNullParams, beatBytes: Int = 4)(implicit p: Paramete
     extends DevNullDevice(params, minLatency = 1, // technically not true but we don't want to add extra logic to handle minLatency = 0
       beatBytes, new SimpleDevice("deadlock-device", Seq("sifive,deadlock0")))
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (in, _) = node.in(0)
     in.a.ready := Bool(false)
     in.b.valid := Bool(false)

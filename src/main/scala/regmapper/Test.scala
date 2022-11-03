@@ -211,7 +211,8 @@ abstract class RRTest0(address: BigInt)(implicit p: Parameters)
     base = address,
     size = 32))
 {
-  lazy val module = new LazyModuleImp(this) { regmap(RRTest0Map.map:_*) }
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) { regmap(RRTest0Map.map:_*) }
 }
 
 abstract class RRTest1(address: BigInt, concurrency: Int, undefZero: Boolean = true)(implicit p: Parameters)
@@ -223,7 +224,8 @@ abstract class RRTest1(address: BigInt, concurrency: Int, undefZero: Boolean = t
     concurrency = concurrency,
     undefZero = undefZero))
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val clocks = Module(new Pow2ClockDivider(2))
 
     def x(bits: Int) = {

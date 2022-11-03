@@ -30,7 +30,8 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
     override def circuitIdentity = edges.in.map(_.client).forall(noShrinkRequired)
 })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     node.in.zip(node.out).foreach { case ((in, edgeIn), (out, edgeOut)) =>
       // Acquires cannot pass this adapter; it makes Probes impossible
       require (!edgeIn.client.anySupportProbe || 

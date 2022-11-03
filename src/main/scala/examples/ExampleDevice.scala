@@ -32,7 +32,8 @@ abstract class ExampleDevice(params: ExampleDeviceParams)(implicit p: Parameters
 {
   def nInterrupts = 4
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
 
     val state = RegInit(0.U(params.num.W))
     val pending = RegInit(0xf.U(nInterrupts.W))

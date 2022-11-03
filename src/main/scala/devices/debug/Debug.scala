@@ -331,7 +331,8 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     executable = false
   )
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     require (intnode.edges.in.size == 0, "Debug Module does not accept interrupts")
 
     val nComponents = intnode.out.size
@@ -695,7 +696,8 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   val dmiInnerNode = TLAsyncCrossingSource() := dmiBypass.node := dmiXbar.node
   dmOuter.dmiNode := dmiXbar.node
   
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
 
     val nComponents = dmOuter.intnode.edges.out.size
 
@@ -774,7 +776,8 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   // to is up to the implementation.
   val customNode = new DebugCustomSink()
 
-  lazy val module = new LazyModuleImp(this){
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this){
     val nComponents = getNComponents()
     Annotated.params(this, cfg)
     val supportHartArray = cfg.supportHartArray & (nComponents > 1)
@@ -1854,7 +1857,8 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
   // raising dmactive (hence enabling the clock) during these transactions.
   require(dmInner.tlNode.concurrency == 0)
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
 
     // Clock/reset domains:
     //   debug_clock / debug_reset = Debug inner domain
@@ -1940,7 +1944,8 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
   dmInner.dmiNode := dmOuter.dmiInnerNode
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     val nComponents = dmOuter.dmOuter.intnode.edges.out.size
 
     // Clock/reset domains:

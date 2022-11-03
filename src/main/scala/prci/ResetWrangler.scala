@@ -11,7 +11,8 @@ class ResetWrangler(debounceNs: Double = 100000)(implicit p: Parameters) extends
 {
   val node = ClockAdapterNode()
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     val (in, _) = node.in.unzip
     val (out, _) = node.out.unzip
 

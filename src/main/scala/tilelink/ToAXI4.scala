@@ -94,7 +94,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
   require(stripBits == 0, "stripBits > 0 is no longer supported on TLToAXI4")
   val node = TLToAXI4Node(wcorrupt)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val slaves  = edgeOut.slave.slaves
 

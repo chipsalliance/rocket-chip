@@ -16,7 +16,8 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 {
   val node = ClockGroupNode(groupName)
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     val (in, _) = node.in(0)
     val (out, _) = node.out.unzip
 
@@ -44,7 +45,8 @@ class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends La
 {
   val node = ClockGroupAggregateNode(groupName)
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     val (in, _) = node.in.unzip
     val (out, _) = node.out.unzip
     val outputs = out.flatMap(_.member.data)
@@ -64,7 +66,8 @@ class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extend
 {
   val node = ClockGroupSourceNode(List.fill(numSources) { ClockGroupSourceParameters() })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
 
     val (out, _) = node.out.unzip
     out.map { out: ClockGroupBundle =>
@@ -93,7 +96,8 @@ class FixedClockBroadcast(fixedClockOpt: Option[ClockParameters])(implicit p: Pa
     override def circuitIdentity = outputs.size == 1
   }
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     val (in, _) = node.in(0)
     val (out, _) = node.out.unzip
     require (node.in.size == 1, "FixedClockBroadcast can only broadcast a single clock")

@@ -29,7 +29,7 @@ class GenerateFirrtlAnnos extends Phase with PreservesAll[Phase] with HasRocketC
         Some(a)
     }
 
-    writeOutputFile(targetDir, fileName, JsonProtocol.serialize(annos))
+    writeOutputFile(targetDir, fileName, JsonProtocol.serialize(annos.toSeq))
 
     annotations
   }

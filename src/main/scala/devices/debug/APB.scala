@@ -21,7 +21,8 @@ class APBDebugRegisters()(implicit p: Parameters) extends LazyModule {
     executable = false
   )
 
-  lazy val module = new LazyModuleImp(this){
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this){
     node.regmap(p(APBDebugRegistersKey).toList:_*)
 
   }

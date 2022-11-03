@@ -10,7 +10,8 @@ import freechips.rocketchip.util.{ResetCatchAndSync}
   */
 class ResetSynchronizer(implicit p: Parameters) extends LazyModule {
   val node = ClockAdapterNode()
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     (node.out zip node.in).map { case ((o, _), (i, _)) =>
       o.clock := i.clock
       o.reset := ResetCatchAndSync(i.clock, i.reset.asBool)
@@ -28,7 +29,8 @@ object ResetSynchronizer {
   */
 class ClockGroupResetSynchronizer(implicit p: Parameters) extends LazyModule {
   val node = ClockGroupAdapterNode()
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     (node.out zip node.in).map { case ((oG, _), (iG, _)) =>
       (oG.member.data zip iG.member.data).foreach { case (o, i) =>
         o.clock := i.clock

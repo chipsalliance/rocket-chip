@@ -22,7 +22,8 @@ class FuzzRRTest0(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   rrtr.node := TLFragmenter(4, 32) := TLDelayer(0.1) := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -38,7 +39,8 @@ class FuzzRRTest1(txns: Int)(implicit p: Parameters) extends LazyModule {
 
   rrtr.node := TLFragmenter(4, 32) := TLDelayer(0.1) := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

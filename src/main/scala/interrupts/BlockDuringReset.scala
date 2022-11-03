@@ -11,7 +11,8 @@ class IntBlockDuringReset(stretchResetCycles: Int = 0)(implicit p: Parameters) e
 {
   val intnode = IntAdapterNode()
   override def shouldBeInlined = true
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     intnode.in.zip(intnode.out).foreach { case ((in, _), (out, _)) =>
       in.zip(out).foreach { case (i, o) => o := BlockDuringReset(i, stretchResetCycles) }
     }

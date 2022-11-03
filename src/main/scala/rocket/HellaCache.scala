@@ -312,7 +312,7 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
     val write = Flipped(Decoupled(new L1MetaWriteReq))
     val resp = Output(Vec(nWays, rstVal.cloneType))
   })
-  val rst_cnt = RegInit(init=0.U(log2Up(nSets+1)))
+  val rst_cnt = RegInit(init=0.U(log2Up(nSets+1).W))
   val rst = rst_cnt < nSets.U
   val waddr = Mux(rst, rst_cnt, io.write.bits.idx)
   val wdata = Mux(rst, rstVal, io.write.bits.data).asUInt

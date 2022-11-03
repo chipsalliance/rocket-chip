@@ -67,7 +67,8 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
     override def circuitIdentity = outputs.size == 1 && inputs.size == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
       println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
@@ -115,7 +116,8 @@ class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p
     override def circuitIdentity = outputs == 1 && inputs == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
       println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
@@ -446,7 +448,8 @@ class TLRAMXbar(nManagers: Int, txns: Int)(implicit p: Parameters) extends LazyM
     ram.node := TLFragmenter(4, 256) := TLDelayer(0.1) := xbar.node
   }
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -470,7 +473,8 @@ class TLMulticlientXbar(nManagers: Int, nClients: Int, txns: Int)(implicit p: Pa
     ram.node := TLFragmenter(4, 256) := TLDelayer(0.1) := xbar.node
   }
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzzers.last.module.io.finished
   }
 }

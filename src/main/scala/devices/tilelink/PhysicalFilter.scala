@@ -188,7 +188,8 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
     device    = device,
     beatBytes = params.controlBeatBytes)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     // We need to be able to represent +1 larger than the largest populated address
     val addressBits = log2Ceil(node.edges.out.map(_.manager.maxAddress).max+1+1)
     val pmps = RegInit(Vec(params.pmpRegisters.map { ival => DevicePMP(addressBits, params.pageBits, Some(ival)) }))

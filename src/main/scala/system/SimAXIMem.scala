@@ -38,7 +38,7 @@ object SimAXIMem {
       Module(mmio_mem.module).suggestName("mmio_mem")
       mmio_mem.io_axi4.head <> io
       mmio_mem
-    }
+    }.toSeq
   }
 
   def connectMem(dut: CanHaveMasterAXI4MemPort)(implicit p: Parameters): Seq[SimAXIMem] = {
@@ -47,6 +47,6 @@ object SimAXIMem {
       Module(mem.module).suggestName("mem")
       mem.io_axi4.head <> io
       mem
-    }
+    }.toSeq
   }
 }

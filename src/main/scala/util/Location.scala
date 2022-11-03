@@ -19,8 +19,8 @@ object Location {
 }
 
 class LocationMap[T] private (val internalMap: Map[String, T]) extends Map[Location[_], T] {
-  def +=(kv: (Location[_], T)) = { (internalMap += (kv._1.name -> kv._2)); this }
-  def -=(key: Location[_]) = { (internalMap -= key.name); this }
+  def addOne(kv: (Location[_], T)) = { (internalMap += (kv._1.name -> kv._2)); this }
+  def subtractOne(key: Location[_]) = { (internalMap -= key.name); this }
   def get(key: Location[_]) = internalMap.get(key.name)
   def iterator = internalMap.iterator.map(kv => (new Location(kv._1), kv._2))
   // TODO override def default to provide specific exception on missing location?

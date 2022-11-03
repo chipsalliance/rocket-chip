@@ -80,7 +80,8 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
     beatBytes = x.beatBytes,
     device    = new SimpleDevice("cache-controller", Seq("sifive,broadcast0"))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (ints, fields) = node.in.zip(node.out).zipWithIndex.map { case (((in, edgeIn), (out, edgeOut)), bankIndex) =>
       val clients = edgeIn.client.clients
       val managers = edgeOut.manager.managers
@@ -352,7 +353,7 @@ class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
 
 abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
   def useRegFields(bankIndex: Int): Seq[RegField.Map] = Nil
-  def tieRegFields(bankIndex: Int): Unit = Unit
+  def tieRegFields(bankIndex: Int): Unit = ()
   val io = IO(new ProbeFilterIO(params))
 }
 
