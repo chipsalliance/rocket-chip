@@ -372,8 +372,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       if (s2) do_both_stages && !stage2 && !stage2_final
       else can_hit
     val tag =
-      if (s2) Cat(true.B, stage2_pte_cache_addr)
-      else Cat(r_req.vstage1, pte_cache_addr)
+      if (s2) Cat(true.B, stage2_pte_cache_addr.padTo(vaddrBits))
+      else Cat(r_req.vstage1, pte_cache_addr.padTo(if (usingHypervisor) vaddrBits else paddrBits))
 
     val hits = tags.map(_ === tag).asUInt & valid
     val hit = hits.orR && can_hit
