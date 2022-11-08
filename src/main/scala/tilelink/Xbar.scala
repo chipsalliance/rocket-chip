@@ -4,6 +4,7 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
+import chisel3.util.experimental.decode._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -416,6 +417,7 @@ object TLXbar_ACancel
       }
 
       (connectO, route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _)))
+      // (connectO, EspressoAddressDecoder(addr, filter(port_addrs, connectO)))
     }.toMap
 
     // Print the ID mapping
