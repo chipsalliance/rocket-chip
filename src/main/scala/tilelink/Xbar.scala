@@ -402,11 +402,21 @@ object TLXbar_ACancel
     // choose the optimal decoder scheme with lower resource consumptions
     val outputPortFns: Map[Vector[Boolean], Seq[UInt => Bool]] = requiredAC.map { connectO =>
       val port_addrs = edgesOut.map(_.manager.managers.flatMap(_.address))
+      if (true) {
+        println(s"[INPUT] Xbar mapping: ")
+        port_addrs.foreach { p =>
+          print(" ")
+          p.foreach { a => print(s" ${a}") }
+          println("")
+        }
+        println("--")
+      }
       val routingMask = AddressDecoder(filter(port_addrs, connectO)) // some `or` operations
       val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
 
       // Print the address mapping
-      if (false) {
+      if (true) {
+        // if(routingMask == 0.U) {
         println("Xbar mapping:")
         route_addrs.foreach { p =>
           print(" ")
@@ -414,15 +424,20 @@ object TLXbar_ACancel
           println("")
         }
         println("--")
+        // }
       }
 
       (connectO, route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _)))
-      // (connectO, EspressoAddressDecoder(addr, filter(port_addrs, connectO)))
+    }.toMap
+
+    val outputPortFnsTest: Map[Vector[Boolean], UInt => Seq[Bool]] = requiredAC.map { connectO =>
+      val port_addrs = edgesOut.map(_.manager.managers.flatMap(_.address))
+      (connectO, (addr: UInt) => EspressoAddressDecoder(addr, filter(port_addrs, connectO)))
     }.toMap
 
     // Print the ID mapping
-    if (false) {
-      println(s"XBar mapping:")
+    if (true) {
+      println(s"[ORIGIN] XBar mapping:")
       (edgesIn zip inputIdRanges).zipWithIndex.foreach { case ((edge, id), i) =>
         println(s"\t$i assigned ${id} for ${edge.client.clients.map(_.name).mkString(", ")}")
       }
@@ -433,8 +448,14 @@ object TLXbar_ACancel
     val addressC = (in zip edgesIn) map { case (i, e) => e.address(i.c.bits) }
 
     def unique(x: Vector[Boolean]): Bool = (x.filter(x=>x).size <= 1).B
+    println(s"A input: ${connectAIO}\n")
+    println(s"C input: ${connectCIO}\n")
+    val requestAIOTest = (connectAIO zip addressA) map { case (c, i) => outputPortFnsTest(c)(i).map { o => unique(c) || o } }
+    val requestCIOTest = (connectCIO zip addressC) map { case (c, i) => outputPortFnsTest(c)(i).map { o => unique(c) || o } }
     val requestAIO = (connectAIO zip addressA) map { case (c, i) => outputPortFns(c).map { o => unique(c) || o(i) } }
     val requestCIO = (connectCIO zip addressC) map { case (c, i) => outputPortFns(c).map { o => unique(c) || o(i) } }
+    println(s"A output: \n${requestAIO}\n[TEST]:\n${requestAIOTest}\n")
+    println(s"C output: \n${requestCIO}\n[TEST]:\n${requestCIOTest}\n")
     val requestBOI = out.map { o => inputIdRanges.map  { i => i.contains(o.b.bits.source) } }
     val requestDOI = out.map { o => inputIdRanges.map  { i => i.contains(o.d.bits.source) } }
     val requestEIO = in.map  { i => outputIdRanges.map { o => o.contains(i.e.bits.sink) } }
@@ -447,9 +468,9 @@ object TLXbar_ACancel
     val beatsEI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) }
 
     // Fanout the input sources to the output sinks
-    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar_ACancel.fanout(i.a, r, edgesOut.map(_.params(ForceFanoutKey).a)) })
+    val portsAOI = transpose((in  zip requestAIOTest) map { case (i, r) => TLXbar_ACancel.fanout(i.a, r, edgesOut.map(_.params(ForceFanoutKey).a)) })
     val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar        .fanout(o.b, r, edgesIn .map(_.params(ForceFanoutKey).b)) })
-    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => TLXbar        .fanout(i.c, r, edgesOut.map(_.params(ForceFanoutKey).c)) })
+    val portsCOI = transpose((in  zip requestCIOTest) map { case (i, r) => TLXbar        .fanout(i.c, r, edgesOut.map(_.params(ForceFanoutKey).c)) })
     val portsDIO = transpose((out zip requestDOI) map { case (o, r) => TLXbar        .fanout(o.d, r, edgesIn .map(_.params(ForceFanoutKey).d)) })
     val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => TLXbar        .fanout(i.e, r, edgesOut.map(_.params(ForceFanoutKey).e)) })
 
