@@ -308,7 +308,7 @@ trait HasFPUParameters {
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
-  val floatTypes = FType.all.filter(t => minFLen <= t.ieeeWidth && t.ieeeWidth <= fLen)
+  def floatTypes = FType.all.filter(t => minFLen <= t.ieeeWidth && t.ieeeWidth <= fLen)
   def minType = floatTypes.head
   def maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
