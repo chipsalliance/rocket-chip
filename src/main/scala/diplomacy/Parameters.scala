@@ -203,6 +203,10 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
       AddressRange(off, size)
     }
   }
+
+  def toBitPat(xLen: Int): BitPat = {
+    new BitPat(base, ~mask, xLen)
+  }
 }
 
 object AddressSet

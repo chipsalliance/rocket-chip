@@ -346,7 +346,7 @@ object TLXbar_ACancel
     val requiredAC = (connectAIO ++ connectCIO).distinct
     val outputPortFns: Map[Vector[Boolean], UInt => Seq[Bool]] = requiredAC.map { connectO =>
       val port_addrs = edgesOut.map(_.manager.managers.flatMap(_.address))
-      (connectO, (addr: UInt) => EspressoAddressDecoder(addr, port_addrs, connectO))
+      (connectO, (addr: UInt) => AddressDecoder.chiselDecoder(addr, port_addrs, connectO))
     }.toMap
 
     // Print the ID mapping
