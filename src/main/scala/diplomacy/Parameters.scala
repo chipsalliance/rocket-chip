@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.util.ReadyValidIO
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.util.{ShiftQueue}
 
 /** Options for describing the attributes of memory regions */
@@ -41,20 +41,20 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
   def contains(x: Int)  = start <= x && x < end
   def contains(x: UInt) =
     if (size == 0) {
-      Bool(false)
+      false.B
     } else if (size == 1) { // simple comparison
-      x === UInt(start)
+      x === start.U
     } else {
       // find index of largest different bit
       val largestDeltaBit = log2Floor(start ^ (end-1))
       val smallestCommonBit = largestDeltaBit + 1 // may not exist in x
       val uncommonMask = (1 << smallestCommonBit) - 1
-      val uncommonBits = (x | UInt(0, width=smallestCommonBit))(largestDeltaBit, 0)
+      val uncommonBits = (x | 0.U(smallestCommonBit.W))(largestDeltaBit, 0)
       // the prefix must match exactly (note: may shift ALL bits away)
-      (x >> smallestCommonBit) === UInt(start >> smallestCommonBit) &&
+      (x >> smallestCommonBit) === (start >> smallestCommonBit).U &&
       // firrtl constant prop range analysis can eliminate these two:
-      UInt(start & uncommonMask) <= uncommonBits &&
-      uncommonBits <= UInt((end-1) & uncommonMask)
+      (start & uncommonMask).U <= uncommonBits &&
+      uncommonBits <= ((end-1) & uncommonMask).U
     }
 
   def shift(x: Int) = IdRange(start+x, end+x)
@@ -87,9 +87,9 @@ case class TransferSizes(min: Int, max: Int)
   def contains(x: Int) = isPow2(x) && min <= x && x <= max
   def containsLg(x: Int) = contains(1 << x)
   def containsLg(x: UInt) =
-    if (none) Bool(false)
-    else if (min == max) { UInt(log2Ceil(min)) === x }
-    else { UInt(log2Ceil(min)) <= x && x <= UInt(log2Ceil(max)) }
+    if (none) (false.B)
+    else if (min == max) { (log2Ceil(min)).U === x }
+    else { (log2Ceil(min)).U <= x && x <= (log2Ceil(max)).U }
 
   def contains(x: TransferSizes) = x.none || (min <= x.min && x.max <= max)
 
@@ -134,7 +134,7 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   // We do allow negative mask (=> ignore all high bits)
 
   def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
-  def contains(x: UInt) = ((x ^ UInt(base)).zext() & SInt(~mask)) === SInt(0)
+  def contains(x: UInt) = ((x ^ base.U).zext() & (~mask).S) === 0.S
 
   // turn x into an address contained in this set
   def legalize(x: UInt): UInt = base.U | (mask.U & x)
