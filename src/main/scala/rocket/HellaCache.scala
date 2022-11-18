@@ -17,7 +17,6 @@ import scala.collection.mutable.ListBuffer
 case class DCacheParams(
     nSets: Int = 64,
     nWays: Int = 4,
-    rowBits: Int = 64,
     subWordBits: Option[Int] = None,
     replacementPolicy: String = "random",
     nTLBSets: Int = 1,
@@ -58,7 +57,7 @@ case class DCacheParams(
 trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParameters {
   val cacheParams = tileParams.dcache.get
   val cfg = cacheParams
-
+  def rowBits: Int
   def wordBits = coreDataBits
   def wordBytes = coreDataBytes
   def subWordBits = cacheParams.subWordBits.getOrElse(wordBits)

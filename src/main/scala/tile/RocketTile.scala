@@ -26,6 +26,7 @@ case class RocketTileParams(
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
+    masterPortBeatBytes: Int = 8,
     boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)

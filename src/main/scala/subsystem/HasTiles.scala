@@ -268,7 +268,7 @@ trait CanAttachTile {
     implicit val p = context.p
     val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
     dataBus.coupleFrom(tileParams.name.getOrElse("tile")) { bus =>
-      bus :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
+      bus :=* TLWidthWidget(tileParams.masterPortBeatBytes) :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
     }
   }
 

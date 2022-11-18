@@ -9,10 +9,8 @@ import freechips.rocketchip.config.Parameters
 trait L1CacheParams {
   def nSets:         Int
   def nWays:         Int
-  def rowBits:       Int
   def nTLBSets:      Int
   def nTLBWays:      Int
-  def blockBytes:    Int // TODO this is ignored in favor of p(CacheBlockBytes) in BaseTile
 }
 
 trait HasL1CacheParameters extends HasTileParameters {
@@ -27,7 +25,6 @@ trait HasL1CacheParameters extends HasTileParameters {
   def nWays = cacheParams.nWays
   def wayBits = log2Up(nWays)
   def isDM = nWays == 1
-  def rowBits = cacheParams.rowBits
   def rowBytes = rowBits/8
   def rowOffBits = log2Up(rowBytes)
   def nTLBSets = cacheParams.nTLBSets

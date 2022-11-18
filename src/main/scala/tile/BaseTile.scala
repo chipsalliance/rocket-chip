@@ -28,6 +28,7 @@ trait TileParams {
   val blockerCtrlAddr: Option[BigInt]
   val name: Option[String]
   val clockSinkParams: ClockSinkParameters
+  val masterPortBeatBytes: Int
 }
 
 abstract class InstantiableTileParams[TileType <: BaseTile] extends TileParams {
@@ -89,7 +90,7 @@ trait HasNonDiplomaticTileParameters {
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
-  def masterPortBeatBytes = p(SystemBusKey).beatBytes
+  def masterPortBeatBytes = tileParams.masterPortBeatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
   //                  Core   PTW                DTIM                    coprocessors           
@@ -163,6 +164,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
     require(bits <= maxPAddrBits, s"Requested $bits paddr bits, but since xLen is $xLen only $maxPAddrBits will fit")
     bits
   }
+  def rowBits = tlBundleParams.dataBits
   def vaddrBits: Int =
     if (usingVM) {
       val v = maxHVAddrBits

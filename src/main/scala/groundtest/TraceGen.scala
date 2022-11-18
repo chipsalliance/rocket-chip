@@ -78,6 +78,7 @@ case class TraceGenParams(
   val blockerCtrlAddr = None
   val name = None
   val clockSinkParams = ClockSinkParameters()
+  val masterPortBeatBytes = 8
 }
 
 trait HasTraceGenParams {

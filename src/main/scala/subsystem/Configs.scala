@@ -101,11 +101,9 @@ class WithNBigCores(
         mulEarlyOut = true,
         divEarlyOut = true))),
       dcache = Some(DCacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
       big.copy(hartId = i + idOffset),
@@ -126,7 +124,6 @@ class WithNMedCores(
       core = RocketCoreParams(fpu = None),
       btb = None,
       dcache = Some(DCacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
@@ -134,7 +131,6 @@ class WithNMedCores(
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
@@ -159,7 +155,6 @@ class WithNSmallCores(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
       dcache = Some(DCacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
@@ -167,7 +162,6 @@ class WithNSmallCores(
         nMSHRs = 0,
         blockBytes = site(CacheBlockBytes))),
       icache = Some(ICacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
@@ -190,7 +184,6 @@ class With1TinyCore extends Config((site, here, up) => {
         mulDiv = Some(MulDivParams(mulUnroll = 8))),
       btb = None,
       dcache = Some(DCacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nSets = 256, // 16Kb scratchpad
         nWays = 1,
         nTLBSets = 1,
@@ -199,7 +192,6 @@ class With1TinyCore extends Config((site, here, up) => {
         blockBytes = site(CacheBlockBytes),
         scratch = Some(0x80000000L))),
       icache = Some(ICacheParams(
-        rowBits = site(SystemBusKey).beatBits,
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
