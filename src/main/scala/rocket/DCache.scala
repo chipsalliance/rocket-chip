@@ -570,7 +570,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   } else {
     // If no managers support atomics, assert fail if processor asks for them
     assert (!(tl_out_a.valid && s2_read && s2_write && s2_uncached))
-    Wire(new TLBundleA(edge.bundle))
+    WireDefault(new TLBundleA(edge.bundle), DontCare)
   }
 
   tl_out_a.valid := !io.cpu.s2_kill &&
