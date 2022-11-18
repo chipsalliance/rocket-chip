@@ -35,7 +35,7 @@ object EspressoAddressDecoder
 
 		val truthMap = {
 			ports.zipWithIndex.zip(mask).flatMap {
-				case ((port, i), false) =>
+				case ((port, i), true) =>
 					port.map { range =>
 						(AddressSetToBitPat(range, maxBits), new BitPat(value = 1 << i, mask = -1, maxBits))
 					}
