@@ -6,7 +6,6 @@ import chisel3._
 import chisel3.util.BitPat
 import chisel3.util.log2Ceil
 import chisel3.util.experimental.decode._
-import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet}
 
 object EspressoAddressDecoder
 {
