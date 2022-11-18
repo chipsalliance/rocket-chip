@@ -40,7 +40,7 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
   val memAXI4Node = AXI4SlaveNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels, _) =>
     Seq.tabulate(nMemoryChannels) { channel =>
       val base = AddressSet.misaligned(memPortParams.base, memPortParams.size)
-      val filter = AddressSet(channel * mbus.blockBytes, ~((nMemoryChannels-1) * mbus.blockBytes))
+      val filter = AddressSet(channel * p(CacheBlockBytes), ~((nMemoryChannels-1) * p(CacheBlockBytes)))
 
       AXI4SlavePortParameters(
         slaves = Seq(AXI4SlaveParameters(
@@ -48,8 +48,8 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
           resources     = device.reg,
           regionType    = RegionType.UNCACHED, // cacheable
           executable    = true,
-          supportsWrite = TransferSizes(1, mbus.blockBytes),
-          supportsRead  = TransferSizes(1, mbus.blockBytes),
+          supportsWrite = TransferSizes(1, p(CacheBlockBytes)),
+          supportsRead  = TransferSizes(1, p(CacheBlockBytes)),
           interleavedId = Some(0))), // slave does not interleave read responses
         beatBytes = memPortParams.beatBytes)
     }
@@ -120,7 +120,7 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
       (mmioAXI4Node
         := AXI4Buffer()
         := AXI4UserYanker()
-        := AXI4Deinterleaver(sbus.blockBytes)
+        := AXI4Deinterleaver(p(CacheBlockBytes))
         := AXI4IdIndexer(params.idBits)
         := TLToAXI4()
         := TLWidthWidget(sbus.beatBytes)
@@ -174,9 +174,9 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
           address            = AddressSet.misaligned(params.base, params.size),
           resources          = device.ranges,
           executable         = params.executable,
-          supportsGet        = TransferSizes(1, sbus.blockBytes),
-          supportsPutFull    = TransferSizes(1, sbus.blockBytes),
-          supportsPutPartial = TransferSizes(1, sbus.blockBytes))),
+          supportsGet        = TransferSizes(1, p(CacheBlockBytes)),
+          supportsPutFull    = TransferSizes(1, p(CacheBlockBytes)),
+          supportsPutPartial = TransferSizes(1, p(CacheBlockBytes)))),
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>

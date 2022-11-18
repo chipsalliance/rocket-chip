@@ -16,18 +16,16 @@ import freechips.rocketchip.util._
 /** Specifies widths of various attachement points in the SoC */
 trait HasTLBusParams {
   def beatBytes: Int
-  def blockBytes: Int
 
   def beatBits: Int = beatBytes * 8
-  def blockBits: Int = blockBytes * 8
-  def blockBeats: Int = blockBytes / beatBytes
-  def blockOffset: Int = log2Up(blockBytes)
+  def blockBits(implicit p: Parameters): Int = p(CacheBlockBytes) * 8
+  def blockBeats(implicit p: Parameters): Int = p(CacheBlockBytes) / beatBytes
+  def blockOffset(implicit p: Parameters): Int = log2Up(p(CacheBlockBytes))
 
   def dtsFrequency: Option[BigInt]
   def fixedClockOpt = dtsFrequency.map(f => ClockParameters(freqMHz = f.toDouble / 1000000.0))
 
   require (isPow2(beatBytes))
-  require (isPow2(blockBytes))
 }
 
 abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implicit p: Parameters)
@@ -57,7 +55,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 
   def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
-  def blockBytes = params.blockBytes
+  def blockBytes = p(CacheBlockBytes)
   def dtsFrequency = params.dtsFrequency
   val dtsClk = fixedClockNode.fixedClockResources(s"${busName}_clock").flatten.headOption
 
@@ -243,25 +241,25 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     to("slave" named name) { gen :*= TLBuffer(buffer) :*= outwardNode }
   }
 
-  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ node :*= TLFragmenter(bus.beatBytes, bus.blockBytes) :*= _ }", "rocket-chip 1.3")
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ node :*= TLFragmenter(bus.beatBytes, p(CacheBlockBytes)) :*= _ }", "rocket-chip 1.3")
   def toVariableWidthSlaveNode(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: TLInwardNode): Unit = {
     toVariableWidthSlaveNodeOption(name, buffer)(Some(node))
   }
 
-  @deprecated("Replace with e.g. node.foreach { n => bus.coupleTo(s\"slave_named_${name}\"){ b => n :*= TLFragmenter(bus.beatBytes, bus.blockBytes) :*= b } }", "rocket-chip 1.3")
+  @deprecated("Replace with e.g. node.foreach { n => bus.coupleTo(s\"slave_named_${name}\"){ b => n :*= TLFragmenter(bus.beatBytes, p(CacheBlockBytes)) :*= b } }", "rocket-chip 1.3")
   def toVariableWidthSlaveNodeOption(name: Option[String] = None, buffer: BufferParams = BufferParams.none)(node: Option[TLInwardNode]): Unit = {
     node foreach { n => to("slave" named name) {
-      n :*= TLFragmenter(beatBytes, blockBytes) :*= TLBuffer(buffer) :*= outwardNode
+      n :*= TLFragmenter(beatBytes, p(CacheBlockBytes)) :*= TLBuffer(buffer) :*= outwardNode
     }}
   }
 
-  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(bus.beatBytes, bus.blockBytes) :*= _ }", "rocket-chip 1.3")
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(bus.beatBytes, p(CacheBlockBytes)) :*= _ }", "rocket-chip 1.3")
   def toVariableWidthSlave[D,U,E,B <: Data]
       (name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
-      gen :*= TLFragmenter(beatBytes, blockBytes) :*= TLBuffer(buffer) :*= outwardNode
+      gen :*= TLFragmenter(beatBytes, p(CacheBlockBytes)) :*= TLBuffer(buffer) :*= outwardNode
     }
   }
 
@@ -278,22 +276,22 @@ trait CanAttachTLSlaves extends HasTLBusParams { this: TLBusWrapper =>
     to("slave" named name) { gen :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode }
   }
 
-  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(widthBytes, bus.blockBytes) :*= TLWidthWidget(bus.beatBytes) :*= node }", "rocket-chip 1.3")
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(widthBytes, p(CacheBlockBytes)) :*= TLWidthWidget(bus.beatBytes) :*= node }", "rocket-chip 1.3")
   def toFixedWidthSingleBeatSlaveNode
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: TLInwardNode): Unit = {
     to("slave" named name) {
-      gen :*= TLFragmenter(widthBytes, blockBytes) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
+      gen :*= TLFragmenter(widthBytes, p(CacheBlockBytes)) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }
   }
 
-  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(widthBytes, bus.blockBytes) :*= TLWidthWidget(bus.beatBytes) :*= _ }", "rocket-chip 1.3")
+  @deprecated("Replace with e.g. bus.coupleTo(s\"slave_named_${name}\"){ slave.controlXing(NoCrossing) :*= TLFragmenter(widthBytes, p(CacheBlockBytes)) :*= TLWidthWidget(bus.beatBytes) :*= _ }", "rocket-chip 1.3")
   def toFixedWidthSingleBeatSlave[D,U,E,B <: Data]
       (widthBytes: Int, name: Option[String] = None, buffer: BufferParams = BufferParams.none)
       (gen: => NodeHandle[TLClientPortParameters,TLManagerPortParameters,TLEdgeIn,TLBundle,D,U,E,B] =
         TLNameNode(name)): OutwardNodeHandle[D,U,E,B] = {
     to("slave" named name) {
-      gen :*= TLFragmenter(widthBytes, blockBytes) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
+      gen :*= TLFragmenter(widthBytes, p(CacheBlockBytes)) :*= TLWidthWidget(beatBytes) :*= TLBuffer(buffer) :*= outwardNode
     }
   }
 
@@ -378,7 +376,6 @@ trait HasTLXbarPhy { this: TLBusWrapper =>
 }
 
 case class AddressAdjusterWrapperParams(
-  blockBytes: Int,
   beatBytes: Int,
   replication: Option[ReplicatedRegion],
   forceLocal: Seq[AddressSet] = Nil,
@@ -413,7 +410,6 @@ class AddressAdjusterWrapper(params: AddressAdjusterWrapperParams, name: String)
 }
 
 case class TLJBarWrapperParams(
-  blockBytes: Int,
   beatBytes: Int
 )
   extends HasTLBusParams

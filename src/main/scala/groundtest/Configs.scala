@@ -3,6 +3,7 @@
 
 package freechips.rocketchip.groundtest
 
+import chisel3.util.{log2Ceil}
 import freechips.rocketchip.config.Config
 import freechips.rocketchip.devices.tilelink.{CLINTKey, PLICKey}
 import freechips.rocketchip.devices.debug.{DebugModuleKey}
@@ -55,8 +56,8 @@ class WithTraceGen(
           addrBag = {
             val nSets = dcp.nSets
             val nWays = dcp.nWays
-            val blockOffset = site(SystemBusKey).blockOffset
-            val nBeats = site(SystemBusKey).blockBeats
+            val blockOffset = log2Ceil(site(CacheBlockBytes))
+            val nBeats = site(CacheBlockBytes) / site(SystemBusKey).beatBytes
             List.tabulate(nWays) { i =>
               Seq.tabulate(nBeats) { j => BigInt((j * 8) + ((i * nSets) << blockOffset)) }
             }.flatten

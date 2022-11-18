@@ -12,6 +12,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.subsystem.{CacheBlockBytes}
 import scala.collection.mutable.ListBuffer
 
 case class DCacheParams(
@@ -30,7 +31,6 @@ case class DCacheParams(
     nSDQ: Int = 17,
     nRPQ: Int = 16,
     nMMIOs: Int = 1,
-    blockBytes: Int = 64,
     separateUncachedResp: Boolean = false,
     acquireBeforeRelease: Boolean = false,
     pipelineWayMux: Boolean = false,
@@ -40,7 +40,7 @@ case class DCacheParams(
   def tagCode: Code = Code.fromString(tagECC)
   def dataCode: Code = Code.fromString(dataECC)
 
-  def dataScratchpadBytes: Int = scratch.map(_ => nSets*blockBytes).getOrElse(0)
+  def dataScratchpadBytes(implicit p: Parameters): Int = scratch.map(_ => nSets).getOrElse(0) * p(CacheBlockBytes)
 
   def replacement = new RandomReplacement(nWays)
 
@@ -57,7 +57,6 @@ case class DCacheParams(
 trait HasL1HellaCacheParameters extends HasL1CacheParameters with HasCoreParameters {
   val cacheParams = tileParams.dcache.get
   val cfg = cacheParams
-  def rowBits: Int
   def wordBits = coreDataBits
   def wordBytes = coreDataBytes
   def subWordBits = cacheParams.subWordBits.getOrElse(wordBits)
@@ -194,7 +193,7 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
   protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
     name          = s"Core ${staticIdForMetadataUseOnly} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
-    supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
+    supportsProbe = TransferSizes(cacheBlockBytes, cacheBlockBytes))))
 
   protected def mmioClientParameters = Seq(TLMasterParameters.v1(
     name          = s"Core ${staticIdForMetadataUseOnly} DCache MMIO",
@@ -215,7 +214,7 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
 
   def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireB || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.IDEMPOTENT)
 
-  def canSupportCFlushLine = !usingVM || cfg.blockBytes * cfg.nSets <= (1 << pgIdxBits)
+  def canSupportCFlushLine = !usingVM || cacheBlockBytes * cfg.nSets <= (1 << pgIdxBits)
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
 }

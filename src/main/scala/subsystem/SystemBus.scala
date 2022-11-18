@@ -10,7 +10,6 @@ import freechips.rocketchip.util._
 
 case class SystemBusParams(
     beatBytes: Int,
-    blockBytes: Int,
     policy: TLArbiter.Policy = TLArbiter.roundRobin,
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[BuiltInZeroDeviceParams] = None,

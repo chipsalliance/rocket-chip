@@ -19,23 +19,18 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case MaxHartIdBits => log2Up(site(TilesLocated(InSubsystem)).map(_.tileParams.hartId).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
-    beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes))
+    beatBytes = site(XLen)/8)
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes),
     errorDevice = Some(BuiltInErrorDeviceParams(
       errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096))))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000)) // Default to 100 MHz pbus clock
   case MemoryBusKey => MemoryBusParams(
-    beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes))
+    beatBytes = site(XLen)/8)
   case FrontBusKey => FrontBusParams(
-    beatBytes = site(XLen)/8,
-    blockBytes = site(CacheBlockBytes))
+    beatBytes = site(XLen)/8)
   // Additional device Parameters
   case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
   case SubsystemExternalResetVectorKey => false
@@ -100,11 +95,8 @@ class WithNBigCores(
         mulUnroll = 8,
         mulEarlyOut = true,
         divEarlyOut = true))),
-      dcache = Some(DCacheParams(
-        nMSHRs = 0,
-        blockBytes = site(CacheBlockBytes))),
-      icache = Some(ICacheParams(
-        blockBytes = site(CacheBlockBytes))))
+      dcache = Some(DCacheParams(nMSHRs = 0)),
+      icache = Some(ICacheParams()))
     List.tabulate(n)(i => RocketTileAttachParams(
       big.copy(hartId = i + idOffset),
       crossing
@@ -128,14 +120,12 @@ class WithNMedCores(
         nWays = 1,
         nTLBSets = 1,
         nTLBWays = 4,
-        nMSHRs = 0,
-        blockBytes = site(CacheBlockBytes))),
+        nMSHRs = 0)),
       icache = Some(ICacheParams(
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
-        nTLBWays = 4,
-        blockBytes = site(CacheBlockBytes))))
+        nTLBWays = 4)))
     List.tabulate(n)(i => RocketTileAttachParams(
       med.copy(hartId = i + idOffset),
       crossing
@@ -159,14 +149,12 @@ class WithNSmallCores(
         nWays = 1,
         nTLBSets = 1,
         nTLBWays = 4,
-        nMSHRs = 0,
-        blockBytes = site(CacheBlockBytes))),
+        nMSHRs = 0)),
       icache = Some(ICacheParams(
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
-        nTLBWays = 4,
-        blockBytes = site(CacheBlockBytes))))
+        nTLBWays = 4)))
     List.tabulate(n)(i => RocketTileAttachParams(
       small.copy(hartId = i + idOffset),
       crossing
@@ -189,14 +177,12 @@ class With1TinyCore extends Config((site, here, up) => {
         nTLBSets = 1,
         nTLBWays = 4,
         nMSHRs = 0,
-        blockBytes = site(CacheBlockBytes),
         scratch = Some(0x80000000L))),
       icache = Some(ICacheParams(
         nSets = 64,
         nWays = 1,
         nTLBSets = 1,
-        nTLBWays = 4,
-        blockBytes = site(CacheBlockBytes)))
+        nTLBWays = 4))
     )
     List(RocketTileAttachParams(
       tiny,

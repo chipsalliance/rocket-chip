@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import Chisel._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation}
+import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation, CacheBlockBytes}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
@@ -65,7 +65,7 @@ object MaskROM {
     val bus = subsystem.locateTLBusWrapper(where)
     val maskROM = LazyModule(new TLMaskROM(params))
     maskROM.node := bus.coupleTo("MaskROM") {
-      TLFragmenter(maskROM.beatBytes, bus.blockBytes) :*= TLWidthWidget(bus) := _
+      TLFragmenter(maskROM.beatBytes, p(CacheBlockBytes)) :*= TLWidthWidget(bus) := _
     }
     InModuleBody { maskROM.module.clock := bus.module.clock }
     InModuleBody { maskROM.module.reset := bus.module.reset }

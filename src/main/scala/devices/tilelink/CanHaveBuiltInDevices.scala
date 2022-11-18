@@ -5,6 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.subsystem.CacheBlockBytes
 
 case class BuiltInZeroDeviceParams(
   addr: AddressSet,
@@ -50,7 +51,7 @@ object BuiltInDevices {
         address = zeroParams.addr,
         beatBytes = params.beatBytes))
       (zero.node
-        := TLFragmenter(params.beatBytes, params.blockBytes)
+        := TLFragmenter(params.beatBytes, p(CacheBlockBytes))
         := zeroParams.buffer.map { params => TLBuffer(params) }.getOrElse { TLTempNode() }
         := zeroParams.cacheCork.map { params => TLCacheCork(params) }.getOrElse { TLTempNode() }
         := outwardNode)

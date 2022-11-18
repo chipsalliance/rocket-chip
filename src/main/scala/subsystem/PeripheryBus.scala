@@ -16,7 +16,6 @@ case class BusAtomics(
 
 case class PeripheryBusParams(
     beatBytes: Int,
-    blockBytes: Int,
     atomics: Option[BusAtomics] = Some(BusAtomics()),
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[BuiltInZeroDeviceParams] = None,

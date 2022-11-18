@@ -6,6 +6,7 @@ import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.subsystem.CacheBlockBytes
 import scala.math.min
 
 object EarlyAck {
@@ -335,7 +336,7 @@ object TLFragmenter
     } else { TLEphemeralNode()(ValName("no_fragmenter")) }
   }
 
-  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)
+  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, p(CacheBlockBytes))
 }
 
 // Synthesizable unit tests

@@ -34,7 +34,6 @@ case class BankedL2Params(
 }
 
 case class CoherenceManagerWrapperParams(
-    blockBytes: Int,
     beatBytes: Int,
     nBanks: Int,
     name: String,
@@ -62,7 +61,7 @@ class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: Ha
   val prefixNode = None
 
   private def banked(node: TLOutwardNode): TLOutwardNode =
-    if (params.nBanks == 0) node else { TLTempNode() :=* BankBinder(params.nBanks, params.blockBytes) :*= node }
+    if (params.nBanks == 0) node else { TLTempNode() :=* BankBinder(params.nBanks, p(CacheBlockBytes)) :*= node }
   val outwardNode = banked(tempOut)
 }
 

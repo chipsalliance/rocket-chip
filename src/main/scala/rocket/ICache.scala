@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Cat, Decoupled, Mux1H, OHToUInt, RegEnable, Valid, isPow2, log2Ceil, log2Up, PopCount}
+import chisel3.util._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
@@ -12,6 +12,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property
+import freechips.rocketchip.subsystem.CacheBlockBytes
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.dontTouch
 import chisel3.util.random.LFSR
@@ -31,7 +32,6 @@ import chisel3.util.random.LFSR
   *                 if None, ITIM won't be generated,
   *                 if Some, ITIM will be generated, with itimAddr as ITIM base address.
   * @param prefetch if set, will send next-line[[TLEdgeOut.Hint]] to manger.
-  * @param blockBytes size of a cacheline, calculates in byte.
   * @param latency latency of a instruction fetch, 1 or 2 are available
   * @param fetchBytes byte size fetched by CPU for each cycle.
   */
@@ -48,7 +48,6 @@ case class ICacheParams(
     dataECC: Option[String] = None,
     itimAddr: Option[BigInt] = None,
     prefetch: Boolean = false,
-    blockBytes: Int = 64,
     latency: Int = 2,
     fetchBytes: Int = 4) extends L1CacheParams {
   def tagCode: Code = Code.fromString(tagECC)
@@ -150,10 +149,10 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
     requestFields = useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
 
   /** size of [[ICache]], count in byte. */
-  val size = icacheParams.nSets * icacheParams.nWays * icacheParams.blockBytes
+  val size = icacheParams.nSets * icacheParams.nWays * p(CacheBlockBytes)
 
   /** last way will be configured to control offest, access it will deallocate an entire set to I$. */
-  val itim_control_offset = size - icacheParams.nSets * icacheParams.blockBytes
+  val itim_control_offset = size - icacheParams.nSets * p(CacheBlockBytes)
 
   val device = new SimpleDevice("itim", Seq("sifive,itim0")) {
     override def describe(resources: ResourceBindings): Description = {

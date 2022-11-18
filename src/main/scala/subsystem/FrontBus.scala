@@ -10,7 +10,6 @@ import freechips.rocketchip.util.{Location}
 
 case class FrontBusParams(
     beatBytes: Int,
-    blockBytes: Int,
     dtsFrequency: Option[BigInt] = None,
     zeroDevice: Option[BuiltInZeroDeviceParams] = None,
     errorDevice: Option[BuiltInErrorDeviceParams] = None)

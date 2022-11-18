@@ -11,7 +11,6 @@ import freechips.rocketchip.util._
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(
   beatBytes: Int,
-  blockBytes: Int,
   dtsFrequency: Option[BigInt] = None,
   zeroDevice: Option[BuiltInZeroDeviceParams] = None,
   errorDevice: Option[BuiltInErrorDeviceParams] = None,
