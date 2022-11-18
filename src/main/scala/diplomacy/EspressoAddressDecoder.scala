@@ -43,7 +43,7 @@ object EspressoAddressDecoder
 			}
 		}
 		if (truthMap.isEmpty) {
-			return ports.map(_ => false.B)
+			return ports.map(_ => true.B)
 		}
 		val dontCarePat: BitPat = new BitPat(value = 0x0, mask = 0x0, maxBits)
 		decoder(addr, TruthTable(truthMap, dontCarePat)).asBools.take(ports.length)
