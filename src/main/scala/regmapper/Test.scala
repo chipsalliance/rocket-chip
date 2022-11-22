@@ -47,7 +47,7 @@ object RRTestCombinational
 
   def always: Bool => Bool = _ => true.B
 
-  def random: Bool => Bool = { ready =>
+  def random: Bool => Bool = { _ =>
     seed = seed + 1
     LFSR16Seed(seed)(0)
   }

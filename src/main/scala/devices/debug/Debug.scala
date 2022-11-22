@@ -1311,7 +1311,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
         val hartHaltedIdIndex   = UIntToOH(hartSelFuncs.hartIdToHartSel(hartHaltedId))
         val hartResumingIdIndex = UIntToOH(hartSelFuncs.hartIdToHartSel(hartResumingId))
-        val hartselIndex        = UIntToOH(io.innerCtrl.bits.hartsel)
+        UIntToOH(io.innerCtrl.bits.hartsel)
         when (hartHaltedWrEn) {
           // add those harts halting and remove those in reset
           haltedBitRegs := (haltedBitRegs | hartHaltedIdIndex) & ~(hartIsInResetSync.asUInt)
@@ -1465,7 +1465,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val custom_data = custom.data.asBools
       val custom_bytes =  Seq.tabulate(customP.width/8){i => custom_data.slice(i*8, (i+1)*8).asUInt}
       when (custom.ready && custom.valid) {
-        (abstractDataMem zip custom_bytes).zipWithIndex.foreach {case ((a, b), i) =>
+        (abstractDataMem zip custom_bytes).zipWithIndex.foreach {case ((a, b), _) =>
           a := b
         }
       }

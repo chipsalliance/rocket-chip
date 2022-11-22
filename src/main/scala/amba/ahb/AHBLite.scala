@@ -13,7 +13,7 @@ class AHBLite()(implicit p: Parameters) extends LazyModule {
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       require (edgeOut.slave.lite) // or else this adapter is pointless
 
       out.hmastlock.get := in.hlock.get

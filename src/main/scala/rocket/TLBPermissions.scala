@@ -60,7 +60,7 @@ object TLBPageLookup
     val allSizes = TransferSizes(1, cacheBlockBytes)
     val amoSizes = TransferSizes(4, xLen/8)
 
-    val permissions = managers.foreach { m =>
+    managers.foreach { m =>
       require (!m.supportsGet        || m.supportsGet       .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsGet} Get, but must support ${allSizes}")
       require (!m.supportsPutFull    || m.supportsPutFull   .contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsPutFull} PutFull, but must support ${allSizes}")
       require (!m.supportsPutPartial || m.supportsPutPartial.contains(allSizes),  s"Memory region '${m.name}' at ${m.address} only supports ${m.supportsPutPartial} PutPartial, but must support ${allSizes}")
@@ -75,7 +75,7 @@ object TLBPageLookup
       .mapValues(_.filter(_.alignment >= pageSize)) // discard any region that's not big enough
 
     def lowCostProperty(prop: TLBFixedPermissions => Boolean): UInt => Bool = {
-      val (yesm, nom) = grouped.partition { case (k, eq) => prop(k) }
+      val (yesm, nom) = grouped.partition { case (k, _) => prop(k) }
       val (yes, no) = (yesm.values.flatten.toList, nom.values.flatten.toList)
       // Find the minimal bits needed to distinguish between yes and no
       val decisionMask = AddressDecoder(Seq(yes, no))

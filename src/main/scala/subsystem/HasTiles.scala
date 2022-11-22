@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode}
+import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType}
 import freechips.rocketchip.util._
 
 /** Entry point for Config-uring the presence of Tiles */

@@ -34,7 +34,7 @@ class TLBuffer(
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       out.a <> a(in .a)
       in .d <> d(out.d)
 
@@ -111,7 +111,7 @@ class TLBufferAndNotCancel(
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       out.a <> a(in.a.asDecoupled)
       in .d <> d(out.d)
 

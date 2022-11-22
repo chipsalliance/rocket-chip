@@ -550,7 +550,7 @@ class CSRFile(
   val reg_instret = WideCounter(64, io.retire, inhibit = reg_mcountinhibit(2))
   val reg_cycle = if (enableCommitLog) WideCounter(64, io.retire,     inhibit = reg_mcountinhibit(0))
     else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall, inhibit = reg_mcountinhibit(0)) }
-  val reg_hpmevent = io.counters.map(c => RegInit(0.U(xLen.W)))
+  val reg_hpmevent = io.counters.map(_ => RegInit(0.U(xLen.W)))
     (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
   val reg_hpmcounter = io.counters.zipWithIndex.map { case (c, i) =>
     WideCounter(CSR.hpmWidth, c.inc, reset = false, inhibit = reg_mcountinhibit(CSR.firstHPM+i)) }
@@ -828,7 +828,7 @@ class CSRFile(
     (if (usingHypervisor)        hlsv.map(_->  List(N,N,N,N,N,N,N,N,Y)) else Seq())
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: _ :: _ :: _ :: _ :: Nil = {
     val insn = ECALL.value.U | (io.rw.addr << 20)
-    DecodeLogic(insn, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
+    DecodeLogic(insn, decode_table(0)._2.map(_=>X), decode_table).map(system_insn && _.asBool)
   }
 
   for (io_dec <- io.decode) {
@@ -838,7 +838,7 @@ class CSRFile(
     def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
 
     val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: is_hfence_vvma :: is_hfence_gvma :: is_hlsv :: Nil =
-      DecodeLogic(io_dec.inst, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
+      DecodeLogic(io_dec.inst, decode_table(0)._2.map(_=>X), decode_table).map(_.asBool)
     val is_counter = (addr.inRange(CSR.firstCtr.U, (CSR.firstCtr + CSR.nCtr).U) || addr.inRange(CSR.firstCtrH.U, (CSR.firstCtrH + CSR.nCtr).U))
 
     val allow_wfi = (!usingSupervisor).B || reg_mstatus.prv > PRV.S.U || !reg_mstatus.tw && (!reg_mstatus.v || !reg_hstatus.vtw)
@@ -1107,7 +1107,7 @@ class CSRFile(
   val coverable_counters = read_mapping.filterNot { case (k, _) =>
     k >= CSR.firstHPC + nPerfCounters && k < CSR.firstHPC + CSR.nHPM
   }
-  coverable_counters.foreach( {case (k, v) => {
+  coverable_counters.foreach( {case (k, _) => {
     when (!k.U(11,10).andR) {  // Cover points for RW CSR registers
       property.cover(io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr===k.U, "CSR_access_"+k.toString, "Cover Accessing Core CSR field")
     } .otherwise { // Cover points for RO CSR registers
@@ -1116,7 +1116,7 @@ class CSRFile(
   }})
 
   val set_vs_dirty = WireDefault(io.vector.map(_.set_vs_dirty).getOrElse(false.B))
-  io.vector.foreach { vio =>
+  io.vector.foreach { _ =>
     when (set_vs_dirty) {
       assert(reg_mstatus.vs > 0.U)
       when (reg_mstatus.v) { reg_vsstatus.vs := 3.U }

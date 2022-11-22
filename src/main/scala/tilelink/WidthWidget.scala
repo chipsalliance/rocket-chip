@@ -33,7 +33,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val limit   = UIntToOH1(size, keepBits) >> dropBits
 
       val count  = RegInit(0.U(countBits.W))
-      val first  = count === 0.U
+      count === 0.U
       val last   = count === limit || !hasData
       val enable = Seq.tabulate(ratio) { i => !((count ^ i.U) & limit).orR }
 
@@ -79,8 +79,8 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       (out.bits, in.bits) match {
         case (o: TLBundleA, i: TLBundleA) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~0.U(outBytes.W))
         case (o: TLBundleB, i: TLBundleB) => o.mask := edgeOut.mask(o.address, o.size) & Mux(hasData, helper(i.mask), ~0.U(outBytes.W))
-        case (o: TLBundleC, i: TLBundleC) => ()
-        case (o: TLBundleD, i: TLBundleD) => ()
+        case (_: TLBundleC, _: TLBundleC) => ()
+        case (_: TLBundleD, _: TLBundleD) => ()
         case _ => require(false, "Impossible bundle combination in WidthWidget")
       }
     }
@@ -134,8 +134,8 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       (out.bits, in.bits) match {
         case (o: TLBundleA, i: TLBundleA) => o.mask := helper(i.mask, 1)
         case (o: TLBundleB, i: TLBundleB) => o.mask := helper(i.mask, 1)
-        case (o: TLBundleC, i: TLBundleC) => () // replicating corrupt to all beats is ok
-        case (o: TLBundleD, i: TLBundleD) => ()
+        case (_: TLBundleC, _: TLBundleC) => () // replicating corrupt to all beats is ok
+        case (_: TLBundleD, _: TLBundleD) => ()
         case _ => require(false, "Impossbile bundle combination in WidthWidget")
       }
 

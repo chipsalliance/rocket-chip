@@ -36,7 +36,7 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       if (alreadyRegistered) {
         out.sync := in
       } else {
@@ -64,7 +64,7 @@ class IntSyncAsyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends La
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       out := SynchronizerShiftReg(in.sync, sync)
     }
   }
@@ -85,7 +85,7 @@ class IntSyncSyncCrossingSink()(implicit p: Parameters) extends LazyModule
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       out := in.sync
     }
   }
@@ -106,7 +106,7 @@ class IntSyncRationalCrossingSink()(implicit p: Parameters) extends LazyModule
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       out := RegNext(in.sync)
     }
   }

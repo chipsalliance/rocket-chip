@@ -23,7 +23,7 @@ class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       val psync = sync.getOrElse(edgeOut.slave.async.sync)
       val params = edgeOut.slave.async.copy(sync = psync)
       out.ar <> ToAsyncBundle(in.ar, params)
@@ -46,7 +46,7 @@ class AXI4AsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(impli
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       out.ar <> FromAsyncBundle(in.ar, params.sync)
       out.aw <> FromAsyncBundle(in.aw, params.sync)
       out. w <> FromAsyncBundle(in. w, params.sync)

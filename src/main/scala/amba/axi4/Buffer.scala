@@ -38,7 +38,7 @@ class AXI4Buffer(
       }
     }
 
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       out.aw <> buffer(aw, in .aw)
       out.w  <> buffer(w,  in .w)
       in .b  <> buffer(b,  out.b)

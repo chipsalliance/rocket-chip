@@ -271,7 +271,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   /** register indicates wheather ITIM is enabled. */
   val scratchpadOn = RegInit(false.B)
   /** a cut point to SRAM, indicates which SRAM will be used as SRAM or Cache. */
-  val scratchpadMax = tl_in.map(tl => Reg(UInt(log2Ceil(nSets * (nWays - 1)).W)))
+  val scratchpadMax = tl_in.map(_ => Reg(UInt(log2Ceil(nSets * (nWays - 1)).W)))
 
   /** Check if a line is in the scratchpad.
     *
@@ -282,7 +282,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     * @todo seem [[io_hartid]] is not connected?
     *       maybe when implementing itim, LookupByHartId should be changed to [[]]?
     */
-  val scratchpadBase = outer.icacheParams.itimAddr.map { dummy =>
+  val scratchpadBase = outer.icacheParams.itimAddr.map { _ =>
     p(LookupByHartId)(_.icache.flatMap(_.itimAddr.map(_.U)), io_hartid.get) | io_mmio_address_prefix.get
   }
 

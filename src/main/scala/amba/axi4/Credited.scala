@@ -17,7 +17,7 @@ class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) exten
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
       out.aw :<> in.aw.pipeline(delay.aw)
       out.w :<> in.w.pipeline(delay.w)
       in.b :<> out.b.pipeline(delay.b)
@@ -41,7 +41,7 @@ class AXI4CreditedSource(delay: AXI4CreditedDelay)(implicit p: Parameters) exten
   val node = AXI4CreditedSourceNode(delay)
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       val tld = edgeOut.delay
       out.aw :<> CreditedIO.fromSender(in.aw, tld.aw.total).pipeline(delay.aw)
       out.w :<> CreditedIO.fromSender(in.w, tld.w.total).pipeline(delay.w)
@@ -66,7 +66,7 @@ class AXI4CreditedSink(delay: AXI4CreditedDelay)(implicit p: Parameters) extends
   val node = AXI4CreditedSinkNode(delay)
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, _)) =>
       val tld = edgeIn.delay
       out.aw :<> in.aw.pipeline(delay.aw).toReceiver(tld.aw.total)
       out.w :<> in.w.pipeline(delay.w).toReceiver(tld.w.total)

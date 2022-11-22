@@ -82,7 +82,7 @@ class TLFuzzer(
   nOperations: Int,
   inFlight: Int = 32,
   noiseMaker: (Int, Bool, Int) => UInt = {
-    (wide: Int, increment: Bool, abs_values: Int) =>
+    (wide: Int, increment: Bool, _: Int) =>
     LFSRNoiseMaker(wide=wide, increment=increment)
   },
   noModify: Boolean = false,
@@ -230,7 +230,7 @@ object TLFuzzer
     nOperations: Int,
     inFlight: Int = 32,
     noiseMaker: (Int, Bool, Int) => UInt = {
-      (wide: Int, increment: Bool, abs_values: Int) =>
+      (wide: Int, increment: Bool, _: Int) =>
       LFSRNoiseMaker(wide=wide, increment=increment)
     },
     noModify: Boolean = false,

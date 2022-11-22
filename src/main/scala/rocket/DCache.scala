@@ -64,7 +64,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
     when (valid && io.req.bits.write) {
       val wMaskSlice = (0 until wMask.size).filter(j => i % (wordBits/subWordBits) == (j % (wordBytes/eccBytes)) / (subWordBytes/eccBytes)).map(wMask(_))
       val wData = wWords(i).grouped(encBits)
-      array.write(addr, VecInit((0 until nWays).flatMap(i => wData)), wMaskSlice)
+      array.write(addr, VecInit((0 until nWays).flatMap(_ => wData)), wMaskSlice)
     }
     val data = array.read(addr, valid && !io.req.bits.write)
     data.grouped(subWordBits / eccBits).map(_.asUInt).toSeq

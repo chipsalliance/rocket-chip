@@ -53,7 +53,7 @@ class TLAsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implici
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
 
       out.a <> FromAsyncBundle(in.a, params.sync)

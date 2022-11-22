@@ -62,7 +62,7 @@ class DebugCustomXbar(
         DebugCustomParams(all_addrs.toList, max_width)
       }
     },
-    sinkFn = { seq => new DebugCustomNull()},
+    sinkFn = { _ => new DebugCustomNull()},
     inputRequiresOutput,
     outputRequiresInput
   )
@@ -82,7 +82,7 @@ class DebugCustomXbar(
     }
     // mux correct 'ready' and 'data' based on address
     sink.ready := (decoded zip sources).foldLeft(false.B){case (result, (d, i)) => result || (d & i.ready)}
-    sink.data := (decoded zip sources).foldLeft(0.U){ case (result, (d, i)) => result | Mux(i.ready, i.data, 0.U)}
+    sink.data := (decoded zip sources).foldLeft(0.U){ case (result, (_, i)) => result | Mux(i.ready, i.data, 0.U)}
 
   }
 }

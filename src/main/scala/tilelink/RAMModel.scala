@@ -28,14 +28,14 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, _)) =>
       val edge         = edgeIn
       val endAddress   = edge.manager.maxAddress + 1
       val endSourceId  = edge.client.endSourceId
       val maxTransfer  = edge.manager.maxTransfer
       val beatBytes    = edge.manager.beatBytes
       val endAddressHi = (endAddress / beatBytes).intValue
-      val maxLgBeats   = log2Up(maxTransfer/beatBytes)
+      log2Up(maxTransfer/beatBytes)
       val shift        = log2Ceil(beatBytes)
       val decTrees     = log2Up(maxTransfer/beatBytes)
       val addressBits  = log2Up(endAddress)

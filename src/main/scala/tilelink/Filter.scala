@@ -55,7 +55,7 @@ class TLFilter(
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, _)) =>
       out <> in
 
       // In case the inner interface removes Acquire, tie-off the channels

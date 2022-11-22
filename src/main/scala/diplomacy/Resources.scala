@@ -147,7 +147,7 @@ trait DeviceRegName
     if (reg.isEmpty) {
       devname
     } else {
-      val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
+      val (named, bulk) = reg.partition { case (k, _) => DiplomacyUtils.regName(k).isDefined }
       val mainreg = reg.head._2
       require (!mainreg.isEmpty, s"reg binding for $devname is empty!")
       mainreg.head.value match {
@@ -194,7 +194,7 @@ class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
     val compat = optDef("compatible", devcompat.map(ResourceString(_))) // describe the list of compatiable devices
 
     val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
-    val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
+    val (named, bulk) = reg.partition { case (k, _) => DiplomacyUtils.regName(k).isDefined }
     // We need to be sure that each named reg has exactly one AddressRange associated to it
     named.foreach {
       case (k, Seq(Binding(_, value: ResourceAddress))) =>
@@ -337,7 +337,7 @@ trait BindingScope
         case ResourceMapping(addr, _, perm) => (name -> ResourceAddress(shift(addr), perm))
       }
       // children + single ranges -> probe children at displaced offset
-      case Some(Seq(ResourceMapping(addr, delta, perm))) => mapChildren(offset+delta)
+      case Some(Seq(ResourceMapping(_, delta, _))) => mapChildren(offset+delta)
       // multiple ranges + children -> don't know how to handle this
       case x => { require(false, s"Unexpected value in ranges key: ${x}"); Nil }
     }

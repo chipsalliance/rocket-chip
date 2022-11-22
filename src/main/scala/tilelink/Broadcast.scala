@@ -84,7 +84,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
   class Impl extends LazyModuleImp(this) {
     val (ints, fields) = node.in.zip(node.out).zipWithIndex.map { case (((in, edgeIn), (out, edgeOut)), bankIndex) =>
       val clients = edgeIn.client.clients
-      val managers = edgeOut.manager.managers
+      edgeOut.manager.managers
       val lineShift = log2Ceil(params.lineBytes)
 
       import TLBroadcastConstants._
@@ -233,7 +233,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
       val freeTrackers = VecInit(trackers.map { t => t.idle }).asUInt
-      val freeTracker = freeTrackers.orR()
+      freeTrackers.orR()
       val matchTrackers = VecInit(trackers.map { t => t.line === in.a.bits.address >> lineShift }).asUInt
       val matchTracker = matchTrackers.orR()
       val allocTracker = freeTrackers & ~(leftOR(freeTrackers) << 1)
@@ -283,7 +283,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       // Collect all the filters together
       (filter.io.int, controlNode match {
-        case Some(x) => filter.useRegFields(bankIndex)
+        case Some(_) => filter.useRegFields(bankIndex)
         case None    => { filter.tieRegFields(bankIndex); Nil }
       })
     }.unzip

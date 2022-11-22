@@ -42,7 +42,7 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       val endId = edgeOut.master.endId
       val beats = maxBeats(edgeOut.slave)
 

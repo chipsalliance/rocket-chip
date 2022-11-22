@@ -15,7 +15,7 @@ class TLBlockDuringReset(stretchResetCycles: Int = 0)
   override def shouldBeInlined = true
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       out.a :<> BlockDuringReset(in .a, stretchResetCycles)
       in .d :<> BlockDuringReset(out.d, stretchResetCycles)
       if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {

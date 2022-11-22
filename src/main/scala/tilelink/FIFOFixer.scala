@@ -136,7 +136,7 @@ object TLFIFOFixer
   type Policy = TLSlaveParameters => Boolean
   import RegionType._
 
-  val all:            Policy = m => true
+  val all:            Policy = _ => true
   val allFIFO:        Policy = m => m.fifoId.isDefined
   val allVolatile:    Policy = m => m.regionType <= VOLATILE
 

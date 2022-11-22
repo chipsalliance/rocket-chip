@@ -60,7 +60,7 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
       }
     }
 
-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+    (node.in zip node.out) foreach { case ((in, _), (out, edgeOut)) =>
       ABo(out.a, in .a)
       ABi(in .d, out.d)
 

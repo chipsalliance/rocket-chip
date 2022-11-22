@@ -462,7 +462,7 @@ class TLRAMXbarTest(nManagers: Int, txns: Int = 5000, timeout: Int = 500000)(imp
 class TLMulticlientXbar(nManagers: Int, nClients: Int, txns: Int)(implicit p: Parameters) extends LazyModule {
   val xbar = LazyModule(new TLXbar)
 
-  val fuzzers = (0 until nClients) map { n =>
+  val fuzzers = (0 until nClients) map { _ =>
     val fuzz = LazyModule(new TLFuzzer(txns))
     xbar.node := TLDelayer(0.1) := fuzz.node
     fuzz

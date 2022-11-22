@@ -165,7 +165,7 @@ class FPUDecoder(implicit p: Parameters) extends FPUModule()(p) {
     case (32, 64) => f ++ d
     case (16, 64) => h ++ f ++ d ++ fcvt_hd
 
-    case other => throw new Exception(s"minFLen = ${minFLen} & fLen = ${fLen} is an unsupported configuration")
+    case _ => throw new Exception(s"minFLen = ${minFLen} & fLen = ${fLen} is an unsupported configuration")
   }
   val decoder = DecodeLogic(io.inst, default, insns)
   val s = io.sigs
