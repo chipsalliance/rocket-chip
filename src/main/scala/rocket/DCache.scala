@@ -59,7 +59,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
       )
   }
 
-  val rdata = for ((array , i) <- data_arrays zipWithIndex) yield {
+  val rdata = for ((array , i) <- data_arrays.zipWithIndex) yield {
     val valid = io.req.valid && ((data_arrays.size == 1).B || io.req.bits.wordMask(i))
     when (valid && io.req.bits.write) {
       val wMaskSlice = (0 until wMask.size).filter(j => i % (wordBits/subWordBits) == (j % (wordBytes/eccBytes)) / (subWordBytes/eccBytes)).map(wMask(_))

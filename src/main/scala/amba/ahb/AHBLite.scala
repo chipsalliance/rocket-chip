@@ -11,7 +11,8 @@ class AHBLite()(implicit p: Parameters) extends LazyModule {
     masterFn = { mp => mp },
     slaveFn  = { sp => sp.copy(lite = false) })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       require (edgeOut.slave.lite) // or else this adapter is pointless
 

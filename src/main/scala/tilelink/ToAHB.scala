@@ -67,7 +67,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
 {
   val node = TLToAHBNode(supportHints)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val beatBytes = edgeOut.slave.beatBytes
       val maxTransfer = edgeOut.slave.maxTransfer

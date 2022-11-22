@@ -37,7 +37,8 @@ class TLJbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       override def circuitIdentity = uRatio == 1 && dRatio == 1
     }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     node.inoutGrouped.foreach { case (in, out) => TLXbar.circuit(policy, in, out) }
   }
 }
@@ -66,7 +67,8 @@ class TLJbarTestImp(nClients: Int, nManagers: Int, txns: Int)(implicit p: Parame
     TLRAM(AddressSet(0x0+0x400*n, 0x3ff)) := TLFragmenter(4, 256) := TLDelayer(0.1) := jbar.node
   }
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzzers.map(_.module.io.finished).reduce(_ && _)
   }
 }

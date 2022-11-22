@@ -182,8 +182,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   require(h == c, s"port list size was $h, core expected $c")
   require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
-  dcacheArb.io.requestor <> dcachePorts
-  ptw.io.requestor <> ptwPorts
+  dcacheArb.io.requestor <> dcachePorts.toSeq
+  ptw.io.requestor <> ptwPorts.toSeq
 }
 
 trait HasFpuOpt { this: RocketTileModuleImp =>

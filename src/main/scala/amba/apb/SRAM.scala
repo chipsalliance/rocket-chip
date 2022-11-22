@@ -31,7 +31,8 @@ class APBRAM(
 
   private val outer = this
 
-  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, _) = node.in(0)
     val laneDataBits = 8
     val mem = makeSinglePortedByteWriteSeqMem(

@@ -10,6 +10,7 @@ final case class HeterogeneousBag[T <: Data](elts: Seq[T]) extends Record with c
   def apply(x: Int) = elts(x)
   def length = elts.length
 
+  override def className: String = super.className
   val elements = ListMap(elts.zipWithIndex.map { case (n,i) => (i.toString, n) }:_*)
   override def cloneType: this.type = (new HeterogeneousBag(elts.map(_.chiselCloneType))).asInstanceOf[this.type]
   // IndexedSeq has its own hashCode/equals that we must not use

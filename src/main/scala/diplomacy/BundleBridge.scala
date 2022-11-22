@@ -124,7 +124,8 @@ class BundleBridgeNexus[T <: Data](
 {
   val node = BundleBridgeNexusNode[T](default, inputRequiresOutput)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val defaultWireOpt = default.map(_())
     val inputs: Seq[T] = node.in.map(_._1)
     inputs.foreach { i => require(DataMirror.checkTypeEquivalence(i, inputs.head),

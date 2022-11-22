@@ -32,7 +32,8 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
       fifoId      = Some(0))),
     beatBytes = beatBytes)))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val contents = contentsDelayed
     val wrapSize = 1 << log2Ceil(contents.size)
     require (wrapSize <= size)

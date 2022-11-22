@@ -551,7 +551,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       )
   }
 
-  for ((data_array , i) <- data_arrays zipWithIndex) {
+  for ((data_array , i) <- data_arrays.zipWithIndex) {
     /**  bank match (vaddr[2]) */
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i.U
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))

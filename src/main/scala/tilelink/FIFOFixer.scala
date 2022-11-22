@@ -39,7 +39,8 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       mp.v1copy(managers = (fixMap zip mp.managers) map { case (id, m) => m.v1copy(fifoId = id) })
     })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val (fixMap, splatMap) = fifoMap(edgeOut.manager.managers)
 

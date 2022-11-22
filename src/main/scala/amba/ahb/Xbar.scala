@@ -19,7 +19,8 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
     override def circuitIdentity = outputs == 1 && inputs == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
       require (node.edges.in.size == 1, "AHBFanout does not support multiple masters")
       require (node.edges.out.size > 0, "AHBFanout requires at least one slave")
@@ -61,7 +62,8 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
     masterFn = { case seq => seq(0).copy(masters = seq.flatMap(_.masters)) },
     slaveFn  = { case Seq(s) => s })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
       require (node.edges.out.size == 1, "AHBArbiter requires exactly one slave")
       require (node.edges.in.size == 1, "TODO: support more than one master")

@@ -672,7 +672,7 @@ class CSRFile(
     read_mapping += CSRs.minstret -> reg_instret
 
     for (((e, c), i) <- (reg_hpmevent.padTo(CSR.nHPM, 0.U)
-                         zip reg_hpmcounter.map(x => x: UInt).padTo(CSR.nHPM, 0.U)) zipWithIndex) {
+                         zip reg_hpmcounter.map(x => x: UInt).padTo(CSR.nHPM, 0.U)).zipWithIndex) {
       read_mapping += (i + CSR.firstHPE) -> e // mhpmeventN
       read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
       if (usingUser) read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
@@ -740,7 +740,7 @@ class CSRFile(
     val read_pmp = reg_pmp.padTo(CSR.maxPMPs, 0.U.asTypeOf(new PMP))
     for (i <- 0 until read_pmp.size by pmpCfgPerCSR)
       read_mapping += (CSRs.pmpcfg0 + pmpCfgIndex(i)) -> read_pmp.map(_.cfg).slice(i, i + pmpCfgPerCSR).asUInt
-    for ((pmp, i) <- read_pmp zipWithIndex)
+    for ((pmp, i) <- read_pmp.zipWithIndex)
       read_mapping += (CSRs.pmpaddr0 + i) -> pmp.readAddr
   }
 
@@ -797,7 +797,7 @@ class CSRFile(
     val pats = for (((k, _), i) <- read_mapping.zipWithIndex)
       yield (BitPat(k.U), (0 until read_mapping.size).map(j => BitPat((i == j).B)))
     val decoded = DecodeLogic(addr, Seq.fill(read_mapping.size)(X), pats)
-    val unvirtualized_mapping = for (((k, _), v) <- read_mapping zip decoded) yield k -> v.asBool
+    val unvirtualized_mapping = (for (((k, _), v) <- read_mapping zip decoded) yield k -> v.asBool).toMap
 
     for ((k, v) <- unvirtualized_mapping) yield k -> {
       val alt = CSR.mode(k) match {
@@ -1225,7 +1225,7 @@ class CSRFile(
       }
     }
 
-    for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
+    for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter).zipWithIndex) {
       writeCounter(i + CSR.firstMHPC, c, wdata)
       when (decoded_addr(i + CSR.firstHPE)) { e := perfEventSets.maskEventSelector(wdata) }
     }
@@ -1405,7 +1405,7 @@ class CSRFile(
     }
     reg_mcontext.foreach { r => when (decoded_addr(CSRs.mcontext)) { r := wdata }}
     reg_scontext.foreach { r => when (decoded_addr(CSRs.scontext)) { r := wdata }}
-    if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
+    if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)).zipWithIndex) {
       require(xLen % pmp.cfg.getWidth == 0)
       when (decoded_addr(CSRs.pmpcfg0 + pmpCfgIndex(i)) && !pmp.cfgLocked) {
         val newCfg = (wdata >> ((i * pmp.cfg.getWidth) % xLen)).asTypeOf(new PMPConfig())

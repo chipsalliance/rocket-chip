@@ -67,7 +67,8 @@ class DebugCustomXbar(
     outputRequiresInput
   )
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     // require only one sink
     require(node.out.size == 1, "Must have exactly one sink node, not ${node.out.size}")
     // send address to all sources

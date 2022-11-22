@@ -32,7 +32,8 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     beatBytes = coreDataBytes,
     minLatency = 1)))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val dmem = new HellaCacheIO
     })

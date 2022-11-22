@@ -51,7 +51,8 @@ class TLRAM(
 
   private val outer = this
 
-  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, edge) = node.in(0)
 
     val indexBits = (outer.address.mask & ~(beatBytes-1)).bitCount
@@ -341,7 +342,8 @@ class TLRAMSimple(ramBeatBytes: Int, sramReg: Boolean, txns: Int)(implicit p: Pa
 
   ram.node := TLDelayer(0.25) := model.node := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -364,7 +366,8 @@ class TLRAMECC(ramBeatBytes: Int, eccBytes: Int, sramReg: Boolean, txns: Int)(im
 
   ram.node := TLDelayer(0.25) := model.node := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

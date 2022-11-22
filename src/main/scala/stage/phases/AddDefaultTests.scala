@@ -134,7 +134,7 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
       case _ => GenerateDefaultTestSuites()
     }
 
-    RocketTestSuiteAnnotation(tests) +: annotations
+    RocketTestSuiteAnnotation(tests.toSeq) +: annotations
   }
 
 }

@@ -12,7 +12,8 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
 {
   val node = TLAsyncAdapterNode()
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val iso_out = Bool(INPUT) // Isolate from client to manager
       val iso_in  = Bool(INPUT) // Isolate from manager to client
