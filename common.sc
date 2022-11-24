@@ -89,8 +89,6 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     ) ++ chisel3IvyDeps
   }
 
-  private val macroParadise = ivy"org.scalamacros:::paradise:2.1.1"
-
   private val chisel3Plugin = getVersion("chisel3-plugin", cross = true)
 
   override def repositories = super.repositories ++ Seq(
@@ -98,9 +96,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     MavenRepository("https://oss.sonatype.org/content/repositories/releases")
   )
 
-  override def compileIvyDeps = Agg(macroParadise)
-
-  override def scalacPluginIvyDeps = Agg(macroParadise) ++ (if(chisel3Module.isDefined) Agg() else Agg(chisel3Plugin))
+  override def scalacPluginIvyDeps = if(chisel3Module.isDefined) Agg[Dep]() else Agg(chisel3Plugin)
 
   def publishVersion = T {
     "1.2-SNAPSHOT"
