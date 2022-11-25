@@ -49,7 +49,8 @@ case class RocketCoreParams(
   mvendorid: Int = 0, // 0 means non-commercial implementation
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
-  fpu: Option[FPUParams] = Some(FPUParams())
+  fpu: Option[FPUParams] = Some(FPUParams()),
+  setTraceDoctorWidth: Int = 0
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -62,6 +63,8 @@ case class RocketCoreParams(
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
+
+  override def traceDoctorWidth: Int = setTraceDoctorWidth
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
@@ -948,6 +951,24 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.inst := csr.io.trace(0).insn
   coreMonitorBundle.excpt := csr.io.trace(0).exception
   coreMonitorBundle.priv_mode := csr.io.trace(0).priv
+
+  if (io.traceDoctor.traceWidth >= (64 + 64 + (retireWidth * 64))) {
+    val traceValids = for (i <- 0 until retireWidth) yield {
+      csr.io.trace(i).valid
+    }
+    val traceTimestamp: UInt = csr.io.time(63, 0)
+    val traceFlags: UInt = Cat(traceValids.reverse)(retireWidth - 1, 0)
+    val traceAddresses: UInt = Cat((for (i <- 0 until retireWidth) yield {
+      csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen).pad(64)
+    }).reverse)
+
+   io.traceDoctor.valid := traceValids.reduce(_||_)
+    io.traceDoctor.bits := Cat(Seq(
+      traceTimestamp.pad(64),
+      traceFlags.pad(64),
+      traceAddresses
+    ).reverse).pad(io.traceDoctor.traceWidth).asBools
+  }
 
   if (enableCommitLog) {
     val t = csr.io.trace(0)

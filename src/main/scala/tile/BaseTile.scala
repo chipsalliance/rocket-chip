@@ -92,7 +92,7 @@ trait HasNonDiplomaticTileParameters {
   def masterPortBeatBytes = p(SystemBusKey).beatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
-  //                  Core   PTW                DTIM                    coprocessors           
+  //                  Core   PTW                DTIM                    coprocessors
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + tileParams.core.useVector.toInt
 
   // TODO merge with isaString in CSR.scala
@@ -264,6 +264,10 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   //       or actually just a member of the core's LazyModule itself,
   //       assuming the core itself is diplomatic.
   //       Then these nodes should just become IdentityNodes of their respective type
+
+  val traceDoctorSourceNode = BundleBridgeSource(() => new TraceDoctor(tileParams.core.traceDoctorWidth))
+  private val traceDoctorNexus = BundleBroadcast[TraceDoctor]() // backwards compatiblity; not blocked during stretched reset
+  val traceDoctorNode: BundleBridgeOutwardNode[TraceDoctor] = traceDoctorNexus := traceDoctorSourceNode
 
   protected def traceRetireWidth = tileParams.core.retireWidth
   /** Node for the core to drive legacy "raw" instruction trace. */

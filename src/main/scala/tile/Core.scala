@@ -50,6 +50,9 @@ trait CoreParams {
   val nPTECacheEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
+
+  def traceDoctorWidth: Int = 0
+
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def hasSupervisorMode: Boolean = useSupervisor || useVM
@@ -149,6 +152,7 @@ trait HasCoreIO extends HasTileParameters {
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val traceDoctor = new TraceDoctor(coreParams.traceDoctorWidth).asOutput
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput
     val wfi = Bool().asOutput
