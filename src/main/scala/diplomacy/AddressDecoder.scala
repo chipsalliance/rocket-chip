@@ -4,6 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import chisel3._
 import chisel3.util.BitPat
+import chisel3.util.experimental.BitSet
 import chisel3.util.log2Ceil
 import chisel3.util.experimental.decode._
 
@@ -151,19 +152,25 @@ object AddressDecoder
     }
     // find the maximum bit in all input addresses
     val maxBits = log2Ceil(1 + ports.flatMap(_.map(_.base)).max)
-    val truthMap = {
-      ports.zipWithIndex.zip(mask).flatMap {
-        case ((port, i), true) =>
-          port.map { range =>
-            (range.toBitPat(maxBits), new BitPat(value = 1 << i, mask = -1, maxBits))
-          }
-        case _ => Seq()
+
+    var t = true
+    mask.zipWithIndex.map {
+      case (true, _) => {
+        t = false
       }
+      case _ => {}
     }
-    if (truthMap.isEmpty) {
+    // if [mask] are all "false"
+    if (t) {
       return ports.map(_ => true.B)
     }
-    val dontCarePat: BitPat = BitPat.dontCare(maxBits)
-    decoder(addr, TruthTable(truthMap, dontCarePat)).asBools.take(ports.length)
+    val bitSetMap = ports.zipWithIndex.zip(mask).map {
+      case ((port, i), true) =>
+        BitSet(port.zipWithIndex.map {
+           p => (p._1.toBitPat(maxBits))
+        }:_*)
+      case _ => BitSet.empty
+    }
+    decoder.bitset(addr, bitSetMap, true).asBools.take(ports.length)
   }
 }
