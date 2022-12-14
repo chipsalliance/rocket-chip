@@ -962,7 +962,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       csr.io.trace(0).iaddr(vaddrBitsExtended-1, 0).sextTo(xLen).pad(64)
     }).reverse)
 
-   io.traceDoctor.valid := traceValids.reduce(_||_)
+   io.traceDoctor.valid := traceValids.reduce(_||_) && !csr.io.csr_stall
     io.traceDoctor.bits := Cat(Seq(
       traceTimestamp.pad(64),
       traceFlags.pad(64),
