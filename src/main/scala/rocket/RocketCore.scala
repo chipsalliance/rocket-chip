@@ -59,6 +59,7 @@ case class RocketCoreParams(
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
+  override val customIsaExt = Some("Xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }

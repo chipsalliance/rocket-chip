@@ -598,7 +598,7 @@ class CSRFile(
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
-    "X" + // Custom extensions always present (e.g. CEASE instruction)
+    (if (customIsaExt.isDefined) "X" else "") +
     (if (usingSupervisor) "S" else "") +
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
