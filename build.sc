@@ -38,7 +38,7 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
 object rocketchip extends common.CommonRocketChip {
   m =>
   override def scalaVersion: T[String] = T {
-    "2.12.10"
+    "2.13.10"
   }
   override def ammoniteVersion: T[String] = T {
     "2.4.0"
