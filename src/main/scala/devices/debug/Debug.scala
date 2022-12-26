@@ -1111,7 +1111,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           hgTrigFiring(hg) := (trigInReq & ~RegNext(trigInReq) & hgParticipateTrig.map(_ === hg.U)).reduce(_ | _)
           hgTrigsAllAcked(hg) := (trigOutAck | hgParticipateTrig.map(_ =/= hg.U)).reduce(_ & _)
         }
-        extTrigger.in.ack := trigInReq.asUInt()
+        extTrigger.in.ack := trigInReq.asUInt
       }
 
       for (hg <- 1 to nHaltGroups) {
@@ -1138,7 +1138,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         for (trig <- 0 until nExtTriggers) {
           extTriggerOutReq(trig) := hgFired(hgParticipateTrig(trig))
         }
-        extTrigger.out.req := extTriggerOutReq.asUInt()
+        extTrigger.out.req := extTriggerOutReq.asUInt
       }
     }
     io.hgDebugInt := hgDebugInt | hrDebugInt
@@ -1411,9 +1411,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       //TODO (DMI_CFGSTRADDR0 << 2) -> cfgStrAddrFields,
       (DMI_DMCS2       << 2) -> (if (nHaltGroups > 0) dmcs2RegFields else Nil),
       (DMI_HALTSUM0    << 2) -> RegFieldGroup("dmi_haltsum0", Some("Halt Summary 0"),
-         Seq(RegField.r(32, HALTSUM0RdData.asUInt(), RegFieldDesc("dmi_haltsum0", "halt summary 0")))),
+         Seq(RegField.r(32, HALTSUM0RdData.asUInt, RegFieldDesc("dmi_haltsum0", "halt summary 0")))),
       (DMI_HALTSUM1    << 2) -> RegFieldGroup("dmi_haltsum1", Some("Halt Summary 1"),
-         Seq(RegField.r(32, HALTSUM1RdData.asUInt(), RegFieldDesc("dmi_haltsum1", "halt summary 1")))),
+         Seq(RegField.r(32, HALTSUM1RdData.asUInt, RegFieldDesc("dmi_haltsum1", "halt summary 1")))),
       (DMI_ABSTRACTCS  << 2) -> abstractcsRegFields,
       (DMI_ABSTRACTAUTO<< 2) -> RegFieldGroup("dmi_abstractauto", Some("abstract command autoexec"), Seq(
         WNotifyVal(cfg.nAbstractDataWords, ABSTRACTAUTORdData.autoexecdata, ABSTRACTAUTOWrData.autoexecdata, autoexecdataWrEnMaybe,
@@ -1422,7 +1422,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         WNotifyVal(cfg.nProgramBufferWords, ABSTRACTAUTORdData.autoexecprogbuf, ABSTRACTAUTOWrData.autoexecprogbuf, autoexecprogbufWrEnMaybe,
           RegFieldDesc("autoexecprogbuf", "abstract command progbuf autoexec", reset=Some(0))))),
       (DMI_COMMAND     << 2) -> RegFieldGroup("dmi_command", Some("Abstract Command Register"),
-        Seq(RWNotify(32, COMMANDRdData.asUInt(), COMMANDWrDataVal, COMMANDRdEn, COMMANDWrEnMaybe,
+        Seq(RWNotify(32, COMMANDRdData.asUInt, COMMANDWrDataVal, COMMANDRdEn, COMMANDWrEnMaybe,
         Some(RegFieldDesc("dmi_command", "abstract command register", reset=Some(0), volatile=true))))),
       (DMI_DATA0       << 2) -> RegFieldGroup("dmi_data", Some("abstract command data registers"), abstractDataMem.zipWithIndex.map{case (x, i) =>
         RWNotify(8, Mux(dmAuthenticated, x, 0.U), abstractDataNxt(i),
@@ -1506,7 +1506,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     val flags = WireInit(VecInit(Seq.fill(1 << selectedHartReg.getWidth) {0.U.asTypeOf(new flagBundle())} ))
     assert ((hartSelFuncs.hartSelToHartId(selectedHartReg) < flags.size.U),
-      s"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size} for it to work.")
+      cf"HartSel to HartId Mapping is illegal for this Debug Implementation, because HartID must be < ${flags.size.toString} for it to work.")
     flags(hartSelFuncs.hartSelToHartId(selectedHartReg)).go := goReg
 
     for (component <- 0 until nComponents) {
@@ -1518,9 +1518,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Abstract Command Decoding & Generation
     //----------------------------
 
-    val accessRegisterCommandWr  = WireInit(COMMANDWrData.asUInt().asTypeOf(new ACCESS_REGISTERFields()))
+    val accessRegisterCommandWr  = WireInit(COMMANDWrData.asUInt.asTypeOf(new ACCESS_REGISTERFields()))
     /** real COMMAND*/
-    val accessRegisterCommandReg = WireInit(COMMANDReg.asUInt().asTypeOf(new ACCESS_REGISTERFields()))
+    val accessRegisterCommandReg = WireInit(COMMANDReg.asUInt.asTypeOf(new ACCESS_REGISTERFields()))
 
     // TODO: Quick Access
 
@@ -1564,10 +1564,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         val immWire = WireInit(imm.S(21.W))
         val immBits = WireInit(VecInit(immWire.asBools))
 
-        imm0 := immBits.slice(1,  1  + 10).asUInt()
-        imm1 := immBits.slice(11, 11 + 11).asUInt()
-        imm2 := immBits.slice(12, 12 + 8).asUInt()
-        imm3 := immBits.slice(20, 20 + 1).asUInt()
+        imm0 := immBits.slice(1,  1  + 10).asUInt
+        imm1 := immBits.slice(11, 11 + 11).asUInt
+        imm2 := immBits.slice(12, 12 + 8).asUInt
+        imm3 := immBits.slice(20, 20 + 1).asUInt
       }
     }
 
@@ -1629,10 +1629,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         // ABSTRACT(1): Postexec: NOP       else EBREAK
         abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer,
           Mux(accessRegisterCommandReg.write, abstractGeneratedI(cfg), abstractGeneratedS(cfg)),
-          nop.asUInt()
+          nop.asUInt
         )
         abstractGeneratedMem(1) := Mux(accessRegisterCommandReg.postexec,
-          nop.asUInt(),
+          nop.asUInt,
           Instructions.EBREAK.value.U)
       } else {
         // Entry: All regs in GPRs, dscratch1=offset 0x800 in DM
@@ -1641,15 +1641,15 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         // ABSTRACT(2): Transfer: LW, SW, LD, SD else NOP
         // ABSTRACT(3):           CSRRW s1,dscratch1,s1 or CSRRW s0,dscratch1,s0
         // ABSTRACT(4): Postexec: NOP else EBREAK
-        abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer && accessRegisterCommandReg.size =/= 2.U, isa.asUInt(), nop.asUInt())
+        abstractGeneratedMem(0) := Mux(accessRegisterCommandReg.transfer && accessRegisterCommandReg.size =/= 2.U, isa.asUInt, nop.asUInt)
         abstractGeneratedMem(1) := abstractGeneratedCSR
         abstractGeneratedMem(2) := Mux(accessRegisterCommandReg.transfer,
           Mux(accessRegisterCommandReg.write, abstractGeneratedI(cfg), abstractGeneratedS(cfg)),
-          nop.asUInt()
+          nop.asUInt
         )
         abstractGeneratedMem(3) := abstractGeneratedCSR
         abstractGeneratedMem(4) := Mux(accessRegisterCommandReg.postexec,
-          nop.asUInt(),
+          nop.asUInt,
           Instructions.EBREAK.value.U)
       }
     }
@@ -1689,9 +1689,9 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         abstractGeneratedMem.zipWithIndex.map{ case (x,i) => RegField.r(32, x, RegFieldDesc(s"debug_abstract_$i", "", volatile=true))}),
       FLAGS         -> RegFieldGroup("debug_flags", Some("Memory region used to control hart going/resuming in Debug Mode"),
         if (nComponents == 1) {
-          Seq.tabulate(1024) { i => RegField.r(8, flags(0).asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true)) }
+          Seq.tabulate(1024) { i => RegField.r(8, flags(0).asUInt, RegFieldDesc(s"debug_flags_$i", "", volatile=true)) }
         } else {
-          flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt(), RegFieldDesc(s"debug_flags_$i", "", volatile=true))}
+          flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt, RegFieldDesc(s"debug_flags_$i", "", volatile=true))}
         }),
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
         (if (cfg.atzero) DebugRomContents() else DebugRomNonzeroContents()).zipWithIndex.map{case (x, i) =>

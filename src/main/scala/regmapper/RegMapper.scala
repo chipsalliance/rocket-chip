@@ -136,10 +136,10 @@ object RegMapper
       val high = low + field.width - 1
       // Confirm that no register is too big
       require (high < 8*bytes)
-      val rimask = frontMask(high, low).orR()
-      val wimask = frontMask(high, low).andR()
-      val romask = backMask(high, low).orR()
-      val womask = backMask(high, low).andR()
+      val rimask = frontMask(high, low).orR
+      val wimask = frontMask(high, low).andR
+      val romask = backMask(high, low).orR
+      val womask = backMask(high, low).andR
       val data = if (field.write.combinational) back.bits.data else front.bits.data
       val f_rivalid = rivalid(i) && rimask
       val f_roready = roready(i) && romask

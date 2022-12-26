@@ -34,7 +34,7 @@ package object util {
       }
     }
 
-    def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
+    def asUInt: UInt = Cat(x.map(_.asUInt).reverse)
 
     def rotate(n: Int): Seq[T] = x.drop(n) ++ x.take(n)
 
@@ -318,27 +318,21 @@ package object util {
   * In that case you can do 'm :<= p' and 'p :=> m'.
   */
   implicit class EnhancedChisel3Assign[T <: Data](private val x: T) extends AnyVal {
-    /** Assign all output fields of x from y; note that the actual direction of x is irrelevant */
-    def :<= (y: T): Unit = FixChisel3.assignL(x, y)
-    /** Assign all input fields of y from x; note that the actual direction of y is irrelevant */
-    def :=> (y: T): Unit = FixChisel3.assignR(x, y)
     /** Bulk connect which will work between two [[Wire]]s (in addition to between [[IO]]s) */
     def :<> (y: T): Unit = {
-      FixChisel3.assignL(x, y)
-      FixChisel3.assignR(x, y)
+      x :<>= y
     }
 
 
     // Versions of the operators that use the type from the RHS
     // y :<=: x  ->  x.:<=:(y)  ->  y :<= x  ->  FixChisel3.assignL(y, x)
     /** version of the :<= operator that uses the type from the RHS */
-    def :<=: (y: T): Unit = { FixChisel3.assignL(y, x) }
+    def :<=: (y: T): Unit = { y :<= x }
     /** version of the :=> operator that uses the type from the RHS */
-    def :>=: (y: T): Unit = { FixChisel3.assignR(y, x) }
+    def :>=: (y: T): Unit = { y :>= x }
     /** version of the :<> operator that uses the type from the RHS */
     def :<>: (y: T): Unit = {
-      FixChisel3.assignL(y, x)
-      FixChisel3.assignR(y, x)
+      y :<>= x
     }
   }
 }

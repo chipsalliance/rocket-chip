@@ -108,7 +108,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
         step.send  := Bool(false) // => looks like a retry to injector
         step.first := Bool(false)
         step.last  := (if (lgBytes + 1 >= lgMax) Bool(true) else
-                       !((UIntToOH1(send.size, lgMax) & ~send.addr) >> (lgBytes + 1)).orR())
+                       !((UIntToOH1(send.size, lgMax) & ~send.addr) >> (lgBytes + 1)).orR)
         step.addr  := Cat(send.addr(edgeIn.bundle.addressBits-1, lgMax), send.addr(lgMax-1, 0) + UInt(beatBytes))
       } .otherwise /* new burst */ {
         step.full  := Bool(false)

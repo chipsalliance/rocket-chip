@@ -195,7 +195,7 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
     tbsuccess := io.exit === 1.U
     when (io.exit >= 2.U) {
       printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
+      stop()
     }
   }
 
@@ -231,7 +231,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     tbsuccess := io.exit === 1.U
     when (io.exit >= 2.U) {
       printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
+      stop()
     }
   }
 

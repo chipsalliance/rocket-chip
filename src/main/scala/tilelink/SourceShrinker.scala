@@ -53,7 +53,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         val allocated = RegInit(UInt(0, width = maxInFlight))
         val nextFreeOH = ~(leftOR(~allocated) << 1) & ~allocated
         val nextFree = OHToUInt(nextFreeOH)
-        val full = allocated.andR()
+        val full = allocated.andR
 
         val a_first = edgeIn.first(in.a)
         val d_last  = edgeIn.last(in.d)

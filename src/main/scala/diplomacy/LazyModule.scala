@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel.{defaultCompileOptions => _, _}
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
-import chisel3.{MultiIOModule, RawModule, Reset, withClockAndReset}
+import chisel3.{Module, RawModule, Reset, withClockAndReset}
 import chisel3.experimental.ChiselAnnotation
 import firrtl.passes.InlineAnnotation
 import freechips.rocketchip.config.Parameters
@@ -332,7 +332,7 @@ sealed trait LazyModuleImpLike extends RawModule {
   *
   * @param wrapper the [[LazyModule]] from which the `.module` call is being made.
   */
-class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
+class LazyModuleImp(val wrapper: LazyModule) extends Module with LazyModuleImpLike {
   /** Instantiate hardware of this `Module`. */
   val (auto, dangles) = instantiate()
 }
