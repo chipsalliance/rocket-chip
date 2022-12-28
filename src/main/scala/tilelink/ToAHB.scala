@@ -204,7 +204,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       // a_ready and htrans, we add another entry for aFlow=false.
       val depth = if (aFlow) 2 else 3
       val d = Wire(in.d)
-      in.d :<> Queue(d, depth, flow=true)
+      in.d :<>= Queue(d, depth, flow=true)
       assert (!d.valid || d.ready)
 
       val d_flight = RegInit(UInt(0, width = 2))

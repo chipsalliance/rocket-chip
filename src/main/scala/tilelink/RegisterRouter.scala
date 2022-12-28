@@ -3,7 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import chisel3.RawModule
+import chisel3.{RawModule, DontCare}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -72,7 +72,7 @@ case class TLRegisterNode(
     in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra :<= a.bits.echo
+    (in.bits.extra: Data).waiveAll :<= (a.bits.echo: Data).waiveAll
 
     val a_extra = in.bits.extra(TLRegisterRouterExtra)
     a_extra.source := a.bits.source
@@ -93,7 +93,7 @@ case class TLRegisterNode(
 
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
-    d.bits.echo :<= out.bits.extra
+    (d.bits.echo: Data).waiveAll :<= (out.bits.extra: Data).waiveAll
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
 
     // Tie off unused channels

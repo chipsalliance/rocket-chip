@@ -59,11 +59,11 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
 
       // Leave everything mostly untouched
-      out.ar :<> in.ar
-      out.aw :<> in.aw
-      out.w :<> in.w
-      in.b :<> out.b
-      in.r :<> out.r
+      (out.ar: Data).waiveAll :<>= (in.ar: Data).waiveAll.squeezeAll
+      (out.aw: Data).waiveAll :<>= (in.aw: Data).waiveAll.squeezeAll
+      out.w :<>= in.w
+      (in.b: Data).waiveAll :<>= (out.b: Data).waiveAll.squeezeAll
+      (in.r: Data).waiveAll :<>= (out.r: Data).waiveAll.squeezeAll
 
       val bits = log2Ceil(edgeIn.master.endId) - idBits
       if (bits > 0) {

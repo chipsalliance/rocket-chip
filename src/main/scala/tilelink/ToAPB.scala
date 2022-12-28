@@ -63,7 +63,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       // phase result.  Whenever we have a queued response, we can not allow
       // APB to present new responses, so we must quash the address phase.
       val d = Wire(in.d)
-      in.d :<> Queue(d, 1, flow = true)
+      in.d :<>= Queue(d, 1, flow = true)
 
       // We need an irrevocable input for APB to stall
       val a = Queue(in.a, 1, flow = aFlow, pipe = !aFlow)

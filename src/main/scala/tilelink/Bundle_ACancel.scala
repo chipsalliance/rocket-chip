@@ -21,11 +21,11 @@ class TLBundle_ACancel(val params: TLBundleParameters) extends Record
   /** Down-converts a TLBundle_ACancel to a plain TLBundle, dropping early/late timing split. */
   def asDecoupled(): TLBundle = {
     val out = Wire(new TLBundle(params))
-    out.a :<> a.asDecoupled()
-    b :<> out.b
-    out.c :<> c
-    d :<> out.d
-    out.e :<> e
+    out.a :<>= a.asDecoupled()
+    b :<>= out.b
+    out.c :<>= c
+    d :<>= out.d
+    out.e :<>= e
     out
   }
 
@@ -55,10 +55,10 @@ object TLBundle_ACancel
     out.a.lateCancel := false.B
     out.a.bits := in.a.bits
     in.a.ready := out.a.ready
-    in.b :<> out.b
-    out.c :<> in.c
-    in.d :<> out.d
-    out.e :<> in.e
+    in.b :<>= out.b
+    out.c :<>= in.c
+    in.d :<>= out.d
+    out.e :<>= in.e
     out
   }
 }

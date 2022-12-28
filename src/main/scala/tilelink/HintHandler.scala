@@ -55,8 +55,8 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
         val mux = Wire(chiselTypeOf(in.a))
 
         repeater.io.repeat := mapPP && !edgeIn.last(out.a)
-        repeater.io.enq :<> in.a
-        out.a :<> mux
+        repeater.io.enq :<>= in.a
+        out.a :<>= mux
 
         // Only some signals need to be repeated
         mux.bits.opcode  := in.a.bits.opcode  // ignored when full
