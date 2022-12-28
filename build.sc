@@ -325,3 +325,124 @@ class RunableTest(top: String, config: String, suiteName: String, exclude: Strin
     }
   }
 }
+
+object `runnable-arch-test` extends mill.Cross[ArchTest](
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMAFDCZicsr_Zifencei"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMAFCZicsr_Zifencei"),
+)
+class ArchTest(top: String, config: String, xlen: String, isa: String) extends Module {
+  def ispecString = T {
+    // format: off
+    s"""hart_ids: [0]
+       |hart0:
+       |  ISA: ${isa}
+       |  physical_addr_sz: 32
+       |  User_Spec_Version: '2.3'
+       |  supported_xlen: [${xlen}]
+       |""".stripMargin
+    // format: on
+  }
+
+  def pspecString = T {
+    // format: off
+    s"""mtime:
+       |  implemented: true
+       |  address: 0xbff8
+       |mtimecmp:
+       |  implemented: true
+       |  address: 0x4000
+       |nmi:
+       |  label: nmi_vector
+       |reset:
+       |  label: reset_vector
+       |""".stripMargin
+    // format: on
+  }
+
+  def spikeRoot = T { envByNameOrRiscv("SPIKE_ROOT") }
+
+  def CC = T {
+    sys.env.get("RV64_TOOLCHAIN_ROOT") match {
+      case Some(value) => value + "/bin/riscv64-none-elf-gcc" // nix uses a different name
+      case None => sys.env("RISCV") + "/bin/riscv64-unknown-elf-gcc" // if not found, throws NoSuchElementException exception
+    }
+  }
+
+  def configString = T {
+    // format: off
+    s"""[RISCOF]
+       |ReferencePlugin=spike
+       |ReferencePluginPath=spike
+       |DUTPlugin=emulator
+       |DUTPluginPath=emulator
+       |
+       |[spike]
+       |pluginpath=spike
+       |ispec=${ispecYaml().path}
+       |pspec=${pspecYaml().path}
+       |target_run=1
+       |jobs=${Runtime.getRuntime().availableProcessors()}
+       |PATH=${spikeRoot() + "/bin"}
+       |CC=${CC()}
+       |
+       |[emulator]
+       |pluginpath=emulator
+       |ispec=${ispecYaml().path}
+       |pspec=${pspecYaml().path}
+       |target_run=1
+       |jobs=${Runtime.getRuntime().availableProcessors()}
+       |PATH=${emulator(top, config).elf().path / os.up}
+       |CC=${CC()}
+       |""".stripMargin
+    // format: on
+  }
+
+  def ispecYaml = T.persistent {
+    val path = T.dest / "ispec.yaml"
+    os.write.over(path, ispecString())
+    PathRef(path)
+  }
+
+  def pspecYaml = T.persistent {
+    val path = T.dest / "pspec.yaml"
+    os.write.over(path, pspecString())
+    PathRef(path)
+  }
+
+  def configIni = T.persistent {
+    val path = T.dest / "config.ini"
+    os.write.over(path, configString())
+    PathRef(T.dest)
+  }
+
+  def home = T { configIni() }
+
+  def src = T {
+    if (!os.exists(home().path / "riscv-arch-test")) {
+      os.proc("riscof", "--verbose", "info", "arch-test", "--clone").call(home().path)
+    }
+    PathRef(T.dest)
+  }
+
+  def copy = T {
+    os.copy.over(os.pwd / "scripts" / "arch-test" / "spike", home().path / "spike")
+    os.copy.over(os.pwd / "scripts" / "arch-test" / "emulator", home().path / "emulator")
+  }
+
+  def run = T {
+    src()
+    copy()
+    os.proc("riscof", "run", "--no-browser",
+      s"--config=${configIni().path / "config.ini"}",
+      "--suite=riscv-arch-test/riscv-test-suite/",
+      "--env=riscv-arch-test/riscv-test-suite/env"
+    ).call(home().path)
+    val reportFile = configIni().path / "riscof_work" / "report.html"
+    val report = os.read(reportFile)
+    if (report.contains("0Failed")) {
+      System.out.println(s"Arch Test $top $config $xlen $isa Succeeded")
+    } else {
+      throw new Exception(s"Arch Test $top $config $xlen $isa Failed")
+    }
+  }
+}
