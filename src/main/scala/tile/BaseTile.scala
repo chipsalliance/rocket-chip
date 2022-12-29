@@ -105,7 +105,8 @@ trait HasNonDiplomaticTileParameters {
     val c = if (tileParams.core.useCompressed) "c" else ""
     val b = if (tileParams.core.useBitManip) "b" else ""
     val v = if (tileParams.core.useVector) "v" else ""
-    s"rv${p(XLen)}$ie$m$a$f$d$c$b$v"
+    val x = tileParams.core.customIsaExt.map(s => s"_$s").getOrElse("")
+    s"rv${p(XLen)}$ie$m$a$f$d$c$b$v$x"
   }
 
   def tileProperties: PropertyMap = {
