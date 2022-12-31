@@ -9,7 +9,7 @@ val chiselVersion = "3.5.5"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  version      := "1.2-SNAPSHOT",
+  version      := "1.6.0",
   scalaVersion := "2.13.10",
   parallelExecution in Global := false,
   traceLevel   := 15,

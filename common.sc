@@ -99,7 +99,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
   override def scalacPluginIvyDeps = if(chisel3Module.isEmpty) Agg(chisel3Plugin) else Agg.empty[Dep]
 
   def publishVersion = T {
-    "1.2-SNAPSHOT"
+    "1.6.0"
   }
 
   def pomSettings = T {
