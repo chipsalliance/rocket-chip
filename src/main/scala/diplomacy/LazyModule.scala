@@ -40,7 +40,7 @@ abstract class LazyModule()(implicit val p: Parameters) {
   /** If set, the LazyModule this LazyModule will be a clone of
     * Note that children of a cloned module will also have this set
     */
-  var cloneProto: Option[LazyModule] = None
+  protected[diplomacy] var cloneProto: Option[LazyModule] = None
 
   /** Code snippets from [[InModuleBody]] injection. */
   protected[diplomacy] var inModuleBody: List[() => Unit] = List[() => Unit]()
@@ -92,11 +92,9 @@ abstract class LazyModule()(implicit val p: Parameters) {
   /** Hierarchical path of this instance, used in GraphML.
     * For cloned modules, construct this manually (since this.module should not be evaluated)
     */
-  lazy val pathName: String = if (cloneProto.isDefined) {
-    s"${parent.get.pathName}.${cloneProto.get.instanceName}"
-  } else {
-    module.pathName
-  }
+  lazy val pathName: String = cloneProto.map(p => s"${parent.get.pathName}.${p.instanceName}")
+    .getOrElse(module.pathName)
+
   /** Instance name in verilog. Should only be accessed after circuit elaboration. */
   lazy val instanceName: String = pathName.split('.').last
 
@@ -314,6 +312,7 @@ sealed trait LazyModuleImpLike extends RawModule {
         def assignCloneProtos(bases: Seq[LazyModule], clones: Seq[LazyModule]): Unit = {
           require(bases.size == clones.size)
           (bases zip clones).map { case (l,r) =>
+            require(l.getClass == r.getClass, s"Cloned children class mismatch ${l.name} != ${r.name}")
             l.cloneProto = Some(r)
             assignCloneProtos(l.children, r.children)
           }
