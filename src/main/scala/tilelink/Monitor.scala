@@ -766,6 +766,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert(!inflight(bundle.c.bits.source), "'C' channel re-used a source ID" + extra)
     }
 
+    val c_probe_ack    = bundle.c.bits.opcode === TLMessages.ProbeAck || bundle.c.bits.opcode === TLMessages.ProbeAckData
+
     val d_clr          = WireInit(0.U(edge.client.endSourceId.W))
     val d_clr_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
     val d_opcodes_clr  = WireInit(0.U((edge.client.endSourceId << log_c_opcode_bus_size).W))
@@ -796,7 +798,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       }
     }
 
-    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack) {
+    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack && !c_probe_ack) {
       assume((!bundle.d.ready) || bundle.c.ready, "ready check")
     }
 
