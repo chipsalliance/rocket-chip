@@ -226,6 +226,11 @@ abstract class BaseNode(implicit val valName: ValName) {
     * @return A sequence of [[Dangle]]s from this node that leave this [[BaseNode]]'s [[LazyScope]].
     */
   protected[diplomacy] def instantiate(): Seq[Dangle]
+  /** Determine the [[Dangle]]'s for connections without instantiating the node, or any child nodes
+    *
+    * @return A sequence of [[Dangle]]s from this node that leave this [[BaseNode]]'s [[LazyScope]].
+    */
+  protected[diplomacy] def cloneDangles(): Seq[Dangle]
 
   /** @return name of this node. */
   def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
@@ -1209,24 +1214,32 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   /** Create actual Wires corresponding to the Bundles parameterized by the inward edges of this node. */
   protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
 
-  /** Create the [[Dangle]]s which describe the connections from this node output to other nodes inputs. */
-  protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
+  private def emptyDanglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(serial, i),
       sink   = HalfEdge(n.serial, j),
       flipped= false,
       name   = wirePrefix + "out",
-      data   = bundleOut(i))
+      dataOpt= None)
   }
-
-  /** Create the [[Dangle]]s which describe the connections from this node input from other nodes outputs. */
-  protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
+  private def emptyDanglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(n.serial, j),
       sink   = HalfEdge(serial, i),
       flipped= true,
       name   = wirePrefix + "in",
-      data   = bundleIn(i))
+      dataOpt=None)
+  }
+
+
+  /** Create the [[Dangle]]s which describe the connections from this node output to other nodes inputs. */
+  protected[diplomacy] def danglesOut: Seq[Dangle] = emptyDanglesOut.zipWithIndex.map {
+    case (d,i) => d.copy(dataOpt = Some(bundleOut(i)))
+  }
+
+  /** Create the [[Dangle]]s which describe the connections from this node input from other nodes outputs. */
+  protected[diplomacy] def danglesIn: Seq[Dangle] = emptyDanglesIn.zipWithIndex.map {
+    case (d,i) => d.copy(dataOpt = Some(bundleIn(i)))
   }
 
   private[diplomacy] var instantiated = false
@@ -1266,6 +1279,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     } }
     danglesOut ++ danglesIn
   }
+
+  protected[diplomacy] def cloneDangles(): Seq[Dangle] = emptyDanglesOut ++ emptyDanglesIn
 
   /** Connects the outward part of a node with the inward part of this node. */
   protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
@@ -1494,6 +1509,7 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
     (out zip in) foreach { case ((o, _), (i, _)) => o <> i }
     dangles
   }
+  override protected[diplomacy] def cloneDangles(): Seq[Dangle] = super.cloneDangles()
 }
 
 /** [[EphemeralNode]]s are used as temporary connectivity placeholders, but disappear from the final node graph.
@@ -1511,6 +1527,7 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
     instantiated = true
     Nil
   }
+  override protected[diplomacy] def cloneDangles(): Seq[Dangle] = Nil
 }
 
 /** [[MixedNexusNode]] is used when the number of nodes connecting from either side is unknown (e.g. a Crossbar which also is a protocol adapter).
@@ -1771,5 +1788,9 @@ class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[di
     }
 
     dangles
+  }
+  override protected[diplomacy] def cloneDangles(): Seq[Dangle] = {
+    require(false, "Unsupported")
+    super.cloneDangles()
   }
 }

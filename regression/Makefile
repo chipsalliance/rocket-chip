@@ -100,7 +100,8 @@ CONFIGS=\
 	$(PROJECT).EightChannelConfig \
 	$(PROJECT).DualCoreConfig \
 	$(PROJECT).MemPortOnlyConfig \
-	$(PROJECT).MMIOPortOnlyConfig
+	$(PROJECT).MMIOPortOnlyConfig \
+	$(PROJECT).CloneTileConfig
 endif
 
 # These are the named regression targets.  While it's expected you run them in
