@@ -50,13 +50,13 @@ class WritebackReq(params: TLBundleParameters)(implicit p: Parameters) extends L
 }
 
 class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val req = Flipped(Decoupled(new HellaCacheReq))
     val resp = Decoupled(new HellaCacheResp)
     val mem_access = Decoupled(new TLBundleA(edge.bundle))
     val mem_ack = Flipped(Valid(new TLBundleD(edge.bundle)))
     val replay_next = Output(Bool())
-  }
+  })
 
   def beatOffset(addr: UInt) = addr.extract(beatOffBits - 1, wordOffBits)
 
@@ -107,6 +107,8 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   io.resp.bits := req
   io.resp.bits.has_data := isRead(req.cmd)
   io.resp.bits.data := loadgen.data
+  io.resp.bits.data_raw := grant_word
+  io.resp.bits.data_word_bypass := loadgen.wordData
   io.resp.bits.store_data := req.data
   io.resp.bits.replay := true.B
 
@@ -132,7 +134,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
 }
 
 class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val req_pri_val    = Input(Bool())
     val req_pri_rdy    = Output(Bool())
     val req_sec_val    = Input(Bool())
@@ -152,7 +154,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
     val replay = Decoupled(new ReplayInternal)
     val wb_req = Decoupled(new WritebackReq(edge.bundle))
     val probe_rdy = Output(Bool())
-  }
+  })
 
   val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9)
   val state = RegInit(s_invalid)
@@ -266,6 +268,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 
   io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
+  io.meta_write.bits.tag := io.tag
   io.meta_write.bits.data.coh := Mux(state === s_meta_clear, coh_on_clear, new_coh)
   io.meta_write.bits.data.tag := io.tag
   io.meta_write.bits.way_en := req.way_en
@@ -288,6 +291,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   io.meta_read.valid := state === s_drain_rpq
   io.meta_read.bits.idx := req_idx
   io.meta_read.bits.tag := io.tag
+  io.meta_read.bits.way_en := ~(0.U(nWays.W))
 
   io.replay.valid := state === s_drain_rpq && rpq.io.deq.valid
   io.replay.bits := rpq.io.deq.bits
@@ -301,7 +305,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 }
 
 class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val req = Flipped(Decoupled(new MSHRReq))
     val resp = Decoupled(new HellaCacheResp)
     val secondary_miss = Output(Bool())
@@ -319,7 +323,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     val probe_rdy = Output(Bool())
     val fence_rdy = Output(Bool())
     val replay_next = Output(Bool())
-  }
+  })
 
   // determine if the request is cacheable or not
   val cacheable = edge.manager.supportsAcquireBFast(io.req.bits.addr, lgCacheBlockBytes)
@@ -431,6 +435,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
 
   val free_sdq = io.replay.fire && isWrite(io.replay.bits.cmd)
   io.replay.bits.data := sdq(RegEnable(replay_arb.io.out.bits.sdq_id, free_sdq))
+  io.replay.bits.mask := 0.U
   io.replay <> replay_arb.io.out
 
   when (io.replay.valid || sdq_enq) {
@@ -440,13 +445,13 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
 }
 
 class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val req = Flipped(Decoupled(new WritebackReq(edge.bundle)))
     val meta_read = Decoupled(new L1MetaReadReq)
     val data_req = Decoupled(new L1DataReadReq)
     val data_resp = Input(Bits(encRowBits.W))
     val release = Decoupled(new TLBundleC(edge.bundle))
-  }
+  })
 
   val req = Reg(new WritebackReq(edge.bundle))
   val active = RegInit(false.B)
@@ -490,6 +495,7 @@ class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   io.meta_read.valid := fire
   io.meta_read.bits.idx := req.idx
   io.meta_read.bits.tag := req.tag
+  io.meta_read.bits.way_en := ~(0.U(nWays.W))
 
   io.data_req.valid := fire
   io.data_req.bits.way_en := req.way_en
@@ -516,7 +522,7 @@ class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 }
 
 class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val req = Flipped(Decoupled(new TLBundleB(edge.bundle)))
     val rep = Decoupled(new TLBundleC(edge.bundle))
     val meta_read = Decoupled(new L1MetaReadReq)
@@ -525,7 +531,7 @@ class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheMod
     val way_en = Input(Bits(nWays.W))
     val mshr_rdy = Input(Bool())
     val block_state = Input(new ClientMetadata())
-  }
+  })
 
   val (s_invalid :: s_meta_read :: s_meta_resp :: s_mshr_req ::
        s_mshr_resp :: s_release :: s_writeback_req :: s_writeback_resp :: 
@@ -553,10 +559,12 @@ class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheMod
   io.meta_read.valid := state === s_meta_read
   io.meta_read.bits.idx := req_idx
   io.meta_read.bits.tag := req_tag
+  io.meta_read.bits.way_en := ~(0.U(nWays.W))
 
   io.meta_write.valid := state === s_meta_write
   io.meta_write.bits.way_en := way_en
   io.meta_write.bits.idx := req_idx
+  io.meta_write.bits.tag := req_tag
   io.meta_write.bits.data.tag := req_tag
   io.meta_write.bits.data.coh := new_coh
 
@@ -615,11 +623,11 @@ class ProbeUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheMod
 }
 
 class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val read = Flipped(Decoupled(new L1DataReadReq))
     val write = Flipped(Decoupled(new L1DataWriteReq))
     val resp = Output(Vec(nWays, Bits(encRowBits.W)))
-  }
+  })
 
   val waddr = io.write.bits.addr >> rowOffBits
   val raddr = io.read.bits.addr >> rowOffBits

@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.amba._
 import APBParameters._
-import chisel3.util.{RegEnable, Queue, log2Ceil, Cat}
+import chisel3.util._
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { cp =>
@@ -63,7 +63,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       // data phase.  Therefore, we must have enough space to save the data
       // phase result.  Whenever we have a queued response, we can not allow
       // APB to present new responses, so we must quash the address phase.
-      val d = Wire(in.d)
+      val d = Wire(Decoupled(new TLBundleD(edgeIn.bundle)))
       in.d :<> Queue(d, 1, flow = true)
 
       // We need an irrevocable input for APB to stall

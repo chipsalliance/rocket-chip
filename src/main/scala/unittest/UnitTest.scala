@@ -4,6 +4,7 @@ package freechips.rocketchip.unittest
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.{IO}
 import freechips.rocketchip.config._
 import freechips.rocketchip.util._
 
@@ -17,7 +18,7 @@ trait HasUnitTestIO {
 }
 
 trait UnitTestLegacyModule extends HasUnitTestIO {
-  val io = new Bundle with UnitTestIO
+  val io = IO(new Bundle with UnitTestIO)
 }
 
 trait UnitTestModule extends Module with HasUnitTestIO {
