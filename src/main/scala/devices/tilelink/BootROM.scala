@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util.log2Ceil
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation}
 import freechips.rocketchip.diplomacy._
@@ -42,19 +43,19 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
 
     val words = (contents ++ Seq.fill(wrapSize-contents.size)(0.toByte)).grouped(beatBytes).toSeq
     val bigs = words.map(_.foldRight(BigInt(0)){ case (x,y) => (x.toInt & 0xff) | y << 8})
-    val rom = Vec(bigs.map(x => UInt(x, width = 8*beatBytes)))
+    val rom = VecInit(bigs.map(_.U((8*beatBytes).W)))
 
     in.d.valid := in.a.valid
     in.a.ready := in.d.ready
 
     val index = in.a.bits.address(log2Ceil(wrapSize)-1,log2Ceil(beatBytes))
-    val high = if (wrapSize == size) UInt(0) else in.a.bits.address(log2Ceil(size)-1, log2Ceil(wrapSize))
-    in.d.bits := edge.AccessAck(in.a.bits, Mux(high.orR, UInt(0), rom(index)))
+    val high = if (wrapSize == size) 0.U else in.a.bits.address(log2Ceil(size)-1, log2Ceil(wrapSize))
+    in.d.bits := edge.AccessAck(in.a.bits, Mux(high.orR, 0.U, rom(index)))
 
     // Tie off unused channels
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(true)
-    in.e.ready := Bool(true)
+    in.b.valid := false.B
+    in.c.ready := true.B
+    in.e.ready := true.B
   }
 }
 

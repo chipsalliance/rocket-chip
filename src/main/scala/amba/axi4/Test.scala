@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -113,7 +113,7 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val finished = Bool(OUTPUT)
+      val finished = Output(Bool())
     })
 
     io.finished := fuzz.module.io.finished

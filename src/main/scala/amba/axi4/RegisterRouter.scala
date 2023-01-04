@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
@@ -10,7 +11,7 @@ import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util._
 
 case object AXI4RRId extends ControlKey[UInt]("extra_id")
-case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(UInt(OUTPUT, width = 1 max width), UInt(0))
+case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(UInt((1 max width).W), 0.U)
 
 case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
@@ -72,7 +73,7 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
 
     r.bits.id   := out.bits.extra(AXI4RRId)
     r.bits.data := out.bits.data
-    r.bits.last := Bool(true)
+    r.bits.last := true.B
     r.bits.resp := AXI4Parameters.RESP_OKAY
     r.bits.echo :<= out.bits.extra
 

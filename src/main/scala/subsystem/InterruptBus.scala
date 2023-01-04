@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -63,7 +63,7 @@ trait HasExtInterruptsBundle {
   val interrupts: UInt
 
   def tieOffInterrupts(dummy: Int = 1): Unit = {
-    interrupts := UInt(0)
+    interrupts := 0.U
   }
 }
 
@@ -72,7 +72,7 @@ trait HasExtInterruptsBundle {
   */
 trait HasExtInterruptsModuleImp extends LazyModuleImp with HasExtInterruptsBundle {
   val outer: HasExtInterrupts
-  val interrupts = IO(UInt(INPUT, width = outer.nExtInterrupts))
+  val interrupts = IO(Input(UInt(outer.nExtInterrupts.W)))
 
   outer.extInterrupts.out.map(_._1).flatten.zipWithIndex.foreach { case(o, i) => o := interrupts(i) }
 }

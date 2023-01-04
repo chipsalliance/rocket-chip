@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
