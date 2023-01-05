@@ -7,7 +7,6 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)
@@ -148,7 +147,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       val in_w = Queue.irrevocable(in.w, 1, flow=true)
 
       // AR flow control; super easy
-      out.ar :<>: in_ar
+      (out.ar: Data).waiveAll :<>= (in_ar: Data).waiveAll
       out.ar.bits.echo(AXI4FragLast) := ar_last
 
       // When does W channel start counting a new transfer
@@ -162,7 +161,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.aw.valid := in_aw.valid && (wbeats_ready || wbeats_latched)
       in_aw.ready := out.aw.ready && (wbeats_ready || wbeats_latched)
       wbeats_valid := in_aw.valid && !wbeats_latched
-      out.aw.bits :<>: in_aw.bits
+      (out.aw.bits: Data).waiveAll :<>= (in_aw.bits: Data).waiveAll
       out.aw.bits.echo(AXI4FragLast) := aw_last
 
       // We need to inject 'last' into the W channel fragments, count!
@@ -184,12 +183,12 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
       // R flow control
       val r_last = out.r.bits.echo(AXI4FragLast)
-      in.r :<> out.r
+      (in.r: Data).waiveAll :<>= (out.r: Data).waiveAll
       in.r.bits.last := out.r.bits.last && r_last
 
       // B flow control
       val b_last = out.b.bits.echo(AXI4FragLast)
-      in.b :<> out.b
+      (in.b: Data).waiveAll :<>= (out.b: Data).waiveAll
       in.b.valid := out.b.valid && b_last
       out.b.ready := in.b.ready || !b_last
 

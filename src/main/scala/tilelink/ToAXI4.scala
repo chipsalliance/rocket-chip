@@ -9,7 +9,6 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.amba._
 import chisel3.util.{log2Ceil, UIntToOH, Queue, Decoupled, Cat}
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)
@@ -149,7 +148,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
       val out_w = Wire(chiselTypeOf(out.w))
-      out.w :<> Queue.irrevocable(out_w, entries=depth, flow=combinational)
+      out.w :<>= Queue.irrevocable(out_w, entries=depth, flow=combinational)
       val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
 
       // Fan out the ARW channel to AR and AW
@@ -175,8 +174,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.cache := 0.U // do not allow AXI to modify our transactions
       arw.prot  := AXI4Parameters.PROT_PRIVILEGED
       arw.qos   := 0.U // no QoS
-      arw.user :<= in.a.bits.user
-      arw.echo :<= in.a.bits.echo
+      (arw.user: Data).waiveAll :<= (in.a.bits.user: Data).waiveAll
+      (arw.echo: Data).waiveAll :<= (in.a.bits.echo: Data).waiveAll
       val a_extra = arw.echo(AXI4TLState)
       a_extra.source := a_source
       a_extra.size   := a_size
@@ -233,9 +232,9 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val r_d = edgeIn.AccessAck(r_source, r_size, 0.U, denied = r_denied, corrupt = r_corrupt || r_denied)
       val b_d = edgeIn.AccessAck(b_source, b_size, denied = b_denied)
       r_d.user :<= out.r.bits.user
-      r_d.echo :<= out.r.bits.echo
+      (r_d.echo: Data).waiveAll :<= (out.r.bits.echo: Data).waiveAll
       b_d.user :<= out.b.bits.user
-      b_d.echo :<= out.b.bits.echo
+      (b_d.echo: Data).waiveAll :<= (out.b.bits.echo: Data).waiveAll
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux

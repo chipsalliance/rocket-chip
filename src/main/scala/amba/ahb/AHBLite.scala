@@ -5,7 +5,6 @@ package freechips.rocketchip.amba.ahb
 import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AHBLite()(implicit p: Parameters) extends LazyModule {
   val node = AHBMasterAdapterNode(
@@ -29,8 +28,8 @@ class AHBLite()(implicit p: Parameters) extends LazyModule {
       out.hprot  := in.hprot
       out.haddr  := in.haddr
       out.hwdata := in.hwdata
-      out.hauser :<> in.hauser
-      in.hduser :<> out.hduser
+      out.hauser :<>= in.hauser
+      in.hduser :<>= out.hduser
       in.hrdata := out.hrdata
     }
   }

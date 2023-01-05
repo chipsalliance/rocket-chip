@@ -7,7 +7,6 @@ import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 /** This adapter prunes all user bit fields of the echo type from request messages,
   * storing them in queues and echoing them back when matching response messages are received.
@@ -57,13 +56,13 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val ar_ready = Vec(rqueues.map(_.enq.ready))(arid)
       in .ar.ready := out.ar.ready && ar_ready
       out.ar.valid := in .ar.valid && ar_ready
-      out.ar.bits :<= in .ar.bits
+      (out.ar.bits: Data).waiveAll :<= (in .ar.bits: Data).waiveAll
 
       val rid = out.r.bits.id
       val r_valid = Vec(rqueues.map(_.deq.valid))(rid)
       val r_bits = Vec(rqueues.map(_.deq.bits))(rid)
       assert (!out.r.valid || r_valid) // Q must be ready faster than the response
-      in.r :<> out.r
+      (in.r: Data).waiveAll :<>= (out.r: Data).waiveAll
       in.r.bits.echo :<= r_bits
 
       val arsel = UIntToOH(arid, edgeIn.master.endId).asBools
@@ -78,13 +77,13 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val aw_ready = Vec(wqueues.map(_.enq.ready))(awid)
       in .aw.ready := out.aw.ready && aw_ready
       out.aw.valid := in .aw.valid && aw_ready
-      out.aw.bits :<= in .aw.bits
+      (out.aw.bits: Data).waiveAll :<= (in .aw.bits: Data).waiveAll
 
       val bid = out.b.bits.id
       val b_valid = Vec(wqueues.map(_.deq.valid))(bid)
       val b_bits = Vec(wqueues.map(_.deq.bits))(bid)
       assert (!out.b.valid || b_valid) // Q must be ready faster than the response
-      in.b :<> out.b
+      (in.b: Data).waiveAll :<>= (out.b: Data).waiveAll
       in.b.bits.echo :<= b_bits
 
       val awsel = UIntToOH(awid, edgeIn.master.endId).asBools
@@ -95,7 +94,7 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
         q.enq.bits :<= in.aw.bits.echo
       }
 
-      out.w :<> in.w
+      out.w :<>= in.w
     }
   }
 }
