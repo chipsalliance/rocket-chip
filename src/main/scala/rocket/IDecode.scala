@@ -39,7 +39,7 @@ class IntCtrlSigs(implicit val p: Parameters) extends Bundle with HasRocketCoreP
   val sel_alu1 = Bits(A1_X.getWidth.W)
   val sel_imm = Bits(IMM_X.getWidth.W)
   val alu_dw = Bool()
-  val alu_fn = Bits(FN_X.getWidth.W)
+  val alu_fn = Bits(alu.FN_X.getWidth.W)
   val mem = Bool()
   val mem_cmd = Bits(M_SZ.W)
   val rfs1 = Bool()

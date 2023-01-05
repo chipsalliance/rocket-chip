@@ -28,43 +28,43 @@ trait ALUFN {
 
   // from Zb
   // Zba: UW is encoded here becuase it is DW_64
-  def FN_ADDUW    = UInt(0)
-  def FN_SLLIUW   = UInt(0)
-  def FN_SH1ADD   = UInt(0)
-  def FN_SH1ADDUW = UInt(0)
-  def FN_SH2ADD   = UInt(0)
-  def FN_SH2ADDUW = UInt(0)
-  def FN_SH3ADD   = UInt(0)
-  def FN_SH3ADDUW = UInt(0)
+  def FN_ADDUW    = 0.U
+  def FN_SLLIUW   = 0.U
+  def FN_SH1ADD   = 0.U
+  def FN_SH1ADDUW = 0.U
+  def FN_SH2ADD   = 0.U
+  def FN_SH2ADDUW = 0.U
+  def FN_SH3ADD   = 0.U
+  def FN_SH3ADDUW = 0.U
   // Zbb
-  def FN_ROR      = UInt(0)
-  def FN_ROL      = UInt(0)
-  def FN_ANDN     = UInt(0)
-  def FN_ORN      = UInt(0)
-  def FN_XNOR     = UInt(0)
-  def FN_REV8     = UInt(0)
-  def FN_ORCB     = UInt(0)
-  def FN_SEXTB    = UInt(0)
-  def FN_SEXTH    = UInt(0)
-  def FN_ZEXTH    = UInt(0)
-  def FN_MAX      = UInt(0)
-  def FN_MAXU     = UInt(0)
-  def FN_MIN      = UInt(0)
-  def FN_MINU     = UInt(0)
-  def FN_CPOP     = UInt(0)
-  def FN_CLZ      = UInt(0)
-  def FN_CTZ      = UInt(0)
+  def FN_ROR      = 0.U
+  def FN_ROL      = 0.U
+  def FN_ANDN     = 0.U
+  def FN_ORN      = 0.U
+  def FN_XNOR     = 0.U
+  def FN_REV8     = 0.U
+  def FN_ORCB     = 0.U
+  def FN_SEXTB    = 0.U
+  def FN_SEXTH    = 0.U
+  def FN_ZEXTH    = 0.U
+  def FN_MAX      = 0.U
+  def FN_MAXU     = 0.U
+  def FN_MIN      = 0.U
+  def FN_MINU     = 0.U
+  def FN_CPOP     = 0.U
+  def FN_CLZ      = 0.U
+  def FN_CTZ      = 0.U
   // Zbs
-  def FN_BCLR     = UInt(0)
-  def FN_BEXT     = UInt(0)
-  def FN_BINV     = UInt(0)
-  def FN_BSET     = UInt(0)
+  def FN_BCLR     = 0.U
+  def FN_BEXT     = 0.U
+  def FN_BINV     = 0.U
+  def FN_BSET     = 0.U
   // Zbk
-  def FN_BREV8    = UInt(0)
-  def FN_PACK     = UInt(0)
-  def FN_PACKH    = UInt(0)
-  def FN_ZIP      = UInt(0)
-  def FN_UNZIP    = UInt(0)
+  def FN_BREV8    = 0.U
+  def FN_PACK     = 0.U
+  def FN_PACKH    = 0.U
+  def FN_ZIP      = 0.U
+  def FN_UNZIP    = 0.U
 
   def FN_DIV  = FN_XOR
   def FN_DIVU = FN_SR
@@ -89,16 +89,16 @@ object ALU extends ALUFN
 
 import ALU._
 
-trait HasALUIO extends HasRocketCoreParameters {
-  val io = new Bundle {
-    val dw = Bits(INPUT, SZ_DW)
-    val fn = Bits(INPUT, if (usingABLU) ABLU.SZ_ALU_FN else SZ_ALU_FN)
-    val in2 = UInt(INPUT, xLen)
-    val in1 = UInt(INPUT, xLen)
-    val out = UInt(OUTPUT, xLen)
-    val adder_out = UInt(OUTPUT, xLen)
-    val cmp_out = Bool(OUTPUT)
-  }
+trait HasALUIO extends Module with HasRocketCoreParameters {
+  val io = IO(new Bundle {
+    val dw = Input(UInt(SZ_DW.W))
+    val fn = Input(UInt(if (usingABLU) ABLU.SZ_ALU_FN.W else SZ_ALU_FN.W))
+    val in2 = Input(UInt(xLen.W))
+    val in1 = Input(UInt(xLen.W))
+    val out = Output(UInt(xLen.W))
+    val adder_out = Output(UInt(xLen.W))
+    val cmp_out = Output(Bool())
+  })
 }
 
 class ALU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {

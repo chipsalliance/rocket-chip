@@ -319,7 +319,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     d.io
   }
   // id_ctrl.alu_fn(15) === isKs1. This is documented in CryptoNIST module
-  val id_illegal_rnum = if (usingCryptoNIST) (id_ctrl.zkn && id_ctrl.alu_fn(15) && id_inst(0)(23,20) > 0xA.U(4.W)) else Bool(false)
+  val id_illegal_rnum = if (usingCryptoNIST) (id_ctrl.zkn && id_ctrl.alu_fn(15) && id_inst(0)(23,20) > 0xA.U(4.W)) else false.B
   val id_illegal_insn = !id_ctrl.legal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
