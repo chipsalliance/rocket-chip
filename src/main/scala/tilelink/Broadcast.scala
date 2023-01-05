@@ -351,7 +351,7 @@ class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
   val release = Flipped(Decoupled(new ProbeFilterRelease(params)))
 }
 
-abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
+abstract class ProbeFilter(val params: ProbeFilterParams) extends Module {
   def useRegFields(bankIndex: Int): Seq[RegField.Map] = Nil
   def tieRegFields(bankIndex: Int): Unit = ()
   val io = IO(new ProbeFilterIO(params))
