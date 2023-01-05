@@ -105,7 +105,7 @@ class CaptureChain[+T <: Data](gen: T)(implicit val p: Parameters) extends Chain
   property.cover(io.chainIn.capture, "chain_capture", "JTAG; chain_capture; This Chain captured data")
   
   when (io.chainIn.capture) {
-    (0 until n) map (x => regs(x) := io.capture.bits.asUInt()(x))
+    (0 until n) map (x => regs(x) := io.capture.bits.asUInt(x))
     io.capture.capture := true.B
   } .elsewhen (io.chainIn.shift) {
     regs(n-1) := io.chainIn.data
@@ -158,7 +158,7 @@ class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V)(im
   val updateBits = Cat(regs.reverse)(updateWidth-1, 0)
   io.update.bits := updateBits.asTypeOf(io.update.bits)
 
-  val captureBits = io.capture.bits.asUInt()
+  val captureBits = io.capture.bits.asUInt
 
   property.cover(io.chainIn.capture, "chain_capture", "JTAG;chain_capture; This Chain captured data")
   property.cover(io.chainIn.capture, "chain_update",  "JTAG;chain_update; This Chain updated data")

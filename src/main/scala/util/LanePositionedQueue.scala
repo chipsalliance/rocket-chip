@@ -426,7 +426,7 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
     nEnq_next >= (2*lanes).U
   }
 
-  val pre_gap = (pre_enq_row >> 1).zext() - (pre_deq_row >> 1).zext()
+  val pre_gap = (pre_enq_row >> 1).zext - (pre_deq_row >> 1).zext
   val pre_gap0 = pre_gap === 0.S && next_maybe_empty
   val pre_gap1 = pre_gap0 || pre_gap === (1-rows/2).S || pre_gap === 1.S
   val pre_gap2 = pre_gap1 || pre_gap === (2-rows/2).S || pre_gap === 2.S
