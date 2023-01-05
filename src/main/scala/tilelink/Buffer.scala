@@ -32,7 +32,8 @@ class TLBuffer(
 
   val node = new TLBufferNode(a, b, c, d, e)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.a <> a(in .a)
       in .d <> d(out.d)
@@ -108,7 +109,8 @@ class TLBufferAndNotCancel(
 
   val node = new TLBufferNodeAndNotCancel(a, b, c, d, e)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.a <> a(in.a.asDecoupled)
       in .d <> d(out.d)

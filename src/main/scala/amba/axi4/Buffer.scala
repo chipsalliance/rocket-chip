@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import chisel3.util.IrrevocableIO
+import chisel3._
+import chisel3.util.{Queue, IrrevocableIO}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.min
@@ -28,7 +28,8 @@ class AXI4Buffer(
     masterFn = { p => p },
     slaveFn  = { p => p.copy(minLatency = p.minLatency + min(aw.latency,ar.latency) + min(r.latency,b.latency)) })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     def buffer[T <: Data](config: BufferParams, data: IrrevocableIO[T]): IrrevocableIO[T] = {
       if (config.isDefined) {
         Queue.irrevocable(data, config.depth, pipe=config.pipe, flow=config.flow)

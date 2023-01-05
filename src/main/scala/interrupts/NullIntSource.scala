@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -11,7 +11,8 @@ class NullIntSource(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: 
 {
   val intnode = IntSourceNode(IntSourcePortSimple(num, ports, sources))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     intnode.out.foreach { case (o, _) => o.foreach { _ := false.B } }
   }
 }

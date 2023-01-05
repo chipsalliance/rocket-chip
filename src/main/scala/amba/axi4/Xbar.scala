@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import chisel3.util.IrrevocableIO
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -52,7 +52,8 @@ class AXI4Xbar(
     override def circuitIdentity = outputs == 1 && inputs == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (io_in, edgesIn) = node.in.unzip
     val (io_out, edgesOut) = node.out.unzip
 
@@ -66,40 +67,40 @@ class AXI4Xbar(
     val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
 
     // To route W we need to record where the AWs went
-    val awIn  = Seq.fill(io_in .size) { Module(new Queue(UInt(width = io_out.size), awQueueDepth, flow = true)) }
-    val awOut = Seq.fill(io_out.size) { Module(new Queue(UInt(width = io_in .size), awQueueDepth, flow = true)) }
+    val awIn  = Seq.fill(io_in .size) { Module(new Queue(UInt(io_out.size.W), awQueueDepth, flow = true)) }
+    val awOut = Seq.fill(io_out.size) { Module(new Queue(UInt(io_in .size.W), awQueueDepth, flow = true)) }
 
-    val requestARIO = io_in.map  { i => Vec(outputPorts.map   { o => o(i.ar.bits.addr) }) }
-    val requestAWIO = io_in.map  { i => Vec(outputPorts.map   { o => o(i.aw.bits.addr) }) }
+    val requestARIO = io_in.map  { i => VecInit(outputPorts.map   { o => o(i.ar.bits.addr) }) }
+    val requestAWIO = io_in.map  { i => VecInit(outputPorts.map   { o => o(i.aw.bits.addr) }) }
     val requestROI  = io_out.map { o => inputIdRanges.map { i => i.contains(o.r.bits.id) } }
     val requestBOI  = io_out.map { o => inputIdRanges.map { i => i.contains(o.b.bits.id) } }
 
     // W follows the path dictated by the AW Q
     for (i <- 0 until io_in.size) { awIn(i).io.enq.bits := requestAWIO(i).asUInt }
-    val requestWIO = awIn.map { q => if (io_out.size > 1) q.io.deq.bits.asBools else Seq(Bool(true)) }
+    val requestWIO = awIn.map { q => if (io_out.size > 1) q.io.deq.bits.asBools else Seq(true.B) }
 
     // We need an intermediate size of bundle with the widest possible identifiers
     val wide_bundle = AXI4BundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))
 
     // Transform input bundles
-    val in = Wire(Vec(io_in.size, AXI4Bundle(wide_bundle)))
+    val in = Wire(Vec(io_in.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until in.size) {
       in(i) :<> io_in(i)
 
       // Handle size = 1 gracefully (Chisel3 empty range is broken)
-      def trim(id: UInt, size: Int) = if (size <= 1) UInt(0) else id(log2Ceil(size)-1, 0)
+      def trim(id: UInt, size: Int) = if (size <= 1) 0.U else id(log2Ceil(size)-1, 0)
       // Manipulate the AXI IDs to differentiate masters
       val r = inputIdRanges(i)
-      in(i).aw.bits.id := io_in(i).aw.bits.id | UInt(r.start)
-      in(i).ar.bits.id := io_in(i).ar.bits.id | UInt(r.start)
+      in(i).aw.bits.id := io_in(i).aw.bits.id | (r.start).U
+      in(i).ar.bits.id := io_in(i).ar.bits.id | (r.start).U
       io_in(i).r.bits.id := trim(in(i).r.bits.id, r.size)
       io_in(i).b.bits.id := trim(in(i).b.bits.id, r.size)
 
       if (io_out.size > 1) {
         // Block A[RW] if we switch ports, to ensure responses stay ordered (also: beware the dining philosophers)
         val endId = edgesIn(i).master.endId
-        val arFIFOMap = Wire(init = Vec.fill(endId) { Bool(true) })
-        val awFIFOMap = Wire(init = Vec.fill(endId) { Bool(true) })
+        val arFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
+        val awFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
         val arSel = UIntToOH(io_in(i).ar.bits.id, endId)
         val awSel = UIntToOH(io_in(i).aw.bits.id, endId)
         val rSel  = UIntToOH(io_in(i).r .bits.id, endId)
@@ -110,32 +111,32 @@ class AXI4Xbar(
         for (master <- edgesIn(i).master.masters) {
           def idTracker(port: UInt, req_fire: Bool, resp_fire: Bool) = {
             if (master.maxFlight == Some(0)) {
-              Bool(true)
+              true.B
             } else {
               val legalFlight = master.maxFlight.getOrElse(maxFlightPerId+1)
               val flight = legalFlight min maxFlightPerId
               val canOverflow = legalFlight > flight
-              val count = RegInit(UInt(0, width = log2Ceil(flight+1)))
-              val last = Reg(UInt(width = log2Ceil(io_out.size)))
+              val count = RegInit(0.U(log2Ceil(flight+1).W))
+              val last = Reg(UInt(log2Ceil(io_out.size).W))
               count := count + req_fire.asUInt - resp_fire.asUInt
-              assert (!resp_fire || count =/= UInt(0))
-              assert (!req_fire  || count =/= UInt(flight))
+              assert (!resp_fire || count =/= 0.U)
+              assert (!req_fire  || count =/= flight.U)
               when (req_fire) { last := port }
               // No need to track where it went if we cap it at 1 request
-              val portMatch = if (flight == 1) { Bool(true) } else { last === port }
-              (count === UInt(0) || portMatch) && (Bool(!canOverflow) || count =/= UInt(flight))
+              val portMatch = if (flight == 1) { true.B } else { last === port }
+              (count === 0.U || portMatch) && ((!canOverflow).B || count =/= flight.U)
             }
           }
 
           for (id <- master.id.start until master.id.end) {
             arFIFOMap(id) := idTracker(
               arTag,
-              arSel(id) && io_in(i).ar.fire(),
-              rSel(id) && io_in(i).r.fire() && io_in(i).r.bits.last)
+              arSel(id) && io_in(i).ar.fire,
+              rSel(id) && io_in(i).r.fire && io_in(i).r.bits.last)
             awFIFOMap(id) := idTracker(
               awTag,
-              awSel(id) && io_in(i).aw.fire(),
-              bSel(id) && io_in(i).b.fire())
+              awSel(id) && io_in(i).aw.fire,
+              bSel(id) && io_in(i).b.fire)
           }
         }
 
@@ -148,38 +149,42 @@ class AXI4Xbar(
 
         // Block AW if we cannot record the W destination
         val allowAW = awFIFOMap(io_in(i).aw.bits.id)
-        val latched = RegInit(Bool(false)) // cut awIn(i).enq.valid from awready
+        val latched = RegInit(false.B) // cut awIn(i).enq.valid from awready
         in(i).aw.valid := io_in(i).aw.valid && (latched || awIn(i).io.enq.ready) && allowAW
         io_in(i).aw.ready := in(i).aw.ready && (latched || awIn(i).io.enq.ready) && allowAW
         awIn(i).io.enq.valid := io_in(i).aw.valid && !latched
-        when (awIn(i).io.enq.fire()) { latched := Bool(true) }
-        when (in(i).aw.fire()) { latched := Bool(false) }
+        when (awIn(i).io.enq.fire) { latched := true.B }
+        when (in(i).aw.fire) { latched := false.B }
 
         // Block W if we do not have an AW destination
         in(i).w.valid := io_in(i).w.valid && awIn(i).io.deq.valid // depends on awvalid (but not awready)
         io_in(i).w.ready := in(i).w.ready && awIn(i).io.deq.valid
         awIn(i).io.deq.ready := io_in(i).w.valid && io_in(i).w.bits.last && in(i).w.ready
+      } else {
+        awIn(i).io := DontCare // aw in queue is not used when outsize == 1
       }
     }
 
     // Transform output bundles
-    val out = Wire(Vec(io_out.size, AXI4Bundle(wide_bundle)))
+    val out = Wire(Vec(io_out.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until out.size) {
       io_out(i) :<> out(i)
 
       if (io_in.size > 1) {
         // Block AW if we cannot record the W source
-        val latched = RegInit(Bool(false)) // cut awOut(i).enq.valid from awready
+        val latched = RegInit(false.B) // cut awOut(i).enq.valid from awready
         io_out(i).aw.valid := out(i).aw.valid && (latched || awOut(i).io.enq.ready)
         out(i).aw.ready := io_out(i).aw.ready && (latched || awOut(i).io.enq.ready)
         awOut(i).io.enq.valid := out(i).aw.valid && !latched
-        when (awOut(i).io.enq.fire()) { latched := Bool(true) }
-        when (out(i).aw.fire()) { latched := Bool(false) }
+        when (awOut(i).io.enq.fire) { latched := true.B }
+        when (out(i).aw.fire) { latched := false.B }
 
         // Block W if we do not have an AW source
         io_out(i).w.valid := out(i).w.valid && awOut(i).io.deq.valid // depends on awvalid (but not awready)
         out(i).w.ready := io_out(i).w.ready && awOut(i).io.deq.valid
         awOut(i).io.deq.ready := out(i).w.valid && out(i).w.bits.last && io_out(i).w.ready
+      } else {
+        awOut(i).io := DontCare // aw out queue is not used when io_in.size == 1
       }
     }
 
@@ -230,7 +235,7 @@ object AXI4Xbar
 
   // Replicate an input port to each output port
   def fanout[T <: AXI4BundleBase](input: IrrevocableIO[T], select: Seq[Bool]) = {
-    val filtered = Wire(Vec(select.size, input))
+    val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
       filtered(i).bits :<= input.bits
       filtered(i).valid := input.valid && select(i)
@@ -244,7 +249,7 @@ object AXI4Arbiter
 {
   def apply[T <: Data](policy: TLArbiter.Policy)(sink: IrrevocableIO[T], sources: IrrevocableIO[T]*): Unit = {
     if (sources.isEmpty) {
-      sink.valid := Bool(false)
+      sink.valid := false.B
     } else {
       returnWinner(policy)(sink, sources:_*)
     }
@@ -253,32 +258,32 @@ object AXI4Arbiter
     require (!sources.isEmpty)
 
     // The arbiter is irrevocable; when !idle, repeat last request
-    val idle = RegInit(Bool(true))
+    val idle = RegInit(true.B)
 
     // Who wants access to the sink?
     val valids = sources.map(_.valid)
     val anyValid = valids.reduce(_ || _)
     // Arbitrate amongst the requests
-    val readys = Vec(policy(valids.size, Cat(valids.reverse), idle).asBools)
+    val readys = VecInit(policy(valids.size, Cat(valids.reverse), idle).asBools)
     // Which request wins arbitration?
-    val winner = Vec((readys zip valids) map { case (r,v) => r&&v })
+    val winner = VecInit((readys zip valids) map { case (r,v) => r&&v })
 
     // Confirm the policy works properly
     require (readys.size == valids.size)
     // Never two winners
-    val prefixOR = winner.scanLeft(Bool(false))(_||_).init
+    val prefixOR = winner.scanLeft(false.B)(_||_).init
     assert((prefixOR zip winner) map { case (p,w) => !p || !w } reduce {_ && _})
     // If there was any request, there is a winner
     assert (!anyValid || winner.reduce(_||_))
 
     // The one-hot source granted access in the previous cycle
-    val state = RegInit(Vec.fill(sources.size)(Bool(false)))
+    val state = RegInit(VecInit.fill(sources.size)(false.B))
     val muxState = Mux(idle, winner, state)
     state := muxState
 
     // Determine when we go idle
-    when (anyValid) { idle := Bool(false) }
-    when (sink.fire()) { idle := Bool(true) }
+    when (anyValid) { idle := false.B }
+    when (sink.fire) { idle := true.B }
 
     if (sources.size > 1) {
       val allowed = Mux(idle, readys, state)
@@ -319,7 +324,8 @@ class AXI4XbarFuzzTest(name: String, txns: Int, nMasters: Int, nSlaves: Int)(imp
     := TLRAMModel(s"${name} Master $i")
     := m.node) }
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := masters.map(_.module.io.finished).reduce(_ || _)
   }
 }

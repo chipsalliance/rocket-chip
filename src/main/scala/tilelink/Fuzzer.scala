@@ -23,7 +23,7 @@ class IDMapGenerator(numIds: Int) extends Module {
 
   val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
-  io.alloc.valid := bitmap.orR()
+  io.alloc.valid := bitmap.orR
 
   val clr = Wire(init = UInt(0, width = numIds))
   when (io.alloc.fire()) { clr := UIntToOH(io.alloc.bits) }
@@ -108,7 +108,8 @@ class TLFuzzer(
 
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(clientParams)))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val finished = Bool(OUTPUT)
     })
@@ -260,7 +261,8 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   ram.node := TLFragmenter(4, 256) := TLBuffer() := xbar.node
   gpio.node := TLFragmenter(4, 32) := TLBuffer() := xbar.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

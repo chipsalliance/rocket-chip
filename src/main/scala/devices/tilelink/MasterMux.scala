@@ -25,7 +25,8 @@ class MuteMaster(name: String = "MuteMaster", maxProbe: Int = 0)(implicit p: Par
     name = name,
     supportsProbe = if (maxProbe > 0) TransferSizes(1, maxProbe) else TransferSizes.none)))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val Seq((out, edgeOut)) = node.out
     out.a.valid := Bool(false)
     out.b.ready := out.c.ready
@@ -41,7 +42,8 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
 {
   val node = new MasterMuxNode(uFn)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val bypass = Bool(INPUT)
       val pending = Bool(OUTPUT)
@@ -119,7 +121,8 @@ class TLMasterMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {
   ram.node := TLFragmenter(4, 16) := mux.node
   // how to test probe + release?
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz1.module.io.finished && fuzz2.module.io.finished
     mux.module.io.bypass := LFSR64(Bool(true))(0)
   }

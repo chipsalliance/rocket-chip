@@ -37,7 +37,8 @@ class RegionReplicator(val params: ReplicatedRegion)(implicit p: Parameters) ext
 
   val prefix = BundleBridgeSink[UInt]()
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
@@ -46,7 +47,7 @@ class RegionReplicator(val params: ReplicatedRegion)(implicit p: Parameters) ext
 
       // Which address within the mask routes to local devices?
       val local_prefix = RegNext(prefix.bundle)
-      assert (params.isLegalPrefix(local_prefix))
+      assert (params.isLegalPrefix(local_prefix) || !out.b.valid)
 
       val a_addr = in.a.bits.address
       val a_contained = params.region.contains(a_addr) || totalContainment.B

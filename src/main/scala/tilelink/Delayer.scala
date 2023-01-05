@@ -12,7 +12,8 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
   val node = TLAdapterNode()
   require (0.0 <= q && q < 1)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     def feed[T <: Data](sink: DecoupledIO[T], source: DecoupledIO[T], noise: T): Unit = {
       val allow = UInt((q * 65535.0).toInt) <= LFSRNoiseMaker(16, source.valid)
       sink.valid := source.valid && allow

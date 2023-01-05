@@ -2,7 +2,8 @@
 
 package freechips.rocketchip
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import scala.math.min
 import scala.collection.{immutable, mutable}
 
@@ -28,12 +29,12 @@ package object util {
         // Ignore MSBs of idx
         val truncIdx =
           if (idx.isWidthKnown && idx.getWidth <= log2Ceil(x.size)) idx
-          else (idx | UInt(0, log2Ceil(x.size)))(log2Ceil(x.size)-1, 0)
+          else (idx | 0.U(log2Ceil(x.size).W))(log2Ceil(x.size)-1, 0)
         x.zipWithIndex.tail.foldLeft(x.head) { case (prev, (cur, i)) => Mux(truncIdx === i.U, cur, prev) }
       }
     }
 
-    def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
+    def asUInt: UInt = Cat(x.map(_.asUInt).reverse)
 
     def rotate(n: Int): Seq[T] = x.drop(n) ++ x.take(n)
 
@@ -87,7 +88,7 @@ package object util {
   /** Any Data subtype that has a Bool member named valid. */
   type DataCanBeValid = Data { val valid: Bool }
 
-  implicit class SeqMemToAugmentedSeqMem[T <: Data](private val x: SeqMem[T]) extends AnyVal {
+  implicit class SeqMemToAugmentedSeqMem[T <: Data](private val x: SyncReadMem[T]) extends AnyVal {
     def readAndHold(addr: UInt, enable: Bool): T = x.read(addr, enable) holdUnless RegNext(enable)
   }
 
@@ -126,7 +127,7 @@ package object util {
     def padTo(n: Int): UInt = {
       require(x.getWidth <= n)
       if (x.getWidth == n) x
-      else Cat(UInt(0, n - x.getWidth), x)
+      else Cat(0.U((n - x.getWidth).W), x)
     }
 
     // shifts left by n if n >= 0, or right by -n if n < 0
@@ -150,7 +151,7 @@ package object util {
     // Like UInt.apply(hi, lo), but returns 0.U for zero-width extracts
     def extract(hi: Int, lo: Int): UInt = {
       require(hi >= lo-1)
-      if (hi == lo-1) UInt(0)
+      if (hi == lo-1) 0.U
       else x(hi, lo)
     }
 
@@ -229,9 +230,9 @@ package object util {
     }
   }
 
-  def OH1ToOH(x: UInt): UInt = (x << 1 | UInt(1)) & ~Cat(UInt(0, width=1), x)
+  def OH1ToOH(x: UInt): UInt = (x << 1 | 1.U) & ~Cat(0.U(1.W), x)
   def OH1ToUInt(x: UInt): UInt = OHToUInt(OH1ToOH(x))
-  def UIntToOH1(x: UInt, width: Int): UInt = ~(SInt(-1, width=width).asUInt << x)(width-1, 0)
+  def UIntToOH1(x: UInt, width: Int): UInt = ~((-1).S(width.W).asUInt << x)(width-1, 0)
   def UIntToOH1(x: UInt): UInt = UIntToOH1(x, (1 << x.getWidth) - 1)
 
   def trailingZeros(x: Int): Option[Int] = if (x > 0) Some(log2Ceil(x & -x)) else None
@@ -257,8 +258,8 @@ package object util {
   def OptimizationBarrier[T <: Data](in: T): T = {
     val barrier = Module(new Module {
       val io = IO(new Bundle {
-        val x = Input(in)
-        val y = Output(in)
+        val x = Input(chiselTypeOf(in))
+        val y = Output(chiselTypeOf(in))
       })
       io.y := io.x
       override def desiredName = "OptimizationBarrier"

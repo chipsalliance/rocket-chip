@@ -7,7 +7,8 @@ import freechips.rocketchip.diplomacy._
 abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainCrossing {
   def clockBundle: ClockBundle
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     childClock := clockBundle.clock
     childReset := clockBundle.reset
 

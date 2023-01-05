@@ -38,7 +38,7 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
 object rocketchip extends common.CommonRocketChip {
   m =>
   override def scalaVersion: T[String] = T {
-    "2.12.10"
+    "2.13.10"
   }
   override def ammoniteVersion: T[String] = T {
     "2.4.0"
@@ -47,4 +47,233 @@ object rocketchip extends common.CommonRocketChip {
   def hardfloatModule = hardfloatRocket
 
   def configModule = configRocket
+}
+
+def envByNameOrRiscv(name: String): String = {
+  sys.env.get(name) match {
+    case Some(value) => value
+    case None => sys.env("RISCV") // if not found, throws NoSuchElementException exception
+  }
+}
+
+object emulator extends mill.Cross[Emulator](
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config")
+)
+class Emulator(top: String, config: String) extends ScalaModule {
+  override def moduleDeps = Seq(rocketchip)
+
+  override def scalaVersion: T[String] = T {
+    "2.13.10"
+  }
+
+  def spikeRoot = T { envByNameOrRiscv("SPIKE_ROOT") }
+
+  def generator = T {
+    // class path for `moduleDeps` is only a directory, not a jar, which breaks the cache.
+    // so we need to manually add the class files of `moduleDeps` here.
+    upstreamCompileOutput()
+    mill.modules.Jvm.runLocal(
+      "freechips.rocketchip.system.Generator",
+      runClasspath().map(_.path),
+      Seq(
+        "-td", T.dest.toString,
+        "-T", top,
+        "-C", config,
+      ),
+    )
+    PathRef(T.dest)
+  }
+
+  def firrtl = T {
+    val input = generator().path / (config + ".fir")
+    val output = T.dest / (top + "-" + config + ".v")
+    mill.modules.Jvm.runLocal(
+      "firrtl.stage.FirrtlMain",
+      runClasspath().map(_.path),
+      Seq(
+        "-i", input.toString,
+        "-o", output.toString,
+      ),
+    )
+    PathRef(output)
+  }
+
+  object verilator extends Module {
+    def csrcDir = T {
+      PathRef(os.pwd / "src" / "main" / "resources" / "csrc")
+    }
+    def vsrcDir = T {
+      PathRef(os.pwd / "src" / "main" / "resources" / "vsrc")
+    }
+
+    def allCSourceFiles = T {
+      Seq(
+        "SimDTM.cc",
+        "SimJTAG.cc",
+        "emulator.cc",
+        "remote_bitbang.cc",
+        ).map(c => PathRef(csrcDir().path / c))
+    }
+
+    def allVSourceFiles = T {
+      Seq(
+        "plusarg_reader.v",
+        "SimDTM.v",
+        "SimJTAG.v",
+        "EICG_wrapper.v",
+        ).map(v => PathRef(vsrcDir().path / v))
+    }
+
+    def CMakeListsString = T {
+      // format: off
+      s"""cmake_minimum_required(VERSION 3.20)
+         |project(emulator)
+         |include_directories(${csrcDir().path})
+         |# plusarg is here
+         |include_directories(${generator().path})
+         |link_directories(${spikeRoot() + "/lib"})
+         |include_directories(${spikeRoot() + "/include"})
+         |
+         |set(CMAKE_BUILD_TYPE Release)
+         |set(CMAKE_CXX_STANDARD 17)
+         |set(CMAKE_C_COMPILER "clang")
+         |set(CMAKE_CXX_COMPILER "clang++")
+         |set(CMAKE_CXX_FLAGS
+         |"$${CMAKE_CXX_FLAGS} -DVERILATOR -DTEST_HARNESS=VTestHarness -include VTestHarness.h -include ${generator().path / config + ".plusArgs"}")
+         |set(THREADS_PREFER_PTHREAD_FLAG ON)
+         |
+         |find_package(verilator)
+         |find_package(Threads)
+         |
+         |add_executable(emulator
+         |${allCSourceFiles().map(_.path).mkString("\n")}
+         |)
+         |
+         |target_link_libraries(emulator PRIVATE $${CMAKE_THREAD_LIBS_INIT})
+         |target_link_libraries(emulator PRIVATE fesvr)
+         |verilate(emulator
+         |  SOURCES
+         |${allVSourceFiles().map(_.path).mkString("\n")}
+         |${firrtl().path}
+         |  TOP_MODULE TestHarness
+         |  PREFIX VTestHarness
+         |  VERILATOR_ARGS ${verilatorArgs().mkString(" ")}
+         |)
+         |""".stripMargin
+      // format: on
+    }
+
+    def verilatorArgs = T.input {
+      Seq(
+        // format: off
+        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH",
+        "--x-assign unique",
+        "+define+RANDOMIZE_GARBAGE_ASSIGN",
+        "--output-split 20000",
+        "--output-split-cfuncs 20000",
+        "--max-num-width 1048576"
+        // format: on
+      )
+    }
+
+    def cmakefileLists = T.persistent {
+      val path = T.dest / "CMakeLists.txt"
+      os.write.over(path, CMakeListsString())
+      PathRef(T.dest)
+    }
+
+    def elf = T.persistent {
+      mill.modules.Jvm.runSubprocess(Seq("cmake", "-G", "Ninja", "-S", cmakefileLists().path, "-B", T.dest.toString).map(_.toString), Map[String, String](), T.dest)
+      mill.modules.Jvm.runSubprocess(Seq("ninja", "-C", T.dest).map(_.toString), Map[String, String](), T.dest)
+      PathRef(T.dest / "emulator")
+    }
+  }
+
+  def elf = T {
+    verilator.elf()
+  }
+}
+
+object `riscv-tests` extends Module {
+  def testsRoot =
+    os.Path(envByNameOrRiscv("RISCV_TESTS_ROOT")) / "riscv64-unknown-elf" / "share" / "riscv-tests"
+
+  def allCases = T {
+    os.walk(testsRoot).filterNot(p => p.last.endsWith("dump"))
+  }
+
+  object suite extends mill.Cross[Suite](
+    os.walk(testsRoot).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).toSet.toSeq.sorted: _*
+  )
+
+  class Suite(name: String) extends Module {
+
+    def description = T {
+      s"test suite ${name} from riscv-tests"
+    }
+
+    def binaries = T {
+      allCases().filter(p => p.last.startsWith(name)).map(PathRef(_))
+    }
+  }
+}
+
+object `runnable-test` extends mill.Cross[RunableTest](
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-ld"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-lh"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-lw"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-sd"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-sh"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-sw"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64si-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64si-p-icache"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64ua-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64ua-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64uc-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64uc-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64ud-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64ud-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64uf-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64uf-v"),
+  // https://github.com/riscv-software-src/riscv-tests/issues/419
+  // ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64ui-p"),
+  // ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64ui-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64um-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64um-v"),
+
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32mi-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32mi-p-lh"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32mi-p-lw"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32mi-p-sh"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32mi-p-sw"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32si-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ua-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ua-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uc-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uc-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uf-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uf-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ui-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ui-v"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32um-p"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32um-v"),
+)
+class RunableTest(top: String, config: String, suiteName: String) extends Module {
+  def run = T {
+    `riscv-tests`.suite(suiteName).binaries().map { bin =>
+      val name = bin.path.last
+      System.out.println(s"Running: ${emulator(top, config).elf().path} ${bin.path}")
+      val p = os.proc(emulator(top, config).elf().path, bin.path).call(stdout = T.dest / s"$name.running.log", mergeErrIntoOut = true)
+      PathRef(if (p.exitCode != 0) {
+        os.move(T.dest / s"$name.running.log", T.dest / s"$name.failed.log")
+        System.err.println(s"Test $name failed with exit code ${p.exitCode}")
+        T.dest / s"$name.failed.log"
+      } else {
+        os.move(T.dest / s"$name.running.log", T.dest / s"$name.passed.log")
+        T.dest / s"$name.passed.log"
+      })
+    }
+  }
 }

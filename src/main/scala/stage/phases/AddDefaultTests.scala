@@ -9,8 +9,8 @@ import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.{Dependency, Phase, PreservesAll, Unserializable}
 import firrtl.options.Viewer.view
 import freechips.rocketchip.stage.RocketChipOptions
-import freechips.rocketchip.subsystem.RocketTilesKey
 import freechips.rocketchip.system.{DefaultTestSuites, RegressionTestSuite, RocketTestSuite}
+import freechips.rocketchip.subsystem.{TilesLocated, InSubsystem, RocketTileAttachParams}
 import freechips.rocketchip.tile.XLen
 import freechips.rocketchip.util.HasRocketChipStageUtils
 import freechips.rocketchip.system.DefaultTestSuites._
@@ -72,7 +72,8 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
       "rv32ui-p-sll")
 
     // TODO: for now only generate tests for the first core in the first subsystem
-    params(RocketTilesKey).headOption.map { tileParams =>
+    val rocketTileParams = params(TilesLocated(InSubsystem)).collect { case n: RocketTileAttachParams => n }.map(_.tileParams)
+    rocketTileParams.headOption.map { tileParams =>
       val coreParams = tileParams.core
       val vm = coreParams.useVM
       val env = if (vm) List("p", "v") else List("p")
@@ -133,7 +134,7 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
       case _ => GenerateDefaultTestSuites()
     }
 
-    RocketTestSuiteAnnotation(tests) +: annotations
+    RocketTestSuiteAnnotation(tests.toSeq) +: annotations
   }
 
 }

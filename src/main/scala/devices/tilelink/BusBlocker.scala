@@ -43,7 +43,8 @@ class BasicBusBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
     device    = device,
     beatBytes = params.controlBeatBytes)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val allow = RegInit(true.B)
     val pending = RegNext(bar.module.io.pending)
 

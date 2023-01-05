@@ -29,7 +29,8 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       echoFields = Nil)},
     slaveFn = { sp => sp })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       // Which fields are we stripping?
       val echoFields = edgeIn.master.echoFields

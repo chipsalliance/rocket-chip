@@ -15,7 +15,8 @@ class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters) extends L
     clientFn  = p => p.copy(delay = delay + p.delay),
     managerFn = p => p.copy(delay = delay + p.delay))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.a :<> in.a.pipeline(delay.a)
       in.b :<> out.b.pipeline(delay.b)
@@ -38,7 +39,8 @@ object TLCreditedBuffer {
 class TLCreditedSource(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
 {
   val node = TLCreditedSourceNode(delay)
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val tld = edgeOut.delay
       out.a :<> CreditedIO.fromSender(in.a, tld.a.total).pipeline(delay.a)
@@ -62,7 +64,8 @@ object TLCreditedSource {
 class TLCreditedSink(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
 {
   val node = TLCreditedSinkNode(delay)
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val tld = edgeIn.delay
       out.a :<> Decoupled(in.a.pipeline(delay.a).toReceiver(tld.a.total))
@@ -94,7 +97,8 @@ class TLRAMCreditedCrossing(txns: Int, params: CreditedCrossing)(implicit p: Par
 
   island.crossTLIn(ram.node) := TLFragmenter(4, 256) := TLDelayer(0.1) := model.node := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

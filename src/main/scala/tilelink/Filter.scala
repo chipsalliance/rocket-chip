@@ -53,7 +53,8 @@ class TLFilter(
     override def circuitIdentity = true
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
@@ -153,6 +154,11 @@ object TLFilter
   // onyl caching clients are visible
   def cSelectCaching: ClientFilter = { c =>
     if (c.supports.probe) Some(c) else None
+  }
+
+  // removes resources from managers
+  def mResourceRemover: ManagerFilter = { m =>
+    Some(m.v2copy(resources=Nil))
   }
 
   // default application applies neither type of filter unless overridden

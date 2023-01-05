@@ -24,7 +24,8 @@ class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
     beatBytes = beatBytes,
     device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0")))
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (in, edge) = node.in(0)
 
     val a = Queue(in.a, 2)

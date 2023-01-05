@@ -1,7 +1,7 @@
 // See LICENSE for license details.
 package freechips.rocketchip.regmapper
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.util.{AsyncResetRegVec, SimpleRegIO}
 
 object DescribedReg {

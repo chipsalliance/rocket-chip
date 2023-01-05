@@ -4,8 +4,8 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 
 val defaultVersions = Map(
-  "chisel3" -> "3.5.0",
-  "chisel3-plugin" -> "3.5.0"
+  "chisel3" -> "3.5.5",
+  "chisel3-plugin" -> "3.5.5"
 )
 
 def getVersion(dep: String, org: String = "edu.berkeley.cs", cross: Boolean = false) = {
@@ -78,18 +78,16 @@ trait CommonRocketChip extends SbtModule with PublishModule {
   override def moduleDeps = Seq(macros) ++ chisel3Module :+ hardfloatModule :+ configModule
 
   override def scalacOptions = T {
-    Seq("-deprecation", "-unchecked", "-Xsource:2.11")
+    Seq("-deprecation", "-unchecked")
   }
 
   override def ivyDeps = T {
     Agg(
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
-      ivy"org.json4s::json4s-jackson:3.6.1",
+      ivy"org.json4s::json4s-jackson:3.6.6",
       ivy"org.scalatest::scalatest:3.2.0"
     ) ++ chisel3IvyDeps
   }
-
-  private val macroParadise = ivy"org.scalamacros:::paradise:2.1.1"
 
   private val chisel3Plugin = getVersion("chisel3-plugin", cross = true)
 
@@ -98,12 +96,10 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     MavenRepository("https://oss.sonatype.org/content/repositories/releases")
   )
 
-  override def compileIvyDeps = Agg(macroParadise)
-
-  override def scalacPluginIvyDeps = Agg(macroParadise) ++ (if(chisel3Module.isDefined) Agg() else Agg(chisel3Plugin))
+  override def scalacPluginIvyDeps = if(chisel3Module.isEmpty) Agg(chisel3Plugin) else Agg.empty[Dep]
 
   def publishVersion = T {
-    "1.2-SNAPSHOT"
+    "1.6.0"
   }
 
   def pomSettings = T {

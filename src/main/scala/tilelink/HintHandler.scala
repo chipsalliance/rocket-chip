@@ -23,7 +23,8 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
           else if (m.regionType != RegionType.GET_EFFECTS) m.supportsGet
           else TransferSizes.none)})})
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
@@ -156,7 +157,8 @@ class TLRAMHintHandler(txns: Int)(implicit p: Parameters) extends LazyModule {
     := model.node
     := fuzz.node)
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

@@ -5,7 +5,6 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
-import Chisel.ImplicitConversions._
 import freechips.rocketchip.util._
 import freechips.rocketchip.config.Parameters
 
@@ -103,7 +102,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
   if (cfg.divUnroll != 0) when (state === s_neg_output) {
     remainder := negated_remainder
     state := s_done_div
-    resHi := false
+    resHi := false.B
   }
   if (cfg.mulUnroll != 0) when (state === s_mul) {
     val mulReg = Cat(remainder(2*mulw+1,w+1),remainder(w-1,0))
@@ -113,17 +112,17 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
     val mpcand = divisor.asSInt
     val prod = Cat(mplierSign, mplier(cfg.mulUnroll-1, 0)).asSInt * mpcand + accum
     val nextMulReg = Cat(prod, mplier(mulw-1, cfg.mulUnroll))
-    val nextMplierSign = count === mulw/cfg.mulUnroll-2 && neg_out
+    val nextMplierSign = count === (mulw/cfg.mulUnroll-2).U && neg_out
 
-    val eOutMask = ((BigInt(-1) << mulw).S >> (count * cfg.mulUnroll)(log2Up(mulw)-1,0))(mulw-1,0)
-    val eOut = (cfg.mulEarlyOut).B && count =/= mulw/cfg.mulUnroll-1 && count =/= 0 &&
+    val eOutMask = ((BigInt(-1) << mulw).S >> (count * cfg.mulUnroll.U)(log2Up(mulw)-1,0))(mulw-1,0)
+    val eOut = (cfg.mulEarlyOut).B && count =/= (mulw/cfg.mulUnroll-1).U && count =/= 0.U &&
       !isHi && (mplier & ~eOutMask) === 0.U
-    val eOutRes = (mulReg >> (mulw - count * cfg.mulUnroll)(log2Up(mulw)-1,0))
+    val eOutRes = (mulReg >> (mulw.U - count * cfg.mulUnroll.U)(log2Up(mulw)-1,0))
     val nextMulReg1 = Cat(nextMulReg(2*mulw,mulw), Mux(eOut, eOutRes, nextMulReg)(mulw-1,0))
     remainder := Cat(nextMulReg1 >> w, nextMplierSign, nextMulReg1(w-1,0))
 
-    count := count + 1
-    when (eOut || count === mulw/cfg.mulUnroll-1) {
+    count := count + 1.U
+    when (eOut || count === (mulw/cfg.mulUnroll-1).U) {
       state := s_done_mul
       resHi := isHi
     }
@@ -134,31 +133,31 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
       val difference = if (i == 0) subtractor else rem(2*w,w) - divisor(w-1,0)
       val less = difference(w)
       Cat(Mux(less, rem(2*w-1,w), difference(w-1,0)), rem(w-1,0), !less)
-    } tail
+    }.tail
 
     remainder := unrolls.last
-    when (count === w/cfg.divUnroll) {
+    when (count === (w/cfg.divUnroll).U) {
       state := Mux(neg_out, s_neg_output, s_done_div)
       resHi := isHi
       if (w % cfg.divUnroll < cfg.divUnroll - 1)
         remainder := unrolls(w % cfg.divUnroll)
     }
-    count := count + 1
+    count := count + 1.U
 
-    val divby0 = count === 0 && !subtractor(w)
+    val divby0 = count === 0.U && !subtractor(w)
     if (cfg.divEarlyOut) {
       val align = 1 << log2Floor(cfg.divUnroll max cfg.divEarlyOutGranularity)
       val alignMask = ~((align-1).U(log2Ceil(w).W))
       val divisorMSB = Log2(divisor(w-1,0), w) & alignMask
       val dividendMSB = Log2(remainder(w-1,0), w) | ~alignMask
       val eOutPos = ~(dividendMSB - divisorMSB)
-      val eOut = count === 0 && !divby0 && eOutPos >= align
+      val eOut = count === 0.U && !divby0 && eOutPos >= align.U
       when (eOut) {
         remainder := remainder(w-1,0) << eOutPos
         count := eOutPos >> log2Floor(cfg.divUnroll)
       }
     }
-    when (divby0 && !isHi) { neg_out := false }
+    when (divby0 && !isHi) { neg_out := false.B }
   }
   when (io.resp.fire() || io.kill) {
     state := s_ready
@@ -166,8 +165,8 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
   when (io.req.fire()) {
     state := Mux(cmdMul, s_mul, Mux(lhs_sign || rhs_sign, s_neg_inputs, s_div))
     isHi := cmdHi
-    resHi := false
-    count := (if (fastMulW) Mux[UInt](cmdMul && halfWidth(io.req.bits), w/cfg.mulUnroll/2, 0) else 0)
+    resHi := false.B
+    count := (if (fastMulW) Mux[UInt](cmdMul && halfWidth(io.req.bits), (w/cfg.mulUnroll/2).U, 0.U) else 0.U)
     neg_out := Mux(cmdHi, lhs_sign, lhs_sign =/= rhs_sign)
     divisor := Cat(rhs_sign, rhs_in)
     remainder := lhs_in

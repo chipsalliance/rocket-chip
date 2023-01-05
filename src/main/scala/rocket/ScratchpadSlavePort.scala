@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
-import Chisel.ImplicitConversions._
+import chisel3._
+import chisel3.util._
+import chisel3.util.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -32,7 +33,8 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     beatBytes = coreDataBytes,
     minLatency = 1)))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val dmem = new HellaCacheIO
     })
@@ -41,31 +43,31 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
 
     val (tl_in, edge) = node.in(0)
 
-    val s_ready :: s_wait1 :: s_wait2 :: s_replay :: s_init :: s_grant :: Nil = Enum(UInt(), 6)
-    val state = Reg(init = s_init)
+    val s_ready :: s_wait1 :: s_wait2 :: s_replay :: s_init :: s_grant :: Nil = Enum(6)
+    val state = RegInit(s_init)
     val dmem_req_valid = Wire(Bool())
     when (state === s_wait1) { state := s_wait2 }
     when (state === s_init && tl_in.a.valid) { state := s_ready }
     when (io.dmem.resp.valid) { state := s_grant }
-    when (tl_in.d.fire()) { state := s_ready }
+    when (tl_in.d.fire) { state := s_ready }
     when (io.dmem.s2_nack) { state := s_replay }
     when (dmem_req_valid && io.dmem.req.ready) { state := s_wait1 }
 
-    val acq = Reg(tl_in.a.bits)
-    when (tl_in.a.fire()) { acq := tl_in.a.bits }
+    val acq = Reg(tl_in.a.bits.cloneType)
+    when (tl_in.a.fire) { acq := tl_in.a.bits }
 
     def formCacheReq(a: TLBundleA) = {
       val req = Wire(new HellaCacheReq)
-      req.cmd := MuxLookup(a.opcode, Wire(M_XRD), Array(
+      req.cmd := MuxLookup(a.opcode, M_XRD, Array(
         TLMessages.PutFullData    -> M_XWR,
         TLMessages.PutPartialData -> M_PWR,
-        TLMessages.ArithmeticData -> MuxLookup(a.param, Wire(M_XRD), Array(
+        TLMessages.ArithmeticData -> MuxLookup(a.param, M_XRD, Array(
           TLAtomics.MIN           -> M_XA_MIN,
           TLAtomics.MAX           -> M_XA_MAX,
           TLAtomics.MINU          -> M_XA_MINU,
           TLAtomics.MAXU          -> M_XA_MAXU,
           TLAtomics.ADD           -> M_XA_ADD)),
-        TLMessages.LogicalData    -> MuxLookup(a.param, Wire(M_XRD), Array(
+        TLMessages.LogicalData    -> MuxLookup(a.param, M_XRD, Array(
           TLAtomics.XOR           -> M_XA_XOR,
           TLAtomics.OR            -> M_XA_OR,
           TLAtomics.AND           -> M_XA_AND,
@@ -85,9 +87,14 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       req.size := a.size
       req.signed := false
       req.addr := a.address
-      req.tag := UInt(0)
+      req.tag := 0.U
       req.phys := true
       req.no_xcpt := true
+      req.data := 0.U
+      req.no_alloc := false.B
+      req.mask := 0.U
+      req.dprv := 0.U
+      req.dv := false.B
       req
     }
 
@@ -110,12 +117,12 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),
       edge.AccessAck(acq),
-      edge.AccessAck(acq, UInt(0)))
+      edge.AccessAck(acq, 0.U))
     tl_in.d.bits.data := io.dmem.resp.bits.data_raw.holdUnless(state === s_wait2)
 
     // Tie off unused channels
-    tl_in.b.valid := Bool(false)
-    tl_in.c.ready := Bool(true)
-    tl_in.e.ready := Bool(true)
+    tl_in.b.valid := false.B
+    tl_in.c.ready := true.B
+    tl_in.e.ready := true.B
   }
 }

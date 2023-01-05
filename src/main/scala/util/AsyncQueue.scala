@@ -50,7 +50,7 @@ object GrayCounter {
   def apply(bits: Int, increment: Bool = true.B, clear: Bool = false.B, name: String = "binary"): UInt = {
     val incremented = Wire(UInt(bits.W))
     val binary = RegNext(next=incremented, init=0.U).suggestName(name)
-    incremented := Mux(clear, 0.U, binary + increment.asUInt())
+    incremented := Mux(clear, 0.U, binary + increment.asUInt)
     incremented ^ (incremented >> 1)
   }
 }

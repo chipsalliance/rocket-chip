@@ -14,7 +14,8 @@ class ClockDivider(div: Int)(implicit p: Parameters) extends LazyModule {
     sourceFn = { case src => src.copy(give = src.give.map(x => x.copy(freqMHz = x.freqMHz / div))) },
     sinkFn   = { case snk => snk.copy(take = snk.take.map(x => x.copy(freqMHz = x.freqMHz * div))) })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out).foreach { case ((in, _), (out, _)) =>
       val div_clock: Clock = div match {
         case x if isPow2(x) => Pow2ClockDivider(in.clock, x)

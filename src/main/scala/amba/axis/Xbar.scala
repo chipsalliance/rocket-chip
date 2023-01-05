@@ -24,7 +24,8 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
         slaves = (AXISXbar.mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
           port.slaves.map { slave => slave.v1copy(destinationId = slave.destinationId + range.start)}})})
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (io_in, edgesIn) = node.in.unzip
     val (io_out, edgesOut) = node.out.unzip
 

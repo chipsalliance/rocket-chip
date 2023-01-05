@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 
 object AXI4Parameters
 {
@@ -16,21 +16,21 @@ object AXI4Parameters
   val qosBits   = 4
   val respBits  = 2
 
-  def CACHE_RALLOCATE  = UInt(8, width = cacheBits)
-  def CACHE_WALLOCATE  = UInt(4, width = cacheBits)
-  def CACHE_MODIFIABLE = UInt(2, width = cacheBits)
-  def CACHE_BUFFERABLE = UInt(1, width = cacheBits)
+  def CACHE_RALLOCATE  = 8.U(cacheBits.W)
+  def CACHE_WALLOCATE  = 4.U(cacheBits.W)
+  def CACHE_MODIFIABLE = 2.U(cacheBits.W)
+  def CACHE_BUFFERABLE = 1.U(cacheBits.W)
 
-  def PROT_PRIVILEGED  = UInt(1, width = protBits)
-  def PROT_INSECURE    = UInt(2, width = protBits)
-  def PROT_INSTRUCTION = UInt(4, width = protBits)
+  def PROT_PRIVILEGED = 1.U(protBits.W)
+  def PROT_INSECURE    = 2.U(protBits.W)
+  def PROT_INSTRUCTION = 4.U(protBits.W)
 
-  def BURST_FIXED = UInt(0, width = burstBits)
-  def BURST_INCR  = UInt(1, width = burstBits)
-  def BURST_WRAP  = UInt(2, width = burstBits)
+  def BURST_FIXED = 0.U(burstBits.W)
+  def BURST_INCR  = 1.U(burstBits.W)
+  def BURST_WRAP  = 2.U(burstBits.W)
 
-  def RESP_OKAY   = UInt(0, width = respBits)
-  def RESP_EXOKAY = UInt(1, width = respBits)
-  def RESP_SLVERR = UInt(2, width = respBits)
-  def RESP_DECERR = UInt(3, width = respBits)
+  def RESP_OKAY   = 0.U(respBits.W)
+  def RESP_EXOKAY = 1.U(respBits.W)
+  def RESP_SLVERR = 2.U(respBits.W)
+  def RESP_DECERR = 3.U(respBits.W)
 }

@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -19,7 +18,8 @@ class IntXbar()(implicit p: Parameters) extends LazyModule
     override def circuitIdentity = outputs == 1 && inputs == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val cat = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
     intnode.out.foreach { case (o, _) => o := cat }
   }

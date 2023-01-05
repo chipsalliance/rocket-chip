@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.amba.apb
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -31,7 +32,8 @@ class APBRAM(
 
   private val outer = this
 
-  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, _) = node.in(0)
     val laneDataBits = 8
     val mem = makeSinglePortedByteWriteSeqMem(
@@ -46,11 +48,11 @@ class APBRAM(
 
     val read = in.psel && !in.penable && !in.pwrite
     when (in.psel && !in.penable && in.pwrite && legal) {
-      mem.write(paddr, Vec.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.asBools)
+      mem.write(paddr, VecInit.tabulate(beatBytes) { i => in.pwdata(8*(i+1)-1, 8*i) }, in.pstrb.asBools)
     }
 
-    in.pready  := Bool(!fuzzReady) || LFSRNoiseMaker(1)(0)
-    in.pslverr := RegEnable(!legal, !in.penable) || (Bool(fuzzError) && LFSRNoiseMaker(1)(0))
+    in.pready  := !fuzzReady.B || LFSRNoiseMaker(1)(0)
+    in.pslverr := RegEnable(!legal, !in.penable) || (fuzzError.B && LFSRNoiseMaker(1)(0))
     in.prdata  := mem.readAndHold(paddr, read).asUInt
   }
 }

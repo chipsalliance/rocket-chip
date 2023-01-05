@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -30,7 +30,8 @@ class AXI4LiteFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   ram.node  := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(true ) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
   gpio.node := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(false) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -52,7 +53,8 @@ class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyMod
   ram.node  := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(true ) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
   gpio.node := AXI4UserYanker() := AXI4IdIndexer(0) := TLToAXI4(false) := TLFragmenter(4, 16, holdFirstDeny=true) := xbar.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -74,7 +76,8 @@ class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
   ram.node  := AXI4Fragmenter() := AXI4Deinterleaver(16) := TLToAXI4(false) := xbar.node
   gpio.node := AXI4Fragmenter() := AXI4Deinterleaver(16) := TLToAXI4(true ) := xbar.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -107,9 +110,10 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
     := model.node
     := fuzz.node)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val finished = Bool(OUTPUT)
+      val finished = Output(Bool())
     })
 
     io.finished := fuzz.module.io.finished
@@ -145,7 +149,8 @@ class AXI4FuzzBridge(txns: Int)(implicit p: Parameters) extends LazyModule
 
   slave.node := master.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := master.module.io.finished
   }
 }

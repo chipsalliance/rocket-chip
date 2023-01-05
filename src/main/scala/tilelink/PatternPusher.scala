@@ -36,7 +36,8 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
 {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(name = name)))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val run = Bool(INPUT)
       val done = Bool(OUTPUT)

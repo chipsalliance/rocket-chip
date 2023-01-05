@@ -13,12 +13,13 @@ on:
   pull_request:
     branches:
       - master
+      - chisel3_port
 
 
 jobs:
   prepare-riscv-tools-cache:
     name: Prepare riscv-tools Cache
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
 
@@ -43,7 +44,7 @@ jobs:
 
   prepare-verilator-cache:
     name: Prepare Verilator Cache
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
 
@@ -68,7 +69,7 @@ jobs:
   # bucket is located in a shell script at ./regression/run-test-bucket.
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: [prepare-riscv-tools-cache, prepare-verilator-cache]
     strategy:
       fail-fast: false

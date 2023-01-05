@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -21,7 +21,8 @@ class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends
 
   val node = AXI4AsyncSourceNode(sync)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val psync = sync.getOrElse(edgeOut.slave.async.sync)
       val params = edgeOut.slave.async.copy(sync = psync)
@@ -43,7 +44,8 @@ class AXI4AsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(impli
 {
   val node = AXI4AsyncSinkNode(params)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.ar <> FromAsyncBundle(in.ar, params.sync)
       out.aw <> FromAsyncBundle(in.aw, params.sync)
@@ -81,12 +83,13 @@ class AXI4AsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit 
 
   sink.node := source.node
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val in_clock  = Clock(INPUT)
-      val in_reset  = Bool(INPUT)
-      val out_clock = Clock(INPUT)
-      val out_reset = Bool(INPUT)
+      val in_clock  = Input(Clock())
+      val in_reset  = Input(Bool())
+      val out_clock = Input(Clock())
+      val out_reset = Input(Bool())
     })
 
     source.module.clock := io.in_clock
@@ -116,7 +119,8 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
   toaxi.node := model.node
   island.crossAXI4In(ram.node) := toaxi.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain

@@ -80,7 +80,8 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
     beatBytes = x.beatBytes,
     device    = new SimpleDevice("cache-controller", Seq("sifive,broadcast0"))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (ints, fields) = node.in.zip(node.out).zipWithIndex.map { case (((in, edgeIn), (out, edgeOut)), bankIndex) =>
       val clients = edgeIn.client.clients
       val managers = edgeOut.manager.managers
@@ -134,7 +135,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       }
       val d_mshr = OHToUInt(d_trackerOH)
       d_normal.bits.sink := d_mshr
-      assert (!d_normal.valid || (d_trackerOH.orR() || d_normal.bits.opcode === TLMessages.ReleaseAck))
+      assert (!d_normal.valid || (d_trackerOH.orR || d_normal.bits.opcode === TLMessages.ReleaseAck))
 
       // A tracker response is anything neither dropped nor a ReleaseAck
       val d_response = d_hasData || !d_what(1)
@@ -216,7 +217,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val probe_line = Reg(UInt())
       val probe_perms = Reg(UInt(2.W))
       val probe_next = probe_todo & ~(leftOR(probe_todo) << 1)
-      val probe_busy = probe_todo.orR()
+      val probe_busy = probe_todo.orR
       val probe_target = if (caches.size == 0) 0.U else Mux1H(probe_next, cache_targets)
 
       // Probe whatever the FSM wants to do next
@@ -232,13 +233,13 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
       val freeTrackers = VecInit(trackers.map { t => t.idle }).asUInt
-      val freeTracker = freeTrackers.orR()
+      val freeTracker = freeTrackers.orR
       val matchTrackers = VecInit(trackers.map { t => t.line === in.a.bits.address >> lineShift }).asUInt
-      val matchTracker = matchTrackers.orR()
+      val matchTracker = matchTrackers.orR
       val allocTracker = freeTrackers & ~(leftOR(freeTrackers) << 1)
       val selectTracker = Mux(matchTracker, matchTrackers, allocTracker)
       val trackerReadys = VecInit(trackers.map(_.in_a.ready)).asUInt
-      val trackerReady = (selectTracker & trackerReadys).orR()
+      val trackerReady = (selectTracker & trackerReadys).orR
 
       in.a.ready := (!a_first || filter.io.request.ready) && trackerReady
       (trackers zip selectTracker.asBools) foreach { case (t, select) =>
@@ -352,7 +353,7 @@ class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
 
 abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
   def useRegFields(bankIndex: Int): Seq[RegField.Map] = Nil
-  def tieRegFields(bankIndex: Int): Unit = Unit
+  def tieRegFields(bankIndex: Int): Unit = ()
   val io = IO(new ProbeFilterIO(params))
 }
 

@@ -13,7 +13,8 @@ class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)
       minLatency = if (buffer) 1 else 0,
       beatBytes, new SimpleDevice("error-device", Seq("sifive,error0")))
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     import TLMessages._
     import TLPermissions._
 
