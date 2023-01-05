@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util.log2Ceil
 import scala.reflect.ClassTag
 
 /* MuxLiteral creates a lookup table from a key to a list of values.
@@ -45,12 +46,12 @@ object MuxTable
       /* The dense encoding case uses a Vec */
       val table = Array.fill(endIndex.toInt) { default }
       simple.foreach { case (k, v) => table(k.toInt) = v }
-      Mux(index >= UInt(endIndex), default, Vec(table)(index))
+      Mux(index >= endIndex.U, default, VecInit(table)(index))
     } else {
       /* The sparse encoding case uses switch */
-      val out = Wire(init = default)
+      val out = WireDefault(default)
       simple.foldLeft(new chisel3.util.SwitchContext(index, None, Set.empty)) { case (acc, (k, v)) =>
-        acc.is (UInt(k)) { out := v }
+        acc.is (k.U) { out := v }
       }
       out
     }
