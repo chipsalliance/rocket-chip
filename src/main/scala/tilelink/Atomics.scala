@@ -23,7 +23,7 @@ class Atomics(params: TLBundleParameters) extends Module
   val signBit = io.a.mask & Cat(UInt(1), ~io.a.mask >> 1)
   val inv_d = Mux(adder, io.data_in, ~io.data_in)
   val sum = (FillInterleaved(8, io.a.mask) & io.a.data) + inv_d
-  def sign(x: UInt): Bool = (Cat(x.asBools.grouped(8).map(_.last).toList.reverse) & signBit).orR()
+  def sign(x: UInt): Bool = (Cat(x.asBools.grouped(8).map(_.last).toList.reverse) & signBit).orR
   val sign_a = sign(io.a.data)
   val sign_d = sign(io.data_in)
   val sign_s = sign(sum)

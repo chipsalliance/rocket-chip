@@ -23,7 +23,7 @@ class IDMapGenerator(numIds: Int) extends Module {
 
   val select = ~(leftOR(bitmap) << 1) & bitmap
   io.alloc.bits := OHToUInt(select)
-  io.alloc.valid := bitmap.orR()
+  io.alloc.valid := bitmap.orR
 
   val clr = Wire(init = UInt(0, width = numIds))
   when (io.alloc.fire()) { clr := UIntToOH(io.alloc.bits) }

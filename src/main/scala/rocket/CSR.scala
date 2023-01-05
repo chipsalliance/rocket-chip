@@ -604,7 +604,7 @@ class CSRFile(
     (if (usingUser) "U" else "")
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
   val reg_misa = RegInit(isaMax.U)
-  val read_mstatus = io.status.asUInt()(xLen-1,0)
+  val read_mstatus = io.status.asUInt.extract(xLen-1,0)
   val read_mtvec = formTVec(reg_mtvec).padTo(xLen)
   val read_stvec = formTVec(reg_stvec).sextTo(xLen)
 
@@ -719,7 +719,7 @@ class CSRFile(
     read_sstatus.spie := io.status.spie
     read_sstatus.sie := io.status.sie
 
-    read_mapping += CSRs.sstatus -> (read_sstatus.asUInt())(xLen-1,0)
+    read_mapping += CSRs.sstatus -> (read_sstatus.asUInt)(xLen-1,0)
     read_mapping += CSRs.sip -> read_sip.asUInt
     read_mapping += CSRs.sie -> read_sie.asUInt
     read_mapping += CSRs.sscratch -> reg_sscratch
@@ -757,7 +757,7 @@ class CSRFile(
     read_mapping += CSRs.mtinst -> 0.U
     read_mapping += CSRs.mtval2 -> reg_mtval2
 
-    val read_hstatus = io.hstatus.asUInt()(xLen-1,0)
+    val read_hstatus = io.hstatus.asUInt.extract(xLen-1,0)
 
     read_mapping += CSRs.hstatus -> read_hstatus
     read_mapping += CSRs.hedeleg -> read_hedeleg
@@ -776,7 +776,7 @@ class CSRFile(
     val read_vsip = (read_hip & read_hideleg) >> 1
     val read_vsepc = readEPC(reg_vsepc).sextTo(xLen)
     val read_vstval = reg_vstval.sextTo(xLen)
-    val read_vsstatus = io.gstatus.asUInt()(xLen-1,0)
+    val read_vsstatus = io.gstatus.asUInt.extract(xLen-1,0)
 
     read_mapping += CSRs.vsstatus -> read_vsstatus
     read_mapping += CSRs.vsip -> read_vsip
