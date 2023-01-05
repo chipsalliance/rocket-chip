@@ -175,6 +175,8 @@ class Emulator(top: String, config: String) extends ScalaModule {
         // format: off
         "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH",
         "--x-assign unique",
+        """+define+PRINTF_COND=\$c\(\"verbose\",\"&&\",\"done_reset\"\)""",
+        """+define+STOP_COND=\$c\(\"done_reset\"\)""",
         "+define+RANDOMIZE_GARBAGE_ASSIGN",
         "--output-split 20000",
         "--output-split-cfuncs 20000",
