@@ -444,7 +444,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     // refill with r_pte(leaf pte)
     when (l2_refill && !invalidated) {
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
-      entry := r_pte
+      entry.ppn := r_pte.ppn
+      entry.d := r_pte.d
+      entry.a := r_pte.a
+      entry.u := r_pte.u
+      entry.x := r_pte.x
+      entry.w := r_pte.w
+      entry.r := r_pte.r
       entry.tag := r_tag
       // if all the way are valid, use plru to select one way to be replaced,
       // otherwise use PriorityEncoderOH to select one
@@ -493,9 +499,18 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
 
     val s2_pte = Wire(new PTE)
-    s2_pte   := Mux1H(s2_hit_vec, s2_entry_vec)
+    val s2_hit_entry = Mux1H(s2_hit_vec, s2_entry_vec)
+    s2_pte.ppn := s2_hit_entry.ppn
+    s2_pte.d := s2_hit_entry.d
+    s2_pte.a := s2_hit_entry.a
     s2_pte.g := Mux1H(s2_hit_vec, s2_g_vec)
+    s2_pte.u := s2_hit_entry.u
+    s2_pte.x := s2_hit_entry.x
+    s2_pte.w := s2_hit_entry.w
+    s2_pte.r := s2_hit_entry.r
     s2_pte.v := true.B
+    s2_pte.reserved_for_future := 0.U
+    s2_pte.reserved_for_software := 0.U
 
     for (way <- 0 until coreParams.nL2TLBWays) {
       ccover(s2_hit && s2_hit_vec(way), s"L2_TLB_HIT_WAY$way", s"L2 TLB hit way$way")
