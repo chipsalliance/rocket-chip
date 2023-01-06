@@ -615,22 +615,22 @@ class ZBS32Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
     Instructions32.BCLRI ->
-                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BCLR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BCLR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     Instructions32.BEXTI ->
-                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BEXT,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BEXT,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     Instructions32.BINVI ->
-                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BINV,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BINV,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     Instructions32.BSETI ->
-                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BSET,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BSET,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 class ZBS64Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    BCLRI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BCLR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    BEXTI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BEXT,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    BINVI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BINV,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    BSETI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X  ,A1_RS1, IMM_I, DW_XPR,alu.FN_BSET,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+    BCLRI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BCLR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BEXTI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BEXT,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BINVI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BINV,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BSETI ->    List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_IMM,A1_RS1, IMM_I, DW_XPR,alu.FN_BSET,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
 class ZKND32Decode(implicit val p: Parameters) extends DecodeConstants
