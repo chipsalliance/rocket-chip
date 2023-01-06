@@ -62,6 +62,8 @@ object emulator extends mill.Cross[Emulator](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitmanipCryptoConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitmanipCrypto32Config"),
   // Misc
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultSmallConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualBankConfig"),
@@ -338,6 +340,9 @@ object `runnable-arch-test` extends mill.Cross[ArchTest](
   // zicsr is disabled due to ebreak issue
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMAC"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMAC"),
+
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitmanipCryptoConfig", "64", "RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitmanipCrypto32Config", "32", "RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
 )
 class ArchTest(top: String, config: String, xlen: String, isa: String) extends Module {
   def ispecString = T {
