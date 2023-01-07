@@ -177,7 +177,8 @@ class emulator(pluginTemplate):
 
       # once the make-targets are done and the makefile has been created, run all the targets in
       # parallel using the make command set above.
-      make.execute_all(self.work_dir)
+      # timeout of 2 hour
+      make.execute_all(self.work_dir, timeout=7200)
 
       # if target runs are not required then we simply exit as this point after running all
       # the makefile targets.
