@@ -7,6 +7,7 @@ package chisel3.shim
 
 import Chisel._
 import chisel3.experimental.BaseModule
+import chisel3.reflect.DataMirror
 import chisel3.{RawModule, Module}
 import chisel3.internal.Builder
 import chisel3.internal.firrtl.{Command, DefInstance}
@@ -23,7 +24,7 @@ class ClonePorts protected[shim](elts: Data*) extends Record
 class CloneModule private (model: RawModule) extends BlackBox
 {
   override def desiredName = model.name
-  val io = IO(new ClonePorts(model.getPorts.map(_.id): _*))
+  val io = IO(new ClonePorts(DataMirror.modulePorts(model).map(_._2): _*))
 }
 
 object CloneModule
