@@ -1,0 +1,61 @@
+# This file describes the GitHub Actions workflow for continuous integration of rocket-chip.
+#
+# See
+# https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# for API reference documentation on this file format.
+
+name: Mill Continuous Integration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+      - chisel3_port
+
+jobs:
+  riscv-test:
+    name: riscv-tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [DefaultConfig, DefaultBufferlessConfig, DefaultRV32Config, TinyConfig]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - uses: cachix/install-nix-action@v14.1
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Coursier Cache
+        uses: coursier/cache-action@v5
+
+      - name: run riscv-tests
+        run: |
+          nix --experimental-features 'nix-command flakes' develop -c mill -i -j 0 "runnable-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }},_,_].run"
+
+  emulator:
+    name: emulator
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [DefaultSmallConfig, DualBankConfig, DualChannelConfig, DualChannelDualBankConfig, RoccExampleConfig, Edge128BitConfig, Edge32BitConfig, QuadChannelBenchmarkConfig, EightChannelConfig, DualCoreConfig, MemPortOnlyConfig, MMIOPortOnlyConfig, CloneTileConfig]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - uses: cachix/install-nix-action@v14.1
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Coursier Cache
+        uses: coursier/cache-action@v5
+
+      - name: compile emulator
+        run: |
+          nix --experimental-features 'nix-command flakes' develop -c mill -i "emulator[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }}].elf"
