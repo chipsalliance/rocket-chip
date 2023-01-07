@@ -20,7 +20,7 @@ trait UnitTestLegacyModule extends HasUnitTestIO {
   val io = new Bundle with UnitTestIO
 }
 
-trait UnitTestModule extends MultiIOModule with HasUnitTestIO {
+trait UnitTestModule extends Module with HasUnitTestIO {
   val io = IO(new Bundle with UnitTestIO)
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
 }
