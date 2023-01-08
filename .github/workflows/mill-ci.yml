@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: [DefaultConfig, DefaultBufferlessConfig, DefaultRV32Config, TinyConfig]
+        config: [DefaultConfig, DefaultBufferlessConfig, DefaultRV32Config, TinyConfig, DefaultFP16Config]
     steps:
       - uses: actions/checkout@v2
         with:
