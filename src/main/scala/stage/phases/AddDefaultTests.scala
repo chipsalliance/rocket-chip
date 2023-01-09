@@ -82,11 +82,15 @@ class AddDefaultTests extends Phase with PreservesAll[Phase] with HasRocketChipS
           tests ++= env.map(rv32uf)
           if (cfg.fLen >= 64)
             tests ++= env.map(rv32ud)
+          if (cfg.minFLen <= 16)
+            tests ++= env.map(rv32uzfh)
         } else {
           tests += rv32udBenchmarks
           tests ++= env.map(rv64uf)
           if (cfg.fLen >= 64)
             tests ++= env.map(rv64ud)
+          if (cfg.minFLen <= 16)
+            tests ++= env.map(rv64uzfh)
         }
       }
       if (coreParams.useAtomics) {
