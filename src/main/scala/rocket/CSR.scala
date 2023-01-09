@@ -675,10 +675,10 @@ class CSRFile(
                          zip reg_hpmcounter.map(x => x: UInt).padTo(CSR.nHPM, 0.U)).zipWithIndex) {
       read_mapping += (i + CSR.firstHPE) -> e // mhpmeventN
       read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
-      if (usingUser) read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
+      read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
       if (xLen == 32) {
         read_mapping += (i + CSR.firstMHPCH) -> (c >> 32) // mhpmcounterNh
-        if (usingUser) read_mapping += (i + CSR.firstHPCH) -> (c >> 32) // hpmcounterNh
+        read_mapping += (i + CSR.firstHPCH) -> (c >> 32) // hpmcounterNh
       }
     }
 
