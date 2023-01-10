@@ -290,6 +290,16 @@ class WithRV32 extends Config((site, here, up) => {
         mulDiv = Some(MulDivParams(mulUnroll = 8)))))}
 })
 
+class WithFP16 extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(
+        fpu = tp.tileParams.core.fpu.map(_.copy(minFLen = 16))
+      )
+    ))
+  }
+})
+
 class WithNonblockingL1(nMSHRs: Int) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(

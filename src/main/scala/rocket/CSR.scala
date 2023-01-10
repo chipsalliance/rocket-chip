@@ -683,17 +683,15 @@ class CSRFile(
 
     if (usingUser) {
       read_mapping += CSRs.mcounteren -> read_mcounteren
-      read_mapping += CSRs.cycle -> reg_cycle
-      read_mapping += CSRs.instret -> reg_instret
     }
+    read_mapping += CSRs.cycle -> reg_cycle
+    read_mapping += CSRs.instret -> reg_instret
 
     if (xLen == 32) {
       read_mapping += CSRs.mcycleh -> (reg_cycle >> 32)
       read_mapping += CSRs.minstreth -> (reg_instret >> 32)
-      if (usingUser) {
-        read_mapping += CSRs.cycleh -> (reg_cycle >> 32)
-        read_mapping += CSRs.instreth -> (reg_instret >> 32)
-      }
+      read_mapping += CSRs.cycleh -> (reg_cycle >> 32)
+      read_mapping += CSRs.instreth -> (reg_instret >> 32)
     }
   }
 

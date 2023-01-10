@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: [DefaultConfig, DefaultBufferlessConfig, DefaultRV32Config, TinyConfig]
+        config: [DefaultConfig, DefaultBufferlessConfig, DefaultRV32Config, TinyConfig, DefaultFP16Config]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -59,3 +59,37 @@ jobs:
       - name: compile emulator
         run: |
           nix --experimental-features 'nix-command flakes' develop -c mill -i "emulator[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }}].elf"
+
+  riscv-arch-test:
+    name: riscv-arch-test
+    runs-on: [self-hosted, linux]
+    strategy:
+      matrix:
+        config: ["DefaultRV32Config,32,RV32IMAC", "DefaultConfig,64,RV64IMAC"]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: install nix
+        run : |
+          # cleanup
+          rm -rf /etc/*.backup-before-nix
+          rm -rf /etc/profile.d/nix.sh.backup-before-nix
+          # from https://github.com/cachix/install-nix-action/issues/122#issuecomment-1062065844
+          sh <(curl -L https://nixos.org/nix/install) --daemon --no-channel-add
+          mkdir -p ~/.config/nix
+          touch ~/.config/nix/nix.conf
+          echo "max-jobs = auto" >> ~/.config/nix/nix.conf
+          echo "cores = 0" >> ~/.config/nix/nix.conf
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+          echo "/nix/var/nix/profiles/per-user/$USER/profile/bin" >> "$GITHUB_PATH"
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+          echo "NIX_PATH=nixpkgs=channel:nixos-unstable" >> "$GITHUB_ENV"
+
+      - name: Coursier Cache
+        uses: coursier/cache-action@v6
+
+      - name: run riscv-arch-test
+        run: |
+          nix develop -c mill -i -j 0 "runnable-arch-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }}].run"
