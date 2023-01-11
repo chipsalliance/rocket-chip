@@ -77,6 +77,6 @@ Please see the Github documentation for [Pull Requests](https://help.github.com/
 
 Because Chisel and FIRRTL have mature release processes, Rocket Chip uses the published artifacts.
 
-To bump the published dependencies, bump the versions at the top of the SBT build file: [build.sbt](build.sbt).
+To bump the published dependencies, bump the versions at the top of the Mill build file: [build.sc](build.sc).
 Typically, the SBT dependency will only list a version for Chisel 3 which itself depends on FIRRTL.
 
