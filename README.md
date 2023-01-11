@@ -85,20 +85,6 @@ To generate FPGA- or VLSI-synthesizable Verilog (output will be in `vsim/generat
     $ cd vsim
     $ make verilog
 
-To run the Scala tests (`sbt test`) or linter (`sbt scalafix`):
-
-    $ cd regression
-
-    # Scala tests
-    $ make scalatest SUITE=foo
-
-    # Scala linter, automatically modifying files to correct issues
-    $ make scalafix SUITE=foo
-
-    # Scala linter, only printing out issues
-    $ make scalafix-check SUITE=foo
-
-
 ### Keeping Your Repo Up-to-Date
 
 If you are trying to keep your repo up to date with this GitHub repo,
@@ -220,8 +206,6 @@ C sources for use with Verilator simulation.
 Documentation, tutorials, etc for specific parts of the codebase.
 * **emulator**
 Directory in which Verilator simulations are compiled and run.
-* **project**
-Directory used by SBT for Scala compilation and build.
 * **regression**
 Defines continuous integration and nightly regression suites.
 * **scripts**
@@ -687,10 +671,13 @@ Further information about GDB debugging is available [here](https://sourceware.o
 
 ## <a name="ide"></a> Building Rocket Chip with an IDE
 
-The Rocket Chip Scala build uses the standard Scala build tool SBT.
+The Rocket Chip Scala build uses [mill](https://github.com/com-lihaoyi/mill) as build tool.
 IDEs like [IntelliJ](https://www.jetbrains.com/idea/) and [VSCode](https://code.visualstudio.com/)
-are popular in the Scala community and work with Rocket Chip.
-To use one of these IDEs, there is one minor peculiarity of the Rocket Chip build that must be addressed.
+are popular in the Scala community and work with Rocket Chip. Use:
+```
+mill mill.bsp.BSP/install
+```
+to use one of these IDEs, there is one minor peculiarity of the Rocket Chip build that must be addressed.
 
 ## <a name="contributors"></a> Contributors
 

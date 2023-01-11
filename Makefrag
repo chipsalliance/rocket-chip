@@ -25,7 +25,7 @@ EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
 COMMA := ,
 
-SBT ?= java -Xmx$(JVM_MEMORY) -Xss8M -jar $(base_dir)/sbt-launch.jar
+MILL ?= mill
 SHELL := /bin/bash
 
 FIRRTL_TRANSFORMS := \
@@ -37,16 +37,14 @@ JAVA ?= java -Xmx$(JVM_MEMORY) -Xss8M
 FIRRTL ?= $(JAVA) -cp $(ROCKET_CHIP_JAR) firrtl.stage.FirrtlMain
 GENERATOR ?= $(JAVA) -cp $(ROCKET_CHIP_JAR) $(PROJECT).Generator
 
-# Extracting this information from SBT would be more robust
-# api-config-chipsalliance does not use standard SBT src/main/scala, but has no resources
-scala_srcs := $(shell find $(base_dir) -name "*.scala" -o -name "*.sbt")
+scala_srcs := $(shell find $(base_dir) -name "*.scala" -o -name "*.sc")
 resource_dirs := $(shell find $(base_dir) -type d -path "*/src/main/resources")
 resources := $(foreach d,$(resource_dirs),$(shell find $(d) -type f))
 all_srcs := $(scala_srcs) $(resources)
 
-ROCKET_CHIP_JAR := $(base_dir)/rocketchip.jar
+ROCKET_CHIP_JAR := $(base_dir)/out/rocketchip/assembly.dest/out.jar
 $(ROCKET_CHIP_JAR): $(all_srcs)
-	cd $(base_dir) && $(SBT) assembly
+	cd $(base_dir) && $(MILL) rocketchip.assembly
 
 rc_resource_dir := $(base_dir)/src/main/resources
 csrc := $(rc_resource_dir)/csrc

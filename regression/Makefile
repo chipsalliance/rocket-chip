@@ -335,19 +335,3 @@ emulator-jtag-dtm-tests-64 : $(EMULATOR_JTAG_DTM_64_TEST_STAMPS)
 # Targets for JTAG DTM full-chain simulation
 vsim-jtag-dtm-regression: vsim-jtag-dtm-tests-32 vsim-jtag-dtm-tests-64
 emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests-64
-
-# Target to run Scalatest regressions 'sbt test'
-.PHONY: scalatest
-scalatest: stamps/other-submodules.stamp $(all_srcs)
-	(cd $(base_dir) && $(SBT) $(SBT_OPTS) test)
-
-# Target to run Scalafix 'sbt scalafix'
-.PHONY: scalafix
-scalafix: stamps/other-submodules.stamp $(all_srcs)
-	(cd $(base_dir) && $(SBT) $(SBT_OPTS) scalafix)
-
-# Target to run Scalafix 'sbt scalafix --check', which will not actually modify
-# Scala files.
-.PHONY: scalafix-check
-scalafix-check: stamps/other-submodules.stamp $(all_srcs)
-	(cd $(base_dir) && $(SBT) $(SBT_OPTS) 'scalafix --check')
