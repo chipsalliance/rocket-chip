@@ -266,7 +266,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   pma_checker.io <> DontCare
   pma_checker.io.req.bits.passthrough := true.B
-  pma_checker.io.req.bits <> s1_req
+  pma_checker.io.req.bits.vaddr := s1_req.addr
+  pma_checker.io.req.bits.size := s1_req.size
+  pma_checker.io.req.bits.cmd := s1_req.cmd
+  pma_checker.io.req.bits.prv := s1_req.dprv
+  pma_checker.io.req.bits.v := s1_req.dv
 
   val s1_paddr = Cat(Mux(s1_tlb_req_valid, s1_req.addr(paddrBits-1, pgIdxBits), tlb.io.resp.paddr >> pgIdxBits), s1_req.addr(pgIdxBits-1, 0))
   val s1_victim_way = Wire(UInt())
