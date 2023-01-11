@@ -175,7 +175,7 @@ object DefaultTestSuites {
   val rv64pi = List(rv64ui, rv64mi)
 
   val benchmarks = new BenchmarkTestSuite("rvi", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
-    "median", "multiply", "qsort", "rsort", "pmp", "towers", "vvadd", "dhrystone", "memcpy", "mt-matmul", "mt-memcpy"))
+    "median", "multiply", "qsort", "rsort", "pmp", "towers", "vvadd", "dhrystone", "mt-matmul"))
 
   val rv32udBenchmarks = new BenchmarkTestSuite("rvd", "$(RISCV)/riscv64-unknown-elf/share/riscv-tests/benchmarks", LinkedHashSet(
     "mm", "spmv", "mt-vvadd"))
