@@ -79,6 +79,7 @@ jobs:
         bucket: [1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v2
+        submodules: true
 
       - name: Use riscv-tools Cache
         uses: actions/cache@v2
@@ -87,7 +88,6 @@ jobs:
             ./regression/install
             ./regression/stamps/rocket-tools_checkout.stamp
           key: riscv-tools-${{ hashFiles('./riscv-tools.hash') }}-v2
-
       - name: Use Verilator Cache
         uses: actions/cache@v2
         with:
@@ -106,6 +106,9 @@ jobs:
         run: |
           sudo xargs apt-get install -y < .github/workflows/apt-packages.txt
           python3 -m pip install pexpect==4.3.1
+
+      - name: Set up Mill
+        uses: jodersky/setup-mill@v0.3.0
 
       - env:
           CXX: g++
