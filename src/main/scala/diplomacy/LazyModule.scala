@@ -458,7 +458,7 @@ object LazyScope {
     * @param p       [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
-    apply(valName.toString, "SimpleLazyModule", None)(body)(p)
+    apply(valName.name, "SimpleLazyModule", None)(body)(p)
   }
 
   /** Create a [[LazyScope]] with an explicitly defined instance name.
