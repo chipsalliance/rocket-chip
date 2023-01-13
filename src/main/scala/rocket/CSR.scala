@@ -964,6 +964,7 @@ class CSRFile(
   assert(!reg_singleStepped || io.retire === 0.U)
 
   val epc = formEPC(io.pc)
+  val tval = Mux(insn_break, epc, io.tval)
 
   when (exception) {
     when (trapToDebug) {
@@ -991,7 +992,7 @@ class CSRFile(
       reg_vsstatus.spp := reg_mstatus.prv
       reg_vsepc := epc
       reg_vscause := Mux(cause(xLen-1), Cat(cause(xLen-1, 2), 1.U(2.W)), cause)
-      reg_vstval := io.tval
+      reg_vstval := tval
       reg_vsstatus.spie := reg_vsstatus.sie
       reg_vsstatus.sie := false.B
       new_prv := PRV.S.U
@@ -1002,7 +1003,7 @@ class CSRFile(
       reg_hstatus.spv := reg_mstatus.v
       reg_sepc := epc
       reg_scause := cause
-      reg_stval := io.tval
+      reg_stval := tval
       reg_htval := io.htval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
@@ -1014,7 +1015,7 @@ class CSRFile(
       reg_mstatus.gva := io.gva
       reg_mepc := epc
       reg_mcause := cause
-      reg_mtval := io.tval
+      reg_mtval := tval
       reg_mtval2 := io.htval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
