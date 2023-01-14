@@ -57,6 +57,7 @@ trait CoreParams {
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def hasSupervisorMode: Boolean = useSupervisor || useVM
+  def hasBitManipCrypto: Boolean = useBitManipCrypto || useCryptoNIST || useCryptoSM
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
@@ -83,7 +84,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
   val usingBitManip = coreParams.useBitManip
-  val usingBitManipCrypto = coreParams.useBitManipCrypto || coreParams.useCryptoNIST || coreParams.useCryptoSM
+  val usingBitManipCrypto = coreParams.hasBitManipCrypto
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
   val usingCryptoNIST = coreParams.useCryptoNIST
