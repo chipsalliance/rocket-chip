@@ -65,7 +65,7 @@ jobs:
     runs-on: [self-hosted, linux]
     strategy:
       matrix:
-        config: ["DefaultRV32Config,32,RV32IMAC", "DefaultConfig,64,RV64IMAC"]
+        config: ["DefaultRV32Config,32,RV32IMACZicsr_Zifencei", "DefaultConfig,64,RV64IMACZicsr_Zifencei"]
     steps:
       - uses: actions/checkout@v2
         with:
