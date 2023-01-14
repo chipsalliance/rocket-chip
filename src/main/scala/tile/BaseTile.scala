@@ -104,8 +104,23 @@ trait HasNonDiplomaticTileParameters {
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
     val v = if (tileParams.core.useVector) "v" else ""
-    val x = tileParams.core.customIsaExt.map(s => s"_$s").getOrElse("")
-    s"rv${p(XLen)}$ie$m$a$f$d$c$v$x"
+    val multiLetterExt = Seq(
+      (if (tileParams.core.useBitManip) "Zba" else ""),
+      (if (tileParams.core.useBitManip) "Zbb" else ""),
+      (if (tileParams.core.useBitManip) "Zbc" else ""),
+      (if (tileParams.core.useBitManipCrypto) "Zbkb" else ""),
+      (if (tileParams.core.useBitManipCrypto) "Zbkc" else ""),
+      (if (tileParams.core.useBitManipCrypto) "Zbkx" else ""),
+      (if (tileParams.core.useBitManip) "Zbs" else ""),
+      (if (tileParams.core.useCryptoNIST) "Zknd" else ""),
+      (if (tileParams.core.useCryptoNIST) "Zkne" else ""),
+      (if (tileParams.core.useCryptoNIST) "Zknh" else ""),
+      (if (tileParams.core.useCryptoSM) "Zksed" else ""),
+      (if (tileParams.core.useCryptoSM) "Zksh" else ""),
+      tileParams.core.customIsaExt.getOrElse("")
+    )
+    val multiLetterString = multiLetterExt.filter(_ != "").mkString("_")
+    s"rv${p(XLen)}$ie$m$a$f$d$c$v$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {
