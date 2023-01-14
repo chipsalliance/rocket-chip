@@ -19,39 +19,3 @@ class ClonePorts protected[shim](elts: Data*) extends Record
   def apply(field: String) = elements(field)
   override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
 }
-
-class CloneModule private (model: RawModule) extends BlackBox
-{
-  override def desiredName = model.name
-  val io = IO(new ClonePorts(model.getPorts.map(_.id): _*))
-}
-
-object CloneModule
-{
-  def apply(model: BaseModule): ClonePorts = {
-    // Create the 'BlackBox' stand-in
-    val mod = Module(new CloneModule(model.asInstanceOf[RawModule]))
-    // Rewrite the instance definition to be the original module
-    // (this is needed because the original module gets clobbered by DCE + constant prop)
-    val method = classOf[RawModule].getDeclaredMethod("_commands")
-    method.setAccessible(true)
-    val commands = method.invoke(Builder.forcedUserModule).asInstanceOf[ArrayBuffer[Command]]
-    val victimIdx = commands.lastIndexWhere {
-      case DefInstance(_, kill, _) => mod eq kill
-      case _ => false
-    }
-    val victim = commands(victimIdx).asInstanceOf[DefInstance]
-    val standin = new DefInstance(victim.sourceInfo, model, victim.ports) {
-      override def name = victim.name
-    }
-    commands.update(victimIdx, standin)
-    // Wire it up
-    model match {
-      case _: Module =>
-        mod.io("clock") := Module.clock
-        mod.io("reset") := Module.reset
-      case _: RawModule => // Do nothing
-    }
-    mod.io
-  }
-}

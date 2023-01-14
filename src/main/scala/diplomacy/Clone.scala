@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import Chisel._
-import chisel3.shim.CloneModule
+import chisel3.experimental.CloneModuleAsRecord
 import chisel3.internal.sourceinfo.{SourceInfo}
 
 
@@ -14,7 +14,7 @@ final class CloneLazyModule private (val base: LazyModule)
   def clone[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](node: NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO])(implicit valName: ValName) =
     new MixedTestNode(node, this)
 
-  protected[diplomacy] lazy val io = CloneModule(base.module)
+  protected[diplomacy] lazy val io = CloneModuleAsRecord(base.module)
 }
 
 object CloneLazyModule
