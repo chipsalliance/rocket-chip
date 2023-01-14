@@ -65,7 +65,7 @@ jobs:
     runs-on: [self-hosted, linux]
     strategy:
       matrix:
-        config: ["DefaultRV32Config,32,RV32IMAC", "DefaultConfig,64,RV64IMAC", "BitmanipCryptoConfig,64,RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh", "BitmanipCrypto32Config,32,RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"]
+        config: ["DefaultRV32Config,32,RV32IMAC", "DefaultConfig,64,RV64IMAC", "BitManipCryptoConfig,64,RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh", "BitManipCrypto32Config,32,RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"]
     steps:
       - uses: actions/checkout@v2
         with:

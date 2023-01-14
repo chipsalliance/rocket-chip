@@ -27,8 +27,8 @@ class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new WithCohere
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 class DefaultFP16Config extends Config(new WithFP16 ++ new DefaultConfig)
 
-class BitmanipCryptoConfig extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultConfig)
-class BitmanipCrypto32Config extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultRV32Config)
+class BitManipCryptoConfig extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultConfig)
+class BitManipCrypto32Config extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultRV32Config)
 
 class DualBankConfig extends Config(new WithNBanks(2) ++ new DefaultConfig)
 class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusTopology ++ new BaseConfig)
