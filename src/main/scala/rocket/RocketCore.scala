@@ -77,6 +77,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
   val usingABLU = usingBitManip || usingBitManipCrypto
+  val alufn = if (usingABLU) new ABLUFN else new ALUFN
 
   require(!fastLoadByte || fastLoadWord)
   require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
@@ -125,7 +126,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val gated_clock =
     if (!rocketParams.clockGate) clock
     else ClockGate(clock, clock_en, "rocket_clock_gate")
-  val AbstractAlu = if (usingABLU) ABLU else ALU
 
   class RocketImpl { // entering gated-clock domain
 
@@ -144,8 +144,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ("jal", () => id_ctrl.jal),
       ("jalr", () => id_ctrl.jalr))
       ++ (if (!usingMulDiv) Seq() else Seq(
-        ("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & AbstractAlu.FN_DIV) =/= AbstractAlu.FN_DIV),
-        ("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & AbstractAlu.FN_DIV) === AbstractAlu.FN_DIV)))
+        ("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & alufn.FN_DIV) =/= alufn.FN_DIV),
+        ("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & alufn.FN_DIV) === alufn.FN_DIV)))
       ++ (if (!usingFPU) Seq() else Seq(
         ("fp load", () => id_ctrl.fp && io.fpu.dec.ldst && io.fpu.dec.wen),
         ("fp store", () => id_ctrl.fp && io.fpu.dec.ldst && !io.fpu.dec.wen),
@@ -415,7 +415,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S)))
 
-  val alu = Module(if (usingABLU) new ABLU else new ALU)
+  val alu: AbstractALU = Module(alufn match {
+    case ablufn: ABLUFN => new ABLU(ablufn)
+    case alufn: ALUFN => new ALU(alufn)
+  })
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
@@ -497,7 +500,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     when (id_ctrl.fence && id_fence_succ === 0.U) { id_reg_pause := true.B }
     when (id_fence_next) { id_reg_fence := true.B }
     when (id_xcpt) { // pass PC down ALU writeback pipeline for badaddr
-      ex_ctrl.alu_fn := AbstractAlu.FN_ADD
+      ex_ctrl.alu_fn := alufn.FN_ADD
       ex_ctrl.alu_dw := DW_XPR
       ex_ctrl.sel_alu1 := A1_RS1 // badaddr := instruction
       ex_ctrl.sel_alu2 := A2_ZERO

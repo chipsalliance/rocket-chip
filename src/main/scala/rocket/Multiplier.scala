@@ -9,9 +9,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.config.Parameters
 
 class MultiplierReq(dataBits: Int, tagBits: Int)(implicit val p: Parameters) extends Bundle with HasRocketCoreParameters {
-  val alu = if (usingABLU) ABLU else ALU
-
-  val fn = Bits(alu.SZ_ALU_FN.W)
+  val fn = Bits(alufn.SZ_ALU_FN.W)
   val dw = Bits(SZ_DW.W)
   val in1 = Bits(dataBits.W)
   val in2 = Bits(dataBits.W)
@@ -60,17 +58,16 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
   val divisor = Reg(Bits((w+1).W)) // div only needs w bits
   val remainder = Reg(Bits((2*mulw+2).W)) // div only needs 2*w+1 bits
 
-  val alu = if (usingABLU) ABLU else ALU
   val mulDecode = List(
-    alu.FN_MUL    -> List(Y, N, X, X),
-    alu.FN_MULH   -> List(Y, Y, Y, Y),
-    alu.FN_MULHU  -> List(Y, Y, N, N),
-    alu.FN_MULHSU -> List(Y, Y, Y, N))
+    alufn.FN_MUL    -> List(Y, N, X, X),
+    alufn.FN_MULH   -> List(Y, Y, Y, Y),
+    alufn.FN_MULHU  -> List(Y, Y, N, N),
+    alufn.FN_MULHSU -> List(Y, Y, Y, N))
   val divDecode = List(
-    alu.FN_DIV    -> List(N, N, Y, Y),
-    alu.FN_REM    -> List(N, Y, Y, Y),
-    alu.FN_DIVU   -> List(N, N, N, N),
-    alu.FN_REMU   -> List(N, Y, N, N))
+    alufn.FN_DIV    -> List(N, N, Y, Y),
+    alufn.FN_REM    -> List(N, Y, Y, Y),
+    alufn.FN_DIVU   -> List(N, N, N, N),
+    alufn.FN_REMU   -> List(N, Y, N, N))
   val cmdMul :: cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(io.req.bits.fn, List(X, X, X, X),
       (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
@@ -191,12 +188,11 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32)(implicit val
 
   val in = Pipe(io.req)
 
-  val alu = if (usingABLU) ABLU else ALU
   val decode = List(
-    alu.FN_MUL    -> List(N, X, X),
-    alu.FN_MULH   -> List(Y, Y, Y),
-    alu.FN_MULHU  -> List(Y, N, N),
-    alu.FN_MULHSU -> List(Y, Y, N))
+    alufn.FN_MUL    -> List(N, X, X),
+    alufn.FN_MULH   -> List(Y, Y, Y),
+    alufn.FN_MULHU  -> List(Y, N, N),
+    alufn.FN_MULHSU -> List(Y, Y, N))
   val cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.asBool)
   val cmdHalf = (width > 32).B && in.bits.dw === DW_32

@@ -7,7 +7,7 @@ import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
-object ABLU extends ALUFN
+class ABLUFN extends ALUFN
 {
   override val SZ_ALU_FN = 39
   override def FN_X        = BitPat("b??_???_????_????_????__????__??_????_????_????_????")
@@ -75,17 +75,55 @@ object ABLU extends ALUFN
   override def FN_MULH   = FN_SL
   override def FN_MULHSU = FN_SEQ
   override def FN_MULHU  = FN_SNE
+
+  // not implemented functions for this fn
+  override def isMulFN(fn: UInt, cmp: UInt) = ???
+  override def isCmp(cmd: UInt) = ???
+  override def cmpUnsigned(cmd: UInt) = ???
+  override def cmpInverted(cmd: UInt) = ???
+  override def cmpEq(cmd: UInt) = ???
+
+  override def isSub(cmd: UInt) = cmd(22)
+  def isIn2Inv(cmd: UInt) = cmd(23)
+  def isZBS(cmd: UInt) = cmd(24)
+  def isUW(cmd: UInt) = cmd(25)
+  def isSRA(cmd: UInt) = cmd(26)
+  def isRotate(cmd: UInt) = cmd(27)
+  def isLeft(cmd: UInt) = cmd(28)
+  def isLeftZBS(cmd: UInt) = cmd(29)
+  def isCZ(cmd: UInt) = cmd(30)
+  def isBCLR(cmd: UInt) = cmd(31)
+  def isCZBCLR(cmd: UInt) = cmd(32)
+  def isCZZBS(cmd: UInt) = cmd(33)
+  def isUnsigned(cmd: UInt) = cmd(34)
+  def isInverted(cmd: UInt) = cmd(35)
+  def isSEQSNE(cmd: UInt) = cmd(36)
+  def isSEXT(cmd: UInt) = cmd(37)
+  def isORC(cmd: UInt) = cmd(38)
+  def shxadd1H(cmd: UInt) = cmd(21,18)
+  def out1H(cmd: UInt) = cmd(17,0)
 }
 
-class ABLU(implicit p: Parameters) extends CoreModule()(p) with HasALUIO {
-  // note that it is reversed
-  val isSub :: isIn2Inv :: isZBS :: isUW :: Nil = io.fn(25,22).asBools
-  val isSRA :: isRotate :: isLeft :: isLeftZBS :: Nil = io.fn(29,26).asBools
-  val isCZ :: isBCLR :: isCZBCLR :: isCZZBS :: Nil = io.fn(33,30).asBools
-  val isUnsigned :: isInverted :: isSEQSNE :: Nil = io.fn(36,34).asBools
-  val isSEXT :: isORC :: Nil = io.fn(38,37).asBools
-  val shxadd1H = io.fn(21,18) // 4 bit
-  val out1H = io.fn(17,0)
+class ABLU(fn: ABLUFN)(implicit p: Parameters) extends AbstractALU(fn)(p) {
+  val isSub = fn.isSub(io.fn)
+  val isIn2Inv = fn.isIn2Inv(io.fn)
+  val isZBS = fn.isZBS(io.fn)
+  val isUW = fn.isUW(io.fn)
+  val isSRA = fn.isSRA(io.fn)
+  val isRotate = fn.isRotate(io.fn)
+  val isLeft = fn.isLeft(io.fn)
+  val isLeftZBS = fn.isLeftZBS(io.fn)
+  val isCZ = fn.isCZ(io.fn)
+  val isBCLR = fn.isBCLR(io.fn)
+  val isCZBCLR = fn.isCZBCLR(io.fn)
+  val isCZZBS = fn.isCZZBS(io.fn)
+  val isUnsigned = fn.isUnsigned(io.fn)
+  val isInverted = fn.isInverted(io.fn)
+  val isSEQSNE = fn.isSEQSNE(io.fn)
+  val isSEXT = fn.isSEXT(io.fn)
+  val isORC = fn.isORC(io.fn)
+  val shxadd1H = fn.shxadd1H(io.fn)
+  val out1H = fn.out1H(io.fn)
 
   // process input
   // used by SUB, ANDN, ORN, XNOR
