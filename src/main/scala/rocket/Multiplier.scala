@@ -6,9 +6,8 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
 import freechips.rocketchip.util._
-import freechips.rocketchip.config.Parameters
 
-class MultiplierReq(dataBits: Int, tagBits: Int)(implicit val p: Parameters) extends Bundle with HasRocketCoreParameters {
+class MultiplierReq(dataBits: Int, tagBits: Int, alufn: ALUFN) extends Bundle {
   val fn = Bits(alufn.SZ_ALU_FN.W)
   val dw = Bits(SZ_DW.W)
   val in1 = Bits(dataBits.W)
@@ -21,8 +20,8 @@ class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
   val tag = UInt(tagBits.W)
 }
 
-class MultiplierIO(val dataBits: Int, val tagBits: Int)(implicit val p: Parameters) extends Bundle {
-  val req = Flipped(Decoupled(new MultiplierReq(dataBits, tagBits)))
+class MultiplierIO(val dataBits: Int, val tagBits: Int, alufn: ALUFN) extends Bundle {
+  val req = Flipped(Decoupled(new MultiplierReq(dataBits, tagBits, alufn)))
   val kill = Input(Bool())
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))
 }
@@ -35,12 +34,12 @@ case class MulDivParams(
   divEarlyOutGranularity: Int = 1
 )
 
-class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with HasRocketCoreParameters {
+class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, alufn: ALUFN = new ALUFN) extends Module {
   private def minDivLatency = (cfg.divUnroll > 0).option(if (cfg.divEarlyOut) 3 else 1 + w/cfg.divUnroll)
   private def minMulLatency = (cfg.mulUnroll > 0).option(if (cfg.mulEarlyOut) 2 else w/cfg.mulUnroll)
   def minLatency: Int = (minDivLatency ++ minMulLatency).min
 
-  val io = IO(new MultiplierIO(width, log2Up(nXpr)))
+  val io = IO(new MultiplierIO(width, log2Up(nXpr), alufn))
   val w = io.req.bits.in1.getWidth
   val mulw = if (cfg.mulUnroll == 0) w else (w + cfg.mulUnroll - 1) / cfg.mulUnroll * cfg.mulUnroll
   val fastMulW = if (cfg.mulUnroll == 0) false else w/2 > cfg.mulUnroll && w % (2*cfg.mulUnroll) == 0
@@ -180,9 +179,9 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32)(implicit val p: Para
   io.req.ready := state === s_ready
 }
 
-class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32)(implicit val p: Parameters) extends Module with ShouldBeRetimed with HasRocketCoreParameters {
+class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32, alufn: ALUFN = new ALUFN) extends Module with ShouldBeRetimed {
   val io = IO(new Bundle {
-    val req = Flipped(Valid(new MultiplierReq(width, log2Ceil(nXpr))))
+    val req = Flipped(Valid(new MultiplierReq(width, log2Ceil(nXpr), alufn)))
     val resp = Valid(new MultiplierResp(width, log2Ceil(nXpr)))
   })
 

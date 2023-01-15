@@ -471,7 +471,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
   // multiplier and divider
-  val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen))
+  val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen, alufn = alufn))
   div.io.req.valid := ex_reg_valid && ex_ctrl.div
   div.io.req.bits.dw := ex_ctrl.alu_dw
   div.io.req.bits.fn := ex_ctrl.alu_fn
@@ -479,7 +479,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   div.io.req.bits.in2 := ex_rs(1)
   div.io.req.bits.tag := ex_waddr
   val mul = pipelinedMul.option {
-    val m = Module(new PipelinedMultiplier(xLen, 2))
+    val m = Module(new PipelinedMultiplier(xLen, 2, alufn = alufn))
     m.io.req.valid := ex_reg_valid && ex_ctrl.mul
     m.io.req.bits := div.io.req.bits
     m
