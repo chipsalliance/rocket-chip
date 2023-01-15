@@ -24,6 +24,13 @@ object ZKN {
   def FN_SHA512_SIG1 = "b0000__0001__0_0100_0000".U(SZ_FN.W)
   def FN_SHA512_SUM0 = "b0000__0001__0_1000_0000".U(SZ_FN.W)
   def FN_SHA512_SUM1 = "b0000__0001__1_0000_0000".U(SZ_FN.W)
+
+  def isEnc(cmd: UInt) = cmd(13)
+  def isNotMix(cmd: UInt) = cmd(14)
+  def isKs1(cmd: UInt) = cmd(15)
+  def isIm(cmd: UInt) = cmd(16)
+  def aes1H(cmd: UInt) = cmd(12,9)
+  def out1H(cmd: UInt) = cmd(8,0)
 }
 
 class CryptoNISTInterface(xLen: Int) extends Bundle {
@@ -148,10 +155,12 @@ class MixColumn64(enc: Boolean) extends Module {
 class CryptoNIST(xLen:Int) extends Module {
   val io = IO(new CryptoNISTInterface(xLen))
 
-  // note that it is reversed
-  val isEnc :: isNotMix :: isKs1 :: isIm :: Nil = io.fn(16,13).asBools
-  val aes1H = io.fn(12,9)
-  val out1H = io.fn(8,0)
+  val isEnc = ZKN.isEnc(io.fn)
+  val isNotMix = ZKN.isNotMix(io.fn)
+  val isKs1 = ZKN.isKs1(io.fn)
+  val isIm = ZKN.isIm(io.fn)
+  val aes1H = ZKN.aes1H(io.fn)
+  val out1H = ZKN.out1H(io.fn)
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)

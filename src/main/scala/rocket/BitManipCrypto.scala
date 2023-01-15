@@ -13,6 +13,10 @@ object ZBK {
   def FN_CLMULH = "b00100".U(SZ_FN.W)
   def FN_XPERM8 = "b01000".U(SZ_FN.W)
   def FN_XPERM4 = "b10000".U(SZ_FN.W)
+
+  // reuse the 1H
+  def isClmul(cmd: UInt) = cmd(0)
+  def out1H(cmd: UInt) = cmd(4,0)
 }
 
 class BitManipCryptoInterface(xLen: Int) extends Bundle {
@@ -26,10 +30,8 @@ class BitManipCryptoInterface(xLen: Int) extends Bundle {
 class BitManipCrypto(xLen: Int)(implicit val p: Parameters) extends Module with HasRocketCoreParameters {
   val io = IO(new BitManipCryptoInterface(xLen))
 
-  // note that it is reversed
-  // reuse the 1H
-  val isClmul = io.fn(0)
-  val out1H = io.fn(4,0)
+  val isClmul = ZBK.isClmul(io.fn)
+  val out1H = ZBK.out1H(io.fn)
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)

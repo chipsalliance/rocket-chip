@@ -13,6 +13,10 @@ object ZKS {
   def FN_SM4KS = "b00_01".U(SZ_FN.W)
   def FN_SM3P0 = "b10_10".U(SZ_FN.W)
   def FN_SM3P1 = "b00_10".U(SZ_FN.W)
+
+  def isEd(cmd: UInt) = cmd(2)
+  def isP0(cmd: UInt) = cmd(3)
+  def out1H(cmd: UInt) = cmd(1,0)
 }
 
 class CryptoSMInterface(xLen: Int) extends Bundle {
@@ -26,9 +30,9 @@ class CryptoSMInterface(xLen: Int) extends Bundle {
 class CryptoSM(xLen:Int) extends Module {
   val io = IO(new CryptoSMInterface(xLen))
 
-  // note that it is reversed
-  val isEd :: isP0 :: Nil = io.fn(3,2).asBools
-  val out1H = io.fn(1,0)
+  val isEd = ZKS.isEd(io.fn)
+  val isP0 = ZKS.isP0(io.fn)
+  val out1H = ZKS.out1H(io.fn)
 
   // helper
   def sext(in: UInt): UInt = if (xLen == 32) in
