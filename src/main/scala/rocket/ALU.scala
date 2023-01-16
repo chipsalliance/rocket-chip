@@ -95,9 +95,10 @@ abstract class AbstractALU(alufn: ALUFN)(implicit p: Parameters) extends CoreMod
     val adder_out = Output(UInt(xLen.W))
     val cmp_out = Output(Bool())
   })
+  val fn = alufn
 }
 
-class ALU(fn: ALUFN)(implicit p: Parameters) extends AbstractALU(fn)(p) {
+class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   // ADD, SUB
   val in2_inv = Mux(fn.isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv

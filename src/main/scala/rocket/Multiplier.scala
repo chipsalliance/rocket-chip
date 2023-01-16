@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
 import freechips.rocketchip.util._
 
-class MultiplierReq(dataBits: Int, tagBits: Int, alufn: ALUFN) extends Bundle {
+class MultiplierReq(dataBits: Int, tagBits: Int, alufn: ALUFN = new ALUFN) extends Bundle {
   val fn = Bits(alufn.SZ_ALU_FN.W)
   val dw = Bits(SZ_DW.W)
   val in1 = Bits(dataBits.W)
@@ -20,7 +20,7 @@ class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
   val tag = UInt(tagBits.W)
 }
 
-class MultiplierIO(val dataBits: Int, val tagBits: Int, alufn: ALUFN) extends Bundle {
+class MultiplierIO(val dataBits: Int, val tagBits: Int, alufn: ALUFN = new ALUFN) extends Bundle {
   val req = Flipped(Decoupled(new MultiplierReq(dataBits, tagBits, alufn)))
   val kill = Input(Bool())
   val resp = Decoupled(new MultiplierResp(dataBits, tagBits))

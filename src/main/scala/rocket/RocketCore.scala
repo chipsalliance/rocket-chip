@@ -416,7 +416,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val alu: AbstractALU = Module(alufn match {
     case ablufn: ABLUFN => new ABLU(ablufn)
-    case alufn: ALUFN => new ALU(alufn)
+    case _ => new ALU
   })
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
