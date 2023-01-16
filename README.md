@@ -50,7 +50,7 @@ You may need to install some additional packages to use this repository.
 Rather than list all dependencies here, please see the appropriate section of the READMEs for each of the subprojects:
 
 * [rocket-tools "Ubuntu Packages Needed"](https://github.com/freechipsproject/rocket-tools/blob/master/README.md)
-* [chisel3 "Installation"](https://github.com/ucb-bar/chisel3#installation)
+* [chisel3 Setup](https://github.com/chipsalliance/chisel3/blob/master/SETUP.md) (but you don't need to install Verilator; it will be downloaded and compiled by this project's build system)
 
 ### Building The Project
 
