@@ -158,7 +158,7 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   val shout_r = (Cat(aluFn.isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
   val shout = Mux(io.fn === aluFn.FN_SR || io.fn === aluFn.FN_SRA, shout_r, 0.U) |
-              Mux(io.fn === aluFn.FN_SL,                        shout_l, 0.U)
+              Mux(io.fn === aluFn.FN_SL,                           shout_l, 0.U)
 
   // AND, OR, XOR
   val logic = Mux(io.fn === aluFn.FN_XOR || io.fn === aluFn.FN_OR, in1_xor_in2, 0.U) |
