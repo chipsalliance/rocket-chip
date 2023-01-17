@@ -6,21 +6,8 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
 
-object ZKS {
-  val SZ_FN    = 4
-  // ctrl signals, out1H
-  def FN_SM4ED = "b01_01".U(SZ_FN.W)
-  def FN_SM4KS = "b00_01".U(SZ_FN.W)
-  def FN_SM3P0 = "b10_10".U(SZ_FN.W)
-  def FN_SM3P1 = "b00_10".U(SZ_FN.W)
-
-  def isEd(cmd: UInt) = cmd(2)
-  def isP0(cmd: UInt) = cmd(3)
-  def out1H(cmd: UInt) = cmd(1,0)
-}
-
 class CryptoSMInterface(xLen: Int) extends Bundle {
-  val fn  = Input(UInt(ZKS.SZ_FN.W))
+  val fn  = Input(UInt(ABLUFN().SZ_ZKS_FN.W))
   val bs  = Input(UInt(2.W))
   val rs1 = Input(UInt(xLen.W))
   val rs2 = Input(UInt(xLen.W))
@@ -28,11 +15,12 @@ class CryptoSMInterface(xLen: Int) extends Bundle {
 }
 
 class CryptoSM(xLen:Int) extends Module {
+  val fn = ABLUFN()
   val io = IO(new CryptoSMInterface(xLen))
 
-  val isEd = ZKS.isEd(io.fn)
-  val isP0 = ZKS.isP0(io.fn)
-  val out1H = ZKS.out1H(io.fn)
+  val isEd = fn.isEd(io.fn)
+  val isP0 = fn.isP0(io.fn)
+  val out1H = fn.zksOut1H(io.fn)
 
   // helper
   def sext(in: UInt): UInt = if (xLen == 32) in

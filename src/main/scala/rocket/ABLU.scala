@@ -7,6 +7,7 @@ import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
+// These are for the ABLU unit, which uses an alternate function encoding
 class ABLUFN extends ALUFN
 {
   override val SZ_ALU_FN = 39
@@ -65,6 +66,36 @@ class ABLUFN extends ALUFN
   override def FN_PACKH    = "b00_000_0000_0000_0000__0001__00_1000_0000_0000_0000".U(SZ_ALU_FN.W)
   override def FN_ZIP      = "b00_000_0000_0000_0000__0001__01_0000_0000_0000_0000".U(SZ_ALU_FN.W)
   override def FN_UNZIP    = "b00_000_0000_0000_0000__0001__10_0000_0000_0000_0000".U(SZ_ALU_FN.W)
+  def SZ_ZBK_FN = 5
+  override def FN_CLMUL    = "b00001".U(SZ_ZBK_FN.W) // These use the BitManipCrypto FU, not ABLU
+  override def FN_CLMULR   = "b00010".U(SZ_ZBK_FN.W)
+  override def FN_CLMULH   = "b00100".U(SZ_ZBK_FN.W)
+  override def FN_XPERM8   = "b01000".U(SZ_ZBK_FN.W)
+  override def FN_XPERM4   = "b10000".U(SZ_ZBK_FN.W)
+  // Zkn: These use the CryptoNIST unit
+  def SZ_ZKN_FN = 17
+  override def FN_AES_DS      = "b0010__0001__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_AES_DSM     = "b0000__0010__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_AES_ES      = "b0011__0001__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_AES_ESM     = "b0001__0010__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_AES_IM      = "b1000__0010__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_AES_KS1     = "b0101__0100__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_AES_KS2     = "b0000__1000__0_0000_0001".U(SZ_ZKN_FN.W)
+  override def FN_SHA256_SIG0 = "b0000__0001__0_0000_0010".U(SZ_ZKN_FN.W)
+  override def FN_SHA256_SIG1 = "b0000__0001__0_0000_0100".U(SZ_ZKN_FN.W)
+  override def FN_SHA256_SUM0 = "b0000__0001__0_0000_1000".U(SZ_ZKN_FN.W)
+  override def FN_SHA256_SUM1 = "b0000__0001__0_0001_0000".U(SZ_ZKN_FN.W)
+  override def FN_SHA512_SIG0 = "b0000__0001__0_0010_0000".U(SZ_ZKN_FN.W)
+  override def FN_SHA512_SIG1 = "b0000__0001__0_0100_0000".U(SZ_ZKN_FN.W)
+  override def FN_SHA512_SUM0 = "b0000__0001__0_1000_0000".U(SZ_ZKN_FN.W)
+  override def FN_SHA512_SUM1 = "b0000__0001__1_0000_0000".U(SZ_ZKN_FN.W)
+  // Zks: Thses use the CryptoSM unit
+  def SZ_ZKS_FN = 4
+  override def FN_SM4ED = "b01_01".U(SZ_ZKS_FN.W)
+  override def FN_SM4KS = "b00_01".U(SZ_ZKS_FN.W)
+  override def FN_SM3P0 = "b10_10".U(SZ_ZKS_FN.W)
+  override def FN_SM3P1 = "b00_10".U(SZ_ZKS_FN.W)
+
 
   override def FN_DIV  = FN_XOR
   override def FN_DIVU = FN_SR
@@ -102,28 +133,46 @@ class ABLUFN extends ALUFN
   def isORC(cmd: UInt) = cmd(38)
   def shxadd1H(cmd: UInt) = cmd(21,18)
   def out1H(cmd: UInt) = cmd(17,0)
+  // Zbk
+  def isClmul(cmd: UInt) = cmd(0)
+  def zbkOut1H(cmd: UInt) = cmd(4,0)
+  // Zkn
+  def isEnc(cmd: UInt) = cmd(13)
+  def isNotMix(cmd: UInt) = cmd(14)
+  override def isKs1(cmd: UInt) = cmd(15)
+  def isIm(cmd: UInt) = cmd(16)
+  def aes1H(cmd: UInt) = cmd(12,9)
+  def zknOut1H(cmd: UInt) = cmd(8,0)
+  // Zks
+  def isEd(cmd: UInt) = cmd(2)
+  def isP0(cmd: UInt) = cmd(3)
+  def zksOut1H(cmd: UInt) = cmd(1,0)
 }
 
-class ABLU(fn: ABLUFN)(implicit p: Parameters) extends AbstractALU(fn)(p) {
-  val isSub = fn.isSub(io.fn)
-  val isIn2Inv = fn.isIn2Inv(io.fn)
-  val isZBS = fn.isZBS(io.fn)
-  val isUW = fn.isUW(io.fn)
-  val isSRA = fn.isSRA(io.fn)
-  val isRotate = fn.isRotate(io.fn)
-  val isLeft = fn.isLeft(io.fn)
-  val isLeftZBS = fn.isLeftZBS(io.fn)
-  val isCZ = fn.isCZ(io.fn)
-  val isBCLR = fn.isBCLR(io.fn)
-  val isCZBCLR = fn.isCZBCLR(io.fn)
-  val isCZZBS = fn.isCZZBS(io.fn)
-  val isUnsigned = fn.isUnsigned(io.fn)
-  val isInverted = fn.isInverted(io.fn)
-  val isSEQSNE = fn.isSEQSNE(io.fn)
-  val isSEXT = fn.isSEXT(io.fn)
-  val isORC = fn.isORC(io.fn)
-  val shxadd1H = fn.shxadd1H(io.fn)
-  val out1H = fn.out1H(io.fn)
+object ABLUFN {
+  def apply() = new ABLUFN
+}
+
+class ABLU(implicit p: Parameters) extends AbstractALU(new ABLUFN)(p) {
+  val isSub = aluFn.isSub(io.fn)
+  val isIn2Inv = aluFn.isIn2Inv(io.fn)
+  val isZBS = aluFn.isZBS(io.fn)
+  val isUW = aluFn.isUW(io.fn)
+  val isSRA = aluFn.isSRA(io.fn)
+  val isRotate = aluFn.isRotate(io.fn)
+  val isLeft = aluFn.isLeft(io.fn)
+  val isLeftZBS = aluFn.isLeftZBS(io.fn)
+  val isCZ = aluFn.isCZ(io.fn)
+  val isBCLR = aluFn.isBCLR(io.fn)
+  val isCZBCLR = aluFn.isCZBCLR(io.fn)
+  val isCZZBS = aluFn.isCZZBS(io.fn)
+  val isUnsigned = aluFn.isUnsigned(io.fn)
+  val isInverted = aluFn.isInverted(io.fn)
+  val isSEQSNE = aluFn.isSEQSNE(io.fn)
+  val isSEXT = aluFn.isSEXT(io.fn)
+  val isORC = aluFn.isORC(io.fn)
+  val shxadd1H = aluFn.shxadd1H(io.fn)
+  val out1H = aluFn.out1H(io.fn)
 
   // process input
   // used by SUB, ANDN, ORN, XNOR

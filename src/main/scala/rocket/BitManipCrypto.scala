@@ -6,21 +6,9 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.config.Parameters
 
-object ZBK {
-  val SZ_FN     = 5
-  def FN_CLMUL  = "b00001".U(SZ_FN.W)
-  def FN_CLMULR = "b00010".U(SZ_FN.W)
-  def FN_CLMULH = "b00100".U(SZ_FN.W)
-  def FN_XPERM8 = "b01000".U(SZ_FN.W)
-  def FN_XPERM4 = "b10000".U(SZ_FN.W)
-
-  // reuse the 1H
-  def isClmul(cmd: UInt) = cmd(0)
-  def out1H(cmd: UInt) = cmd(4,0)
-}
 
 class BitManipCryptoInterface(xLen: Int) extends Bundle {
-  val fn  = Input(UInt(ZBK.SZ_FN.W))
+  val fn  = Input(UInt(ABLUFN().SZ_ZBK_FN.W))
   val dw  = Input(Bool())
   val rs1 = Input(UInt(xLen.W))
   val rs2 = Input(UInt(xLen.W))
@@ -28,10 +16,11 @@ class BitManipCryptoInterface(xLen: Int) extends Bundle {
 }
 
 class BitManipCrypto(xLen: Int)(implicit val p: Parameters) extends Module with HasRocketCoreParameters {
+  val fn = ABLUFN()
   val io = IO(new BitManipCryptoInterface(xLen))
 
-  val isClmul = ZBK.isClmul(io.fn)
-  val out1H = ZBK.out1H(io.fn)
+  val isClmul = fn.isClmul(io.fn)
+  val out1H = fn.zbkOut1H(io.fn)
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)

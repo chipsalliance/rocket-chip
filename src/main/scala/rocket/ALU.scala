@@ -26,7 +26,7 @@ class ALUFN {
   def FN_SLTU = 14.U
   def FN_SGEU = 15.U
 
-  // not implemented FN for this fn
+  // The Base ALU does not support any Zb FNs
   // from Zb
   // Zba: UW is encoded here becuase it is DW_64
   def FN_ADDUW    : UInt = ???
@@ -66,7 +66,34 @@ class ALUFN {
   def FN_PACKH    : UInt = ???
   def FN_ZIP      : UInt = ???
   def FN_UNZIP    : UInt = ???
+  def FN_CLMUL    : UInt = ???
+  def FN_CLMULR   : UInt = ???
+  def FN_CLMULH   : UInt = ???
+  def FN_XPERM8   : UInt = ???
+  def FN_XPERM4   : UInt = ???
+  // Zkn
+  def FN_AES_DS      : UInt = ???
+  def FN_AES_DSM     : UInt = ???
+  def FN_AES_ES      : UInt = ???
+  def FN_AES_ESM     : UInt = ???
+  def FN_AES_IM      : UInt = ???
+  def FN_AES_KS1     : UInt = ???
+  def FN_AES_KS2     : UInt = ???
+  def FN_SHA256_SIG0 : UInt = ???
+  def FN_SHA256_SIG1 : UInt = ???
+  def FN_SHA256_SUM0 : UInt = ???
+  def FN_SHA256_SUM1 : UInt = ???
+  def FN_SHA512_SIG0 : UInt = ???
+  def FN_SHA512_SIG1 : UInt = ???
+  def FN_SHA512_SUM0 : UInt = ???
+  def FN_SHA512_SUM1 : UInt = ???
+  //Zks
+  def FN_SM4ED : UInt = ???
+  def FN_SM4KS : UInt = ???
+  def FN_SM3P0 : UInt = ???
+  def FN_SM3P1 : UInt = ???
 
+  // Mul/div reuse some integer FNs
   def FN_DIV  = FN_XOR
   def FN_DIVU = FN_SR
   def FN_REM  = FN_OR
@@ -83,54 +110,61 @@ class ALUFN {
   def cmpUnsigned(cmd: UInt) = cmd(1)
   def cmpInverted(cmd: UInt) = cmd(0)
   def cmpEq(cmd: UInt) = !cmd(3)
+
+  // Only CryptoNIST uses this
+  def isKs1(cmd: UInt): Bool = ???
 }
 
-abstract class AbstractALU(alufn: ALUFN)(implicit p: Parameters) extends CoreModule()(p) {
+object ALUFN {
+  def apply() = new ALUFN
+}
+
+
+abstract class AbstractALU[T <: ALUFN](val aluFn: T)(implicit p: Parameters) extends CoreModule()(p) {
   val io = IO(new Bundle {
     val dw = Input(UInt(SZ_DW.W))
-    val fn = Input(UInt(alufn.SZ_ALU_FN.W))
+    val fn = Input(UInt(aluFn.SZ_ALU_FN.W))
     val in2 = Input(UInt(xLen.W))
     val in1 = Input(UInt(xLen.W))
     val out = Output(UInt(xLen.W))
     val adder_out = Output(UInt(xLen.W))
     val cmp_out = Output(Bool())
   })
-  val fn = alufn
 }
 
 class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   // ADD, SUB
-  val in2_inv = Mux(fn.isSub(io.fn), ~io.in2, io.in2)
+  val in2_inv = Mux(aluFn.isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv
-  io.adder_out := io.in1 + in2_inv + fn.isSub(io.fn)
+  io.adder_out := io.in1 + in2_inv + aluFn.isSub(io.fn)
 
   // SLT, SLTU
   val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), io.adder_out(xLen-1),
-    Mux(fn.cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1)))
-  io.cmp_out := fn.cmpInverted(io.fn) ^ Mux(fn.cmpEq(io.fn), in1_xor_in2 === 0.U, slt)
+    Mux(aluFn.cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1)))
+  io.cmp_out := aluFn.cmpInverted(io.fn) ^ Mux(aluFn.cmpEq(io.fn), in1_xor_in2 === 0.U, slt)
 
   // SLL, SRL, SRA
   val (shamt, shin_r) =
     if (xLen == 32) (io.in2(4,0), io.in1)
     else {
       require(xLen == 64)
-      val shin_hi_32 = Fill(32, fn.isSub(io.fn) && io.in1(31))
+      val shin_hi_32 = Fill(32, aluFn.isSub(io.fn) && io.in1(31))
       val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
-  val shin = Mux(io.fn === fn.FN_SR  || io.fn === fn.FN_SRA, shin_r, Reverse(shin_r))
-  val shout_r = (Cat(fn.isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
+  val shin = Mux(io.fn === aluFn.FN_SR  || io.fn === aluFn.FN_SRA, shin_r, Reverse(shin_r))
+  val shout_r = (Cat(aluFn.isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
-  val shout = Mux(io.fn === fn.FN_SR || io.fn === fn.FN_SRA, shout_r, 0.U) |
-              Mux(io.fn === fn.FN_SL,                        shout_l, 0.U)
+  val shout = Mux(io.fn === aluFn.FN_SR || io.fn === aluFn.FN_SRA, shout_r, 0.U) |
+              Mux(io.fn === aluFn.FN_SL,                        shout_l, 0.U)
 
   // AND, OR, XOR
-  val logic = Mux(io.fn === fn.FN_XOR || io.fn === fn.FN_OR, in1_xor_in2, 0.U) |
-              Mux(io.fn === fn.FN_OR || io.fn === fn.FN_AND, io.in1 & io.in2, 0.U)
-  val shift_logic = (fn.isCmp(io.fn) && slt) | logic | shout
-  val out = Mux(io.fn === fn.FN_ADD || io.fn === fn.FN_SUB, io.adder_out, shift_logic)
+  val logic = Mux(io.fn === aluFn.FN_XOR || io.fn === aluFn.FN_OR, in1_xor_in2, 0.U) |
+              Mux(io.fn === aluFn.FN_OR || io.fn === aluFn.FN_AND, io.in1 & io.in2, 0.U)
+  val shift_logic = (aluFn.isCmp(io.fn) && slt) | logic | shout
+  val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic)
 
   io.out := out
   if (xLen > 32) {
