@@ -206,9 +206,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     Seq(new IDecode(aluFn))
   } flatMap(_.table)
 
-  val ex_ctrl = Reg(new IntCtrlSigs)
-  val mem_ctrl = Reg(new IntCtrlSigs)
-  val wb_ctrl = Reg(new IntCtrlSigs)
+  val ex_ctrl = Reg(new IntCtrlSigs(aluFn))
+  val mem_ctrl = Reg(new IntCtrlSigs(aluFn))
+  val wb_ctrl = Reg(new IntCtrlSigs(aluFn))
 
   val ex_reg_xcpt_interrupt  = Reg(Bool())
   val ex_reg_valid           = Reg(Bool())
@@ -285,7 +285,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
   require(!(coreParams.useRVE && coreParams.fpu.nonEmpty), "Can't select both RVE and floating-point")
   require(!(coreParams.useRVE && coreParams.useHypervisor), "Can't select both RVE and Hypervisor")
-  val id_ctrl = Wire(new IntCtrlSigs()).decode(id_inst(0), decode_table)
+  val id_ctrl = Wire(new IntCtrlSigs(aluFn)).decode(id_inst(0), decode_table)
   val lgNXRegs = if (coreParams.useRVE) 4 else 5
   val regAddrMask = (1 << lgNXRegs) - 1
 
