@@ -1,10 +1,6 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # See LICENSE.SiFive for license details.
-
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import doctest
 import sys
@@ -68,8 +64,7 @@ def gen_rom(name, width, depth, rom_hex_file):
     }
     return verilog_template.format(**variables)
 
-
-def iterate_by_n(it, n):
+def iterate_by_n(li, n):
     """Iterate over items in it, yielding n-tuples of successive items.
 
     >>> list(iterate_by_n([1, 2, 3, 4, 5, 6], n=2))
@@ -81,21 +76,15 @@ def iterate_by_n(it, n):
         ...
     ValueError: Iterable length not evenly divisible by 4
     """
-    it = iter(it)
-    while True:
+    if len(li) % n != 0:
+        raise ValueError(
+            'Iterable length not evenly divisible by {}'.format(n)
+        )
+    for i in range(len(li) // n):
         batch = ()
-        for i in range(n):
-            try:
-                batch += (next(it),)
-            except StopIteration:
-                if batch:  # If this is not the first iteration
-                    raise ValueError(
-                        'Iterable length not evenly divisible by {}'.format(n)
-                    )
-                else:
-                    raise
+        for j in range(n):
+            batch += (li[i * n + j],)
         yield batch
-
 
 def try_cast_int(x):
     try:
