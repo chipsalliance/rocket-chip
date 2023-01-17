@@ -6,35 +6,8 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
 
-object ZKN {
-  val SZ_FN          = 17
-  // ctrl signals, aes1H, out1H (9 bits)
-  def FN_AES_DS      = "b0010__0001__0_0000_0001".U(SZ_FN.W)
-  def FN_AES_DSM     = "b0000__0010__0_0000_0001".U(SZ_FN.W)
-  def FN_AES_ES      = "b0011__0001__0_0000_0001".U(SZ_FN.W)
-  def FN_AES_ESM     = "b0001__0010__0_0000_0001".U(SZ_FN.W)
-  def FN_AES_IM      = "b1000__0010__0_0000_0001".U(SZ_FN.W)
-  def FN_AES_KS1     = "b0101__0100__0_0000_0001".U(SZ_FN.W)
-  def FN_AES_KS2     = "b0000__1000__0_0000_0001".U(SZ_FN.W)
-  def FN_SHA256_SIG0 = "b0000__0001__0_0000_0010".U(SZ_FN.W)
-  def FN_SHA256_SIG1 = "b0000__0001__0_0000_0100".U(SZ_FN.W)
-  def FN_SHA256_SUM0 = "b0000__0001__0_0000_1000".U(SZ_FN.W)
-  def FN_SHA256_SUM1 = "b0000__0001__0_0001_0000".U(SZ_FN.W)
-  def FN_SHA512_SIG0 = "b0000__0001__0_0010_0000".U(SZ_FN.W)
-  def FN_SHA512_SIG1 = "b0000__0001__0_0100_0000".U(SZ_FN.W)
-  def FN_SHA512_SUM0 = "b0000__0001__0_1000_0000".U(SZ_FN.W)
-  def FN_SHA512_SUM1 = "b0000__0001__1_0000_0000".U(SZ_FN.W)
-
-  def isEnc(cmd: UInt) = cmd(13)
-  def isNotMix(cmd: UInt) = cmd(14)
-  def isKs1(cmd: UInt) = cmd(15)
-  def isIm(cmd: UInt) = cmd(16)
-  def aes1H(cmd: UInt) = cmd(12,9)
-  def out1H(cmd: UInt) = cmd(8,0)
-}
-
 class CryptoNISTInterface(xLen: Int) extends Bundle {
-  val fn   = Input(UInt(ZKN.SZ_FN.W))
+  val fn   = Input(UInt(ABLUFN().SZ_ZKN_FN.W))
   val hl   = Input(Bool())
   val bs   = Input(UInt(2.W))
   val rnum = Input(UInt(4.W))
@@ -153,14 +126,15 @@ class MixColumn64(enc: Boolean) extends Module {
 }
 
 class CryptoNIST(xLen:Int) extends Module {
+  val fn = ABLUFN()
   val io = IO(new CryptoNISTInterface(xLen))
 
-  val isEnc = ZKN.isEnc(io.fn)
-  val isNotMix = ZKN.isNotMix(io.fn)
-  val isKs1 = ZKN.isKs1(io.fn)
-  val isIm = ZKN.isIm(io.fn)
-  val aes1H = ZKN.aes1H(io.fn)
-  val out1H = ZKN.out1H(io.fn)
+  val isEnc = fn.isEnc(io.fn)
+  val isNotMix = fn.isNotMix(io.fn)
+  val isKs1 = fn.isKs1(io.fn)
+  val isIm = fn.isIm(io.fn)
+  val aes1H = fn.aes1H(io.fn)
+  val out1H = fn.zknOut1H(io.fn)
 
   // helper
   def asBytes(in: UInt): Vec[UInt] = VecInit(in.asBools.grouped(8).map(VecInit(_).asUInt).toSeq)
