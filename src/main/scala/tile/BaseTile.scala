@@ -104,22 +104,15 @@ trait HasNonDiplomaticTileParameters {
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
     val v = if (tileParams.core.useVector) "v" else ""
-    val multiLetterExt = Seq(
-      (if (tileParams.core.useBitManip) "Zba" else ""),
-      (if (tileParams.core.useBitManip) "Zbb" else ""),
-      (if (tileParams.core.useBitManip) "Zbc" else ""),
-      (if (tileParams.core.hasBitManipCrypto) "Zbkb" else ""),
-      (if (tileParams.core.hasBitManipCrypto) "Zbkc" else ""),
-      (if (tileParams.core.hasBitManipCrypto) "Zbkx" else ""),
-      (if (tileParams.core.useBitManip) "Zbs" else ""),
-      (if (tileParams.core.useCryptoNIST) "Zknd" else ""),
-      (if (tileParams.core.useCryptoNIST) "Zkne" else ""),
-      (if (tileParams.core.useCryptoNIST) "Zknh" else ""),
-      (if (tileParams.core.useCryptoSM) "Zksed" else ""),
-      (if (tileParams.core.useCryptoSM) "Zksh" else ""),
-      tileParams.core.customIsaExt.getOrElse("")
-    )
-    val multiLetterString = multiLetterExt.filter(_ != "").mkString("_")
+    val multiLetterExt = (
+      Option.when(tileParams.core.useBitManip)(Seq("Zba", "Zbb", "Zbc")) ++
+      Option.when(tileParams.core.hasBitManipCrypto)(Seq("Zbkb", "Zbkc", "Zbkx")) ++
+      Option.when(tileParams.core.useBitManip)(Seq("Zbs")) ++
+      Option.when(tileParams.core.useCryptoNIST)(Seq("Zknd", "Zkne", "Zknh")) ++
+      Option.when(tileParams.core.useCryptoSM)(Seq("Zksed", "Zksh")) ++
+      tileParams.core.customIsaExt.map(Seq(_))
+    ).flatten
+    val multiLetterString = multiLetterExt.mkString("_")
     s"rv${p(XLen)}$ie$m$a$f$d$c$v$multiLetterString"
   }
 
