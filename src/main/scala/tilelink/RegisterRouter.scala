@@ -108,7 +108,7 @@ case class TLRegisterNode(
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
-    val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
+    val name = s"${device.describe(ResourceBindings()).name}.At${baseHex}"
     val json = GenRegDescsAnno.serialize(base, name, mapping:_*)
     var suffix = 0
     while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {
