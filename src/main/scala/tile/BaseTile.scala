@@ -104,7 +104,14 @@ trait HasNonDiplomaticTileParameters {
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
     val v = if (tileParams.core.useVector) "v" else ""
+    val h = if (usingHypervisor) "h" else ""
     val multiLetterExt = (
+      // rdcycle[h], rdinstret[h] is implemented
+      // rdtime[h] is not implemented, and could be provided by software emulation
+      // see https://github.com/chipsalliance/rocket-chip/issues/3207
+      //Some(Seq("Zicntr")) ++
+      Some(Seq("Zicsr", "Zifencei", "Zihpm")) ++
+      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("Zfh")) ++
       Option.when(tileParams.core.useBitManip)(Seq("Zba", "Zbb", "Zbc")) ++
       Option.when(tileParams.core.hasBitManipCrypto)(Seq("Zbkb", "Zbkc", "Zbkx")) ++
       Option.when(tileParams.core.useBitManip)(Seq("Zbs")) ++
@@ -113,7 +120,7 @@ trait HasNonDiplomaticTileParameters {
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
-    s"rv${p(XLen)}$ie$m$a$f$d$c$v$multiLetterString"
+    s"rv${p(XLen)}$ie$m$a$f$d$c$v$h$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {
