@@ -22,9 +22,12 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
-  val useBitManip: Boolean = false
+  val useBitManip: Boolean
+  val useBitManipCrypto: Boolean
   val useVector: Boolean = false
   val useSCIE: Boolean
+  val useCryptoNIST: Boolean
+  val useCryptoSM: Boolean
   val useRVE: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
@@ -54,6 +57,7 @@ trait CoreParams {
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def hasSupervisorMode: Boolean = useSupervisor || useVM
+  def hasBitManipCrypto: Boolean = useBitManipCrypto || useCryptoNIST || useCryptoSM
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
@@ -80,8 +84,11 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
   val usingBitManip = coreParams.useBitManip
+  val usingBitManipCrypto = coreParams.hasBitManipCrypto
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
+  val usingCryptoNIST = coreParams.useCryptoNIST
+  val usingCryptoSM = coreParams.useCryptoSM
   val usingNMI = coreParams.useNMI
 
   val retireWidth = coreParams.retireWidth

@@ -103,10 +103,17 @@ trait HasNonDiplomaticTileParameters {
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
-    val b = if (tileParams.core.useBitManip) "b" else ""
     val v = if (tileParams.core.useVector) "v" else ""
-    val x = tileParams.core.customIsaExt.map(s => s"_$s").getOrElse("")
-    s"rv${p(XLen)}$ie$m$a$f$d$c$b$v$x"
+    val multiLetterExt = (
+      Option.when(tileParams.core.useBitManip)(Seq("Zba", "Zbb", "Zbc")) ++
+      Option.when(tileParams.core.hasBitManipCrypto)(Seq("Zbkb", "Zbkc", "Zbkx")) ++
+      Option.when(tileParams.core.useBitManip)(Seq("Zbs")) ++
+      Option.when(tileParams.core.useCryptoNIST)(Seq("Zknd", "Zkne", "Zknh")) ++
+      Option.when(tileParams.core.useCryptoSM)(Seq("Zksed", "Zksh")) ++
+      tileParams.core.customIsaExt.map(Seq(_))
+    ).flatten
+    val multiLetterString = multiLetterExt.mkString("_")
+    s"rv${p(XLen)}$ie$m$a$f$d$c$v$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {

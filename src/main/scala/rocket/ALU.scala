@@ -8,8 +8,7 @@ import chisel3.util.{BitPat, Fill, Cat, Reverse}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
-object ALU
-{
+class ALUFN {
   val SZ_ALU_FN = 4
   def FN_X    = BitPat("b????")
   def FN_ADD  = 0.U
@@ -27,6 +26,74 @@ object ALU
   def FN_SLTU = 14.U
   def FN_SGEU = 15.U
 
+  // The Base ALU does not support any Zb FNs
+  // from Zb
+  // Zba: UW is encoded here becuase it is DW_64
+  def FN_ADDUW    : UInt = ???
+  def FN_SLLIUW   : UInt = ???
+  def FN_SH1ADD   : UInt = ???
+  def FN_SH1ADDUW : UInt = ???
+  def FN_SH2ADD   : UInt = ???
+  def FN_SH2ADDUW : UInt = ???
+  def FN_SH3ADD   : UInt = ???
+  def FN_SH3ADDUW : UInt = ???
+  // Zbb
+  def FN_ROR      : UInt = ???
+  def FN_ROL      : UInt = ???
+  def FN_ANDN     : UInt = ???
+  def FN_ORN      : UInt = ???
+  def FN_XNOR     : UInt = ???
+  def FN_REV8     : UInt = ???
+  def FN_ORCB     : UInt = ???
+  def FN_SEXTB    : UInt = ???
+  def FN_SEXTH    : UInt = ???
+  def FN_ZEXTH    : UInt = ???
+  def FN_MAX      : UInt = ???
+  def FN_MAXU     : UInt = ???
+  def FN_MIN      : UInt = ???
+  def FN_MINU     : UInt = ???
+  def FN_CPOP     : UInt = ???
+  def FN_CLZ      : UInt = ???
+  def FN_CTZ      : UInt = ???
+  // Zbs
+  def FN_BCLR     : UInt = ???
+  def FN_BEXT     : UInt = ???
+  def FN_BINV     : UInt = ???
+  def FN_BSET     : UInt = ???
+  // Zbk
+  def FN_BREV8    : UInt = ???
+  def FN_PACK     : UInt = ???
+  def FN_PACKH    : UInt = ???
+  def FN_ZIP      : UInt = ???
+  def FN_UNZIP    : UInt = ???
+  def FN_CLMUL    : UInt = ???
+  def FN_CLMULR   : UInt = ???
+  def FN_CLMULH   : UInt = ???
+  def FN_XPERM8   : UInt = ???
+  def FN_XPERM4   : UInt = ???
+  // Zkn
+  def FN_AES_DS      : UInt = ???
+  def FN_AES_DSM     : UInt = ???
+  def FN_AES_ES      : UInt = ???
+  def FN_AES_ESM     : UInt = ???
+  def FN_AES_IM      : UInt = ???
+  def FN_AES_KS1     : UInt = ???
+  def FN_AES_KS2     : UInt = ???
+  def FN_SHA256_SIG0 : UInt = ???
+  def FN_SHA256_SIG1 : UInt = ???
+  def FN_SHA256_SUM0 : UInt = ???
+  def FN_SHA256_SUM1 : UInt = ???
+  def FN_SHA512_SIG0 : UInt = ???
+  def FN_SHA512_SIG1 : UInt = ???
+  def FN_SHA512_SUM0 : UInt = ???
+  def FN_SHA512_SUM1 : UInt = ???
+  //Zks
+  def FN_SM4ED : UInt = ???
+  def FN_SM4KS : UInt = ???
+  def FN_SM3P0 : UInt = ???
+  def FN_SM3P1 : UInt = ???
+
+  // Mul/div reuse some integer FNs
   def FN_DIV  = FN_XOR
   def FN_DIVU = FN_SR
   def FN_REM  = FN_OR
@@ -43,53 +110,61 @@ object ALU
   def cmpUnsigned(cmd: UInt) = cmd(1)
   def cmpInverted(cmd: UInt) = cmd(0)
   def cmpEq(cmd: UInt) = !cmd(3)
+
+  // Only CryptoNIST uses this
+  def isKs1(cmd: UInt): Bool = ???
 }
 
-import ALU._
+object ALUFN {
+  def apply() = new ALUFN
+}
 
-class ALU(implicit p: Parameters) extends CoreModule()(p) {
+
+abstract class AbstractALU[T <: ALUFN](val aluFn: T)(implicit p: Parameters) extends CoreModule()(p) {
   val io = IO(new Bundle {
     val dw = Input(UInt(SZ_DW.W))
-    val fn = Input(UInt(SZ_ALU_FN.W))
+    val fn = Input(UInt(aluFn.SZ_ALU_FN.W))
     val in2 = Input(UInt(xLen.W))
     val in1 = Input(UInt(xLen.W))
     val out = Output(UInt(xLen.W))
     val adder_out = Output(UInt(xLen.W))
     val cmp_out = Output(Bool())
   })
+}
 
+class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   // ADD, SUB
-  val in2_inv = Mux(isSub(io.fn), ~io.in2, io.in2)
+  val in2_inv = Mux(aluFn.isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv
-  io.adder_out := io.in1 + in2_inv + isSub(io.fn)
+  io.adder_out := io.in1 + in2_inv + aluFn.isSub(io.fn)
 
   // SLT, SLTU
   val slt =
     Mux(io.in1(xLen-1) === io.in2(xLen-1), io.adder_out(xLen-1),
-    Mux(cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1)))
-  io.cmp_out := cmpInverted(io.fn) ^ Mux(cmpEq(io.fn), in1_xor_in2 === 0.U, slt)
+    Mux(aluFn.cmpUnsigned(io.fn), io.in2(xLen-1), io.in1(xLen-1)))
+  io.cmp_out := aluFn.cmpInverted(io.fn) ^ Mux(aluFn.cmpEq(io.fn), in1_xor_in2 === 0.U, slt)
 
   // SLL, SRL, SRA
   val (shamt, shin_r) =
     if (xLen == 32) (io.in2(4,0), io.in1)
     else {
       require(xLen == 64)
-      val shin_hi_32 = Fill(32, isSub(io.fn) && io.in1(31))
+      val shin_hi_32 = Fill(32, aluFn.isSub(io.fn) && io.in1(31))
       val shin_hi = Mux(io.dw === DW_64, io.in1(63,32), shin_hi_32)
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
-  val shin = Mux(io.fn === FN_SR  || io.fn === FN_SRA, shin_r, Reverse(shin_r))
-  val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
+  val shin = Mux(io.fn === aluFn.FN_SR  || io.fn === aluFn.FN_SRA, shin_r, Reverse(shin_r))
+  val shout_r = (Cat(aluFn.isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
-  val shout = Mux(io.fn === FN_SR || io.fn === FN_SRA, shout_r, 0.U) |
-              Mux(io.fn === FN_SL,                     shout_l, 0.U)
+  val shout = Mux(io.fn === aluFn.FN_SR || io.fn === aluFn.FN_SRA, shout_r, 0.U) |
+              Mux(io.fn === aluFn.FN_SL,                           shout_l, 0.U)
 
   // AND, OR, XOR
-  val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, 0.U) |
-              Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & io.in2, 0.U)
-  val shift_logic = (isCmp(io.fn) && slt) | logic | shout
-  val out = Mux(io.fn === FN_ADD || io.fn === FN_SUB, io.adder_out, shift_logic)
+  val logic = Mux(io.fn === aluFn.FN_XOR || io.fn === aluFn.FN_OR, in1_xor_in2, 0.U) |
+              Mux(io.fn === aluFn.FN_OR || io.fn === aluFn.FN_AND, io.in1 & io.in2, 0.U)
+  val shift_logic = (aluFn.isCmp(io.fn) && slt) | logic | shout
+  val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic)
 
   io.out := out
   if (xLen > 32) {

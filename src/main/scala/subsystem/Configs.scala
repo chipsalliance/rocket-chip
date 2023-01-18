@@ -369,6 +369,30 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
       core = tp.tileParams.core.copy(fpu = tp.tileParams.core.fpu.map(_.copy(divSqrt = false)))))}
 })
 
+class WithBitManip extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(useBitManip = true)))}
+})
+
+class WithBitManipCrypto extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(useBitManipCrypto = true)))}
+})
+
+class WithCryptoNIST extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(useCryptoNIST = true)))}
+})
+
+class WithCryptoSM extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(useCryptoSM = true)))}
+})
+
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })
