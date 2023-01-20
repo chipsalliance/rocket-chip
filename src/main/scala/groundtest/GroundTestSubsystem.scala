@@ -25,6 +25,10 @@ class GroundTestSubsystem(implicit p: Parameters)
 
   val tileStatusNodes = tiles.collect { case t: GroundTestTile => t.statusNode.makeSink() }
 
+  val clintOpt = None
+  val debugOpt = None
+  val plicOpt = None
+
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
 
