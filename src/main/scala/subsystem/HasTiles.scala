@@ -5,7 +5,8 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.dontTouch
 import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
+import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile._
@@ -98,11 +99,8 @@ case class TileSlavePortParams(
 /** These are sources of interrupts that are driven into the tile.
   * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
-trait HasTileInterruptSources
-  extends CanHavePeripheryPLIC
-  with CanHavePeripheryCLINT
-  with InstantiatesTiles
-{ this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
+trait HasTileInterruptSources extends InstantiatesTiles
+{ this: LazyModule with Attachable =>
   /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
   val meipNode = p(PLICKey) match {
     case Some(_) => None
@@ -137,7 +135,7 @@ trait HasTileInterruptSources
   * they may be either tied to a contant value or programmed during boot or reset.
   * They need to be instantiated before tiles are attached within the subsystem containing them.
   */
-trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
+trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with Attachable =>
   /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
   val tileHartIdNode = BundleBridgeEphemeralNode[UInt]()
 
@@ -228,9 +226,11 @@ trait DefaultTileContextType
   with HasTileInterruptSources
   with HasTileNotificationSinks
   with HasTileInputConstants
-{ this: BaseSubsystem =>
-  val debugNode: IntSyncOutwardNode
-} // TODO: ideally this bound would be softened to LazyModule
+{ this: LazyModule with Attachable =>
+  val debugOpt: Option[TLDebugModule]
+  val clintOpt: Option[CLINT]
+  val plicOpt: Option[TLPLIC]
+}
 
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
   *
@@ -291,7 +291,9 @@ trait CanAttachTile {
     //       we stub out missing interrupts with constant sources here.
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
-    domain.tile.intInwardNode := domain { IntSyncAsyncCrossingSink(3) } := context.debugNode
+    domain.tile.intInwardNode :=
+      domain { IntSyncAsyncCrossingSink(3) } :=
+        context.debugOpt.map(_.intnode).getOrElse(IntSyncXbar() := NullIntSyncSource())
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
     //    so might need to be synchronized depending on the Tile's crossing type.
@@ -400,7 +402,8 @@ case class CloneTileAttachParams(
 /** InstantiatesTiles adds a Config-urable sequence of tiles of any type
   *   to the subsystem class into which it is mixed.
   */
-trait InstantiatesTiles { this: BaseSubsystem =>
+trait InstantiatesTiles { this: LazyModule with Attachable =>
+  val location: HierarchicalLocation
   /** Record the order in which to instantiate all tiles, based on statically-assigned ids.
     *
     * Note that these ids, which are often used as the tiles' default hartid input,
@@ -426,8 +429,8 @@ trait InstantiatesTiles { this: BaseSubsystem =>
 }
 
 /** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
-trait HasTiles extends InstantiatesTiles with HasCoreMonitorBundles with DefaultTileContextType
-{ this: BaseSubsystem => // TODO: ideally this bound would be softened to Attachable
+trait HasTiles extends HasCoreMonitorBundles with DefaultTileContextType
+{ this: LazyModule with Attachable =>
   implicit val p: Parameters
 
   // connect all the tiles to interconnect attachment points made available in this subsystem context
