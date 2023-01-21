@@ -21,7 +21,6 @@ case class RocketTileParams(
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     btb: Option[BTBParams] = Some(BTBParams()),
     dataScratchpadBytes: Int = 0,
-    name: Option[String] = Some("tile"),
     hartId: Int = 0,
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
@@ -30,6 +29,7 @@ case class RocketTileParams(
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
+  val name = s"rockettile_$hartId"
   def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): RocketTile = {
     new RocketTile(this, crossing, lookup)
   }

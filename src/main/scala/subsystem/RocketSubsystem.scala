@@ -35,7 +35,8 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
     with HasPeripheryDebug
     with CanHavePeripheryCLINT
     with CanHavePeripheryPLIC
-    with HasRocketTiles {
+    with HasRocketTiles
+{
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 

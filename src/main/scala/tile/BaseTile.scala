@@ -26,7 +26,7 @@ trait TileParams {
   val hartId: Int
   val beuAddr: Option[BigInt]
   val blockerCtrlAddr: Option[BigInt]
-  val name: Option[String]
+  val name: String
   val clockSinkParams: ClockSinkParameters
 }
 
