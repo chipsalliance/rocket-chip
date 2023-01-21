@@ -76,7 +76,7 @@ case class TraceGenParams(
   }
   val beuAddr = None
   val blockerCtrlAddr = None
-  val name = None
+  val name = s"tracegen_$hartId"
   val clockSinkParams = ClockSinkParameters()
 }
 

@@ -246,7 +246,7 @@ trait CanAttachTile {
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: Seq[TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
-    val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(s"${tileParams.name.getOrElse("core")}_${tileParams.hartId}"))
+    val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.name))
     val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
       val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
     })
@@ -267,7 +267,7 @@ trait CanAttachTile {
   def connectMasterPorts(domain: TilePRCIDomain[TileType], context: Attachable): Unit = {
     implicit val p = context.p
     val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
-    dataBus.coupleFrom(tileParams.name.getOrElse("tile")) { bus =>
+    dataBus.coupleFrom(tileParams.name) { bus =>
       bus :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
     }
   }
@@ -277,7 +277,7 @@ trait CanAttachTile {
     implicit val p = context.p
     DisableMonitors { implicit p =>
       val controlBus = context.locateTLBusWrapper(crossingParams.slave.where)
-      controlBus.coupleTo(tileParams.name.getOrElse("tile")) { bus =>
+      controlBus.coupleTo(tileParams.name) { bus =>
         domain.crossSlavePort(crossingParams.crossingType) :*= crossingParams.slave.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
       }
     }
@@ -384,17 +384,17 @@ case class CloneTileAttachParams(
 
   def tileParams = cloneParams.tileParams
   def crossingParams = cloneParams.crossingParams
-  require(sourceHart < tileParams.hartId)
 
   override def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: Seq[TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
-    val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(s"${tileParams.name.getOrElse("core")}_${tileParams.hartId}"))
+    require(sourceHart < instantiatedTiles.size)
+    val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.name))
     val tile_prci_domain = CloneLazyModule(
       new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
         val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
       },
       instantiatedTiles(sourceHart).asInstanceOf[TilePRCIDomain[TileType]]
     )
-    tile_prci_domain 
+    tile_prci_domain
   }
 }
 
