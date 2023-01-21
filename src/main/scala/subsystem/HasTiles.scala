@@ -37,30 +37,6 @@ case object SubsystemExternalHartIdWidthKey extends Field[Option[Int]](None)
   */
 case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
 
-/** An interface for describing the parameteization of how Tiles are connected to interconnects */
-trait TileCrossingParamsLike {
-  /** The type of clock crossing that should be inserted at the tile boundary. */
-  def crossingType: ClockCrossingType
-  /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect master. */
-  def master: TilePortParamsLike
-  /** Parameters describing the contents and behavior of the point where the tile is attached as an interconnect slave. */
-  def slave: TilePortParamsLike
-  /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the tile */
-  def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
-  /** Inject a reset management subgraph that effects the tile child reset only */
-  def resetCrossingType: ResetCrossingType
-  /** Keep the tile clock separate from the interconnect clock (e.g. even if they are synchronous to one another) */
-  def forceSeparateClockReset: Boolean
-}
-
-/** An interface for describing the parameterization of how a particular tile port is connected to an interconnect */
-trait TilePortParamsLike {
-  /** The subnetwork location of the interconnect to which this tile port should be connected. */
-  def where: TLBusWrapperLocation
-  /** Allows port-specific adapters to be injected into the interconnect side of the attachment point. */
-  def injectNode(context: Attachable)(implicit p: Parameters): TLNode
-}
-
 /** A default implementation of parameterizing the connectivity of the port where the tile is the master.
   *   Optional timing buffers and/or an optional CacheCork can be inserted in the interconnect's clock domain.
   */
@@ -68,7 +44,7 @@ case class TileMasterPortParams(
   buffers: Int = 0,
   cork: Option[Boolean] = None,
   where: TLBusWrapperLocation = SBUS
-) extends TilePortParamsLike {
+) extends ElementPortParamsLike {
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
     (TLBuffer.chainNode(buffers) :=* cork.map { u => TLCacheCork(unsafe = u) } .getOrElse { TLTempNode() })
   }
@@ -82,7 +58,7 @@ case class TileSlavePortParams(
   blockerCtrlAddr: Option[BigInt] = None,
   blockerCtrlWhere: TLBusWrapperLocation = CBUS,
   where: TLBusWrapperLocation = CBUS
-) extends TilePortParamsLike {
+) extends ElementPortParamsLike {
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
     val controlBus = context.locateTLBusWrapper(where)
     val blockerBus = context.locateTLBusWrapper(blockerCtrlWhere)
@@ -242,7 +218,7 @@ trait CanAttachTile {
   type TileType <: BaseTile
   type TileContextType <: DefaultTileContextType
   def tileParams: InstantiableTileParams[TileType]
-  def crossingParams: TileCrossingParamsLike
+  def crossingParams: ElementCrossingParamsLike
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: Seq[TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
