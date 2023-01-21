@@ -18,19 +18,19 @@ case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
 case object LookupByHartId extends Field[LookupByHartIdImpl]
 
-trait TileParams {
+trait TileParams extends ElementParams {
   val core: CoreParams
   val icache: Option[ICacheParams]
   val dcache: Option[DCacheParams]
   val btb: Option[BTBParams]
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
-  val name: String
-  val clockSinkParams: ClockSinkParameters
 }
 
-abstract class InstantiableTileParams[TileType <: BaseTile] extends TileParams {
-  def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)
+abstract class InstantiableTileParams[TileType <: BaseTile]
+    extends InstantiableElementParams[TileType]
+    with TileParams {
+  def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)
                  (implicit p: Parameters): TileType
 }
 

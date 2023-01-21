@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.rocket.{TracedInstruction}
-import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CrossesToOnlyOneResetDomain}
+import freechips.rocketchip.subsystem.{ElementCrossingParamsLike, CrossesToOnlyOneResetDomain}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{TraceCoreInterface}
 
@@ -37,7 +37,7 @@ class TileResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: R
   */
 abstract class TilePRCIDomain[T <: BaseTile](
   clockSinkParams: ClockSinkParameters,
-  crossingParams: TileCrossingParamsLike)
+  crossingParams: ElementCrossingParamsLike)
   (implicit p: Parameters)
     extends ClockDomain
 {

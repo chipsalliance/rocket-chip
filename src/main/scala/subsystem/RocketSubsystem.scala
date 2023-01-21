@@ -11,12 +11,12 @@ import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CanHavePeri
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
-  master: TilePortParamsLike = TileMasterPortParams(),
+  master: ElementPortParamsLike = TileMasterPortParams(),
   slave: TileSlavePortParams = TileSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
   resetCrossingType: ResetCrossingType = NoResetCrossing(),
   forceSeparateClockReset: Boolean = false
-) extends TileCrossingParamsLike
+) extends ElementCrossingParamsLike
 
 case class RocketTileAttachParams(
   tileParams: RocketTileParams,
