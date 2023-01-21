@@ -74,7 +74,6 @@ case class TraceGenParams(
   def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
     new TraceGenTile(this, crossing, lookup)
   }
-  val beuAddr = None
   val blockerCtrlAddr = None
   val name = s"tracegen_$hartId"
   val clockSinkParams = ClockSinkParameters()

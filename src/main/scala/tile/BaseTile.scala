@@ -24,7 +24,6 @@ trait TileParams {
   val dcache: Option[DCacheParams]
   val btb: Option[BTBParams]
   val hartId: Int
-  val beuAddr: Option[BigInt]
   val blockerCtrlAddr: Option[BigInt]
   val name: String
   val clockSinkParams: ClockSinkParameters
