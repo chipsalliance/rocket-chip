@@ -18,7 +18,7 @@ trait ElementParams {
   val clockSinkParams: ClockSinkParameters
 }
 
-abstract class InstantiableElementParams[ElementType <: LazyModule] extends ElementParams {
+abstract class InstantiableElementParams[ElementType <: BaseElement] extends ElementParams {
   def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): ElementType
 }
 
@@ -45,3 +45,25 @@ trait ElementPortParamsLike {
   /** Allows port-specific adapters to be injected into the interconnect side of the attachment point. */
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode
 }
+
+abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Parameters)
+    extends LazyModule()(p)
+    with CrossesToOnlyOneClockDomain
+{
+  def module: BaseElementModuleImp[BaseElement]
+  def masterNode: TLOutwardNode
+  def slaveNode: TLInwardNode
+  def intInwardNode: IntInwardNode    // Interrupts to the core from external devices
+  def intOutwardNode: IntOutwardNode  // Interrupts from tile-internal devices (e.g. BEU)
+  def haltNode: IntOutwardNode        // Unrecoverable error has occurred; suggest reset
+  def ceaseNode: IntOutwardNode       // Tile has ceased to retire instructions
+  def wfiNode: IntOutwardNode         // Tile is waiting for an interrupt
+
+  protected val tlOtherMastersNode = TLIdentityNode()
+  protected val tlMasterXbar = LazyModule(new TLXbar)
+  protected val tlSlaveXbar = LazyModule(new TLXbar)
+  protected val intXbar = LazyModule(new IntXbar)
+
+}
+
+abstract class BaseElementModuleImp[+L <: BaseElement](val outer: L) extends LazyModuleImp(outer)

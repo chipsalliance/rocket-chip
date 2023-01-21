@@ -195,9 +195,8 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
 }
 
 /** Base class for all Tiles that use TileLink */
-abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
-    extends LazyModule()(q)
-    with CrossesToOnlyOneClockDomain
+abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
+    extends BaseElement(crossing)(q)
     with HasNonDiplomaticTileParameters
 {
   // Public constructor alters Parameters to supply some legacy compatibility keys
@@ -210,18 +209,6 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   }
 
   def module: BaseTileModuleImp[BaseTile]
-  def masterNode: TLOutwardNode
-  def slaveNode: TLInwardNode
-  def intInwardNode: IntInwardNode    // Interrupts to the core from external devices
-  def intOutwardNode: IntOutwardNode  // Interrupts from tile-internal devices (e.g. BEU)
-  def haltNode: IntOutwardNode        // Unrecoverable error has occurred; suggest reset
-  def ceaseNode: IntOutwardNode       // Tile has ceased to retire instructions
-  def wfiNode: IntOutwardNode         // Tile is waiting for an interrupt
-
-  protected val tlOtherMastersNode = TLIdentityNode()
-  protected val tlMasterXbar = LazyModule(new TLXbar)
-  protected val tlSlaveXbar = LazyModule(new TLXbar)
-  protected val intXbar = LazyModule(new IntXbar)
 
   /** Node for broadcasting a hart id to diplomatic consumers within the tile. */
   val hartIdNexusNode: BundleBridgeNode[UInt] = BundleBroadcast[UInt](registered = p(InsertTimingClosureRegistersOnHartIds))
@@ -380,4 +367,4 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   this.suggestName(tileParams.name)
 }
 
-abstract class BaseTileModuleImp[+L <: BaseTile](val outer: L) extends LazyModuleImp(outer) with HasTileParameters
+abstract class BaseTileModuleImp[+L <: BaseTile](outer: L) extends BaseElementModuleImp[L](outer)
