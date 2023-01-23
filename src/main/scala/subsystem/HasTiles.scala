@@ -341,37 +341,4 @@ case class CloneTileAttachParams(
   }
 }
 
-/** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
-trait HasTiles extends HasCoreMonitorBundles with DefaultTileContextType
-{ this: LazyModule with Attachable =>
-  implicit val p: Parameters
 
-  // connect all the tiles to interconnect attachment points made available in this subsystem context
-  tileAttachParams.zip(tile_prci_domains).foreach { case (params, td) =>
-    params.connect(td.asInstanceOf[TilePRCIDomain[params.TileType]], this.asInstanceOf[params.TileContextType])
-  }
-}
-
-/** Provides some Chisel connectivity to certain tile IOs
-  * This trait is intended for the root subsystem
-  */
-trait HasTilesRootModuleImp extends LazyModuleImp {
-  val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants
-
-  val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
-  val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
-
-  val meip = if(outer.meipNode.isDefined) Some(IO(Input(Vec(outer.meipNode.get.out.size, Bool())))) else None
-  meip.foreach { m =>
-    m.zipWithIndex.foreach{ case (pin, i) =>
-      (outer.meipNode.get.out(i)._1)(0) := pin
-    }
-  }
-  val seip = if(outer.seipNode.isDefined) Some(IO(Input(Vec(outer.seipNode.get.out.size, Bool())))) else None
-  seip.foreach { s =>
-    s.zipWithIndex.foreach{ case (pin, i) =>
-      (outer.seipNode.get.out(i)._1)(0) := pin
-    }
-  }
-  val nmi = outer.totalTiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
-}

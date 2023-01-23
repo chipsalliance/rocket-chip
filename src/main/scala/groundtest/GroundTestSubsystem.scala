@@ -6,13 +6,13 @@ import chisel3._
 import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
-import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, HasTiles, CanHaveMasterAXI4MemPort}
+import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, HasElements, CanHaveMasterAXI4MemPort}
 import freechips.rocketchip.tilelink.{TLRAM, TLFragmenter}
 import freechips.rocketchip.interrupts.{NullIntSyncSource}
 
 class GroundTestSubsystem(implicit p: Parameters)
   extends BaseSubsystem
-  with HasTiles
+  with HasElements
   with CanHaveMasterAXI4MemPort
 {
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=pbus.beatBytes))
