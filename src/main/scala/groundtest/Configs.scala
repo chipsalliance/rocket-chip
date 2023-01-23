@@ -30,7 +30,7 @@ class GroundTestBaseConfig extends Config(
     case DebugModuleKey => None
     case CLINTKey => None
     case PLICKey => None
-    case SubsystemExternalResetVectorKey => true
+    case HasTilesExternalResetVectorKey => true
   })
 )
 
