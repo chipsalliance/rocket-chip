@@ -23,7 +23,7 @@ case class RocketTileAttachParams(
   crossingParams: RocketCrossingParams
 ) extends CanAttachTile { type TileType = RocketTile }
 
-trait HasRocketTiles extends HasTiles { this: BaseSubsystem =>
+trait HasRocketTiles extends HasElements { this: BaseSubsystem =>
   val rocketTiles = totalTiles.collect { case r: RocketTile => r }
 
   def coreMonitorBundles = (rocketTiles map { t =>
@@ -42,5 +42,5 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
     with HasPeripheryDebugModuleImp
-    with HasTilesRootModuleImp
+    with HasElementsRootModuleImp
 

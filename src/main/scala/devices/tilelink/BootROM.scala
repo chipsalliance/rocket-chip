@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import chisel3._
 import chisel3.util.log2Ceil
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation}
+import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasElements, TLBusWrapperLocation}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci.{ClockSinkDomain}
@@ -66,7 +66,7 @@ object BootROM {
     *    at a configurable location, but also drives the tiles' reset vectors to point
     *    at its 'hang' address parameter value.
     */
-  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)
+  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasElements, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val tlbus = subsystem.locateTLBusWrapper(where)
     val bootROMDomainWrapper = LazyModule(new ClockSinkDomain(take = None))
