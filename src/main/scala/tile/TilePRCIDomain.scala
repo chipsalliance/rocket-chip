@@ -34,19 +34,6 @@ abstract class TilePRCIDomain[T <: BaseTile](
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
   val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]] = Seq(BundleBridgeNameNode(traceCoreSignalName))
 
-  /** Function to handle all trace crossings when tile is instantiated inside domains */
-  def crossTracesOut(): Unit = this {
-    val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
-      resetCrossingType = crossingParams.resetCrossingType,
-      name = Some(traceSignalName))
-    traceNodes(0) :*= traceNexusNode := element.traceNodes(0)
-
-    val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
-      resetCrossingType = crossingParams.resetCrossingType,
-      name = Some(traceCoreSignalName))
-    traceCoreNodes(0) :*= traceCoreNexusNode := element.traceCoreNodes(0)
-  }
-
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossingType: ClockCrossingType): IntInwardNode = {
     // Unlike the other crossing helpers, here nothing is is blocked during reset because we know these are inputs and assume that tile reset is longer than uncore reset

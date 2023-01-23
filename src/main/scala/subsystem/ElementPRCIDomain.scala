@@ -54,4 +54,20 @@ abstract class ElementPRCIDomain[T <: BaseElement](
   val traceNodes: Seq[BundleBridgeIdentityNode[TraceBundle]]
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
   val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]]
+  require(element.traceNodes.size == traceNodes.size)
+  require(element.traceCoreNodes.size == traceCoreNodes.size)
+
+  /** Function to handle all trace crossings when tile is instantiated inside domains */
+  def crossTracesOut(): Unit = this {
+    for (i <- 0 until traceNodes.size) {
+      val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
+        resetCrossingType = crossingParams.resetCrossingType)
+      traceNodes(i) :*= traceNexusNode := element.traceNodes(i)
+    }
+    for (i <- 0 until traceCoreNodes.size) {
+      val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
+        resetCrossingType = crossingParams.resetCrossingType)
+      traceCoreNodes(i) :*= traceCoreNexusNode := element.traceCoreNodes(i)
+    }
+  }
 }
