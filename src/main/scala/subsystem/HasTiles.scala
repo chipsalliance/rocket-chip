@@ -37,40 +37,6 @@ case object SubsystemExternalHartIdWidthKey extends Field[Option[Int]](None)
   */
 case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
 
-/** A default implementation of parameterizing the connectivity of the port where the tile is the master.
-  *   Optional timing buffers and/or an optional CacheCork can be inserted in the interconnect's clock domain.
-  */
-case class TileMasterPortParams(
-  buffers: Int = 0,
-  cork: Option[Boolean] = None,
-  where: TLBusWrapperLocation = SBUS
-) extends ElementPortParamsLike {
-  def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
-    (TLBuffer.chainNode(buffers) :=* cork.map { u => TLCacheCork(unsafe = u) } .getOrElse { TLTempNode() })
-  }
-}
-
-/** A default implementation of parameterizing the connectivity of the port giving access to slaves inside the tile.
-  *   Optional timing buffers and/or an optional BusBlocker adapter can be inserted in the interconnect's clock domain.
-  */
-case class TileSlavePortParams(
-  buffers: Int = 0,
-  blockerCtrlAddr: Option[BigInt] = None,
-  blockerCtrlWhere: TLBusWrapperLocation = CBUS,
-  where: TLBusWrapperLocation = CBUS
-) extends ElementPortParamsLike {
-  def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
-    val controlBus = context.locateTLBusWrapper(where)
-    val blockerBus = context.locateTLBusWrapper(blockerCtrlWhere)
-    blockerCtrlAddr
-      .map { BasicBusBlockerParams(_, blockerBus.beatBytes, controlBus.beatBytes) }
-      .map { bbbp =>
-        val blocker = LazyModule(new BasicBusBlocker(bbbp))
-        blockerBus.coupleTo("tile_slave_port_bus_blocker") { blocker.controlNode := TLFragmenter(blockerBus) := _ }
-        blocker.node :*= TLBuffer.chainNode(buffers)
-      } .getOrElse { TLBuffer.chainNode(buffers) }
-  }
-}
 
 /** These are sources of interrupts that are driven into the tile.
   * They need to be instantiated before tiles are attached to the subsystem containing them.
@@ -225,7 +191,7 @@ trait CanAttachTile {
   def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: Seq[TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.name))
     val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
-      val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
+      val element = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
     })
     tile_prci_domain
   }
@@ -268,7 +234,7 @@ trait CanAttachTile {
     //       we stub out missing interrupts with constant sources here.
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
-    domain.tile.intInwardNode :=
+    domain.element.intInwardNode :=
       context.debugOpt
         .map { domain { IntSyncAsyncCrossingSink(3) } := _.intnode }
         .getOrElse { NullIntSource() }
@@ -287,33 +253,33 @@ trait CanAttachTile {
         .getOrElse { context.meipNode.get }
 
     //    From PLIC: "seip" (only if supervisor mode is enabled)
-    if (domain.tile.tileParams.core.hasSupervisorMode) {
+    if (domain.element.tileParams.core.hasSupervisorMode) {
       domain.crossIntIn(crossingParams.crossingType) :=
         context.plicOpt .map { _.intnode }
           .getOrElse { context.seipNode.get }
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
-    // (they are connected to domain.tile.intInwardNode in a seperate trait)
+    // (they are connected to domain.element.intInwardNode in a seperate trait)
 
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.plicOpt.foreach { plic =>
       FlipRendering { implicit p =>
-        plic.intnode :=* domain.crossIntOut(crossingParams.crossingType, domain.tile.intOutwardNode)
+        plic.intnode :=* domain.crossIntOut(crossingParams.crossingType, domain.element.intOutwardNode)
       }
     }
 
     // 5. Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock.
-    domain.tile.nmiNode := context.tileNMINode
+    domain.element.nmiNode := context.tileNMINode
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
   def connectOutputNotifications(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.tile.haltNode)
-    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.tile.wfiNode)
-    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.tile.ceaseNode)
+    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode)
+    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode)
+    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode)
     // TODO should context be forced to have a trace sink connected here?
     //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
     domain.crossTracesOut()
@@ -323,9 +289,9 @@ trait CanAttachTile {
   def connectInputConstants(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetPrefixFrom = context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere)
-    domain.tile.hartIdNode := context.tileHartIdNode
-    domain.tile.resetVectorNode := context.tileResetVectorNode
-    tlBusToGetPrefixFrom.prefixNode.foreach { domain.tile.mmioAddressPrefixNode := _ }
+    domain.element.hartIdNode := context.tileHartIdNode
+    domain.element.resetVectorNode := context.tileResetVectorNode
+    tlBusToGetPrefixFrom.prefixNode.foreach { domain.element.mmioAddressPrefixNode := _ }
   }
 
   /** Connect power/reset/clock resources. */
@@ -368,7 +334,7 @@ case class CloneTileAttachParams(
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.name))
     val tile_prci_domain = CloneLazyModule(
       new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
-        val tile = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
+        val element = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
       },
       instantiatedTiles(sourceHart).asInstanceOf[TilePRCIDomain[TileType]]
     )
@@ -382,6 +348,7 @@ case class CloneTileAttachParams(
   */
 trait InstantiatesTiles { this: LazyModule with Attachable =>
   val location: HierarchicalLocation
+
   /** Record the order in which to instantiate all tiles, based on statically-assigned ids.
     *
     * Note that these ids, which are often used as the tiles' default hartid input,
@@ -396,7 +363,7 @@ trait InstantiatesTiles { this: LazyModule with Attachable =>
     case (instantiated, params) => instantiated :+ params.instantiate(tileParams, instantiated)(p)
   }
 
-  val tiles: Seq[BaseTile] = tile_prci_domains.map(_.tile.asInstanceOf[BaseTile])
+  val tiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile])
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   def nTiles: Int = tileAttachParams.size
