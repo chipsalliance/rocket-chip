@@ -97,6 +97,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     }
     tlDM
   }
+  val debugNode = debugOpt.map(_.intnode)
 }
 
 trait HasPeripheryDebugModuleImp extends LazyModuleImp {

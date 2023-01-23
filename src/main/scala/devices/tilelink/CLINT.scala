@@ -116,4 +116,5 @@ trait CanHavePeripheryCLINT { this: BaseSubsystem =>
     clint
 
   }
+  val clintNode = clintOpt.map(_.intnode)
 }
