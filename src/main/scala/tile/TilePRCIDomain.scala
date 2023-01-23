@@ -33,48 +33,4 @@ abstract class TilePRCIDomain[T <: BaseTile](
   val traceNodes: Seq[BundleBridgeIdentityNode[TraceBundle]] = Seq(BundleBridgeNameNode(traceSignalName))
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
   val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]] = Seq(BundleBridgeNameNode(traceCoreSignalName))
-
-  /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
-  def crossIntIn(crossingType: ClockCrossingType): IntInwardNode = {
-    // Unlike the other crossing helpers, here nothing is is blocked during reset because we know these are inputs and assume that tile reset is longer than uncore reset
-    val intInClockXing = this.crossIn(element.intInwardNode)
-    intInClockXing(crossingType)
-  }
-
-  /** External code looking to connect and clock/reset-cross
-    *   - interrupts raised by devices inside this tile
-    *   - notifications raise by the cores and caches
-    * can call this function to instantiate the required crossing hardware.
-    * Takes crossingType as an argument because some interrupts are supposed to be synchronous
-    * Takes tileNode as an argument because tiles might have multiple outbound interrupt nodes
-    */
-  def crossIntOut(crossingType: ClockCrossingType, tileNode: IntOutwardNode): IntOutwardNode = {
-    val intOutResetXing = this { element_reset_domain.crossIntOut(tileNode) }
-    val intOutClockXing = this.crossOut(intOutResetXing)
-    intOutClockXing(crossingType)
-  }
-
-  /** External code looking to connect the ports where this tile is slaved to an interconnect
-    * (while also crossing clock domains) can call this.
-    */
-  def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
-    val tlSlaveResetXing = this {
-      element_reset_domain.crossTLIn(element.slaveNode) :*=
-        element { element.makeSlaveBoundaryBuffers(crossingType) }
-    }
-    val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
-    tlSlaveClockXing(crossingType)
-  } } }
-
-  /** External code looking to connect the ports where this tile masters an interconnect
-    * (while also crossing clock domains) can call this.
-    */
-  def crossMasterPort(crossingType: ClockCrossingType): TLOutwardNode = {
-    val tlMasterResetXing = this { DisableMonitors { implicit p =>
-      element { element.makeMasterBoundaryBuffers(crossingType) } :=*
-        element_reset_domain.crossTLOut(element.masterNode)
-    } }
-    val tlMasterClockXing = this.crossOut(tlMasterResetXing)
-    tlMasterClockXing(crossingType)
-  }
 }
