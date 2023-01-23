@@ -169,9 +169,9 @@ trait DefaultTileContextType
   with HasTileNotificationSinks
   with HasTileInputConstants
 { this: LazyModule with Attachable =>
-  val clintNode: Option[IntNexusNode]
-  val plicNode: Option[IntNexusNode]
-  val debugNode: Option[IntSyncIdentityNode]
+  val clintNode: Option[IntOutwardNode]
+  val plicNode: Option[IntNode]
+  val debugNode: Option[IntSyncOutwardNode]
 }
 
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
@@ -262,7 +262,7 @@ trait CanAttachTile {
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.plicNode.foreach { node =>
       FlipRendering { implicit p =>
-        node :=* domain.crossIntOut(crossingParams.crossingType, domain.element.intOutwardNode)
+        node :*= domain.crossIntOut(crossingParams.crossingType, domain.element.intOutwardNode)
       }
     }
 

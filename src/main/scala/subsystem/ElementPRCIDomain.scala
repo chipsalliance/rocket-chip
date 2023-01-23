@@ -12,6 +12,8 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.rocket.{TracedInstruction}
+import freechips.rocketchip.util.{TraceCoreInterface}
 
 
 /** A wrapper containing all logic within a managed reset domain for a element.
@@ -48,4 +50,9 @@ abstract class ElementPRCIDomain[T <: BaseElement](
   val tapClockNode = ClockIdentityNode()
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
   lazy val clockBundle = tapClockNode.in.head._1
+
+  /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
+  val traceNodes: Seq[BundleBridgeIdentityNode[Vec[TracedInstruction]]]
+  /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
+  val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]]
 }
