@@ -30,21 +30,21 @@ abstract class TilePRCIDomain[T <: BaseTile](
   private val traceSignalName = "trace"
   private val traceCoreSignalName = "tracecore"
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNode: BundleBridgeIdentityNode[TraceBundle] = BundleBridgeNameNode(traceSignalName)
+  val traceNodes: Seq[BundleBridgeIdentityNode[TraceBundle]] = Seq(BundleBridgeNameNode(traceSignalName))
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
-  val traceCoreNode: BundleBridgeIdentityNode[TraceCoreInterface] = BundleBridgeNameNode(traceCoreSignalName)
+  val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]] = Seq(BundleBridgeNameNode(traceCoreSignalName))
 
   /** Function to handle all trace crossings when tile is instantiated inside domains */
   def crossTracesOut(): Unit = this {
     val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
       resetCrossingType = crossingParams.resetCrossingType,
       name = Some(traceSignalName))
-    traceNode :*= traceNexusNode := element.traceNode
+    traceNodes(0) :*= traceNexusNode := element.traceNodes(0)
 
     val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
       resetCrossingType = crossingParams.resetCrossingType,
       name = Some(traceCoreSignalName))
-    traceCoreNode :*= traceCoreNexusNode := element.traceCoreNode
+    traceCoreNodes(0) :*= traceCoreNexusNode := element.traceCoreNodes(0)
   }
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */

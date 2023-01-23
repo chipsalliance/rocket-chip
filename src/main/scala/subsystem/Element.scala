@@ -7,11 +7,10 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
-import freechips.rocketchip.tile.{LookupByHartIdImpl}
+import freechips.rocketchip.tile.{LookupByHartIdImpl, TraceBundle}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.rocket.{TracedInstruction}
 import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
 
@@ -64,7 +63,7 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
   protected val intXbar = LazyModule(new IntXbar)
 
   val traceCoreNodes: Seq[BundleBridgeOutwardNode[TraceCoreInterface]]
-  val traceNodes: Seq[BundleBridgeOutwardNode[Vec[TracedInstruction]]]
+  val traceNodes: Seq[BundleBridgeOutwardNode[TraceBundle]]
 
 
   /** Helper function to insert additional buffers on master ports at the boundary of the tile.
