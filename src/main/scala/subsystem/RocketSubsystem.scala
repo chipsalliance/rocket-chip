@@ -41,5 +41,5 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
-    with HasTilesModuleImp
+    with HasTilesRootModuleImp
 
