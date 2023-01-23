@@ -99,7 +99,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     tlDM
   }
 
-  lazy val debugNode = debugOpt.map(_.intnode).getOrElse(IntSyncXbar() := NullIntSyncSource())
+  val debugNode = debugOpt.map(_.intnode)
 
   val psd = InModuleBody {
     val psd = IO(new PSDIO)

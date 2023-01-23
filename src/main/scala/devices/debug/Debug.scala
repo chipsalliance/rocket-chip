@@ -693,7 +693,8 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   })
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
-  val intnode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
+  val intnode = IntSyncIdentityNode()
+  intnode :*= IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
   val dmiBypass = LazyModule(new TLBusBypass(beatBytes=4, bufferError=false, maxAtomic=0, maxTransfer=4))
   val dmiInnerNode = TLAsyncCrossingSource() := dmiBypass.node := dmiXbar.node

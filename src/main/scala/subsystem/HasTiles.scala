@@ -169,9 +169,9 @@ trait DefaultTileContextType
   with HasTileNotificationSinks
   with HasTileInputConstants
 { this: LazyModule with Attachable =>
-  val debugOpt: Option[TLDebugModule]
-  val clintOpt: Option[CLINT]
-  val plicOpt: Option[TLPLIC]
+  val clintNode: Option[IntNexusNode]
+  val plicNode: Option[IntNexusNode]
+  val debugNode: Option[IntSyncIdentityNode]
 }
 
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
@@ -234,8 +234,8 @@ trait CanAttachTile {
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
     domain.element.intInwardNode :=
-      context.debugOpt
-        .map { domain { IntSyncAsyncCrossingSink(3) } := _.intnode }
+      context.debugNode
+        .map { node => domain { IntSyncAsyncCrossingSink(3) } := node }
         .getOrElse { NullIntSource() }
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
@@ -243,19 +243,16 @@ trait CanAttachTile {
 
     //    From CLINT: "msip" and "mtip"
     domain.crossIntIn(crossingParams.crossingType) :=
-      context.clintOpt.map { _.intnode }
-        .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+      context.clintNode.getOrElse { NullIntSource(sources = CLINTConsts.ints) }
 
     //    From PLIC: "meip"
     domain.crossIntIn(crossingParams.crossingType) :=
-      context.plicOpt .map { _.intnode }
-        .getOrElse { context.meipNode.get }
+      context.plicNode.getOrElse { context.meipNode.get }
 
     //    From PLIC: "seip" (only if supervisor mode is enabled)
     if (domain.element.tileParams.core.hasSupervisorMode) {
       domain.crossIntIn(crossingParams.crossingType) :=
-        context.plicOpt .map { _.intnode }
-          .getOrElse { context.seipNode.get }
+        context.plicNode.getOrElse { context.seipNode.get }
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
@@ -263,9 +260,9 @@ trait CanAttachTile {
 
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
-    context.plicOpt.foreach { plic =>
+    context.plicNode.foreach { node =>
       FlipRendering { implicit p =>
-        plic.intnode :=* domain.crossIntOut(crossingParams.crossingType, domain.element.intOutwardNode)
+        node :=* domain.crossIntOut(crossingParams.crossingType, domain.element.intOutwardNode)
       }
     }
 
