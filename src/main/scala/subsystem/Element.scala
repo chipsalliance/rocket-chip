@@ -63,8 +63,8 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
-  val traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface]
-  val traceNode: BundleBridgeOutwardNode[Vec[TracedInstruction]]
+  val traceCoreNodes: Seq[BundleBridgeOutwardNode[TraceCoreInterface]]
+  val traceNodes: Seq[BundleBridgeOutwardNode[Vec[TracedInstruction]]]
 
 
   /** Helper function to insert additional buffers on master ports at the boundary of the tile.
