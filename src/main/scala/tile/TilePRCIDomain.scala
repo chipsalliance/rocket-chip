@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.rocket.{TracedInstruction}
-import freechips.rocketchip.subsystem.{ElementCrossingParamsLike, CrossesToOnlyOneResetDomain}
+import freechips.rocketchip.subsystem.{ElementCrossingParamsLike, CrossesToOnlyOneResetDomain, BaseElement}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{TraceCoreInterface}
 
@@ -35,13 +35,13 @@ class TileResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: R
   * hierarchical P&R boundary buffers, core-local interrupt handling,
   * and any other IOs related to PRCI control.
   */
-abstract class TilePRCIDomain[T <: BaseTile](
+abstract class TilePRCIDomain[T <: BaseElement](
   clockSinkParams: ClockSinkParameters,
   crossingParams: ElementCrossingParamsLike)
   (implicit p: Parameters)
     extends ClockDomain
 {
-  val tile: T
+  val element: T
   val tile_reset_domain = LazyModule(new TileResetDomain(clockSinkParams, crossingParams.resetCrossingType))
   val tapClockNode = ClockIdentityNode()
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
@@ -59,18 +59,18 @@ abstract class TilePRCIDomain[T <: BaseTile](
     val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
       resetCrossingType = crossingParams.resetCrossingType,
       name = Some(traceSignalName))
-    traceNode :*= traceNexusNode := tile.traceNode
+    traceNode :*= traceNexusNode := element.traceNode
 
     val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
       resetCrossingType = crossingParams.resetCrossingType,
       name = Some(traceCoreSignalName))
-    traceCoreNode :*= traceCoreNexusNode := tile.traceCoreNode
+    traceCoreNode :*= traceCoreNexusNode := element.traceCoreNode
   }
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossingType: ClockCrossingType): IntInwardNode = {
     // Unlike the other crossing helpers, here nothing is is blocked during reset because we know these are inputs and assume that tile reset is longer than uncore reset
-    val intInClockXing = this.crossIn(tile.intInwardNode)
+    val intInClockXing = this.crossIn(element.intInwardNode)
     intInClockXing(crossingType)
   }
 
@@ -92,8 +92,8 @@ abstract class TilePRCIDomain[T <: BaseTile](
     */
   def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
     val tlSlaveResetXing = this {
-      tile_reset_domain.crossTLIn(tile.slaveNode) :*=
-        tile { tile.makeSlaveBoundaryBuffers(crossingType) }
+      tile_reset_domain.crossTLIn(element.slaveNode) :*=
+        element { element.makeSlaveBoundaryBuffers(crossingType) }
     }
     val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
     tlSlaveClockXing(crossingType)
@@ -104,8 +104,8 @@ abstract class TilePRCIDomain[T <: BaseTile](
     */
   def crossMasterPort(crossingType: ClockCrossingType): TLOutwardNode = {
     val tlMasterResetXing = this { DisableMonitors { implicit p =>
-      tile { tile.makeMasterBoundaryBuffers(crossingType) } :=*
-        tile_reset_domain.crossTLOut(tile.masterNode)
+      element { element.makeMasterBoundaryBuffers(crossingType) } :=*
+        tile_reset_domain.crossTLOut(element.masterNode)
     } }
     val tlMasterClockXing = this.crossOut(tlMasterResetXing)
     tlMasterClockXing(crossingType)

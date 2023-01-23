@@ -25,6 +25,7 @@ trait TileParams extends ElementParams {
   val btb: Option[BTBParams]
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
+  val clockSinkParams: ClockSinkParameters
 }
 
 abstract class InstantiableTileParams[TileType <: BaseTile]
@@ -337,22 +338,6 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
       "timebase-frequency"   -> p(DTSTimebase).asProperty,
       "hardware-exec-breakpoint-count" -> tileParams.core.nBreakpoints.asProperty
   )
-
-  /** Helper function to insert additional buffers on master ports at the boundary of the tile.
-    *
-    * The boundary buffering needed to cut feed-through paths is
-    * microarchitecture specific, so this may need to be overridden
-    * in subclasses of this class.
-    */
-  def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
-
-  /** Helper function to insert additional buffers on slave ports at the boundary of the tile.
-    *
-    * The boundary buffering needed to cut feed-through paths is
-    * microarchitecture specific, so this may need to be overridden
-    * in subclasses of this class.
-    */
- def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
 
   /** Can be used to access derived params calculated by HasCoreParameters
     *

@@ -11,8 +11,8 @@ import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CanHavePeri
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
-  master: ElementPortParamsLike = TileMasterPortParams(),
-  slave: TileSlavePortParams = TileSlavePortParams(),
+  master: ElementPortParamsLike = ElementMasterPortParams(),
+  slave: ElementSlavePortParams = ElementSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
   resetCrossingType: ResetCrossingType = NoResetCrossing(),
   forceSeparateClockReset: Boolean = false

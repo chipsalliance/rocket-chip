@@ -10,17 +10,16 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.tile.{LookupByHartIdImpl}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util._
+import freechips.rocketchip.rocket.{TracedInstruction}
 import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
 
 trait ElementParams {
   val name: String
-  val clockSinkParams: ClockSinkParameters
 }
 
-abstract class InstantiableElementParams[ElementType <: BaseElement] extends ElementParams {
-  def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): ElementType
-}
+abstract class InstantiableElementParams[ElementType <: BaseElement] extends ElementParams
 
 /** An interface for describing the parameteization of how Elements are connected to interconnects */
 trait ElementCrossingParamsLike {
@@ -64,6 +63,28 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
+  val traceCoreNode: BundleBridgeOutwardNode[TraceCoreInterface]
+  val traceNode: BundleBridgeOutwardNode[Vec[TracedInstruction]]
+
+
+  /** Helper function to insert additional buffers on master ports at the boundary of the tile.
+    *
+    * The boundary buffering needed to cut feed-through paths is
+    * microarchitecture specific, so this may need to be overridden
+    * in subclasses of this class.
+    */
+  def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
+
+  /** Helper function to insert additional buffers on slave ports at the boundary of the tile.
+    *
+    * The boundary buffering needed to cut feed-through paths is
+    * microarchitecture specific, so this may need to be overridden
+    * in subclasses of this class.
+    */
+  def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
+
+
 }
 
 abstract class BaseElementModuleImp[+L <: BaseElement](val outer: L) extends LazyModuleImp(outer)
+
