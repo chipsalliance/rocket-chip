@@ -25,17 +25,17 @@ case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTi
   */
 case object InsertTimingClosureRegistersOnHartIds extends Field[Boolean](false)
 
-/** Whether per-tile hart ids are going to be driven as inputs into the subsystem,
+/** Whether per-tile hart ids are going to be driven as inputs into a HasTiles block,
   * and if so, what their width should be.
   */
-case object SubsystemExternalHartIdWidthKey extends Field[Option[Int]](None)
+case object HasTilesExternalHartIdWidthKey extends Field[Option[Int]](None)
 
-/** Whether per-tile reset vectors are going to be driven as inputs into the subsystem.
+/** Whether per-tile reset vectors are going to be driven as inputs into a HasTiles block.
   *
   * Unlike the hart ids, the reset vector width is determined by the sinks within the tiles,
   * based on the size of the address map visible to the tiles.
   */
-case object SubsystemExternalResetVectorKey extends Field[Boolean](true)
+case object HasTilesExternalResetVectorKey extends Field[Boolean](true)
 
 
 /** These are sources of interrupts that are driven into the tile.
@@ -117,7 +117,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with At
     *
     *   Or, if such IOs are not configured to exist, tileHartIdNexusNode is used to supply an id to each tile.
     */
-  val tileHartIdIONodes: Seq[BundleBridgeSource[UInt]] = p(SubsystemExternalHartIdWidthKey) match {
+  val tileHartIdIONodes: Seq[BundleBridgeSource[UInt]] = p(HasTilesExternalHartIdWidthKey) match {
     case Some(w) => Seq.fill(tiles.size) {
       val hartIdSource = BundleBridgeSource(() => UInt(w.W))
       tileHartIdNode := hartIdSource
@@ -130,7 +130,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with At
     *
     *   Or, if such IOs are not configured to exist, tileResetVectorNexusNode is used to supply a single reset vector to every tile.
     */
-  val tileResetVectorIONodes: Seq[BundleBridgeSource[UInt]] = p(SubsystemExternalResetVectorKey) match {
+  val tileResetVectorIONodes: Seq[BundleBridgeSource[UInt]] = p(HasTilesExternalResetVectorKey) match {
     case true => Seq.fill(tiles.size) {
       val resetVectorSource = BundleBridgeSource[UInt]()
       tileResetVectorNode := resetVectorSource
