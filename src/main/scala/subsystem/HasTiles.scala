@@ -190,7 +190,7 @@ trait CanAttachTile {
   def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: Seq[TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.name))
     val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
-      val element = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
+      val element = self.element_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
     })
     tile_prci_domain
   }
@@ -313,7 +313,7 @@ trait CanAttachTile {
     })
 
     domain {
-      domain.tile_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
+      domain.element_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
     }
   }
 }
@@ -333,7 +333,7 @@ case class CloneTileAttachParams(
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.name))
     val tile_prci_domain = CloneLazyModule(
       new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
-        val element = self.tile_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
+        val element = self.element_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
       },
       instantiatedTiles(sourceHart).asInstanceOf[TilePRCIDomain[TileType]]
     )

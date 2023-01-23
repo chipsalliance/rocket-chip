@@ -8,24 +8,10 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.rocket.{TracedInstruction}
-import freechips.rocketchip.subsystem.{ElementCrossingParamsLike, CrossesToOnlyOneResetDomain, BaseElement}
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{TraceCoreInterface}
 
-/** A wrapper containing all logic within a managed reset domain for a tile.
-  *
-  * This does not add a layer of the module hierarchy.
-  */
-class TileResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: ResetCrossingType)
-                     (implicit p: Parameters)
-    extends ResetDomain
-    with CrossesToOnlyOneResetDomain
-{ 
-  def crossing = resetCrossingType
-  val clockNode = ClockSinkNode(Seq(clockSinkParams))
-  def clockBundle = clockNode.in.head._1
-  override def shouldBeInlined = true
-}
 
 /** A wrapper containing all logic necessary to safely place a tile
   * inside of a particular Power/Reset/Clock/Interrupt domain.
@@ -35,18 +21,12 @@ class TileResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: R
   * hierarchical P&R boundary buffers, core-local interrupt handling,
   * and any other IOs related to PRCI control.
   */
-abstract class TilePRCIDomain[T <: BaseElement](
+abstract class TilePRCIDomain[T <: BaseTile](
   clockSinkParams: ClockSinkParameters,
   crossingParams: ElementCrossingParamsLike)
   (implicit p: Parameters)
-    extends ClockDomain
+    extends ElementPRCIDomain[T](clockSinkParams, crossingParams)
 {
-  val element: T
-  val tile_reset_domain = LazyModule(new TileResetDomain(clockSinkParams, crossingParams.resetCrossingType))
-  val tapClockNode = ClockIdentityNode()
-  val clockNode = FixedClockBroadcast(None) :=* tapClockNode
-  lazy val clockBundle = tapClockNode.in.head._1
-
   private val traceSignalName = "trace"
   private val traceCoreSignalName = "tracecore"
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
@@ -82,7 +62,7 @@ abstract class TilePRCIDomain[T <: BaseElement](
     * Takes tileNode as an argument because tiles might have multiple outbound interrupt nodes
     */
   def crossIntOut(crossingType: ClockCrossingType, tileNode: IntOutwardNode): IntOutwardNode = {
-    val intOutResetXing = this { tile_reset_domain.crossIntOut(tileNode) }
+    val intOutResetXing = this { element_reset_domain.crossIntOut(tileNode) }
     val intOutClockXing = this.crossOut(intOutResetXing)
     intOutClockXing(crossingType)
   }
@@ -92,7 +72,7 @@ abstract class TilePRCIDomain[T <: BaseElement](
     */
   def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
     val tlSlaveResetXing = this {
-      tile_reset_domain.crossTLIn(element.slaveNode) :*=
+      element_reset_domain.crossTLIn(element.slaveNode) :*=
         element { element.makeSlaveBoundaryBuffers(crossingType) }
     }
     val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
@@ -105,7 +85,7 @@ abstract class TilePRCIDomain[T <: BaseElement](
   def crossMasterPort(crossingType: ClockCrossingType): TLOutwardNode = {
     val tlMasterResetXing = this { DisableMonitors { implicit p =>
       element { element.makeMasterBoundaryBuffers(crossingType) } :=*
-        tile_reset_domain.crossTLOut(element.masterNode)
+        element_reset_domain.crossTLOut(element.masterNode)
     } }
     val tlMasterClockXing = this.crossOut(tlMasterResetXing)
     tlMasterClockXing(crossingType)
