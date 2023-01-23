@@ -41,7 +41,7 @@ case object HasTilesExternalResetVectorKey extends Field[Boolean](true)
 /** These are sources of interrupts that are driven into the tile.
   * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
-trait HasTileInterruptSources extends InstantiatesTiles
+trait HasTileInterruptSources extends InstantiatesElements
 { this: LazyModule with Attachable =>
   /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
   val meipNode = p(PLICKey) match {
@@ -63,7 +63,7 @@ trait HasTileInterruptSources extends InstantiatesTiles
   /** Source of Non-maskable Interrupt (NMI) input bundle to each tile. */
   val tileNMINode = BundleBridgeEphemeralNode[NMI]()
   val tileNMIIONodes: Seq[BundleBridgeSource[NMI]] = {
-    Seq.fill(tiles.size) {
+    Seq.fill(nTotalTiles) {
       val nmiSource = BundleBridgeSource[NMI]()
       tileNMINode := nmiSource
       nmiSource
@@ -77,7 +77,7 @@ trait HasTileInterruptSources extends InstantiatesTiles
   * they may be either tied to a contant value or programmed during boot or reset.
   * They need to be instantiated before tiles are attached within the subsystem containing them.
   */
-trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with Attachable =>
+trait HasTileInputConstants extends InstantiatesElements { this: LazyModule with Attachable =>
   /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
   val tileHartIdNode = BundleBridgeEphemeralNode[UInt]()
 
@@ -96,7 +96,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with At
   val tileHartIdNexusNode = LazyModule(new BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) _,
     outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
-      val y = dontTouch(prefix | hartIdList(i).U(p(MaxHartIdBits).W)) // dontTouch to keep constant prop from breaking tile dedup
+      val y = dontTouch(prefix | totalHartIdList(i).U(p(MaxHartIdBits).W)) // dontTouch to keep constant prop from breaking tile dedup
       if (p(InsertTimingClosureRegistersOnHartIds)) BundleBridgeNexus.safeRegNext(y) else y
     },
     default = Some(() => 0.U(p(MaxHartIdBits).W)),
@@ -118,7 +118,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with At
     *   Or, if such IOs are not configured to exist, tileHartIdNexusNode is used to supply an id to each tile.
     */
   val tileHartIdIONodes: Seq[BundleBridgeSource[UInt]] = p(HasTilesExternalHartIdWidthKey) match {
-    case Some(w) => Seq.fill(tiles.size) {
+    case Some(w) => Seq.fill(nTotalTiles) {
       val hartIdSource = BundleBridgeSource(() => UInt(w.W))
       tileHartIdNode := hartIdSource
       hartIdSource
@@ -131,7 +131,7 @@ trait HasTileInputConstants extends InstantiatesTiles { this: LazyModule with At
     *   Or, if such IOs are not configured to exist, tileResetVectorNexusNode is used to supply a single reset vector to every tile.
     */
   val tileResetVectorIONodes: Seq[BundleBridgeSource[UInt]] = p(HasTilesExternalResetVectorKey) match {
-    case true => Seq.fill(tiles.size) {
+    case true => Seq.fill(nTotalTiles) {
       val resetVectorSource = BundleBridgeSource[UInt]()
       tileResetVectorNode := resetVectorSource
       resetVectorSource
@@ -341,37 +341,6 @@ case class CloneTileAttachParams(
   }
 }
 
-
-/** InstantiatesTiles adds a Config-urable sequence of tiles of any type
-  *   to the subsystem class into which it is mixed.
-  */
-trait InstantiatesTiles { this: LazyModule with Attachable =>
-  val location: HierarchicalLocation
-
-  /** Record the order in which to instantiate all tiles, based on statically-assigned ids.
-    *
-    * Note that these ids, which are often used as the tiles' default hartid input,
-    * may or may not be those actually reflected at runtime in e.g. the $mhartid CSR
-    */
-  val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
-  val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
-  val tileCrossingTypes: Seq[ClockCrossingType] = tileAttachParams.map(_.crossingParams.crossingType)
-
-  /** The actual list of instantiated tiles in this subsystem. */
-  val tile_prci_domains: Seq[TilePRCIDomain[_]] = tileAttachParams.foldLeft(Seq[TilePRCIDomain[_]]()) {
-    case (instantiated, params) => instantiated :+ params.instantiate(tileParams, instantiated)(p)
-  }
-
-  val tiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile])
-
-  // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
-  def nTiles: Int = tileAttachParams.size
-  def hartIdList: Seq[Int] = tileParams.map(_.hartId)
-  def localIntCounts: Seq[Int] = tileParams.map(_.core.nLocalInterrupts)
-
-  require(hartIdList.distinct.size == tiles.size, s"Every tile must be statically assigned a unique id, but got:\n${hartIdList}")
-}
-
 /** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
 trait HasTiles extends HasCoreMonitorBundles with DefaultTileContextType
 { this: LazyModule with Attachable =>
@@ -402,5 +371,5 @@ trait HasTilesModuleImp extends LazyModuleImp {
       (outer.seipNode.get.out(i)._1)(0) := pin
     }
   }
-  val nmi = outer.tiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
+  val nmi = outer.totalTiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
 }
