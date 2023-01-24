@@ -51,11 +51,11 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
   def module: BaseElementModuleImp[BaseElement]
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
-  def intInwardNode: IntInwardNode    // Interrupts to the core from external devices
-  def intOutwardNode: IntOutwardNode  // Interrupts from tile-internal devices (e.g. BEU)
-  def haltNode: IntOutwardNode        // Unrecoverable error has occurred; suggest reset
-  def ceaseNode: IntOutwardNode       // Tile has ceased to retire instructions
-  def wfiNode: IntOutwardNode         // Tile is waiting for an interrupt
+  def intInwardNode: Seq[IntInwardNode]    // Interrupts to the core from external devices
+  def intOutwardNode: Seq[Option[IntOutwardNode]]  // Interrupts from tile-internal devices (e.g. BEU)
+  def haltNode: Seq[IntOutwardNode]        // Unrecoverable error has occurred; suggest reset
+  def ceaseNode: Seq[IntOutwardNode]       // Tile has ceased to retire instructions
+  def wfiNode: Seq[IntOutwardNode]         // Tile is waiting for an interrupt
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)

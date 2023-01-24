@@ -28,7 +28,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 // Use diplomatic interrupts to external interrupts from the subsystem into the tile
 trait SinksExternalInterrupts { this: BaseTile =>
 
-  val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
+  val intInwardNode = Seq(intXbar.intnode :=* IntIdentityNode()(ValName("int_local")))
   protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
 
@@ -85,10 +85,10 @@ trait SinksExternalInterrupts { this: BaseTile =>
 
 trait SourcesExternalNotifications { this: BaseTile =>
   // Report unrecoverable error conditions
-  val haltNode = IntSourceNode(IntSourcePortSimple())
+  val haltNode = Seq(IntSourceNode(IntSourcePortSimple()))
 
   def reportHalt(could_halt: Option[Bool]): Unit = {
-    val (halt_and_catch_fire, _) = haltNode.out(0)
+    val (halt_and_catch_fire, _) = haltNode(0).out(0)
     halt_and_catch_fire(0) := could_halt.map(RegEnable(true.B, false.B, _)).getOrElse(false.B)
   }
 
@@ -97,7 +97,7 @@ trait SourcesExternalNotifications { this: BaseTile =>
   }
 
   // Report when the tile has ceased to retire instructions
-  val ceaseNode = IntSourceNode(IntSourcePortSimple())
+  val ceaseNode = Seq(IntSourceNode(IntSourcePortSimple()))
 
   def reportCease(could_cease: Option[Bool], quiescenceCycles: Int = 8): Unit = {
     def waitForQuiescence(cease: Bool): Bool = {
@@ -108,7 +108,7 @@ trait SourcesExternalNotifications { this: BaseTile =>
       when (cease && !saturated) { count := count + 1.U }
       saturated
     }
-    val (cease, _) = ceaseNode.out(0)
+    val (cease, _) = ceaseNode(0).out(0)
     cease(0) := could_cease.map{ c => 
       val cease = (waitForQuiescence(c))
       // Test-Only Code --
@@ -119,10 +119,10 @@ trait SourcesExternalNotifications { this: BaseTile =>
   }
 
   // Report when the tile is waiting for an interrupt
-  val wfiNode = IntSourceNode(IntSourcePortSimple())
+  val wfiNode = Seq(IntSourceNode(IntSourcePortSimple()))
 
   def reportWFI(could_wfi: Option[Bool]): Unit = {
-    val (wfi, _) = wfiNode.out(0)
+    val (wfi, _) = wfiNode(0).out(0)
     wfi(0) := could_wfi.map(RegNext(_, init=false.B)).getOrElse(false.B)
   }
 }

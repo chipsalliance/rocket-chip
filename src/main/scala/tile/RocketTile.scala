@@ -52,7 +52,7 @@ class RocketTile private(
   def this(params: RocketTileParams, crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
-  val intOutwardNode = IntIdentityNode()
+  val intOutwardNode = Seq(rocketParams.beuAddr map { _ => IntIdentityNode() })
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
@@ -63,7 +63,7 @@ class RocketTile private(
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
-    intOutwardNode := beu.intNode
+    intOutwardNode(0).get := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
   }
