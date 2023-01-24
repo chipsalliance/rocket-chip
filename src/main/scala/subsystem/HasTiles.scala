@@ -158,22 +158,6 @@ trait HasTileNotificationSinks { this: LazyModule =>
   tileCeaseSinkNode := tileCeaseXbarNode
 }
 
-/** Most tile types require only these traits in order for their standardized connect functions to apply.
-  *
-  *    BaseTiles subtypes with different needs can extend this trait to provide themselves with
-  *    additional external connection points.
-  */
-trait DefaultTileContextType
-  extends Attachable
-  with HasTileInterruptSources
-  with HasTileNotificationSinks
-  with HasTileInputConstants
-{ this: LazyModule with Attachable =>
-  val clintNode: Option[IntOutwardNode]
-  val plicNode: Option[IntNode]
-  val debugNode: Option[IntSyncOutwardNode]
-}
-
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
   *
   *   Sub-classes of this trait can optionally override the individual connect functions in order to specialize
@@ -182,7 +166,7 @@ trait DefaultTileContextType
   */
 trait CanAttachTile {
   type TileType <: BaseTile
-  type TileContextType <: DefaultTileContextType
+  type TileContextType <: DefaultElementContextType
   def tileParams: InstantiableTileParams[TileType]
   def crossingParams: ElementCrossingParamsLike
 
@@ -233,7 +217,7 @@ trait CanAttachTile {
     //       we stub out missing interrupts with constant sources here.
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
-    domain.element.intInwardNode :=
+    domain.element.intInwardNode(0) :=
       context.debugNode
         .map { node => domain { IntSyncAsyncCrossingSink(3) } := node }
         .getOrElse { NullIntSource() }
@@ -242,16 +226,16 @@ trait CanAttachTile {
     //    so might need to be synchronized depending on the Tile's crossing type.
 
     //    From CLINT: "msip" and "mtip"
-    domain.crossIntIn(crossingParams.crossingType) :=
+    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode(0)) :=
       context.clintNode.getOrElse { NullIntSource(sources = CLINTConsts.ints) }
 
     //    From PLIC: "meip"
-    domain.crossIntIn(crossingParams.crossingType) :=
+    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode(0)) :=
       context.plicNode.getOrElse { context.meipNode.get }
 
     //    From PLIC: "seip" (only if supervisor mode is enabled)
     if (domain.element.tileParams.core.hasSupervisorMode) {
-      domain.crossIntIn(crossingParams.crossingType) :=
+      domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode(0)) :=
         context.plicNode.getOrElse { context.seipNode.get }
     }
 
@@ -261,9 +245,9 @@ trait CanAttachTile {
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.plicNode.foreach { node =>
-      FlipRendering { implicit p =>
-        node :*= domain.crossIntOut(crossingParams.crossingType, domain.element.intOutwardNode)
-      }
+      FlipRendering { implicit p => domain.element.intOutwardNode(0).foreach { out =>
+        node :*= domain.crossIntOut(crossingParams.crossingType, out)
+      }}
     }
 
     // 5. Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock.
@@ -273,9 +257,9 @@ trait CanAttachTile {
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
   def connectOutputNotifications(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode)
-    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode)
-    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode)
+    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode(0))
+    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode(0))
+    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode(0))
     // TODO should context be forced to have a trace sink connected here?
     //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
     domain.crossTracesOut()

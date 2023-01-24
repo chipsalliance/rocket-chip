@@ -84,7 +84,7 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
 }
 
 /** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
-trait HasElements extends HasCoreMonitorBundles with DefaultTileContextType
+trait HasElements extends HasCoreMonitorBundles with DefaultElementContextType
 { this: LazyModule with Attachable =>
   implicit val p: Parameters
 
@@ -116,4 +116,20 @@ trait HasElementsRootModuleImp extends LazyModuleImp {
     }
   }
   val nmi = outer.totalTiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
+}
+
+/** Most tile types require only these traits in order for their standardized connect functions to apply.
+  *
+  *    BaseTiles subtypes with different needs can extend this trait to provide themselves with
+  *    additional external connection points.
+  */
+trait DefaultElementContextType
+  extends Attachable
+  with HasTileInterruptSources
+  with HasTileNotificationSinks
+  with HasTileInputConstants
+{ this: LazyModule with Attachable =>
+  val clintNode: Option[IntOutwardNode]
+  val plicNode: Option[IntNode]
+  val debugNode: Option[IntSyncOutwardNode]
 }
