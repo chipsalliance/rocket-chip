@@ -37,49 +37,17 @@ case object HasTilesExternalHartIdWidthKey extends Field[Option[Int]](None)
   */
 case object HasTilesExternalResetVectorKey extends Field[Boolean](true)
 
-
-/** These are sources of interrupts that are driven into the tile.
-  * They need to be instantiated before tiles are attached to the subsystem containing them.
-  */
-trait HasTileInterruptSources extends InstantiatesElements
-{ this: LazyModule with Attachable =>
-  /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
-  val meipNode = p(PLICKey) match {
-    case Some(_) => None
-    case None    => Some(IntNexusNode(
-      sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
-      sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
-      outputRequiresInput = false,
-      inputRequiresOutput = false))
-  }
-  val seipNode = p(PLICKey) match {
-    case Some(_) => None
-    case None    => Some(IntNexusNode(
-      sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
-      sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
-      outputRequiresInput = false,
-      inputRequiresOutput = false))
-  }
-  /** Source of Non-maskable Interrupt (NMI) input bundle to each tile. */
-  val tileNMINode = BundleBridgeEphemeralNode[NMI]()
-  val tileNMIIONodes: Seq[BundleBridgeSource[NMI]] = {
-    Seq.fill(nTotalTiles) {
-      val nmiSource = BundleBridgeSource[NMI]()
-      tileNMINode := nmiSource
-      nmiSource
-    }
-  }
-}
-
 /** These are sources of "constants" that are driven into the tile.
   * 
   * While they are not expected to change dyanmically while the tile is executing code,
   * they may be either tied to a contant value or programmed during boot or reset.
   * They need to be instantiated before tiles are attached within the subsystem containing them.
   */
-trait HasTileInputConstants extends InstantiatesElements { this: LazyModule with Attachable =>
+trait HasTileInputConstants { this: LazyModule with Attachable with InstantiatesElements =>
   /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
-  val tileHartIdNode = BundleBridgeEphemeralNode[UInt]()
+  val tileHartIdNodes: Map[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
+    (i, BundleBridgeEphemeralNode[UInt]())
+  }.toMap
 
   /** tileHartIdNexusNode is a BundleBridgeNexus that collects dynamic hart prefixes.
     *
@@ -106,7 +74,9 @@ trait HasTileInputConstants extends InstantiatesElements { this: LazyModule with
   // TODO: Replace the DebugModuleHartSelFuncs config key with logic to consume the dynamic hart IDs
 
   /** tileResetVectorNode is used to collect publishers and subscribers of tile reset vector addresses. */
-  val tileResetVectorNode = BundleBridgeEphemeralNode[UInt]()
+  val tileResetVectorNodes: Map[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
+    (i, BundleBridgeEphemeralNode[UInt]())
+  }.toMap
 
   /** tileResetVectorNexusNode is a BundleBridgeNexus that accepts a single reset vector source, and broadcasts it to all tiles. */
   val tileResetVectorNexusNode = BundleBroadcast[UInt](
@@ -118,12 +88,15 @@ trait HasTileInputConstants extends InstantiatesElements { this: LazyModule with
     *   Or, if such IOs are not configured to exist, tileHartIdNexusNode is used to supply an id to each tile.
     */
   val tileHartIdIONodes: Seq[BundleBridgeSource[UInt]] = p(HasTilesExternalHartIdWidthKey) match {
-    case Some(w) => Seq.fill(nTotalTiles) {
+    case Some(w) => (0 until nTotalTiles).map { i =>
       val hartIdSource = BundleBridgeSource(() => UInt(w.W))
-      tileHartIdNode := hartIdSource
+      tileHartIdNodes(i) := hartIdSource
       hartIdSource
     }
-    case None => { tileHartIdNode :*= tileHartIdNexusNode; Nil }
+    case None => {
+      (0 until nTotalTiles).map { i => tileHartIdNodes(i) :*= tileHartIdNexusNode }
+      Nil
+    }
   }
 
   /** tileResetVectorIONodes may generate subsystem IOs, one per tile, allowing the parent to assign unique reset vectors.
@@ -131,12 +104,15 @@ trait HasTileInputConstants extends InstantiatesElements { this: LazyModule with
     *   Or, if such IOs are not configured to exist, tileResetVectorNexusNode is used to supply a single reset vector to every tile.
     */
   val tileResetVectorIONodes: Seq[BundleBridgeSource[UInt]] = p(HasTilesExternalResetVectorKey) match {
-    case true => Seq.fill(nTotalTiles) {
+    case true => (0 until nTotalTiles).map { i =>
       val resetVectorSource = BundleBridgeSource[UInt]()
-      tileResetVectorNode := resetVectorSource
+      tileResetVectorNodes(i) := resetVectorSource
       resetVectorSource
     }
-    case false => { tileResetVectorNode :*= tileResetVectorNexusNode; Nil }
+    case false => {
+      (0 until nTotalTiles).map { i => tileResetVectorNodes(i) :*= tileResetVectorNexusNode }
+      Nil
+    }
   }
 }
 
@@ -217,26 +193,24 @@ trait CanAttachTile {
     //       we stub out missing interrupts with constant sources here.
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
-    domain.element.intInwardNode(0) :=
-      context.debugNode
-        .map { node => domain { IntSyncAsyncCrossingSink(3) } := node }
-        .getOrElse { NullIntSource() }
+    domain.element.intInwardNode := domain { IntSyncAsyncCrossingSink(3) } :=
+      context.debugNodes(domain.element.hartId)
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
     //    so might need to be synchronized depending on the Tile's crossing type.
 
     //    From CLINT: "msip" and "mtip"
-    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode(0)) :=
-      context.clintNode.getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
+      context.msipNodes(domain.element.hartId)
 
     //    From PLIC: "meip"
-    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode(0)) :=
-      context.plicNode.getOrElse { context.meipNode.get }
+    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
+      context.meipNodes(domain.element.hartId)
 
     //    From PLIC: "seip" (only if supervisor mode is enabled)
     if (domain.element.tileParams.core.hasSupervisorMode) {
-      domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode(0)) :=
-        context.plicNode.getOrElse { context.seipNode.get }
+      domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
+      context.seipNodes(domain.element.hartId)
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
@@ -244,22 +218,22 @@ trait CanAttachTile {
 
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
-    context.plicNode.foreach { node =>
-      FlipRendering { implicit p => domain.element.intOutwardNode(0).foreach { out =>
+    context.plicNodes.get(domain.element.hartId).foreach { node =>
+      FlipRendering { implicit p => domain.element.intOutwardNode.foreach { out =>
         node :*= domain.crossIntOut(crossingParams.crossingType, out)
       }}
     }
 
     // 5. Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock.
-    domain.element.nmiNode := context.tileNMINode
+    domain.element.nmiNode.foreach(_ := context.nmiNodes(domain.element.hartId))
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
   def connectOutputNotifications(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode(0))
-    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode(0))
-    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode(0))
+    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode)
+    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode)
+    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode)
     // TODO should context be forced to have a trace sink connected here?
     //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
     domain.crossTracesOut()
@@ -269,8 +243,8 @@ trait CanAttachTile {
   def connectInputConstants(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetPrefixFrom = context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere)
-    domain.element.hartIdNode := context.tileHartIdNode
-    domain.element.resetVectorNode := context.tileResetVectorNode
+    domain.element.hartIdNode := context.tileHartIdNodes(domain.element.hartId)
+    domain.element.resetVectorNode := context.tileResetVectorNodes(domain.element.hartId)
     tlBusToGetPrefixFrom.prefixNode.foreach { domain.element.mmioAddressPrefixNode := _ }
   }
 

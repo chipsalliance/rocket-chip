@@ -209,6 +209,11 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
     )))
   }
 
+  def intInwardNode: IntInwardNode            // Interrupts to the core from external devices
+  def intOutwardNode: Option[IntOutwardNode]  // Interrupts from tile-internal devices (e.g. BEU)
+  def haltNode: IntOutwardNode                // Unrecoverable error has occurred; suggest reset
+  def ceaseNode: IntOutwardNode               // Tile has ceased to retire instructions
+  def wfiNode: IntOutwardNode                 // Tile is waiting for an interrupt
   def module: BaseTileModuleImp[BaseTile]
 
   /** Node for broadcasting a hart id to diplomatic consumers within the tile. */
@@ -242,10 +247,10 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
     resetVectorSinkNode := resetVectorNexusNode := BundleBridgeNameNode("reset_vector")
 
   /** Nodes for connecting NMI interrupt sources and vectors into the tile */
-  val nmiNexusNode: BundleBridgeNode[NMI] = BundleBroadcast[NMI]()
-  val nmiSinkNode = BundleBridgeSink[NMI](Some(() => new NMI(visiblePhysAddrBits)))
-  val nmiNode: BundleBridgeInwardNode[NMI] =
-    nmiSinkNode := nmiNexusNode := BundleBridgeNameNode("nmi")
+  val nmiSinkNode = Option.when(tileParams.core.useNMI) {
+    BundleBridgeSink[NMI](Some(() => new NMI(visiblePhysAddrBits)))
+  }
+  val nmiNode: Option[BundleBridgeInwardNode[NMI]] = nmiSinkNode.map(_ := BundleBridgeNameNode("nmi"))
 
   /** Node for broadcasting an address prefix to diplomatic consumers within the tile.
     *
@@ -272,13 +277,13 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   /** Node for the core to drive legacy "raw" instruction trace. */
   val traceSourceNode = BundleBridgeSource(() => new TraceBundle)
   /** Node for external consumers to source a legacy instruction trace from the core. */
-  val traceNodes: Seq[BundleBridgeOutwardNode[TraceBundle]] = Seq(traceSourceNode)
+  val traceNodes: Map[Int, BundleBridgeOutwardNode[TraceBundle]] = Map(hartId -> traceSourceNode)
 
   def traceCoreParams = new TraceCoreParams()
   /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
   /** Node for external consumers to source  a V1.0 instruction trace from the core. */
-  val traceCoreNodes: Seq[BundleBridgeOutwardNode[TraceCoreInterface]] = Seq(traceCoreSourceNode)
+  val traceCoreNodes: Map[Int, BundleBridgeOutwardNode[TraceCoreInterface]] = Map(hartId -> traceCoreSourceNode)
 
   /** Node to broadcast collected trace sideband signals into the tile. */
   val traceAuxNexusNode = BundleBridgeNexus[TraceAux](default = Some(() => {

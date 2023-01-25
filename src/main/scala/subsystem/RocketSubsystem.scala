@@ -7,6 +7,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.devices.debug.{HasPeripheryDebug}
+import freechips.rocketchip.util.{HasCoreMonitorBundles}
 import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CanHavePeripheryPLIC}
 
 case class RocketCrossingParams(
@@ -23,7 +24,8 @@ case class RocketTileAttachParams(
   crossingParams: RocketCrossingParams
 ) extends CanAttachTile { type TileType = RocketTile }
 
-trait HasRocketTiles extends HasElements { this: BaseSubsystem =>
+trait HasRocketTiles {
+  this: BaseSubsystem with InstantiatesElements =>
   val rocketTiles = totalTiles.collect { case r: RocketTile => r }
 
   def coreMonitorBundles = (rocketTiles map { t =>
@@ -32,14 +34,20 @@ trait HasRocketTiles extends HasElements { this: BaseSubsystem =>
 }
 
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
-    with HasPeripheryDebug
+    with InstantiatesElements
+    with HasTileNotificationSinks
+    with HasTileInputConstants
     with CanHavePeripheryCLINT
     with CanHavePeripheryPLIC
+    with HasPeripheryDebug
+    with HasElementsRootContext
+    with HasElements
+    with HasCoreMonitorBundles
     with HasRocketTiles
 {
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
-    with HasElementsRootModuleImp
+    with HasElementsRootContextModuleImp
 

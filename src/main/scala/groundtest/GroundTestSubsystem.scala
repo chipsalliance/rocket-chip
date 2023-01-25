@@ -4,15 +4,20 @@ package freechips.rocketchip.groundtest
 
 import chisel3._
 import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
-import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
-import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, HasElements, CanHaveMasterAXI4MemPort}
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.interrupts._
+import freechips.rocketchip.tile.{NMI}
+import freechips.rocketchip.devices.tilelink.{CLINTConsts}
+import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink.{TLRAM, TLFragmenter}
 import freechips.rocketchip.interrupts.{NullIntSyncSource}
 
 class GroundTestSubsystem(implicit p: Parameters)
   extends BaseSubsystem
+  with InstantiatesElements
   with HasElements
+  with HasTileNotificationSinks
+  with HasTileInputConstants
   with CanHaveMasterAXI4MemPort
 {
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=pbus.beatBytes))
@@ -26,9 +31,12 @@ class GroundTestSubsystem(implicit p: Parameters)
 
   val tileStatusNodes = totalTiles.collect { case t: GroundTestTile => t.statusNode.makeSink() }
 
-  val clintNode = None
-  val debugNode = None
-  val plicNode = None
+  lazy val msipNodes = Map[Int, IntOutwardNode]().withDefaultValue(NullIntSource(sources = CLINTConsts.ints))
+  lazy val meipNodes = Map[Int, IntOutwardNode]().withDefaultValue(NullIntSource())
+  lazy val seipNodes = Map[Int, IntOutwardNode]().withDefaultValue(NullIntSource())
+  lazy val plicNodes = Map[Int, IntInwardNode]()
+  lazy val debugNodes = Map[Int, IntSyncOutwardNode]().withDefaultValue(IntSyncCrossingSource() := NullIntSource())
+  lazy val nmiNodes = Map[Int, BundleBridgeOutwardNode[NMI]]().withDefaultValue(BundleBridgeSource[NMI])
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
