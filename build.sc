@@ -79,7 +79,7 @@ object emulator extends mill.Cross[Emulator](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.MMIOPortOnlyConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.CloneTileConfig"),
 )
-class Emulator(top: String, config: String) extends ScalaModule {
+class Emulator(top: String, config: String) extends ScalaModule { m =>
   override def moduleDeps = Seq(rocketchip)
 
   override def scalaVersion: T[String] = T {
@@ -88,34 +88,63 @@ class Emulator(top: String, config: String) extends ScalaModule {
 
   def spikeRoot = T { envByNameOrRiscv("SPIKE_ROOT") }
 
-  def generator = T {
-    // class path for `moduleDeps` is only a directory, not a jar, which breaks the cache.
-    // so we need to manually add the class files of `moduleDeps` here.
-    upstreamCompileOutput()
-    mill.modules.Jvm.runLocal(
-      "freechips.rocketchip.system.Generator",
-      runClasspath().map(_.path),
-      Seq(
-        "-td", T.dest.toString,
-        "-T", top,
-        "-C", config,
-      ),
-    )
-    PathRef(T.dest)
+  object elaborate extends Module {
+    def elaborate = T {
+      // class path for `moduleDeps` is only a directory, not a jar, which breaks the cache.
+      // so we need to manually add the class files of `moduleDeps` here.
+      m.upstreamCompileOutput()
+      mill.modules.Jvm.runLocal(
+        "freechips.rocketchip.system.Generator",
+        runClasspath().map(_.path),
+        Seq(
+          "-td", T.dest.toString,
+          "-T", top,
+          "-C", config,
+        ),
+      )
+      PathRef(T.dest)
+    }
+
+    def chiselAnno = T {
+      os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("anno.json") => p }.map(PathRef(_)).get
+    }
+
+    def chirrtl = T {
+      os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("fir") => p }.map(PathRef(_)).get
+    }
   }
 
-  def firrtl = T {
-    val input = generator().path / (config + ".fir")
-    val output = T.dest / (top + "-" + config + ".v")
-    mill.modules.Jvm.runLocal(
-      "firrtl.stage.FirrtlMain",
-      runClasspath().map(_.path),
-      Seq(
-        "-i", input.toString,
-        "-o", output.toString,
-      ),
-    )
-    PathRef(output)
+  object mfccompile extends Module {
+
+    def compile = T {
+      os.proc("firtool",
+        elaborate.chirrtl().path,
+        s"--annotation-file=${elaborate.chiselAnno().path}",
+        "-disable-infer-rw",
+        "-dedup",
+        "-O=debug",
+        "--split-verilog",
+        "--preserve-values=named",
+        "--output-annotation-file=mfc.anno.json",
+        s"-o=${T.dest}"
+      ).call(T.dest)
+      PathRef(T.dest)
+    }
+
+    def rtls = T {
+      os.read(compile().path / "filelist.f").split("\n").map(str =>
+        try {
+          os.Path(str)
+        } catch {
+          case e: IllegalArgumentException if e.getMessage.contains("is not an absolute path") =>
+            compile().path / str.stripPrefix("./")
+        }
+      ).filter(p => p.ext == "v" || p.ext == "sv").map(PathRef(_)).toSeq
+    }
+
+    def annotations = T {
+      os.walk(compile().path).filter(p => p.last.endsWith("mfc.anno.json")).map(PathRef(_))
+    }
   }
 
   object verilator extends Module {
@@ -141,7 +170,7 @@ class Emulator(top: String, config: String) extends ScalaModule {
          |project(emulator)
          |include_directories(${csrcDir().path})
          |# plusarg is here
-         |include_directories(${generator().path})
+         |include_directories(${elaborate.elaborate().path})
          |link_directories(${spikeRoot() + "/lib"})
          |include_directories(${spikeRoot() + "/include"})
          |
@@ -150,7 +179,7 @@ class Emulator(top: String, config: String) extends ScalaModule {
          |set(CMAKE_C_COMPILER "clang")
          |set(CMAKE_CXX_COMPILER "clang++")
          |set(CMAKE_CXX_FLAGS
-         |"$${CMAKE_CXX_FLAGS} -DVERILATOR -DTEST_HARNESS=VTestHarness -include VTestHarness.h -include verilator.h -include ${generator().path / config + ".plusArgs"}")
+         |"$${CMAKE_CXX_FLAGS} -DVERILATOR -DTEST_HARNESS=VTestHarness -include VTestHarness.h -include verilator.h -include ${elaborate.elaborate().path / config + ".plusArgs"}")
          |set(THREADS_PREFER_PTHREAD_FLAG ON)
          |
          |find_package(verilator)
@@ -164,7 +193,7 @@ class Emulator(top: String, config: String) extends ScalaModule {
          |target_link_libraries(emulator PRIVATE fesvr)
          |verilate(emulator
          |  SOURCES
-         |${firrtl().path}
+         |${mfccompile.rtls().map(_.path.toString).mkString("\n")}
          |  TOP_MODULE TestHarness
          |  PREFIX VTestHarness
          |  VERILATOR_ARGS ${verilatorArgs().mkString(" ")}
