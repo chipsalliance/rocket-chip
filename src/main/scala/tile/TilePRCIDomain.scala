@@ -30,8 +30,9 @@ abstract class TilePRCIDomain[T <: BaseTile](
   private val traceSignalName = "trace"
   private val traceCoreSignalName = "tracecore"
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNodes: Seq[BundleBridgeIdentityNode[Vec[TracedInstruction]]] = Seq(BundleBridgeNameNode(traceSignalName))
+  val traceNode: BundleBridgeIdentityNode[Vec[TracedInstruction]] = BundleBridgeNameNode(traceSignalName)
+  val traceNodes = Map(element.hartId -> traceNode)
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
-  val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]] = Seq(BundleBridgeNameNode(traceCoreSignalName))
-
+  val traceCoreNode: BundleBridgeIdentityNode[TraceCoreInterface] = BundleBridgeNameNode(traceCoreSignalName)
+  val traceCoreNodes = Map(element.hartId -> traceCoreNode)
 }
