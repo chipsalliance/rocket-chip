@@ -51,9 +51,9 @@ abstract class ElementPRCIDomain[T <: BaseElement](
   lazy val clockBundle = tapClockNode.in.head._1
 
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNodes: Seq[BundleBridgeIdentityNode[TraceBundle]]
+  val traceNodes: Map[Int, BundleBridgeIdentityNode[TraceBundle]]
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
-  val traceCoreNodes: Seq[BundleBridgeIdentityNode[TraceCoreInterface]]
+  val traceCoreNodes: Map[Int, BundleBridgeIdentityNode[TraceCoreInterface]]
 
   /** Function to handle all trace crossings when tile is instantiated inside domains */
   def crossTracesOut(): Unit = this {
