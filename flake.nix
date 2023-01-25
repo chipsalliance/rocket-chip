@@ -19,6 +19,7 @@
           gnumake autoconf automake
           mill
           dtc
+          firtool
           verilator cmake ninja
           python3 python3Packages.bootstrapped-pip
           pkgsCross.riscv64-embedded.buildPackages.gcc
