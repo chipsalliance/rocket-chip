@@ -50,21 +50,18 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
     with CrossesToOnlyOneClockDomain
 {
   def module: BaseElementModuleImp[BaseElement]
-  def masterNode: TLOutwardNode
-  def slaveNode: TLInwardNode
-  def intInwardNode: Seq[IntInwardNode]    // Interrupts to the core from external devices
-  def intOutwardNode: Seq[Option[IntOutwardNode]]  // Interrupts from tile-internal devices (e.g. BEU)
-  def haltNode: Seq[IntOutwardNode]        // Unrecoverable error has occurred; suggest reset
-  def ceaseNode: Seq[IntOutwardNode]       // Tile has ceased to retire instructions
-  def wfiNode: Seq[IntOutwardNode]         // Tile is waiting for an interrupt
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)
   protected val tlSlaveXbar = LazyModule(new TLXbar)
   protected val intXbar = LazyModule(new IntXbar)
 
-  val traceCoreNodes: Seq[BundleBridgeOutwardNode[TraceCoreInterface]]
-  val traceNodes: Seq[BundleBridgeOutwardNode[Vec[TracedInstruction]]]
+  def masterNode: TLOutwardNode
+  def slaveNode: TLInwardNode
+
+
+  val traceCoreNodes: Map[Int, BundleBridgeOutwardNode[TraceCoreInterface]]
+  val traceNodes: Map[Int, BundleBridgeOutwardNode[Vec[TracedInstruction]]]
 
 
   /** Helper function to insert additional buffers on master ports at the boundary of the tile.

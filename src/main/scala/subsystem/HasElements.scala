@@ -5,7 +5,7 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.devices.debug.{TLDebugModule}
+import freechips.rocketchip.devices.debug.{TLDebugModule, HasPeripheryDebug}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -84,8 +84,8 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
 }
 
 /** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
-trait HasElements extends HasCoreMonitorBundles with DefaultElementContextType
-{ this: LazyModule with Attachable =>
+trait HasElements extends DefaultElementContextType
+{ this: LazyModule with Attachable with InstantiatesElements =>
   implicit val p: Parameters
 
   // connect all the tiles to interconnect attachment points made available in this subsystem context
@@ -97,25 +97,27 @@ trait HasElements extends HasCoreMonitorBundles with DefaultElementContextType
 /** Provides some Chisel connectivity to certain tile IOs
   * This trait is intended for the root subsystem
   */
-trait HasElementsRootModuleImp extends LazyModuleImp {
-  val outer: HasElements with HasTileInterruptSources with HasTileInputConstants
+trait HasElementsRootContextModuleImp extends LazyModuleImp {
+  val outer: InstantiatesElements with HasElements with HasElementsRootContext with HasTileInputConstants
 
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
   val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
 
-  val meip = if(outer.meipNode.isDefined) Some(IO(Input(Vec(outer.meipNode.get.out.size, Bool())))) else None
+  val meip = if (outer.meipIONode.isDefined) Some(IO(Input(Vec(outer.meipIONode.get.out.size, Bool())))) else None
   meip.foreach { m =>
     m.zipWithIndex.foreach{ case (pin, i) =>
-      (outer.meipNode.get.out(i)._1)(0) := pin
+      (outer.meipIONode.get.out(i)._1)(0) := pin
     }
   }
-  val seip = if(outer.seipNode.isDefined) Some(IO(Input(Vec(outer.seipNode.get.out.size, Bool())))) else None
+  val seip = if (outer.seipIONode.isDefined) Some(IO(Input(Vec(outer.seipIONode.get.out.size, Bool())))) else None
   seip.foreach { s =>
     s.zipWithIndex.foreach{ case (pin, i) =>
-      (outer.seipNode.get.out(i)._1)(0) := pin
+      (outer.seipIONode.get.out(i)._1)(0) := pin
     }
   }
-  val nmi = outer.totalTiles.zip(outer.tileNMIIONodes).zipWithIndex.map { case ((tile, n), i) => tile.tileParams.core.useNMI.option(n.makeIO(s"nmi_$i")) }
+  val nmi = outer.nmiIONodes.map { case (i, node) =>
+    node.makeIO(s"nmi_$i")
+  }
 }
 
 /** Most tile types require only these traits in order for their standardized connect functions to apply.
@@ -124,12 +126,60 @@ trait HasElementsRootModuleImp extends LazyModuleImp {
   *    additional external connection points.
   */
 trait DefaultElementContextType
-  extends Attachable
-  with HasTileInterruptSources
-  with HasTileNotificationSinks
-  with HasTileInputConstants
+    extends Attachable
+    with HasTileNotificationSinks
 { this: LazyModule with Attachable =>
-  val clintNode: Option[IntOutwardNode]
-  val plicNode: Option[IntNode]
-  val debugNode: Option[IntSyncOutwardNode]
+  val msipNodes: Map[Int, IntOutwardNode]
+  val meipNodes: Map[Int, IntOutwardNode]
+  val seipNodes: Map[Int, IntOutwardNode]
+  val plicNodes: Map[Int, IntInwardNode]
+  val debugNodes: Map[Int, IntSyncOutwardNode]
+  val nmiNodes: Map[Int, BundleBridgeOutwardNode[NMI]]
+  val tileHartIdNodes: Map[Int, BundleBridgeOutwardNode[UInt]]
+  val tileResetVectorNodes: Map[Int, BundleBridgeOutwardNode[UInt]]
+}
+
+/** This trait provides the tile attachment context for the root (outermost) subsystem */
+trait HasElementsRootContext
+{ this: HasElements
+    with HasPeripheryDebug
+    with CanHavePeripheryCLINT
+    with CanHavePeripheryPLIC
+    with HasTileNotificationSinks
+    with InstantiatesElements =>
+  val msipNodes: Map[Int, IntOutwardNode] = (0 until nTotalTiles).map { i =>
+    (i, IntEphemeralNode() := clintOpt.map(_.intnode).getOrElse(NullIntSource(sources = CLINTConsts.ints)))
+  }.toMap
+
+  val meipIONode = Option.when(plicOpt.isEmpty)(IntNexusNode(
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
+    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false,
+    inputRequiresOutput = false))
+  val meipNodes: Map[Int, IntOutwardNode] = (0 until nTotalTiles).map { i =>
+    (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(meipIONode.get))
+  }.toMap
+
+  val seipIONode = Option.when(plicOpt.isEmpty)(IntNexusNode(
+    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
+    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
+    outputRequiresInput = false,
+    inputRequiresOutput = false))
+  val seipNodes: Map[Int, IntOutwardNode] = (0 until nTotalTiles).map { i =>
+    (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get))
+  }.toMap
+
+  val plicNodes: Map[Int, IntInwardNode] = (0 until nTotalTiles).map { i =>
+    plicOpt.map(o => (i, o.intnode :=* IntEphemeralNode()))
+  }.flatten.toMap
+
+  val debugNodes: Map[Int, IntSyncOutwardNode] = (0 until nTotalTiles).map { i =>
+    (i, IntSyncIdentityNode() := debugOpt.map(_.intnode).getOrElse(IntSyncCrossingSource() := NullIntSource()))
+  }.toMap
+
+  val nmiHarts = tileParams.filter(_.core.useNMI).map(_.hartId)
+  val nmiIONodes = nmiHarts.map { i => (i, BundleBridgeSource[NMI]()) }.toMap
+  val nmiNodes: Map[Int, BundleBridgeOutwardNode[NMI]] = nmiIONodes.map { case (i, n) =>
+    (i, BundleBridgeEphemeralNode[NMI]() := n)
+  }.toMap
 }

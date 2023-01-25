@@ -51,7 +51,7 @@ class RocketTile private(
   def this(params: RocketTileParams, crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
-  val intOutwardNode = Seq(rocketParams.beuAddr map { _ => IntIdentityNode() })
+  val intOutwardNode = rocketParams.beuAddr map { _ => IntIdentityNode() }
   val slaveNode = TLIdentityNode()
   val masterNode = visibilityNode
 
@@ -62,7 +62,7 @@ class RocketTile private(
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
-    intOutwardNode(0).get := beu.intNode
+    intOutwardNode.get := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
   }
@@ -147,7 +147,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     beu.module.io.errors.icache := outer.frontend.module.io.errors
   }
 
-  core.io.interrupts.nmi.foreach { nmi => nmi := outer.nmiSinkNode.bundle }
+  core.io.interrupts.nmi.foreach { nmi => nmi := outer.nmiSinkNode.get.bundle }
 
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
