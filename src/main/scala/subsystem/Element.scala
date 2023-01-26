@@ -16,6 +16,7 @@ import freechips.rocketchip.devices.tilelink._
 
 trait ElementParams {
   val name: String
+  val clockSinkParams: ClockSinkParameters
 }
 
 abstract class InstantiableElementParams[ElementType <: BaseElement] extends ElementParams

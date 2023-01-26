@@ -31,12 +31,19 @@ class GroundTestSubsystem(implicit p: Parameters)
 
   val tileStatusNodes = totalTiles.collect { case t: GroundTestTile => t.statusNode.makeSink() }
 
-  lazy val msipNodes = Map[Int, IntOutwardNode]().withDefaultValue(NullIntSource(sources = CLINTConsts.ints))
-  lazy val meipNodes = Map[Int, IntOutwardNode]().withDefaultValue(NullIntSource())
-  lazy val seipNodes = Map[Int, IntOutwardNode]().withDefaultValue(NullIntSource())
-  lazy val plicNodes = Map[Int, IntInwardNode]()
-  lazy val debugNodes = Map[Int, IntSyncOutwardNode]().withDefaultValue(IntSyncCrossingSource() := NullIntSource())
-  lazy val nmiNodes = Map[Int, BundleBridgeOutwardNode[NMI]]().withDefaultValue(BundleBridgeSource[NMI])
+  val msipNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
+  val meipNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
+  val seipNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
+  val plicNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
+  val debugNodes = (0 until nTotalTiles).map { i => (i, IntSyncIdentityNode()) }.toMap
+  val nmiNodes = (0 until nTotalTiles).map { i => (i, BundleBridgeIdentityNode[NMI]()) }.toMap
+
+  msipNodes.values.foreach(_ := NullIntSource(sources=CLINTConsts.ints))
+  meipNodes.values.foreach(_ := NullIntSource())
+  seipNodes.values.foreach(_ := NullIntSource())
+  plicNodes.values.foreach(n => IntSinkNode(Nil) := n) // sink to nowhere
+  debugNodes.values.foreach(_ := IntSyncCrossingSource() := NullIntSource())
+  nmiNodes.values.foreach(_ := BundleBridgeSource[NMI]())
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }
