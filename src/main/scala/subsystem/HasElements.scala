@@ -73,6 +73,8 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
   val leafTiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile])
   val totalTiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile])
 
+  val element_prci_domains: Seq[ElementPRCIDomain[_]] = tile_prci_domains
+
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   def nLeafTiles: Int = tileAttachParams.size
   def nTotalTiles: Int = tileAttachParams.size
@@ -129,14 +131,14 @@ trait DefaultElementContextType
     extends Attachable
     with HasTileNotificationSinks
 { this: LazyModule with Attachable =>
-  val msipNodes: Map[Int, IntOutwardNode]
-  val meipNodes: Map[Int, IntOutwardNode]
-  val seipNodes: Map[Int, IntOutwardNode]
-  val plicNodes: Map[Int, IntInwardNode]
-  val debugNodes: Map[Int, IntSyncOutwardNode]
-  val nmiNodes: Map[Int, BundleBridgeOutwardNode[NMI]]
-  val tileHartIdNodes: Map[Int, BundleBridgeOutwardNode[UInt]]
-  val tileResetVectorNodes: Map[Int, BundleBridgeOutwardNode[UInt]]
+  val msipNodes: Map[Int, IntNode]
+  val meipNodes: Map[Int, IntNode]
+  val seipNodes: Map[Int, IntNode]
+  val plicNodes: Map[Int, IntNode]
+  val debugNodes: Map[Int, IntSyncNode]
+  val nmiNodes: Map[Int, BundleBridgeNode[NMI]]
+  val tileHartIdNodes: Map[Int, BundleBridgeNode[UInt]]
+  val tileResetVectorNodes: Map[Int, BundleBridgeNode[UInt]]
 }
 
 /** This trait provides the tile attachment context for the root (outermost) subsystem */
@@ -147,7 +149,7 @@ trait HasElementsRootContext
     with CanHavePeripheryPLIC
     with HasTileNotificationSinks
     with InstantiatesElements =>
-  val msipNodes: Map[Int, IntOutwardNode] = (0 until nTotalTiles).map { i =>
+  val msipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode() := clintOpt.map(_.intnode).getOrElse(NullIntSource(sources = CLINTConsts.ints)))
   }.toMap
 
@@ -156,7 +158,7 @@ trait HasElementsRootContext
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
     inputRequiresOutput = false))
-  val meipNodes: Map[Int, IntOutwardNode] = (0 until nTotalTiles).map { i =>
+  val meipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(meipIONode.get))
   }.toMap
 
@@ -165,21 +167,25 @@ trait HasElementsRootContext
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
     inputRequiresOutput = false))
-  val seipNodes: Map[Int, IntOutwardNode] = (0 until nTotalTiles).map { i =>
+  val seipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get))
   }.toMap
 
-  val plicNodes: Map[Int, IntInwardNode] = (0 until nTotalTiles).map { i =>
+  val plicNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
     plicOpt.map(o => (i, o.intnode :=* IntEphemeralNode()))
   }.flatten.toMap
 
-  val debugNodes: Map[Int, IntSyncOutwardNode] = (0 until nTotalTiles).map { i =>
-    (i, IntSyncIdentityNode() := debugOpt.map(_.intnode).getOrElse(IntSyncCrossingSource() := NullIntSource()))
+  val debugNodes: Map[Int, IntSyncNode] = (0 until nTotalTiles).map { i =>
+    (i, IntSyncIdentityNode())
   }.toMap
+
+  debugNodes.foreach { case (hartid, node) =>
+    node := debugOpt.map(_.intnode).getOrElse(IntSyncCrossingSource() := NullIntSource())
+  }
 
   val nmiHarts = tileParams.filter(_.core.useNMI).map(_.hartId)
   val nmiIONodes = nmiHarts.map { i => (i, BundleBridgeSource[NMI]()) }.toMap
-  val nmiNodes: Map[Int, BundleBridgeOutwardNode[NMI]] = nmiIONodes.map { case (i, n) =>
+  val nmiNodes: Map[Int, BundleBridgeNode[NMI]] = nmiIONodes.map { case (i, n) =>
     (i, BundleBridgeEphemeralNode[NMI]() := n)
   }.toMap
 }

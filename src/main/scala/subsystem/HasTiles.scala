@@ -210,7 +210,7 @@ trait CanAttachTile {
     //    From PLIC: "seip" (only if supervisor mode is enabled)
     if (domain.element.tileParams.core.hasSupervisorMode) {
       domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-      context.seipNodes(domain.element.hartId)
+        context.seipNodes(domain.element.hartId)
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
