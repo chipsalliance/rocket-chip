@@ -151,7 +151,7 @@ trait DefaultElementContextType
   val tileHartIdNodes: Map[Int, BundleBridgeNode[UInt]]
   val tileResetVectorNodes: Map[Int, BundleBridgeNode[UInt]]
   val traceCoreNodes: Map[Int, BundleBridgeNode[TraceCoreInterface]]
-  val traceNodes: Map[Int, BundleBridgeNode[Vec[TracedInstruction]]]
+  val traceNodes: Map[Int, BundleBridgeNode[TraceBundle]]
 }
 
 /** This trait provides the tile attachment context for the root (outermost) subsystem */
@@ -165,8 +165,11 @@ trait HasElementsRootContext
   val debugOpt: Option[TLDebugModule]
 
   val msipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
-    (i, IntEphemeralNode() := clintOpt.map(_.intnode).getOrElse(NullIntSource(sources = CLINTConsts.ints)))
+    (i, IntEphemeralNode())
   }.toMap
+  msipNodes.foreach {
+    _._2 := clintOpt.map(_.intnode).getOrElse(NullIntSource(sources = CLINTConsts.ints))
+  }
 
   val meipIONode = Option.when(plicOpt.isEmpty)(IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
@@ -205,5 +208,5 @@ trait HasElementsRootContext
   }.toMap
 
   val traceCoreNodes: Map[Int, BundleBridgeSink[TraceCoreInterface]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[TraceCoreInterface]()) }.toMap
-  val traceNodes: Map[Int, BundleBridgeSink[Vec[TracedInstruction]]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[Vec[TracedInstruction]]()) }.toMap
+  val traceNodes: Map[Int, BundleBridgeSink[TraceBundle]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[TraceBundle]()) }.toMap
 }

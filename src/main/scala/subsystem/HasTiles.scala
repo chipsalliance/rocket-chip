@@ -279,7 +279,7 @@ trait CanAttachTile {
   /** Function to handle all trace crossings when tile is instantiated inside domains */
   def connectTrace(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    val traceNexusNode = BundleBridgeBlockDuringReset[Vec[TracedInstruction]](
+    val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
       resetCrossingType = crossingParams.resetCrossingType)
     context.traceNodes(domain.element.hartId) := traceNexusNode := domain.element.traceNode
     val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
