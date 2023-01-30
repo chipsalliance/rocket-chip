@@ -27,12 +27,4 @@ abstract class TilePRCIDomain[T <: BaseTile](
   (implicit p: Parameters)
     extends ElementPRCIDomain[T](clockSinkParams, crossingParams)
 {
-  private val traceSignalName = "trace"
-  private val traceCoreSignalName = "tracecore"
-  /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNode: BundleBridgeIdentityNode[Vec[TracedInstruction]] = BundleBridgeNameNode(traceSignalName)
-  lazy val traceNodes = Map(element.hartId -> traceNode)
-  /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
-  val traceCoreNode: BundleBridgeIdentityNode[TraceCoreInterface] = BundleBridgeNameNode(traceCoreSignalName)
-  lazy val traceCoreNodes = Map(element.hartId -> traceCoreNode)
 }

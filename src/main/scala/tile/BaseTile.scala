@@ -25,7 +25,6 @@ trait TileParams extends ElementParams {
   val btb: Option[BTBParams]
   val hartId: Int
   val blockerCtrlAddr: Option[BigInt]
-  val clockSinkParams: ClockSinkParameters
 }
 
 abstract class InstantiableTileParams[TileType <: BaseTile]
@@ -276,13 +275,13 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   /** Node for the core to drive legacy "raw" instruction trace. */
   val traceSourceNode = BundleBridgeSource(() => Vec(traceRetireWidth, new TracedInstruction()))
   /** Node for external consumers to source a legacy instruction trace from the core. */
-  val traceNodes: Map[Int, BundleBridgeOutwardNode[Vec[TracedInstruction]]] = Map(hartId -> traceSourceNode)
+  val traceNode = traceSourceNode
 
   def traceCoreParams = new TraceCoreParams()
   /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
   /** Node for external consumers to source  a V1.0 instruction trace from the core. */
-  val traceCoreNodes: Map[Int, BundleBridgeOutwardNode[TraceCoreInterface]] = Map(hartId -> traceCoreSourceNode)
+  val traceCoreNode = traceCoreSourceNode
 
   /** Node to broadcast collected trace sideband signals into the tile. */
   val traceAuxNexusNode = BundleBridgeNexus[TraceAux](default = Some(() => {
