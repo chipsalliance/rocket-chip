@@ -68,14 +68,14 @@ case class TraceGenParams(
     memStart: BigInt, //p(ExtMem).base
     numGens: Int,
     dcache: Option[DCacheParams] = Some(DCacheParams()),
-    hartId: Int = 0
+    tileId: Int = 0
 ) extends InstantiableTileParams[TraceGenTile] with GroundTestTileParams
 {
   def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
     new TraceGenTile(this, crossing, lookup)
   }
   val blockerCtrlAddr = None
-  val name = s"tracegen_$hartId"
+  val name = s"tracegen_$tileId"
   val clockSinkParams = ClockSinkParameters()
 }
 
@@ -643,5 +643,5 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
   status.timeout.bits := 0.U
   status.error.valid := false.B
 
-  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.hartId}: request timed out")
+  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.tileId}: request timed out")
 }

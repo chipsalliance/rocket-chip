@@ -21,6 +21,9 @@ case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTi
 /** List of HierarchicalLocations which might contain a Tile */
 case object PossibleTileLocations extends Field[Seq[HierarchicalLocation]](Nil)
 
+/** For determining static tile id */
+case object NumTiles extends Field[Int](0)
+
 /** Whether to add timing-closure registers along the path of the hart id
   * as it propagates through the subsystem and into the tile.
   *
@@ -68,7 +71,7 @@ trait HasTileInputConstants { this: LazyModule with Attachable with Instantiates
   val tileHartIdNexusNode = LazyModule(new BundleBridgeNexus[UInt](
     inputFn = BundleBridgeNexus.orReduction[UInt](registered = p(InsertTimingClosureRegistersOnHartIds)) _,
     outputFn = (prefix: UInt, n: Int) =>  Seq.tabulate(n) { i =>
-      val y = dontTouch(prefix | totalHartIdList(i).U(p(MaxHartIdBits).W)) // dontTouch to keep constant prop from breaking tile dedup
+      val y = dontTouch(prefix | totalTileIdList(i).U(p(MaxHartIdBits).W)) // dontTouch to keep constant prop from breaking tile dedup
       if (p(InsertTimingClosureRegistersOnHartIds)) BundleBridgeNexus.safeRegNext(y) else y
     },
     default = Some(() => 0.U(p(MaxHartIdBits).W)),
@@ -199,23 +202,23 @@ trait CanAttachTile {
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
     domain.element.intInwardNode := domain { IntSyncAsyncCrossingSink(3) } :=
-      context.debugNodes(domain.element.hartId)
+      context.debugNodes(domain.element.tileId)
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
     //    so might need to be synchronized depending on the Tile's crossing type.
 
     //    From CLINT: "msip" and "mtip"
     domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-      context.msipNodes(domain.element.hartId)
+      context.msipNodes(domain.element.tileId)
 
     //    From PLIC: "meip"
     domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-      context.meipNodes(domain.element.hartId)
+      context.meipNodes(domain.element.tileId)
 
     //    From PLIC: "seip" (only if supervisor mode is enabled)
     if (domain.element.tileParams.core.hasSupervisorMode) {
       domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-        context.seipNodes(domain.element.hartId)
+        context.seipNodes(domain.element.tileId)
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
@@ -223,14 +226,14 @@ trait CanAttachTile {
 
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
-    context.tileToPlicNodes.get(domain.element.hartId).foreach { node =>
+    context.tileToPlicNodes.get(domain.element.tileId).foreach { node =>
       FlipRendering { implicit p => domain.element.intOutwardNode.foreach { out =>
         node :*= domain.crossIntOut(crossingParams.crossingType, out)
       }}
     }
 
     // 5. Connect NMI inputs to the tile. These inputs are synchronous to the respective core_clock.
-    domain.element.nmiNode.foreach(_ := context.nmiNodes(domain.element.hartId))
+    domain.element.nmiNode.foreach(_ := context.nmiNodes(domain.element.tileId))
   }
 
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
@@ -247,8 +250,8 @@ trait CanAttachTile {
   def connectInputConstants(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetPrefixFrom = context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere)
-    domain.element.hartIdNode := context.tileHartIdNodes(domain.element.hartId)
-    domain.element.resetVectorNode := context.tileResetVectorNodes(domain.element.hartId)
+    domain.element.hartIdNode := context.tileHartIdNodes(domain.element.tileId)
+    domain.element.resetVectorNode := context.tileResetVectorNodes(domain.element.tileId)
     tlBusToGetPrefixFrom.prefixNode.foreach { domain.element.mmioAddressPrefixNode := _ }
   }
 
@@ -281,10 +284,10 @@ trait CanAttachTile {
     implicit val p = context.p
     val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
       resetCrossingType = crossingParams.resetCrossingType)
-    context.traceNodes(domain.element.hartId) := traceNexusNode := domain.element.traceNode
+    context.traceNodes(domain.element.tileId) := traceNexusNode := domain.element.traceNode
     val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
       resetCrossingType = crossingParams.resetCrossingType)
-    context.traceCoreNodes(domain.element.hartId) :*= traceCoreNexusNode := domain.element.traceCoreNode
+    context.traceCoreNodes(domain.element.tileId) :*= traceCoreNexusNode := domain.element.traceCoreNode
   }
 }
 

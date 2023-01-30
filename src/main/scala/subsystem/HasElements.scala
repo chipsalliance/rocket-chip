@@ -61,7 +61,7 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
     * Note that these ids, which are often used as the tiles' default hartid input,
     * may or may not be those actually reflected at runtime in e.g. the $mhartid CSR
     */
-  val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.hartId)
+  val tileAttachParams: Seq[CanAttachTile] = p(TilesLocated(location)).sortBy(_.tileParams.tileId)
   val tileParams: Seq[TileParams] = tileAttachParams.map(_.tileParams)
   val tileCrossingTypes: Seq[ClockCrossingType] = tileAttachParams.map(_.crossingParams.crossingType)
 
@@ -79,17 +79,17 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
 
   val element_prci_domains: Seq[ElementPRCIDomain[_]] = tile_prci_domains ++ cluster_prci_domains
 
-  val leafTiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile]).sortBy(_.hartId)
-  val totalTiles: Seq[BaseTile] = (leafTiles ++ cluster_prci_domains.map(_.element.asInstanceOf[Cluster].totalTiles).flatten).sortBy(_.hartId)
+  val leafTiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile]).sortBy(_.tileId)
+  val totalTiles: Seq[BaseTile] = (leafTiles ++ cluster_prci_domains.map(_.element.asInstanceOf[Cluster].totalTiles).flatten).sortBy(_.tileId)
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   def nLeafTiles: Int = leafTiles.size
   def nTotalTiles: Int = totalTiles.size
-  def leafHartIdList: Seq[Int] = leafTiles.map(_.hartId)
-  def totalHartIdList: Seq[Int] = totalTiles.map(_.hartId)
+  def leafTileIdList: Seq[Int] = leafTiles.map(_.tileId)
+  def totalTileIdList: Seq[Int] = totalTiles.map(_.tileId)
   def localIntCounts: Seq[Int] = totalTiles.map(_.tileParams.core.nLocalInterrupts)
 
-  require(totalHartIdList.distinct.size == totalTiles.size, s"Every tile must be statically assigned a unique id, but got:\n${totalHartIdList}")
+  require(totalTileIdList.distinct.size == totalTiles.size, s"Every tile must be statically assigned a unique id, but got:\n${totalTileIdList}")
 }
 
 /** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
@@ -201,7 +201,7 @@ trait HasElementsRootContext
     node := debugOpt.map(_.intnode).getOrElse(IntSyncCrossingSource() := NullIntSource())
   }
 
-  val nmiHarts = totalTiles.filter(_.tileParams.core.useNMI).map(_.hartId)
+  val nmiHarts = totalTiles.filter(_.tileParams.core.useNMI).map(_.tileId)
   val nmiIONodes = nmiHarts.map { i => (i, BundleBridgeSource[NMI]()) }.toMap
   val nmiNodes: Map[Int, BundleBridgeNode[NMI]] = nmiIONodes.map { case (i, n) =>
     (i, BundleBridgeEphemeralNode[NMI]() := n)

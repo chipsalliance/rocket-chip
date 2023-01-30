@@ -38,7 +38,7 @@ class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new Default
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
 class ClusterConfig extends Config(
-  new WithNBigCores(2, location=InCluster(0), overrideIdOffset=Some(1), crossing=RocketCrossingParams(
+  new WithNBigCores(2, location=InCluster(0), crossing=RocketCrossingParams(
     master=ElementMasterPortParams(where=CSBUS(0)),
     slave=ElementSlavePortParams(blockerCtrlWhere=CCBUS(0), where=CCBUS(0)),
     mmioBaseAddressPrefixWhere=CCBUS(0),
