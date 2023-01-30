@@ -1359,8 +1359,8 @@ class CSRFile(
         }
         when (mode_ok || !reg_mstatus.v) {
           reg_vsatp.ppn := new_vsatp.ppn(vpnBits.min(new_vsatp.ppn.getWidth)-1,0)
+          if (asIdBits > 0) reg_vsatp.asid := new_vsatp.asid(asIdBits-1,0)
         }
-        if (asIdBits > 0) reg_vsatp.asid := new_vsatp.asid(asIdBits-1,0)
       }
       when (decoded_addr(CSRs.vsie))      { reg_mie := (reg_mie & ~read_hideleg) | ((wdata << 1) & read_hideleg) }
       when (decoded_addr(CSRs.vsscratch)) { reg_vsscratch := wdata }
