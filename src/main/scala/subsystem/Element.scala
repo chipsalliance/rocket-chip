@@ -59,9 +59,6 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
   def masterNode: TLOutwardNode
   def slaveNode: TLInwardNode
 
-  val traceCoreNodes: Map[Int, BundleBridgeOutwardNode[TraceCoreInterface]]
-  val traceNodes: Map[Int, BundleBridgeOutwardNode[TraceBundle]]
-
   /** Helper function to insert additional buffers on master ports at the boundary of the tile.
     *
     * The boundary buffering needed to cut feed-through paths is

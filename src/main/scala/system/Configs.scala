@@ -37,6 +37,18 @@ class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusT
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new DefaultConfig)
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
+class ClusterConfig extends Config(
+  new WithNBigCores(2, location=InCluster(0), overrideIdOffset=Some(1), crossing=RocketCrossingParams(
+    master=ElementMasterPortParams(where=CSBUS(0)),
+    slave=ElementSlavePortParams(blockerCtrlWhere=CCBUS(0), where=CCBUS(0)),
+    mmioBaseAddressPrefixWhere=CCBUS(0),
+  )) ++
+  new WithNClockGroups(3) ++ // 1 + nClusters TODO fix?
+  new WithCluster(1) ++
+  new WithCluster(0) ++
+  new DefaultConfig
+)
+
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
   new WithNBanks(4) ++ new DefaultConfig

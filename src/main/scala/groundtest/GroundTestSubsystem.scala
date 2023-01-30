@@ -15,6 +15,7 @@ import freechips.rocketchip.interrupts.{NullIntSyncSource}
 class GroundTestSubsystem(implicit p: Parameters)
   extends BaseSubsystem
   with InstantiatesElements
+  with HasElementsRootContext
   with HasElements
   with HasTileNotificationSinks
   with HasTileInputConstants
@@ -30,20 +31,9 @@ class GroundTestSubsystem(implicit p: Parameters)
   IntSinkNode(IntSinkPortSimple()) :=* ibus.toPLIC
 
   val tileStatusNodes = totalTiles.collect { case t: GroundTestTile => t.statusNode.makeSink() }
-
-  val msipNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
-  val meipNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
-  val seipNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
-  val plicNodes = (0 until nTotalTiles).map { i => (i, IntIdentityNode()) }.toMap
-  val debugNodes = (0 until nTotalTiles).map { i => (i, IntSyncIdentityNode()) }.toMap
-  val nmiNodes = (0 until nTotalTiles).map { i => (i, BundleBridgeIdentityNode[NMI]()) }.toMap
-
-  msipNodes.values.foreach(_ := NullIntSource(sources=CLINTConsts.ints))
-  meipNodes.values.foreach(_ := NullIntSource())
-  seipNodes.values.foreach(_ := NullIntSource())
-  plicNodes.values.foreach(n => IntSinkNode(Nil) := n) // sink to nowhere
-  debugNodes.values.foreach(_ := IntSyncCrossingSource() := NullIntSource())
-  nmiNodes.values.foreach(_ := BundleBridgeSource[NMI]())
+  val clintOpt = None
+  val debugOpt = None
+  val plicOpt = None
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }

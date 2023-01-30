@@ -16,7 +16,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
-  case MaxHartIdBits => log2Up((site(TilesLocated(InSubsystem)).map(_.tileParams.hartId) :+ 0).max+1)
+  case MaxHartIdBits => log2Up((site(PossibleTileLocations).flatMap(loc => site(TilesLocated(loc)))
+      .map(_.tileParams.hartId) :+ 0).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
     beatBytes = site(XLen)/8,
@@ -43,6 +44,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
   case TilesLocated(InSubsystem) => Nil
+  case PossibleTileLocations => Seq(InSubsystem)
 })
 
 /* Composable partial function Configs to set individual parameters */
@@ -90,10 +92,11 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
 class WithNBigCores(
   n: Int,
   overrideIdOffset: Option[Int] = None,
-  crossing: RocketCrossingParams = RocketCrossingParams()
+  crossing: RocketCrossingParams = RocketCrossingParams(),
+  location: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
+  case TilesLocated(`location`) => {
+    val prev = up(TilesLocated(location), site)
     val idOffset = overrideIdOffset.getOrElse(prev.size)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
@@ -213,6 +216,24 @@ class With1TinyCore extends Config((site, here, up) => {
         master = ElementMasterPortParams())
     ))
   }
+})
+
+class WithCluster(
+  clusterId: Int,
+  location: HierarchicalLocation = InSubsystem,
+  crossing: RocketCrossingParams = RocketCrossingParams() // TODO make this not rocket
+) extends Config((site, here, up) => {
+  case ClustersLocated(`location`) => up(ClustersLocated(location)) :+ ClusterAttachParams(
+    ClusterParams(clusterId = clusterId),
+    crossing)
+  case TLNetworkTopologyLocated(InCluster(`clusterId`)) => List(
+    ClusterBusTopologyParams(
+      clusterId = clusterId,
+      csbus = site(SystemBusKey),
+      ccbus = site(ControlBusKey).copy(errorDevice = None)
+    )
+  )
+  case PossibleTileLocations => up(PossibleTileLocations) :+ InCluster(clusterId)
 })
 
 class WithNBanks(n: Int) extends Config((site, here, up) => {
@@ -664,3 +685,7 @@ class WithCloneRocketTiles(n: Int = 1, cloneHart: Int = 0, overrideIdOffset: Opt
   }
 })
 
+
+class WithNClockGroups(n: Int) extends Config((site, here, up) => {
+  case SubsystemDriveAsyncClockGroupsKey => up(SubsystemDriveAsyncClockGroupsKey).map(_.copy(num=n))
+})

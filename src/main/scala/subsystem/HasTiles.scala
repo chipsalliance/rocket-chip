@@ -11,11 +11,15 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode}
+import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
+import freechips.rocketchip.rocket.{TracedInstruction}
 
 /** Entry point for Config-uring the presence of Tiles */
 case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTile]](Nil)
+
+/** List of HierarchicalLocations which might contain a Tile */
+case object PossibleTileLocations extends Field[Seq[HierarchicalLocation]](Nil)
 
 /** Whether to add timing-closure registers along the path of the hart id
   * as it propagates through the subsystem and into the tile.
@@ -163,6 +167,7 @@ trait CanAttachTile {
     connectPRC(domain, context)
     connectOutputNotifications(domain, context)
     connectInputConstants(domain, context)
+    connectTrace(domain, context)
   }
 
   /** Connect the port where the tile is the master to a TileLink interconnect. */
@@ -218,7 +223,7 @@ trait CanAttachTile {
 
     // 4. Interrupts coming out of the tile are sent to the PLIC,
     //    so might need to be synchronized depending on the Tile's crossing type.
-    context.plicNodes.get(domain.element.hartId).foreach { node =>
+    context.tileToPlicNodes.get(domain.element.hartId).foreach { node =>
       FlipRendering { implicit p => domain.element.intOutwardNode.foreach { out =>
         node :*= domain.crossIntOut(crossingParams.crossingType, out)
       }}
@@ -236,7 +241,6 @@ trait CanAttachTile {
     context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode)
     // TODO should context be forced to have a trace sink connected here?
     //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
-    domain.crossTracesOut()
   }
 
   /** Connect inputs to the tile that are assumed to be constant during normal operation, and so are not clock-crossed. */
@@ -270,6 +274,17 @@ trait CanAttachTile {
     domain {
       domain.element_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
     }
+  }
+
+  /** Function to handle all trace crossings when tile is instantiated inside domains */
+  def connectTrace(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
+    implicit val p = context.p
+    val traceNexusNode = BundleBridgeBlockDuringReset[Vec[TracedInstruction]](
+      resetCrossingType = crossingParams.resetCrossingType)
+    context.traceNodes(domain.element.hartId) := traceNexusNode := domain.element.traceNode
+    val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
+      resetCrossingType = crossingParams.resetCrossingType)
+    context.traceCoreNodes(domain.element.hartId) :*= traceCoreNexusNode := domain.element.traceCoreNode
   }
 }
 

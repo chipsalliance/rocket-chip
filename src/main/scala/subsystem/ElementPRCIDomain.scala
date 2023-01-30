@@ -50,27 +50,6 @@ abstract class ElementPRCIDomain[T <: BaseElement](
   val clockNode = FixedClockBroadcast(None) :=* tapClockNode
   lazy val clockBundle = tapClockNode.in.head._1
 
-  /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNodes: Map[Int, BundleBridgeIdentityNode[TraceBundle]]
-  /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
-  val traceCoreNodes: Map[Int, BundleBridgeIdentityNode[TraceCoreInterface]]
-
-  /** Function to handle all trace crossings when tile is instantiated inside domains */
-  def crossTracesOut(): Unit = this {
-    require(element.traceNodes.size == traceNodes.size)
-    require(element.traceCoreNodes.size == traceCoreNodes.size)
-    for (i <- 0 until traceNodes.size) {
-      val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
-        resetCrossingType = crossingParams.resetCrossingType)
-      traceNodes(i) :*= traceNexusNode := element.traceNodes(i)
-    }
-    for (i <- 0 until traceCoreNodes.size) {
-      val traceCoreNexusNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
-        resetCrossingType = crossingParams.resetCrossingType)
-      traceCoreNodes(i) :*= traceCoreNexusNode := element.traceCoreNodes(i)
-    }
-  }
-
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossingType: ClockCrossingType, tileNode: IntInwardNode): IntInwardNode = {
     // Unlike the other crossing helpers, here nothing is is blocked during reset because we know these are inputs and assume that tile reset is longer than uncore reset

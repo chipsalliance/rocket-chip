@@ -30,8 +30,8 @@ case object MBUS extends TLBusWrapperLocation("subsystem_mbus")
 case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
 case object L2   extends TLBusWrapperLocation("subsystem_l2")
 
-case class ClusterSBUS(val clusterId: Int) extends TLBusWrapperLocation(s"cluster_${clusterId}_sbus")
-case class ClusterCBUS(val clusterId: Int) extends TLBusWrapperLocation(s"cluster_${clusterId}_cbus")
+case class CSBUS(val clusterId: Int) extends TLBusWrapperLocation(s"cluster_${clusterId}_sbus")
+case class CCBUS(val clusterId: Int) extends TLBusWrapperLocation(s"cluster_${clusterId}_cbus")
 
 /** Parameterizes the subsystem in terms of optional clock-crossings
   *   that are insertable between some of the five traditional tilelink bus wrappers.
@@ -108,4 +108,15 @@ case class CoherentBusTopologyParams(
       driveClockFromMaster = if (driveMBusClockFromSBus) Some(true) else None,
       nodeBinding = BIND_QUERY))
   )
+)
+
+case class ClusterBusTopologyParams(
+  clusterId: Int,
+  csbus: SystemBusParams,
+  ccbus: PeripheryBusParams
+) extends TLBusWrapperTopology(
+  instantiations = List(
+    (CSBUS(clusterId), csbus),
+    (CCBUS(clusterId), ccbus)),
+  connections = Nil
 )
