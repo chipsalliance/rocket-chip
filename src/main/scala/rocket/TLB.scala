@@ -643,7 +643,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   io.resp.gpa_is_pte := vstage1_en && r_gpa_is_pte
   io.resp.gpa := {
-    val page = Mux(!vstage1_en, Cat(bad_va, vpn), r_gpa >> pgIdxBits)
+    val page = Mux(!vstage1_en, Cat(bad_gpa, vpn), r_gpa >> pgIdxBits)
     val offset = Mux(io.resp.gpa_is_pte, r_gpa(pgIdxBits-1, 0), io.req.bits.vaddr(pgIdxBits-1, 0))
     Cat(page, offset)
   }
