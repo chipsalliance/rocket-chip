@@ -40,8 +40,8 @@ class Cluster(
   lazy val location = InCluster(clusterId)
 
   val clockGroupNode = ClockGroupAggregator()
-  val csbus = tlBusWrapperLocationMap(CSBUS(clusterId)) // like the sbus in the base subsystem
-  val ccbus = tlBusWrapperLocationMap(CCBUS(clusterId)) // like the cbus in the base subsystem
+  val csbus = tlBusWrapperLocationMap(SBUS) // like the sbus in the base subsystem
+  val ccbus = tlBusWrapperLocationMap(CBUS) // like the cbus in the base subsystem
 
   csbus.clockGroupNode := clockGroupNode
   ccbus.clockGroupNode := clockGroupNode
