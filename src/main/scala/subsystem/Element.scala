@@ -15,7 +15,8 @@ import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
 
 trait ElementParams {
-  val name: String
+  val baseName: String // duplicated instances shouuld share a base name
+  val uniqueName: String
   val clockSinkParams: ClockSinkParameters
 }
 

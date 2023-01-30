@@ -30,7 +30,8 @@ case class RocketTileParams(
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
-  val name = s"rockettile_$tileId"
+  val baseName = "rockettile"
+  val uniqueName = s"${baseName}_$tileId"
   def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): RocketTile = {
     new RocketTile(this, crossing, lookup)
   }
