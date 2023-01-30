@@ -75,7 +75,8 @@ case class TraceGenParams(
     new TraceGenTile(this, crossing, lookup)
   }
   val blockerCtrlAddr = None
-  val name = s"tracegen_$tileId"
+  val baseName = "tracegentile"
+  val uniqueName = s"${baseName}_$tileId"
   val clockSinkParams = ClockSinkParameters()
 }
 

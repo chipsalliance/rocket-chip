@@ -343,7 +343,7 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
     new C
   }
 
-  this.suggestName(tileParams.name)
+  this.suggestName(tileParams.baseName)
 }
 
 abstract class BaseTileModuleImp[+L <: BaseTile](outer: L) extends BaseElementModuleImp[L](outer)

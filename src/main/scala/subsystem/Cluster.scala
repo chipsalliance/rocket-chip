@@ -21,7 +21,8 @@ case class ClusterParams(
   val clusterId: Int,
   val clockSinkParams: ClockSinkParameters = ClockSinkParameters()
 ) extends ElementParams {
-  val name = s"cluster_$clusterId"
+  val baseName = "cluster"
+  val uniqueName = s"${baseName}_$clusterId"
   def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByClusterIdImpl)(implicit p: Parameters): Cluster = {
     new Cluster(this, crossing.crossingType, lookup)
   }
@@ -102,7 +103,7 @@ trait CanAttachCluster {
   def crossingParams: ElementCrossingParamsLike
 
   def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: Seq[ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
-    val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.name))
+    val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
     val cluster_prci_domain = LazyModule(new ClusterPRCIDomain(
       clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)))
     cluster_prci_domain
@@ -121,14 +122,14 @@ trait CanAttachCluster {
   def connectMasterPorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
     implicit val p = context.p
     val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
-    dataBus.coupleFrom(clusterParams.name) { bus =>
+    dataBus.coupleFrom(clusterParams.baseName) { bus =>
       bus :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
     }
   }
   def connectSlavePorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
     implicit val p = context.p
     val controlBus = context.locateTLBusWrapper(crossingParams.slave.where)
-    controlBus.coupleTo(clusterParams.name) { bus =>
+    controlBus.coupleTo(clusterParams.baseName) { bus =>
       domain.crossSlavePort(crossingParams.crossingType) :*= crossingParams.slave.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
     }
   }
