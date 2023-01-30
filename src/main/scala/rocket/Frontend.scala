@@ -60,9 +60,9 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val progress = Output(Bool())
 }
 
-class Frontend(val icacheParams: ICacheParams, staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
+class Frontend(val icacheParams: ICacheParams, tileId: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new FrontendModule(this)
-  val icache = LazyModule(new ICache(icacheParams, staticIdForMetadataUseOnly))
+  val icache = LazyModule(new ICache(icacheParams, tileId))
   val masterNode = icache.masterNode
   val slaveNode = icache.slaveNode
   val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(masterNode.edges.out.head.bundle.addressBits.W)))
@@ -382,7 +382,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 /** Mix-ins for constructing tiles that have an ICache-based pipeline frontend */
 trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   val module: HasICacheFrontendModule
-  val frontend = LazyModule(new Frontend(tileParams.icache.get, staticIdForMetadataUseOnly))
+  val frontend = LazyModule(new Frontend(tileParams.icache.get, tileId))
   tlMasterXbar.node := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
   frontend.icache.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode }

@@ -17,7 +17,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
   case MaxHartIdBits => log2Up(site(PossibleTileLocations).flatMap(loc => site(TilesLocated(loc)))
-      .map(_.tileParams.hartId).max+1)
+      .map(_.tileParams.tileId).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
     beatBytes = site(XLen)/8,
@@ -91,13 +91,12 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
 
 class WithNBigCores(
   n: Int,
-  overrideIdOffset: Option[Int] = None,
   crossing: RocketCrossingParams = RocketCrossingParams(),
   location: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
   case TilesLocated(`location`) => {
     val prev = up(TilesLocated(location), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val idOffset = up(NumTiles)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
         mulUnroll = 8,
@@ -111,20 +110,21 @@ class WithNBigCores(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
-      big.copy(hartId = i + idOffset),
+      big.copy(tileId = i + idOffset),
       crossing
     )) ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })
 
 class WithNMedCores(
   n: Int,
-  overrideIdOffset: Option[Int] = None,
-  crossing: RocketCrossingParams = RocketCrossingParams()
+  crossing: RocketCrossingParams = RocketCrossingParams(),
+  location: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+  case TilesLocated(`location`) => {
+    val prev = up(TilesLocated(location), site)
+    val idOffset = up(NumTiles)
     val med = RocketTileParams(
       core = RocketCoreParams(fpu = None),
       btb = None,
@@ -144,20 +144,21 @@ class WithNMedCores(
         nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
-      med.copy(hartId = i + idOffset),
+      med.copy(tileId = i + idOffset),
       crossing
     )) ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })
 
 class WithNSmallCores(
   n: Int,
-  overrideIdOffset: Option[Int] = None,
-  crossing: RocketCrossingParams = RocketCrossingParams()
+  crossing: RocketCrossingParams = RocketCrossingParams(),
+  location: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val idOffset = up(NumTiles)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
@@ -177,10 +178,11 @@ class WithNSmallCores(
         nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
-      small.copy(hartId = i + idOffset),
+      small.copy(tileId = i + idOffset),
       crossing
     )) ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })
 
 class With1TinyCore extends Config((site, here, up) => {
@@ -216,6 +218,8 @@ class With1TinyCore extends Config((site, here, up) => {
         master = ElementMasterPortParams())
     ))
   }
+  case NumTiles => 1
+  case ClustersLocated(_) => Nil
 })
 
 class WithCluster(
@@ -634,7 +638,7 @@ class WithCloneRocketTiles(n: Int = 1, cloneHart: Int = 0, overrideIdOffset: Opt
     val tileAttachParams = prev(cloneHart).asInstanceOf[RocketTileAttachParams]
     (0 until n).map { i =>
       CloneTileAttachParams(cloneHart, tileAttachParams.copy(
-        tileParams = tileAttachParams.tileParams.copy(hartId = i + idOffset)
+        tileParams = tileAttachParams.tileParams.copy(tileId = i + idOffset)
       ))
     } ++ prev
   }

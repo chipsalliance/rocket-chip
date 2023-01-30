@@ -23,7 +23,7 @@ trait TileParams extends ElementParams {
   val icache: Option[ICacheParams]
   val dcache: Option[DCacheParams]
   val btb: Option[BTBParams]
-  val hartId: Int
+  val tileId: Int // may not be hartid
   val blockerCtrlAddr: Option[BigInt]
 }
 
@@ -76,15 +76,7 @@ trait HasNonDiplomaticTileParameters {
     xLen match { case 32 => 34; case 64 => 56 }
   }
 
-  /** Use staticIdForMetadataUseOnly to emit information during the build or identify a component to diplomacy.
-    *
-    *   Including it in a constructed Chisel circuit by converting it to a UInt will prevent
-    *   Chisel/FIRRTL from being able to deduplicate tiles that are otherwise homogeneous,
-    *   a property which is important for hierarchical place & route flows.
-    */
-  def staticIdForMetadataUseOnly: Int = tileParams.hartId
-  @deprecated("use hartIdSinkNodeOpt.map(_.bundle) or staticIdForMetadataUseOnly", "rocket-chip 1.3")
-  def hartId: Int = staticIdForMetadataUseOnly
+  def tileId: Int = tileParams.tileId
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)

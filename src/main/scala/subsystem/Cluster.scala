@@ -40,12 +40,6 @@ class Cluster(
   lazy val location = InCluster(clusterId)
 
   val clockGroupNode = ClockGroupAggregator()
-  println(p(TLNetworkTopologyLocated(InCluster(0))))
-  println(p(TLNetworkTopologyLocated(InCluster(1))))
-  println(thisClusterParams)
-  println(clusterId)
-  println(location)
-  println(tlBusWrapperLocationMap)
   val csbus = tlBusWrapperLocationMap(CSBUS(clusterId)) // like the sbus in the base subsystem
   val ccbus = tlBusWrapperLocationMap(CCBUS(clusterId)) // like the cbus in the base subsystem
 
@@ -61,16 +55,16 @@ class Cluster(
   ibus.clockNode := csbus.fixedClockNode
   implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)()
 
-  lazy val msipNodes = totalHartIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val meipNodes = totalHartIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val seipNodes = totalHartIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val tileToPlicNodes = totalHartIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val debugNodes = totalHartIdList.map { i => (i, IntSyncIdentityNode()) }.toMap
-  lazy val nmiNodes = totalTiles.filter(_.tileParams.core.useNMI).map { t => (t.hartId, BundleBridgeIdentityNode[NMI]()) }.toMap
-  lazy val tileHartIdNodes = totalHartIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.toMap
-  lazy val tileResetVectorNodes = totalHartIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.toMap
-  lazy val traceCoreNodes = totalHartIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.toMap
-  lazy val traceNodes = totalHartIdList.map { i => (i, BundleBridgeIdentityNode[Vec[TracedInstruction]]()) }.toMap
+  lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
+  lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
+  lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
+  lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
+  lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.toMap
+  lazy val nmiNodes = totalTiles.filter(_.tileParams.core.useNMI).map { t => (t.tileId, BundleBridgeIdentityNode[NMI]()) }.toMap
+  lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.toMap
+  lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.toMap
+  lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.toMap
+  lazy val traceNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[Vec[TracedInstruction]]()) }.toMap
 
   // TODO fix: shouldn't need to connect dummy notifications
   tileHaltXbarNode := NullIntSource()
