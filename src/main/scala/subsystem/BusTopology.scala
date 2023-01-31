@@ -28,7 +28,7 @@ case object PBUS extends TLBusWrapperLocation("subsystem_pbus")
 case object FBUS extends TLBusWrapperLocation("subsystem_fbus")
 case object MBUS extends TLBusWrapperLocation("subsystem_mbus")
 case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
-case object LLC  extends TLBusWrapperLocation("subsystem_llc")
+case object COH  extends TLBusWrapperLocation("subsystem_coh")
 
 /** Parameterizes the subsystem in terms of optional clock-crossings
   *   that are insertable between some of the five traditional tilelink bus wrappers.
@@ -97,10 +97,10 @@ case class CoherentBusTopologyParams(
 ) extends TLBusWrapperTopology(
   instantiations = (if (coherence.nBanks == 0) Nil else List(
     (MBUS, mbus),
-    (LLC, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, coherence.nBanks, LLC.name, sbus.dtsFrequency)(coherence.coherenceManager)))),
+    (COH, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, coherence.nBanks, COH.name, sbus.dtsFrequency)(coherence.coherenceManager)))),
   connections = if (coherence.nBanks == 0) Nil else List(
-    (SBUS, LLC,   TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
-    (LLC,  MBUS,  TLBusWrapperConnection.crossTo(
+    (SBUS, COH,   TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
+    (COH,  MBUS,  TLBusWrapperConnection.crossTo(
       xType = sbusToMbusXType,
       driveClockFromMaster = if (driveMBusClockFromSBus) Some(true) else None,
       nodeBinding = BIND_QUERY))
