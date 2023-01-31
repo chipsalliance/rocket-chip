@@ -36,7 +36,7 @@ class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new Default
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
 class ClusterConfig extends Config(
-  new WithNBigCores(1, location=InCluster(3)) ++
+  new WithNBigCores(2, location=InCluster(3)) ++
   new WithNBigCores(2, location=InCluster(1)) ++
   new WithNBigCores(2, location=InCluster(0)) ++
   new WithCluster(3, location=InCluster(2)) ++

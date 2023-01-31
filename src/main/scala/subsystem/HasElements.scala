@@ -182,9 +182,10 @@ trait HasElementsRootContext
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
     inputRequiresOutput = false))
-  val seipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
-    (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get))
-  }.toMap
+  val seipNodes: Map[Int, IntNode] = totalTiles.filter(_.tileParams.core.hasSupervisorMode)
+    .map(_.tileId).map { i =>
+      (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get))
+    }.toMap
 
   val tileToPlicNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
     plicOpt.map(o => (i, o.intnode :=* IntEphemeralNode()))
