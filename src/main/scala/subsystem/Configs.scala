@@ -84,7 +84,7 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
     CoherentBusTopologyParams(
       sbus = site(SystemBusKey),
       mbus = site(MemoryBusKey),
-      l2 = site(BankedCoherenceKey),
+      coherence = site(BankedCoherenceKey),
       sbusToMbusXType = site(SbusToMbusXTypeKey),
       driveMBusClockFromSBus = site(DriveClocksFromSBus)))
 })
