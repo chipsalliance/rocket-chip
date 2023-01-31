@@ -644,7 +644,3 @@ class WithCloneRocketTiles(n: Int = 1, cloneHart: Int = 0, overrideIdOffset: Opt
   }
 })
 
-
-class WithNClockGroups(n: Int) extends Config((site, here, up) => {
-  case SubsystemDriveAsyncClockGroupsKey => up(SubsystemDriveAsyncClockGroupsKey).map(_.copy(num=n))
-})

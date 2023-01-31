@@ -100,7 +100,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   val debugNode = debugOpt.map(_.intnode)
 }
 
-trait HasPeripheryDebugModuleImp extends LazyModuleImp {
+trait HasPeripheryDebugModuleImp extends LazyRawModuleImp {
   val outer: HasPeripheryDebug
 
   val psd = IO(new PSDIO)

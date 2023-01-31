@@ -5,7 +5,7 @@ import chisel3._
 import freechips.rocketchip.util.RecordMap
 
 
-class ClockBundle(val params: ClockBundleParameters) extends Bundle
+class ClockBundle(val params: ClockBundleParameters = ClockBundleParameters()) extends Bundle
 {
   val clock = Output(Clock())
   val reset = Output(Reset())
