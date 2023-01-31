@@ -30,6 +30,7 @@ trait HasPRCILocations extends LazyScopeWithParameters { this: LazyModule =>
 
 /** Layers of hierarchy with this trait contain attachment points for TileLink interfaces */
 trait HasTileLinkLocations extends HasPRCILocations { this: LazyModule =>
+  val busContextName: String
   val tlBusWrapperLocationMap = LocationMap.empty[TLBusWrapper]
   def locateTLBusWrapper(location: Location[TLBusWrapper]): TLBusWrapper = locateTLBusWrapper(location.name)
   def locateTLBusWrapper(name: String): TLBusWrapper = tlBusWrapperLocationMap(Location[TLBusWrapper](name))

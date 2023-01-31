@@ -240,8 +240,8 @@ case class AddressAdjusterWrapperParams(
 {
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
-    val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, loc.name))
-    aaWrapper.suggestName(loc.name + "_wrapper")
+    val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, context.busContextName + "_" + loc.name))
+    aaWrapper.suggestName(context.busContextName + "_" + loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> aaWrapper)
     aaWrapper
   }
@@ -270,8 +270,8 @@ case class TLJBarWrapperParams(
 {
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLJBarWrapper = {
-    val jbarWrapper = LazyModule(new TLJBarWrapper(this, loc.name))
-    jbarWrapper.suggestName(loc.name + "_wrapper")
+    val jbarWrapper = LazyModule(new TLJBarWrapper(this, context.busContextName + "_" + loc.name))
+    jbarWrapper.suggestName(context.busContextName + "_" + loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> jbarWrapper)
     jbarWrapper
   }

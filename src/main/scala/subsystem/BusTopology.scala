@@ -23,12 +23,12 @@ case object MemoryBusKey extends Field[MemoryBusParams]
 //   dynamically-configured topologies.
 
 class TLBusWrapperLocation(name: String) extends Location[TLBusWrapper](name)
-case object SBUS extends TLBusWrapperLocation("subsystem_sbus")
-case object PBUS extends TLBusWrapperLocation("subsystem_pbus")
-case object FBUS extends TLBusWrapperLocation("subsystem_fbus")
-case object MBUS extends TLBusWrapperLocation("subsystem_mbus")
-case object CBUS extends TLBusWrapperLocation("subsystem_cbus")
-case object COH  extends TLBusWrapperLocation("subsystem_coh")
+case object SBUS extends TLBusWrapperLocation("sbus")
+case object PBUS extends TLBusWrapperLocation("pbus")
+case object FBUS extends TLBusWrapperLocation("fbus")
+case object MBUS extends TLBusWrapperLocation("mbus")
+case object CBUS extends TLBusWrapperLocation("cbus")
+case object COH  extends TLBusWrapperLocation("coh")
 
 /** Parameterizes the subsystem in terms of optional clock-crossings
   *   that are insertable between some of the five traditional tilelink bus wrappers.
