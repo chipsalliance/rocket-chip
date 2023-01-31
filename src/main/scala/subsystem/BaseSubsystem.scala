@@ -89,6 +89,8 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
+  val busContextName = "subsystem"
+
   // TODO must there really always be an "sbus"?
   val sbus = tlBusWrapperLocationMap(SBUS)
   tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := allClockGroupsNode }

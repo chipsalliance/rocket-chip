@@ -37,6 +37,7 @@ class Cluster(
     with InstantiatesElements
     with HasElements
 {
+  val busContextName = thisClusterParams.baseName
   lazy val clusterId = thisClusterParams.clusterId
   lazy val location = InCluster(clusterId)
 
