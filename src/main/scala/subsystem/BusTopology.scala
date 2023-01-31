@@ -89,7 +89,6 @@ case class HierarchicalBusTopologyParams(
 
 /** Parameterization of a topology containing a banked coherence manager and a bus for attaching memory devices. */
 case class CoherentBusTopologyParams(
-  sbus: SystemBusParams, // TODO remove this after better width propagation
   mbus: MemoryBusParams,
   coherence: BankedCoherenceParams,
   sbusToMbusXType: ClockCrossingType = NoCrossing,
@@ -97,7 +96,7 @@ case class CoherentBusTopologyParams(
 ) extends TLBusWrapperTopology(
   instantiations = (if (coherence.nBanks == 0) Nil else List(
     (MBUS, mbus),
-    (COH, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, coherence.nBanks, COH.name, sbus.dtsFrequency)(coherence.coherenceManager)))),
+    (COH, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, coherence.nBanks, COH.name)(coherence.coherenceManager)))),
   connections = if (coherence.nBanks == 0) Nil else List(
     (SBUS, COH,   TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
     (COH,  MBUS,  TLBusWrapperConnection.crossTo(
@@ -117,3 +116,4 @@ case class ClusterBusTopologyParams(
     (CBUS, ccbus)),
   connections = Nil
 )
+
