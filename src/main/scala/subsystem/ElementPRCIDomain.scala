@@ -46,13 +46,9 @@ abstract class ElementPRCIDomain[T <: BaseElement](
 {
   val element: T
   val element_reset_domain = LazyModule(new ElementResetDomain(clockSinkParams, crossingParams.resetCrossingType))
-  def clockBundle: ClockBundle = {
-    val dummy = Wire(new ClockBundle) // nothing should every depend on this
-    dummy.clock := false.B.asClock
-    dummy.reset := false.B
-    dummy
-  }
-  val clockNode = FixedClockBroadcast()
+  val tapClockNode = ClockIdentityNode()
+  val clockNode = FixedClockBroadcast() :=* tapClockNode
+  lazy val clockBundle = tapClockNode.in.head._1
 
   /** External code looking to connect and clock-cross the interrupts driven into this tile can call this. */
   def crossIntIn(crossingType: ClockCrossingType, tileNode: IntInwardNode): IntInwardNode = {
