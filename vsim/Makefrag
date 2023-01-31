@@ -58,6 +58,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_INVALID_ASSIGN \
 	+define+RANDOMIZE_DELAY=0.1 \
 	+define+MODEL=$(MODEL) \
+	+define+FSDB \
 	+libext+.v \
 
 #--------------------------------------------------------------------
@@ -76,7 +77,7 @@ $(simv_debug) : $(sim_vsrcs) $(sim_csrcs)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
-	+define+DEBUG -debug_pp \
+	+define+DEBUG -debug_pp -debug_access+all -kdb -lca \
 
 #--------------------------------------------------------------------
 # Run
