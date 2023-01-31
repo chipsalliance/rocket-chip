@@ -91,7 +91,7 @@ case class HierarchicalBusTopologyParams(
 case class CoherentBusTopologyParams(
   sbus: SystemBusParams, // TODO remove this after better width propagation
   mbus: MemoryBusParams,
-  l2: BankedL2Params,
+  l2: BankedCoherenceParams,
   sbusToMbusXType: ClockCrossingType = NoCrossing,
   driveMBusClockFromSBus: Boolean = true
 ) extends TLBusWrapperTopology(

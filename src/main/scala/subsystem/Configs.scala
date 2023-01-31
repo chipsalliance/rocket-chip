@@ -84,7 +84,7 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
     CoherentBusTopologyParams(
       sbus = site(SystemBusKey),
       mbus = site(MemoryBusKey),
-      l2 = site(BankedL2Key),
+      l2 = site(BankedCoherenceKey),
       sbusToMbusXType = site(SbusToMbusXTypeKey),
       driveMBusClockFromSBus = site(DriveClocksFromSBus)))
 })
@@ -241,7 +241,7 @@ class WithCluster(
 })
 
 class WithNBanks(n: Int) extends Config((site, here, up) => {
-  case BankedL2Key => up(BankedL2Key, site).copy(nBanks = n)
+  case BankedCoherenceKey => up(BankedCoherenceKey, site).copy(nBanks = n)
 })
 
 class WithNTrackersPerBank(n: Int) extends Config((site, here, up) => {
@@ -321,7 +321,7 @@ class WithIncoherentTiles extends Config((site, here, up) => {
       }))
     case t => t
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(
+  case BankedCoherenceKey => up(BankedCoherenceKey, site).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager
   )
 })

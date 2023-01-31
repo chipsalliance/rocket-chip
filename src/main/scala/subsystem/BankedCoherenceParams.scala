@@ -23,10 +23,10 @@ case class BroadcastParams(
   controlAddress: Option[BigInt] = None,
   filterFactory:  TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)
 
-/** L2 memory subsystem configuration */
-case object BankedL2Key extends Field(BankedL2Params())
+/** Coherence manager configuration */
+case object BankedCoherenceKey extends Field(BankedCoherenceParams())
 
-case class BankedL2Params(
+case class BankedCoherenceParams(
   nBanks: Int = 1,
   coherenceManager: CoherenceManagerInstantiationFn = broadcastManager
 ) {
