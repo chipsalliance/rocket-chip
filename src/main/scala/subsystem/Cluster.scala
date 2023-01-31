@@ -39,21 +39,22 @@ class Cluster(
   lazy val clusterId = thisClusterParams.clusterId
   lazy val location = InCluster(clusterId)
 
-  val clockGroupNode = ClockGroupAggregator()
+  lazy val allClockGroupsNode = ClockGroupIdentityNode()
+
   val csbus = tlBusWrapperLocationMap(SBUS) // like the sbus in the base subsystem
   val ccbus = tlBusWrapperLocationMap(CBUS) // like the cbus in the base subsystem
 
-  csbus.clockGroupNode := clockGroupNode
-  ccbus.clockGroupNode := clockGroupNode
+  csbus.clockGroupNode := allClockGroupsNode
+  ccbus.clockGroupNode := allClockGroupsNode
 
   val slaveNode = ccbus.inwardNode
   val masterNode = csbus.outwardNode
 
 
 
-  val ibus = LazyModule(new InterruptBusWrapper)
+  lazy val ibus = LazyModule(new InterruptBusWrapper)
   ibus.clockNode := csbus.fixedClockNode
-  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)()
+
 
   lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
   lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
@@ -85,13 +86,11 @@ class ClusterPRCIDomain(
   lookup: LookupByClusterIdImpl)
   (implicit p: Parameters) extends ElementPRCIDomain[Cluster](clockSinkParams, crossingParams)
 {
-  val clockGroupNode = ClockGroupAggregator()
   val element = element_reset_domain {
     LazyModule(clusterParams.instantiate(crossingParams, lookup))
   }
-
-  clockNode := ClockGroup() := clockGroupNode
-  element.clockGroupNode := clockGroupNode
+  // Nothing should depend on the clocks coming from clockNode anyways
+  clockNode := element.csbus.fixedClockNode
 }
 
 
@@ -164,7 +163,7 @@ trait CanAttachCluster {
 
   def connectPRC(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
     implicit val p = context.p
-    domain.clockGroupNode := context.asyncClockGroupsNode
+    domain.element.allClockGroupsNode :*= context.allClockGroupsNode
     domain {
       domain.element_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
     }

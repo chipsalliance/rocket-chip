@@ -110,7 +110,7 @@ trait HasElements extends DefaultElementContextType
 /** Provides some Chisel connectivity to certain tile IOs
   * This trait is intended for the root subsystem
   */
-trait HasElementsRootContextModuleImp extends LazyModuleImp {
+trait HasElementsRootContextModuleImp extends LazyRawModuleImp {
   val outer: InstantiatesElements with HasElements with HasElementsRootContext with HasTileInputConstants
 
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }

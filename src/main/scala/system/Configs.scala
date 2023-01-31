@@ -38,9 +38,11 @@ class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new Default
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
 class ClusterConfig extends Config(
+  new WithNBigCores(1, location=InCluster(3)) ++
   new WithNBigCores(2, location=InCluster(1)) ++
   new WithNBigCores(2, location=InCluster(0)) ++
-  new WithNClockGroups(3) ++ // 1 + nClusters TODO fix?
+  new WithCluster(3, location=InCluster(2)) ++
+  new WithCluster(2) ++
   new WithCluster(1) ++
   new WithCluster(0) ++
   new DefaultConfig

@@ -4,7 +4,8 @@ import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainCrossing {
+abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainCrossing
+{
   def clockBundle: ClockBundle
 
   lazy val module = new Impl

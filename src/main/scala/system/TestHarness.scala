@@ -16,8 +16,10 @@ class TestHarness()(implicit p: Parameters) extends Module {
   val ldut = LazyModule(new ExampleRocketSystem)
   val dut = Module(ldut.module)
 
+  ldut.io_clocks.get.elements.values.foreach(_.clock := clock)
   // Allow the debug ndreset to reset the dut, but not until the initial reset has completed
-  dut.reset := (reset.asBool | ldut.debug.map { debug => AsyncResetReg(debug.ndreset) }.getOrElse(false.B)).asBool
+  val dut_reset = (reset.asBool | ldut.debug.map { debug => AsyncResetReg(debug.ndreset) }.getOrElse(false.B)).asBool
+  ldut.io_clocks.get.elements.values.foreach(_.reset := dut_reset)
 
   dut.dontTouchPorts()
   dut.tieOffInterrupts()

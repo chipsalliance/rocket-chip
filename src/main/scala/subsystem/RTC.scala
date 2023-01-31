@@ -4,10 +4,10 @@ package freechips.rocketchip.subsystem
 
 import chisel3._
 import chisel3.util.Counter
-import freechips.rocketchip.diplomacy.{LazyModuleImp, DTSTimebase}
+import freechips.rocketchip.diplomacy.{LazyRawModuleImp, DTSTimebase}
 import freechips.rocketchip.devices.tilelink.CanHavePeripheryCLINT
 
-trait HasRTCModuleImp extends LazyModuleImp {
+trait HasRTCModuleImp extends LazyRawModuleImp {
   val outer: BaseSubsystem with CanHavePeripheryCLINT
   private val pbusFreq = outer.p(PeripheryBusKey).dtsFrequency.get
   private val rtcFreq = outer.p(DTSTimebase)
