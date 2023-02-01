@@ -23,7 +23,7 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
   // those flops) and on the output of the synchronizer circuit (to control
   // reset to any flops this circuit drives).
 
-  val post_psd_reset = Mux(io.psd.test_mode, io.psd.test_mode_reset, reset)
+  val post_psd_reset = Mux(io.psd.test_mode, io.psd.test_mode_reset, reset.asBool)
   withReset(post_psd_reset) {
     io.sync_reset := Mux(io.psd.test_mode, io.psd.test_mode_reset,
       ~AsyncResetSynchronizerShiftReg(true.B, sync))

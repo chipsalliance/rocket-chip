@@ -325,7 +325,7 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   val tag_array = SyncReadMem(nSets, Vec(nWays, UInt(metabits.W)))
   val wen = rst || io.write.valid
   when (wen) {
-    tag_array.write(waddr, Vec(nWays, wdata), wmask)
+    tag_array.write(waddr, VecInit.fill(nWays)(wdata), wmask)
   }
   io.resp := tag_array.read(io.read.bits.idx, io.read.fire()).map(_.asTypeOf(chiselTypeOf(rstVal)))
 
