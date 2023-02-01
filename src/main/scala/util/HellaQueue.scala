@@ -47,6 +47,7 @@ class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val fq = Module(new HellaFlowQueue(entries)(data))
   fq.io.enq <> io.enq
   io.deq <> Queue(fq.io.deq, 1, pipe = true)
+  io.count := fq.io.count
 }
 
 object HellaQueue {
