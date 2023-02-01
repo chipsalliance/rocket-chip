@@ -26,7 +26,7 @@ case class RocketTileAttachParams(
 
 trait HasRocketTiles {
   this: BaseSubsystem with InstantiatesElements =>
-  val rocketTiles = totalTiles.collect { case r: RocketTile => r }
+  val rocketTiles = totalTiles.values.collect { case r: RocketTile => r }
 
   def coreMonitorBundles = (rocketTiles map { t =>
     t.module.core.rocketImpl.coreMonitorBundle

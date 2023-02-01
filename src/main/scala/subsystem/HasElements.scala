@@ -14,6 +14,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode}
 import freechips.rocketchip.util._
 import freechips.rocketchip.rocket.{TracedInstruction}
+import scala.collection.immutable.ListMap
 
 /** A default implementation of parameterizing the connectivity of the port where the tile is the master.
   *   Optional timing buffers and/or an optional CacheCork can be inserted in the interconnect's clock domain.
@@ -66,28 +67,28 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
   val tileCrossingTypes: Seq[ClockCrossingType] = tileAttachParams.map(_.crossingParams.crossingType)
 
   /** The actual list of instantiated tiles in this block. */
-  val tile_prci_domains: Seq[TilePRCIDomain[_]] = tileAttachParams.foldLeft(Seq[TilePRCIDomain[_]]()) {
-    case (instantiated, params) => instantiated :+ params.instantiate(tileParams, instantiated)(p)
+  val tile_prci_domains: ListMap[Int, TilePRCIDomain[_]] = tileAttachParams.foldLeft(ListMap[Int, TilePRCIDomain[_]]()) {
+    case (instantiated, params) => instantiated + (params.tileParams.tileId -> params.instantiate(tileParams, instantiated)(p))
   }
 
   val clusterAttachParams: Seq[CanAttachCluster] = p(ClustersLocated(location)).sortBy(_.clusterParams.clusterId)
   val clusterParams: Seq[ClusterParams] = clusterAttachParams.map(_.clusterParams)
   val clusterCrossingTypes: Seq[ClockCrossingType] = clusterAttachParams.map(_.crossingParams.crossingType)
-  val cluster_prci_domains: Seq[ClusterPRCIDomain] = clusterAttachParams.foldLeft(Seq[ClusterPRCIDomain]()) {
-    case (instantiated, params) => instantiated :+ params.instantiate(clusterParams, instantiated)(p)
+  val cluster_prci_domains: ListMap[Int, ClusterPRCIDomain] = clusterAttachParams.foldLeft(ListMap[Int, ClusterPRCIDomain]()) {
+    case (instantiated, params) => instantiated + (params.clusterParams.clusterId -> params.instantiate(clusterParams, instantiated)(p))
   }
 
-  val element_prci_domains: Seq[ElementPRCIDomain[_]] = tile_prci_domains ++ cluster_prci_domains
+  val element_prci_domains: Seq[ElementPRCIDomain[_]] = tile_prci_domains.values.toSeq ++ cluster_prci_domains.values.toSeq
 
-  val leafTiles: Seq[BaseTile] = tile_prci_domains.map(_.element.asInstanceOf[BaseTile]).sortBy(_.tileId)
-  val totalTiles: Seq[BaseTile] = (leafTiles ++ cluster_prci_domains.map(_.element.asInstanceOf[Cluster].totalTiles).flatten).sortBy(_.tileId)
+  val leafTiles: ListMap[Int, BaseTile] = tile_prci_domains.mapValues(_.element.asInstanceOf[BaseTile]).to(ListMap)
+  val totalTiles: ListMap[Int, BaseTile] = (leafTiles ++ cluster_prci_domains.values.map(_.element.totalTiles).flatten)
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   def nLeafTiles: Int = leafTiles.size
   def nTotalTiles: Int = totalTiles.size
-  def leafTileIdList: Seq[Int] = leafTiles.map(_.tileId)
-  def totalTileIdList: Seq[Int] = totalTiles.map(_.tileId)
-  def localIntCounts: Seq[Int] = totalTiles.map(_.tileParams.core.nLocalInterrupts)
+  def leafTileIdList: Seq[Int] = leafTiles.keys.toSeq.sorted
+  def totalTileIdList: Seq[Int] = totalTiles.keys.toSeq.sorted
+  def localIntCounts: ListMap[Int, Int] = totalTiles.mapValues(_.tileParams.core.nLocalInterrupts).to(ListMap)
 
   require(totalTileIdList.distinct.size == totalTiles.size, s"Every tile must be statically assigned a unique id, but got:\n${totalTileIdList}")
 }
@@ -98,12 +99,11 @@ trait HasElements extends DefaultElementContextType
   implicit val p: Parameters
 
   // connect all the tiles to interconnect attachment points made available in this subsystem context
-  tileAttachParams.zip(tile_prci_domains).foreach { case (params, td) =>
-    params.connect(td.asInstanceOf[TilePRCIDomain[params.TileType]], this.asInstanceOf[params.TileContextType])
+  tileAttachParams.foreach { params =>
+    params.connect(tile_prci_domains(params.tileParams.tileId).asInstanceOf[TilePRCIDomain[params.TileType]], this.asInstanceOf[params.TileContextType])
   }
-
-  clusterAttachParams.zip(cluster_prci_domains).foreach { case (params, cd) =>
-    params.connect(cd.asInstanceOf[ClusterPRCIDomain], this.asInstanceOf[params.ClusterContextType])
+  clusterAttachParams.foreach { params =>
+    params.connect(cluster_prci_domains(params.clusterParams.clusterId).asInstanceOf[ClusterPRCIDomain], this.asInstanceOf[params.ClusterContextType])
   }
 }
 
@@ -142,16 +142,16 @@ trait DefaultElementContextType
     extends Attachable
     with HasTileNotificationSinks
 { this: LazyModule with Attachable =>
-  val msipNodes: Map[Int, IntNode]
-  val meipNodes: Map[Int, IntNode]
-  val seipNodes: Map[Int, IntNode]
-  val tileToPlicNodes: Map[Int, IntNode]
-  val debugNodes: Map[Int, IntSyncNode]
-  val nmiNodes: Map[Int, BundleBridgeNode[NMI]]
-  val tileHartIdNodes: Map[Int, BundleBridgeNode[UInt]]
-  val tileResetVectorNodes: Map[Int, BundleBridgeNode[UInt]]
-  val traceCoreNodes: Map[Int, BundleBridgeNode[TraceCoreInterface]]
-  val traceNodes: Map[Int, BundleBridgeNode[TraceBundle]]
+  val msipNodes: ListMap[Int, IntNode]
+  val meipNodes: ListMap[Int, IntNode]
+  val seipNodes: ListMap[Int, IntNode]
+  val tileToPlicNodes: ListMap[Int, IntNode]
+  val debugNodes: ListMap[Int, IntSyncNode]
+  val nmiNodes: ListMap[Int, BundleBridgeNode[NMI]]
+  val tileHartIdNodes: ListMap[Int, BundleBridgeNode[UInt]]
+  val tileResetVectorNodes: ListMap[Int, BundleBridgeNode[UInt]]
+  val traceCoreNodes: ListMap[Int, BundleBridgeNode[TraceCoreInterface]]
+  val traceNodes: ListMap[Int, BundleBridgeNode[TraceBundle]]
 }
 
 /** This trait provides the tile attachment context for the root (outermost) subsystem */
@@ -164,9 +164,9 @@ trait HasElementsRootContext
   val plicOpt: Option[TLPLIC]
   val debugOpt: Option[TLDebugModule]
 
-  val msipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
+  val msipNodes: ListMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode())
-  }.toMap
+  }.to(ListMap)
   msipNodes.foreach {
     _._2 := clintOpt.map(_.intnode).getOrElse(NullIntSource(sources = CLINTConsts.ints))
   }
@@ -176,38 +176,36 @@ trait HasElementsRootContext
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
     inputRequiresOutput = false))
-  val meipNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
+  val meipNodes: ListMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(meipIONode.get))
-  }.toMap
+  }.to(ListMap)
 
   val seipIONode = Option.when(plicOpt.isEmpty)(IntNexusNode(
     sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(1))) },
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false,
     inputRequiresOutput = false))
-  val seipNodes: Map[Int, IntNode] = totalTiles.filter(_.tileParams.core.hasSupervisorMode)
-    .map(_.tileId).map { i =>
-      (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get))
-    }.toMap
+  val seipNodes: ListMap[Int, IntNode] = totalTiles.filter { case (_, t) => t.tileParams.core.hasSupervisorMode }
+    .mapValues( _ => IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get)).to(ListMap)
 
-  val tileToPlicNodes: Map[Int, IntNode] = (0 until nTotalTiles).map { i =>
+  val tileToPlicNodes: ListMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     plicOpt.map(o => (i, o.intnode :=* IntEphemeralNode()))
-  }.flatten.toMap
+  }.flatten.to(ListMap)
 
-  val debugNodes: Map[Int, IntSyncNode] = (0 until nTotalTiles).map { i =>
+  val debugNodes: ListMap[Int, IntSyncNode] = (0 until nTotalTiles).map { i =>
     (i, IntSyncIdentityNode())
-  }.toMap
+  }.to(ListMap)
 
   debugNodes.foreach { case (hartid, node) =>
     node := debugOpt.map(_.intnode).getOrElse(IntSyncCrossingSource() := NullIntSource())
   }
 
-  val nmiHarts = totalTiles.filter(_.tileParams.core.useNMI).map(_.tileId)
-  val nmiIONodes = nmiHarts.map { i => (i, BundleBridgeSource[NMI]()) }.toMap
-  val nmiNodes: Map[Int, BundleBridgeNode[NMI]] = nmiIONodes.map { case (i, n) =>
+  val nmiHarts = totalTiles.filter { case (_, t) => t.tileParams.core.useNMI }.keys
+  val nmiIONodes = nmiHarts.map { i => (i, BundleBridgeSource[NMI]()) }.to(ListMap)
+  val nmiNodes: ListMap[Int, BundleBridgeNode[NMI]] = nmiIONodes.map { case (i, n) =>
     (i, BundleBridgeEphemeralNode[NMI]() := n)
-  }.toMap
+  }.to(ListMap)
 
-  val traceCoreNodes: Map[Int, BundleBridgeSink[TraceCoreInterface]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[TraceCoreInterface]()) }.toMap
-  val traceNodes: Map[Int, BundleBridgeSink[TraceBundle]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[TraceBundle]()) }.toMap
+  val traceCoreNodes: ListMap[Int, BundleBridgeSink[TraceCoreInterface]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[TraceCoreInterface]()) }.to(ListMap)
+  val traceNodes: ListMap[Int, BundleBridgeSink[TraceBundle]] = (0 until nTotalTiles).map { i => (i, BundleBridgeSink[TraceBundle]()) }.to(ListMap)
 }

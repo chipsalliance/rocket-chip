@@ -24,7 +24,8 @@ case class BroadcastParams(
   filterFactory:  TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)
 
 /** Coherence manager configuration */
-case object BankedCoherenceKey extends Field(BankedCoherenceParams())
+case object SubsystemBankedCoherenceKey extends Field(BankedCoherenceParams())
+case class ClusterBankedCoherenceKey(clusterId: Int) extends Field(BankedCoherenceParams(nBanks=0))
 
 case class BankedCoherenceParams(
   nBanks: Int = 1,

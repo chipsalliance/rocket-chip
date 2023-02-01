@@ -109,11 +109,20 @@ case class CoherentBusTopologyParams(
 case class ClusterBusTopologyParams(
   clusterId: Int,
   csbus: SystemBusParams,
-  ccbus: PeripheryBusParams
+  ccbus: PeripheryBusParams,
+  coherence: BankedCoherenceParams
 ) extends TLBusWrapperTopology(
   instantiations = List(
     (SBUS, csbus),
-    (CBUS, ccbus)),
-  connections = Nil
+    (CBUS, ccbus)) ++ (if (coherence.nBanks == 0) Nil else List(
+    (MBUS, csbus),
+    (COH , CoherenceManagerWrapperParams(csbus.blockBytes, csbus.beatBytes, coherence.nBanks, COH.name)(coherence.coherenceManager)))),
+  connections = if (coherence.nBanks == 0) Nil else List(
+    (SBUS, COH , TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
+    (COH , MBUS, TLBusWrapperConnection.crossTo(
+      xType = NoCrossing,
+      driveClockFromMaster = Some(true),
+      nodeBinding = BIND_QUERY))
+  )
 )
 

@@ -13,6 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util._
+import scala.collection.immutable.ListMap
 
 case class ClustersLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachCluster]](Nil)
 
@@ -44,29 +45,30 @@ class Cluster(
 
   val csbus = tlBusWrapperLocationMap(SBUS) // like the sbus in the base subsystem
   val ccbus = tlBusWrapperLocationMap(CBUS) // like the cbus in the base subsystem
+  val cmbus = tlBusWrapperLocationMap.lift(MBUS).getOrElse(csbus)
 
   csbus.clockGroupNode := allClockGroupsNode
   ccbus.clockGroupNode := allClockGroupsNode
 
   val slaveNode = ccbus.inwardNode
-  val masterNode = csbus.outwardNode
+  val masterNode = cmbus.outwardNode
 
 
 
   lazy val ibus = LazyModule(new InterruptBusWrapper)
   ibus.clockNode := csbus.fixedClockNode
 
-
-  lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.toMap
-  lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.toMap
-  lazy val nmiNodes = totalTiles.filter(_.tileParams.core.useNMI).map { t => (t.tileId, BundleBridgeIdentityNode[NMI]()) }.toMap
-  lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.toMap
-  lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.toMap
-  lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.toMap
-  lazy val traceNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceBundle]()) }.toMap
+  lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
+  lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
+  lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
+  lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
+  lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(ListMap)
+  lazy val nmiNodes = totalTiles.filter { case (i,t) => t.tileParams.core.useNMI }
+    .mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(ListMap)
+  lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(ListMap)
+  lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(ListMap)
+  lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.to(ListMap)
+  lazy val traceNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceBundle]()) }.to(ListMap)
 
   // TODO fix: shouldn't need to connect dummy notifications
   tileHaltXbarNode := NullIntSource()
@@ -101,7 +103,7 @@ trait CanAttachCluster {
   def clusterParams: ClusterParams
   def crossingParams: ElementCrossingParamsLike
 
-  def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: Seq[ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
+  def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: ListMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
     val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
     val cluster_prci_domain = LazyModule(new ClusterPRCIDomain(
       clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)))
@@ -208,3 +210,21 @@ case class ClusterAttachParams(
   clusterParams: ClusterParams,
   crossingParams: ElementCrossingParamsLike
 ) extends CanAttachCluster
+
+case class CloneClusterAttachParams(
+  sourceClusterId: Int,
+  cloneParams: CanAttachCluster
+) extends CanAttachCluster {
+  def clusterParams = cloneParams.clusterParams
+  def crossingParams = cloneParams.crossingParams
+
+  override def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: ListMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
+    require(instantiatedClusters.contains(sourceClusterId))
+    val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
+    val cluster_prci_domain = CloneLazyModule(
+      new ClusterPRCIDomain(clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)),
+      instantiatedClusters(sourceClusterId)
+    )
+    cluster_prci_domain
+  }
+}
