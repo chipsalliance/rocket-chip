@@ -33,6 +33,11 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
   def chisel3IvyDeps = if(chisel3Module.isEmpty) Agg(
     common.getVersion("chisel3")
   ) else Agg.empty[Dep]
+
+  override def repositories = super.repositories ++ Seq(
+    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
+    MavenRepository("https://oss.sonatype.org/content/repositories/releases")
+  )
 }
 
 object rocketchip extends common.CommonRocketChip {
@@ -85,6 +90,11 @@ class Emulator(top: String, config: String) extends ScalaModule {
   override def scalaVersion: T[String] = T {
     "2.13.10"
   }
+
+  override def repositories = super.repositories ++ Seq(
+    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
+    MavenRepository("https://oss.sonatype.org/content/repositories/releases")
+  )
 
   def spikeRoot = T { envByNameOrRiscv("SPIKE_ROOT") }
 

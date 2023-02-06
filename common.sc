@@ -4,8 +4,8 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 
 val defaultVersions = Map(
-  "chisel3" -> "3.5.5",
-  "chisel3-plugin" -> "3.5.5"
+  "chisel3" -> "3.6-SNAPSHOT",
+  "chisel3-plugin" -> "3.6-SNAPSHOT"
 )
 
 def getVersion(dep: String, org: String = "edu.berkeley.cs", cross: Boolean = false) = {
@@ -45,6 +45,11 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     override def publishVersion = T {
       m.publishVersion()
     }
+
+    override def repositories = super.repositories ++ Seq(
+      MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
+      MavenRepository("https://oss.sonatype.org/content/repositories/releases")
+    )
   }
 
   object test extends Tests {
