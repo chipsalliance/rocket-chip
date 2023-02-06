@@ -11,9 +11,11 @@ env:
 on:
   push:
     branches:
+      - dev
       - master
   pull_request:
     branches:
+      - dev
       - master
       - chisel3_port
 
