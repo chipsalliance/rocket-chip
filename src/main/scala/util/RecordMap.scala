@@ -20,8 +20,6 @@ final class RecordMap[T <: Data] (eltMap: ListMap[String, T])
   def size = elements.size
   def data = elements.values
 
-  override def cloneType: this.type = (new RecordMap(eltMap)).asInstanceOf[this.type]
-
 }
 
 object RecordMap {

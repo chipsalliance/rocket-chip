@@ -16,7 +16,6 @@ class TLBundle_ACancel(val params: TLBundleParameters) extends Record
   val d = Flipped(Decoupled(new TLBundleD(params)))
   val e =         Decoupled(new TLBundleE(params))
 
-  override def cloneType: this.type = (new TLBundle_ACancel(params)).asInstanceOf[this.type]
   val elements = ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
 
   /** Down-converts a TLBundle_ACancel to a plain TLBundle, dropping early/late timing split. */
