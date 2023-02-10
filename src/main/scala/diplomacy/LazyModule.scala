@@ -562,8 +562,6 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
     val element = if (flip) data.cloneType.flip() else data.cloneType
     (regex.replaceAllIn(key, ""), element, i)
   }
-
-  override def cloneType: this.type = new AutoBundle(elts: _*).asInstanceOf[this.type]
 }
 
 trait ModuleValue[T] {

@@ -17,5 +17,4 @@ class ClonePorts protected[shim](elts: Data*) extends Record
 {
   val elements = ListMap(elts.map(d => d.instanceName -> d.chiselCloneType): _*)
   def apply(field: String) = elements(field)
-  override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
 }
