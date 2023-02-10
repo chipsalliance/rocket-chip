@@ -59,11 +59,10 @@ class TLBReq(lgMaxSize: Int)(implicit p: Parameters) extends CoreBundle()(p) {
 
 }
 
-class TLBExceptions(implicit p: Parameters) extends CoreBundle()(p) {
+class TLBExceptions extends Bundle {
   val ld = Bool()
   val st = Bool()
   val inst = Bool()
-  val v = Bool()
 }
 
 class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
