@@ -100,23 +100,11 @@ abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) wi
  * Generally, this categorization belongs in different BundleMaps
  */
 
-// If you extend this class, you must either redefine cloneType or have a fields constructor
 class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulkAssignable {
   // All fields must have distinct key.names
   require(fields.map(_.key.name).distinct.size == fields.size)
 
   val elements: ListMap[String, Data] = ListMap(fields.map { bf => bf.key.name -> chisel3.experimental.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
-  override def cloneType: this.type = {
-    try {
-      this.getClass.getConstructors.head.newInstance(fields).asInstanceOf[this.type]
-    } catch {
-      case e: java.lang.IllegalArgumentException =>
-        throw new Exception("Unable to use BundleMap.cloneType on " +
-                       this.getClass + ", probably because " + this.getClass +
-                       " does not have a constructor accepting BundleFields.  Consider overriding " +
-                       "cloneType() on " + this.getClass, e)
-    }
-  }
 
   // A BundleMap is best viewed as a map from BundleKey to Data
   def keydata: Seq[(BundleKeyBase, Data)] = (fields zip elements) map { case (field, (_, data)) => (field.key, data) }
