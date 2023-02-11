@@ -34,6 +34,10 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
     common.getVersion("chisel3")
   ) else Agg.empty[Dep]
 
+  def chisel3PluginIvyDeps = if(chisel3Module.isEmpty) Agg(
+    common.getVersion("chisel3-plugin", cross = true)
+  ) else Agg.empty[Dep]
+
   override def repositories = super.repositories ++ Seq(
     MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
     MavenRepository("https://oss.sonatype.org/content/repositories/releases")
