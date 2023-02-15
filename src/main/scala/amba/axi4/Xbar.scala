@@ -9,6 +9,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.unittest._
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 /**
   * AXI4 Crossbar. It connects multiple AXI4 masters to slaves.
