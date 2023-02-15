@@ -7,6 +7,7 @@ import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import chisel3.util.{log2Ceil, Cat}
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
 case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(Output(UInt(width.W)), 0.U)

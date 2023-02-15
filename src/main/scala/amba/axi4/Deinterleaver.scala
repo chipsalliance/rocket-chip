@@ -8,6 +8,7 @@ import chisel3.util.{Cat, isPow2, log2Ceil, ReadyValidIO,
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.leftOR
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 /** This adapter deinterleaves read responses on the R channel.
   *

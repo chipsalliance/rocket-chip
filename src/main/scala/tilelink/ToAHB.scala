@@ -10,6 +10,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import AHBParameters._
 import chisel3.util.{RegEnable, Queue, Cat, log2Ceil}
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { cp =>

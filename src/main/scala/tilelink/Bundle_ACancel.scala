@@ -6,6 +6,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class TLBundle_ACancel(val params: TLBundleParameters) extends Record
 {
