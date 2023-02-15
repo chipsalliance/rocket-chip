@@ -8,6 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) extends LazyModule
 {
