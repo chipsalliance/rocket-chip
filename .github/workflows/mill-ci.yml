@@ -62,7 +62,7 @@ jobs:
 
   riscv-arch-test:
     name: riscv-arch-test
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, linux, rocketchip]
     strategy:
       matrix:
         config: ["DefaultRV32Config,32,RV32IMACZicsr_Zifencei", "DefaultConfig,64,RV64IMACZicsr_Zifencei", "BitManipCryptoConfig,64,RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh", "BitManipCrypto32Config,32,RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"]
