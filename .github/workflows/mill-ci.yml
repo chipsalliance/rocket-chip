@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: [DefaultSmallConfig, DualBankConfig, DualChannelConfig, DualChannelDualBankConfig, RoccExampleConfig, Edge128BitConfig, Edge32BitConfig, QuadChannelBenchmarkConfig, EightChannelConfig, DualCoreConfig, MemPortOnlyConfig, MMIOPortOnlyConfig, CloneTileConfig]
+        config: [DefaultSmallConfig, DualBankConfig, DualChannelConfig, DualChannelDualBankConfig, RoccExampleConfig, Edge128BitConfig, Edge32BitConfig, QuadChannelBenchmarkConfig, EightChannelConfig, DualCoreConfig, MemPortOnlyConfig, MMIOPortOnlyConfig, CloneTileConfig, HypervisorConfig]
     steps:
       - uses: actions/checkout@v2
         with:
