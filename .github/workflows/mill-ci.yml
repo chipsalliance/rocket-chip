@@ -5,6 +5,8 @@
 # for API reference documentation on this file format.
 
 name: Mill Continuous Integration
+env:
+  USER: runner
 
 on:
   push:
@@ -72,20 +74,9 @@ jobs:
           submodules: 'true'
 
       - name: install nix
-        run : |
-          # cleanup
-          rm -rf /etc/*.backup-before-nix
-          rm -rf /etc/profile.d/nix.sh.backup-before-nix
-          # from https://github.com/cachix/install-nix-action/issues/122#issuecomment-1062065844
-          sh <(curl -L https://nixos.org/nix/install) --daemon --no-channel-add
-          mkdir -p ~/.config/nix
-          touch ~/.config/nix/nix.conf
-          echo "max-jobs = auto" >> ~/.config/nix/nix.conf
-          echo "cores = 0" >> ~/.config/nix/nix.conf
-          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-          echo "/nix/var/nix/profiles/per-user/$USER/profile/bin" >> "$GITHUB_PATH"
-          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
-          echo "NIX_PATH=nixpkgs=channel:nixos-unstable" >> "$GITHUB_ENV"
+        uses: cachix/install-nix-action@v18
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Coursier Cache
         uses: coursier/cache-action@v6
