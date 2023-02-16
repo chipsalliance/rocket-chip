@@ -79,7 +79,8 @@ jobs:
         bucket: [1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v2
-        submodules: true
+        with:
+          submodules: 'true'
 
       - name: Use riscv-tools Cache
         uses: actions/cache@v2
