@@ -10,7 +10,6 @@ class CryptoNISTInterface(xLen: Int) extends Bundle {
   val fn   = Input(UInt(ABLUFN().SZ_ZKN_FN.W))
   val hl   = Input(Bool())
   val bs   = Input(UInt(2.W))
-  val rnum = Input(UInt(4.W))
   val rs1  = Input(UInt(xLen.W))
   val rs2  = Input(UInt(xLen.W))
   val rd   = Output(UInt(xLen.W))
@@ -171,8 +170,9 @@ class CryptoNIST(xLen:Int) extends Module {
       Mux(isEnc, sr_enc.io.out, sr_dec.io.out)
     }
     // var name from rvk spec ks1
+    val rnum = io.rs2(3,0)
     val tmp1 = io.rs1(63,32)
-    val tmp2 = Mux(io.rnum === 0xA.U, tmp1, tmp1.rotateRight(8))
+    val tmp2 = Mux(rnum === 0xA.U, tmp1, tmp1.rotateRight(8))
     // reuse 8 Sbox here
     val si = Mux(isKs1, Cat(0.U(32.W), tmp2), sr)
     val so = VecInit(asBytes(si).map(x => {
@@ -191,7 +191,7 @@ class CryptoNIST(xLen:Int) extends Module {
       Mux(isEnc, mc_enc.io.out, mc_dec.io.out)
     }
     // var name from rvk spec ks1
-    val rc = VecInit(AES.rcon.map(_.U(8.W)).toSeq)(io.rnum)
+    val rc = VecInit(AES.rcon.map(_.U(8.W)).toSeq)(rnum)
     val tmp4 = so(31,0) ^ rc
     val ks1 = Cat(tmp4, tmp4)
     // var name from rvk spec ks2
