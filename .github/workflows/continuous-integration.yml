@@ -110,6 +110,8 @@ jobs:
 
       - name: Set up Mill
         uses: jodersky/setup-mill@v0.3.0
+        with:
+          mill-version: 0.10.11
 
       - env:
           CXX: g++
