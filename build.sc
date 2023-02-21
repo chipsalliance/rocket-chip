@@ -2,12 +2,12 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
-import $file.common
 import $file.hardfloat.build
-import $file.`api-config-chipsalliance`.`build-rules`.mill.build
+import $file.cde.common
+import $file.common
 
-object configRocket extends `api-config-chipsalliance`.`build-rules`.mill.build.config with PublishModule {
-  override def millSourcePath = os.pwd / "api-config-chipsalliance" / "design" / "craft"
+object cdeRocket extends cde.common.CDEModule with PublishModule {
+  override def millSourcePath = os.pwd / "cde" / "cde"
 
   override def scalaVersion = T {
     rocketchip.scalaVersion()
@@ -55,7 +55,7 @@ object rocketchip extends common.CommonRocketChip {
 
   def hardfloatModule = hardfloatRocket
 
-  def configModule = configRocket
+  def cdeModule = cdeRocket
 }
 
 def envByNameOrRiscv(name: String): String = {
