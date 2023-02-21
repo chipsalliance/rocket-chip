@@ -6,7 +6,7 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.util.Valid
 import chisel3.DontCare
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._

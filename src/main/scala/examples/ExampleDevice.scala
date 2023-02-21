@@ -3,7 +3,7 @@
 package freechips.rocketchip.examples
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.amba.ahb.HasAHBControlRegMap
 import freechips.rocketchip.amba.axi4.HasAXI4ControlRegMap
 import freechips.rocketchip.diplomacy.LazyModuleImp

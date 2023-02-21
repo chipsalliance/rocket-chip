@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.interrupts
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 class IntXbar()(implicit p: Parameters) extends LazyModule

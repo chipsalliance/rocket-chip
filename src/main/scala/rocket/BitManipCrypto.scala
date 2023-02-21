@@ -4,7 +4,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 
 
 class BitManipCryptoInterface(xLen: Int) extends Bundle {

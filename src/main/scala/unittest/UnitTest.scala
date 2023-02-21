@@ -5,7 +5,7 @@ package freechips.rocketchip.unittest
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.{IO}
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.util._
 
 trait UnitTestIO {

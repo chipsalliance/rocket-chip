@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import Chisel._
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy.{BundleBridgeEphemeralNode, ValName}
 
 case object IncludePSDTest extends Field[Boolean](false)

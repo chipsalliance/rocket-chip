@@ -4,7 +4,7 @@ package freechips.rocketchip.util
 
 import chisel3._
 import chisel3.util.{HasBlackBoxResource, HasBlackBoxPath}
-import freechips.rocketchip.config.{Field, Parameters}
+import org.chipsalliance.cde.config.{Field, Parameters}
 
 import java.nio.file.{Files, Paths}
 
