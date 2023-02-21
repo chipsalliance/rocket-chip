@@ -4,7 +4,7 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util.{DecoupledIO, log2Ceil, Cat, RegEnable}
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 

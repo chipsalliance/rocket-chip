@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{CrossingType, HasDomainCrossing, LazyModule}
 
 trait HasResetDomainCrossing extends HasDomainCrossing { this: LazyModule =>

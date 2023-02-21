@@ -3,7 +3,7 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.system.SimAXIMem
 

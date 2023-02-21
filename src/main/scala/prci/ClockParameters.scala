@@ -2,7 +2,7 @@
 package freechips.rocketchip.prci
 
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import scala.collection.immutable.ListMap
 
 // All Clock parameters specify only the PLL values required at power-on

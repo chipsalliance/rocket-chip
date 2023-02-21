@@ -3,7 +3,7 @@
 package freechips.rocketchip.amba.ahb
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.devices.tilelink.TLTestRAM
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}

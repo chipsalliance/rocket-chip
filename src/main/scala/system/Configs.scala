@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.system
 
-import freechips.rocketchip.config.Config
+import org.chipsalliance.cde.config.Config
 import freechips.rocketchip.subsystem._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM

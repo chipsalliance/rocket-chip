@@ -5,7 +5,7 @@ package freechips.rocketchip.jtag
 import scala.collection.SortedMap
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 
 /** JTAG signals, viewed from the master side
   */

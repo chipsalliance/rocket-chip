@@ -5,7 +5,7 @@ package freechips.rocketchip.util
 import java.io.{File, FileWriter}
 
 import Chisel.throwException
-import chipsalliance.rocketchip.config.{Config, Parameters}
+import org.chipsalliance.cde.config.{Config, Parameters}
 import chisel3.internal.firrtl.Circuit
 
 trait HasRocketChipStageUtils {

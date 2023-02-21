@@ -4,7 +4,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
 // These are for the ABLU unit, which uses an alternate function encoding
