@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axis
 
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 

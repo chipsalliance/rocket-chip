@@ -6,7 +6,7 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util.{Valid,Decoupled,Queue,log2Up,OHToUInt,UIntToOH,PriorityEncoderOH,Arbiter,RegEnable,Cat}
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
 
 /**

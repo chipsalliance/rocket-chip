@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{LazyModule, LazyScope}
 import freechips.rocketchip.prci.ClockGroupEphemeralNode
 import freechips.rocketchip.tilelink.TLBusWrapper

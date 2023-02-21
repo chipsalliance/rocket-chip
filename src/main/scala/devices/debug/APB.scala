@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.devices.debug
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.amba.apb.{APBRegisterNode}

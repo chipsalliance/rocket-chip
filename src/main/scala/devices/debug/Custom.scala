@@ -7,7 +7,7 @@ import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, NexusNode, RenderedEdge,
   SimpleNodeImp, SinkNode, SourceNode, ValName}
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 
 case class DebugCustomParams(
   addrs: List[Int],

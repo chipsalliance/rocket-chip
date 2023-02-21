@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util.{isPow2,log2Ceil,log2Up,Decoupled,Valid}
 import chisel3.dontTouch
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config.{Parameters, Field}
+import org.chipsalliance.cde.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._

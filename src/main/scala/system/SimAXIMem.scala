@@ -5,7 +5,7 @@ package freechips.rocketchip.system // TODO this should really be in a testharne
 import chisel3._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem.{CanHaveMasterAXI4MMIOPort, CanHaveMasterAXI4MemPort, ExtBus, ExtMem}
 

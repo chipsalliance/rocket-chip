@@ -7,7 +7,7 @@ import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{Module, RawModule, Reset, withClockAndReset}
 import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
 import firrtl.passes.InlineAnnotation
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 
 import scala.collection.immutable.{ListMap, SortedMap}
