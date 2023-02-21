@@ -3,7 +3,7 @@
 package freechips.rocketchip.subsystem
 
 import chisel3._
-import freechips.rocketchip.config.{Field, Parameters}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci.{ClockSinkDomain}

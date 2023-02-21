@@ -3,7 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import Chisel._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.property
 

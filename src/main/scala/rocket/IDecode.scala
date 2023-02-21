@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
 import freechips.rocketchip.scie.SCIE
 import Instructions._

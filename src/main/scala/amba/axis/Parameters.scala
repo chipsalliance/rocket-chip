@@ -3,7 +3,7 @@ package freechips.rocketchip.amba.axis
 
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 

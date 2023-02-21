@@ -3,7 +3,7 @@
 package freechips.rocketchip.tile
 
 import chisel3.Vec
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._

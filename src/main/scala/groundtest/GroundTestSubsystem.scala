@@ -3,7 +3,7 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
-import freechips.rocketchip.config.{Parameters}
+import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
 import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, HasTiles, CanHaveMasterAXI4MemPort}

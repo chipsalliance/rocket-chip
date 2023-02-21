@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{BitPat, Fill, Cat, Reverse}
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 
 class ALUFN {

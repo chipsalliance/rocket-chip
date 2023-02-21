@@ -4,7 +4,7 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import chisel3.SyncReadMem
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.{DescribedSRAM, Code}
 
 abstract class DiplomaticSRAM(

@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.tilelink
 
 import chisel3._
 import chisel3.util.ShiftRegister
-import freechips.rocketchip.config.{Field, Parameters}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._

@@ -8,7 +8,7 @@ import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.util._

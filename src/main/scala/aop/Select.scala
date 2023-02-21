@@ -3,7 +3,7 @@
 package freechips.rocketchip.aop
 
 import chisel3.Data
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{
   AnyMixedNode,
   BaseNode,
