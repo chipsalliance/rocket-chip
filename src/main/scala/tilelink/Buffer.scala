@@ -112,7 +112,7 @@ class TLBufferAndNotCancel(
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out.a <> a(in.a.asDecoupled)
+      out.a <> a(in.a.asDecoupled())
       in .d <> d(out.d)
 
       if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {

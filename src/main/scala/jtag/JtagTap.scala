@@ -72,7 +72,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   // JTAG state machine
   //
 
-  val currState = Wire(JtagState.State.chiselType)
+  val currState = Wire(JtagState.State.chiselType())
 
   // At this point, the TRSTn should already have been
   // combined with any POR, and it should also be
