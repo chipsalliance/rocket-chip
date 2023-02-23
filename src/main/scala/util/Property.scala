@@ -3,7 +3,7 @@
 package freechips.rocketchip.util.property
 
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.util.{ReadyValidIO}
 
 sealed abstract class PropertyType(name: String) {
