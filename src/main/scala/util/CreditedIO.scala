@@ -73,7 +73,7 @@ final class CreditedIO[T <: Data](gen: T) extends Bundle
     enq.valid := debit
     enq.bits := bits
     assert (!enq.valid || enq.ready)
-    val res = Queue.irrevocable(enq, depth, pipe=true, flow=flow)
+    val res = Queue.irrevocable(enq, depth, true, flow)
     credit := res.fire()
     res
   }

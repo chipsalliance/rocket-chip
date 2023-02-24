@@ -79,8 +79,8 @@ object AsyncResetReg {
     reg.io.q
   }
 
-  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, init = false, None)
-  def apply(d: Bool, clk: Clock, rst: Bool, name: String): Bool = apply(d, clk, rst, init = false, Some(name))
+  def apply(d: Bool, clk: Clock, rst: Bool): Bool = apply(d, clk, rst, false, None)
+  def apply(d: Bool, clk: Clock, rst: Bool, name: String): Bool = apply(d, clk, rst, false, Some(name))
 
   // Create Vectors of Registers
   def apply(updateData: UInt, resetData: BigInt, enable: Bool, name: Option[String] = None): UInt = {
