@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.SyncReadMem
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.{DescribedSRAM, Code}
@@ -32,7 +33,7 @@ abstract class DiplomaticSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
-      data = Vec(lanes, UInt(width = bits))
+      data = Vec(lanes, UInt(bits.W))
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
 

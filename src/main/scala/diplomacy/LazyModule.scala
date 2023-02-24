@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel.{defaultCompileOptions => _, _}
+import chisel3._
+import chisel3.util._
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{Module, RawModule, Reset, withClockAndReset}
 import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
@@ -408,7 +409,7 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   /** drive reset explicitly. */
   val childReset: Reset = Wire(Reset())
   // the default is that these are disabled
-  childClock := Bool(false).asClock
+  childClock := false.B.asClock
   childReset := chisel3.DontCare
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
@@ -559,7 +560,7 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
     val ((key, data, flip), i) = tuple
     // Trim trailing _0_1_2 stuff so that when we append _# we don't create collisions.
     val regex = new Regex("(_[0-9]+)*$")
-    val element = if (flip) data.cloneType.flip() else data.cloneType
+    val element = if (flip) Flipped(data.cloneType) else data.cloneType
     (regex.replaceAllIn(key, ""), element, i)
   }
 }
