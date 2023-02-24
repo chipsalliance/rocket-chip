@@ -1,10 +1,10 @@
 // See LICENSE.SiFive for license details.
 
-package tile
+package freechips.rocketchip.tile
 
 import Chisel._
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
@@ -31,6 +31,29 @@ trait SinksExternalInterrupts { this: BaseTile =>
   val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
   protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
+
+  def cpuDevice: Device
+  val intcDevice = new DeviceSnippet {
+    override def parent = Some(cpuDevice)
+    def describe(): Description = {
+      Description("interrupt-controller", Map(
+        "compatible"           -> "riscv,cpu-intc".asProperty,
+        "interrupt-controller" -> Nil,
+        "#interrupt-cells"     -> 1.asProperty))
+    }
+  }
+
+  ResourceBinding {
+    intSinkNode.edges.in.flatMap(_.source.sources).map { case s =>
+      for (i <- s.range.start until s.range.end) {
+       csrIntMap.lift(i).foreach { j =>
+          s.resources.foreach { r =>
+            r.bind(intcDevice, ResourceInt(j))
+          }
+        }
+      }
+    }
+  }
 
   // TODO: the order of the following two functions must match, and
   //         also match the order which things are connected to the
