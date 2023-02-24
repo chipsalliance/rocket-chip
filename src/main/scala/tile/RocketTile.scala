@@ -1,10 +1,10 @@
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
-package freechips.rocketchip.tile
+package tile
 
 import Chisel._
-import org.chipsalliance.cde.config._
+import freechips.rocketchip.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -36,11 +36,11 @@ case class RocketTileParams(
 }
 
 class RocketTile private(
-      val rocketParams: RocketTileParams,
-      crossing: ClockCrossingType,
-      lookup: LookupByHartIdImpl,
-      q: Parameters)
-    extends BaseTile(rocketParams, crossing, lookup, q)
+                          val rocketParams: RocketTileParams,
+                          crossing: ClockCrossingType,
+                          lookup: LookupByHartIdImpl,
+                          q: Parameters)
+  extends BaseTile(rocketParams, crossing, lookup, q)
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
@@ -87,20 +87,7 @@ class RocketTile private(
   val itimProperty = frontend.icache.itimProperty.toSeq.flatMap(p => Map("sifive,itim" -> p))
 
   val beuProperty = bus_error_unit.map(d => Map(
-          "sifive,buserror" -> d.device.asProperty)).getOrElse(Nil)
-
-  val cpuDevice: SimpleDevice = new SimpleDevice("cpu", Seq("sifive,rocket0", "riscv")) {
-    override def parent = Some(ResourceAnchors.cpus)
-    override def describe(resources: ResourceBindings): Description = {
-      val Description(name, mapping) = super.describe(resources)
-      Description(name, mapping ++ cpuProperties ++ nextLevelCacheProperty
-                  ++ tileProperties ++ dtimProperty ++ itimProperty ++ beuProperty)
-    }
-  }
-
-  ResourceBinding {
-    Resource(cpuDevice, "reg").bind(ResourceAddress(staticIdForMetadataUseOnly))
-  }
+    "sifive,buserror" -> d.device.asProperty)).getOrElse(Nil)
 
   override lazy val module = new RocketTileModuleImp(this)
 
@@ -120,9 +107,9 @@ class RocketTile private(
 }
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
-    with HasFpuOpt
-    with HasLazyRoCCModule
-    with HasICacheFrontendModule {
+  with HasFpuOpt
+  with HasLazyRoCCModule
+  with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
   val core = Module(new Rocket(outer)(outer.p))
@@ -133,9 +120,9 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // Report when the tile has ceased to retire instructions; for now the only cause is clock gating
   outer.reportCease(outer.rocketParams.core.clockGate.option(
     !outer.dcache.module.io.cpu.clock_enabled &&
-    !outer.frontend.module.io.cpu.clock_enabled &&
-    !ptw.io.dpath.clock_enabled &&
-    core.io.cease))
+      !outer.frontend.module.io.cpu.clock_enabled &&
+      !ptw.io.dpath.clock_enabled &&
+      core.io.cease))
 
   outer.reportWFI(Some(core.io.wfi))
 
@@ -182,8 +169,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   require(h == c, s"port list size was $h, core expected $c")
   require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
-  dcacheArb.io.requestor <> dcachePorts.toSeq
-  ptw.io.requestor <> ptwPorts.toSeq
+  dcacheArb.io.requestor <> dcachePorts
+  ptw.io.requestor <> ptwPorts
 }
 
 trait HasFpuOpt { this: RocketTileModuleImp =>
