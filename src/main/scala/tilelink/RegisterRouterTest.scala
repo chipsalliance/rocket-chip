@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
