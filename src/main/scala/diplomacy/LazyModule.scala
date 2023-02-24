@@ -6,7 +6,6 @@ import Chisel.{defaultCompileOptions => _, _}
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{Module, RawModule, Reset, withClockAndReset}
 import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
-import firrtl.passes.InlineAnnotation
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 
@@ -372,12 +371,6 @@ sealed trait LazyModuleImpLike extends RawModule {
     // Push all [[LazyModule.inModuleBody]] to [[chisel3.internal.Builder]].
     wrapper.inModuleBody.reverse.foreach {
       _ ()
-    }
-
-    if (wrapper.shouldBeInlined) {
-      chisel3.experimental.annotate(new ChiselAnnotation {
-        def toFirrtl = InlineAnnotation(toNamed)
-      })
     }
 
     // Return [[IO]] and [[Dangle]] of this [[LazyModuleImp]].
