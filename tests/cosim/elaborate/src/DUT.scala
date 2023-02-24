@@ -8,6 +8,8 @@ import freechips.rocketchip.tilelink.{TLManagerNode, TLSlaveParameters, TLSlaveP
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile.{NMI, PriorityMuxHartIdFromSeq, RocketTile}
 
+import org.chipsalliance.cde.config.{Config, Field}
+
 class DUT(p: Parameters) extends Module {
   implicit val implicitP = p
   val tileParams = p(RocketTileParamsKey)
