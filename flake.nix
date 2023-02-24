@@ -22,6 +22,11 @@
           verilator cmake ninja
           python3 python3Packages.bootstrapped-pip
           pkgsCross.riscv64-embedded.buildPackages.gcc
+
+          libargs glog fmt zlib
+          gnused coreutils gnugrep which
+          parallel protobuf antlr4 numactl
+
           circt
 
           spike riscvTests
