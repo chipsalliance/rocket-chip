@@ -546,6 +546,79 @@ object tests extends Module{
       }
     }
 
+    object myelaborate extends ScalaModule with ScalafmtModule {
+      def scalaVersion = T {
+        v.scala
+      }
+
+      //override def moduleDeps = Seq(diplomatic)
+
+      //      override def scalacOptions = T {
+      //        Seq("-Xsource:2.11", s"-Xplugin:${mychisel3.plugin.jar().path}")
+      //      }
+
+      override def ivyDeps = Agg(
+        v.mainargs
+      )
+
+      def elaborate = T {
+        mill.modules.Jvm.runSubprocess(
+          finalMainClass(),
+          runClasspath().map(_.path),
+          forkArgs(),
+          forkEnv(),
+          Seq(
+            "--dir", T.dest.toString,
+            "--top", "tests.cosim.elaborate.DUT",
+            "--config", "tests.cosim.elaborate.cosimConfig"
+          ),
+          workingDir = forkWorkingDir(),
+        )
+        PathRef(T.dest)
+      }
+
+      def chiselAnno = T {
+        os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("anno.json") => p }.map(PathRef(_)).get
+      }
+
+      def chirrtl = T {
+        os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("fir") => p }.map(PathRef(_)).get
+      }
+
+      def firtool = T {
+        os.proc("firtool",
+          chirrtl().path,
+          s"--annotation-file=${chiselAnno().path}",
+          "-disable-infer-rw",
+          "--disable-annotation-unknown",
+          "-dedup",
+          "-O=debug",
+          "--split-verilog",
+          "--preserve-values=named",
+          "--output-annotation-file=mfc.anno.json",
+          s"-o=${T.dest}"
+        ).call(T.dest)
+        PathRef(T.dest)
+      }
+
+      def rtls = T {
+        val verilogs = os.read(firtool().path / "filelist.f").split("\n").map(str =>
+          try {
+            os.Path(str)
+          } catch {
+            case e: IllegalArgumentException if e.getMessage.contains("is not an absolute path") =>
+              firtool().path / str.stripPrefix("./")
+          }
+        ).filter(p => p.ext == "v" || p.ext == "sv").map(PathRef(_)).toSeq
+        T.log.info(s"RTL generated:\n${verilogs.map(_.path).mkString("\n")}")
+        verilogs
+      }
+
+      def annotations = T {
+        os.walk(firtool().path).filter(p => p.last.endsWith("mfc.anno.json")).map(PathRef(_))
+      }
+    }
+
     /** build emulator */
     object emulator extends Module {
 

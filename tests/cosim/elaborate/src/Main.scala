@@ -1,4 +1,4 @@
-package cosim.elabotate
+package tests.cosim.elabotate
 
 
 import chisel3.aop.Select
