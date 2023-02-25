@@ -306,7 +306,7 @@ case class TLBConfig(
   * @param edge collect SoC metadata.
   */
 class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     /** request from Core */
     val req = Flipped(Decoupled(new TLBReq(lgMaxSize)))
     /** response to Core */
@@ -317,7 +317,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     val ptw = new TLBPTWIO
     /** suppress a TLB refill, one cycle after a miss */
     val kill = Input(Bool())
-  }
+  })
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)

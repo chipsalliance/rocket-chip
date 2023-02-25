@@ -476,7 +476,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       }
     }
 
-    val s0_valid = !l2_refill && arb.io.out.fire()
+    val s0_valid = !l2_refill && arb.io.out.fire
     val s0_suitable = arb.io.out.bits.bits.vstage1 === arb.io.out.bits.bits.stage2 && !arb.io.out.bits.bits.need_gpa
     val s1_valid = RegNext(s0_valid && s0_suitable && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
@@ -584,7 +584,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   switch (state) {
     is (s_ready) {
-      when (arb.io.out.fire()) {
+      when (arb.io.out.fire) {
         val satp_initial_count = pgLevels.U - minPgLevels.U - satp.additionalPgLevels
         val vsatp_initial_count = pgLevels.U - minPgLevels.U - io.dpath.vsatp.additionalPgLevels
         val hgatp_initial_count = pgLevels.U - minPgLevels.U - io.dpath.hgatp.additionalPgLevels
@@ -677,7 +677,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     // fragment_superpage
     Mux(state === s_fragment_superpage && !homogeneous && count =/= (pgLevels - 1).U, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn)(count), r_pte),
     // when tlb request come->request mem, use root address in satp(or vsatp,hgatp)
-    Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
+    Mux(arb.io.out.fire, Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte)))))))
 
   when (l2_hit && !l2_error) {
@@ -773,7 +773,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   private def makeHypervisorRootPTE(hgatp: PTBR, vpn: UInt, default: PTE) = {
     val count = pgLevels.U - minPgLevels.U - hgatp.additionalPgLevels
     val idxs = (0 to pgLevels-minPgLevels).map(i => (vpn >> (pgLevels-i)*pgLevelBits))
-    val lsbs = WireDefault(t = UInt(maxHypervisorExtraAddrBits.W), init = idxs(count))
+    val lsbs = WireDefault(UInt(maxHypervisorExtraAddrBits.W), idxs(count))
     val pte = WireDefault(default)
     pte.ppn := Cat(hgatp.ppn >> maxHypervisorExtraAddrBits, lsbs)
     pte
