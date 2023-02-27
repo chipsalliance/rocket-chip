@@ -12,6 +12,10 @@ package object interrupts
   type IntOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
   type IntNode = SimpleNodeHandle[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
 
+  type IntSyncInwardNode = InwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, IntEdge, SyncInterrupts]
+  type IntSyncOutwardNode = OutwardNodeHandle[IntSourcePortParameters, IntSinkPortParameters, IntEdge, SyncInterrupts]
+  type IntSyncNode = SimpleNodeHandle[IntSourcePortParameters, IntSinkPortParameters, IntEdge, SyncInterrupts]
+
   implicit class IntClockDomainCrossing(private val x: HasClockDomainCrossing) extends AnyVal {
     def crossIn (n: IntInwardNode) (implicit valName: ValName) = IntInwardClockCrossingHelper(valName.name, x, n)
     def crossOut(n: IntOutwardNode)(implicit valName: ValName) = IntOutwardClockCrossingHelper(valName.name, x, n)
