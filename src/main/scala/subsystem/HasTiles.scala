@@ -5,7 +5,6 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.devices.debug.{HasPeripheryDebug}
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -102,7 +101,6 @@ case class TileSlavePortParams(
 trait HasTileInterruptSources
   extends CanHavePeripheryPLIC
   with CanHavePeripheryCLINT
-  with HasPeripheryDebug
   with InstantiatesTiles
 { this: BaseSubsystem => // TODO ideally this bound would be softened to LazyModule
   /** meipNode is used to create a single bit subsystem input in Configs without a PLIC */
@@ -230,7 +228,9 @@ trait DefaultTileContextType
   with HasTileInterruptSources
   with HasTileNotificationSinks
   with HasTileInputConstants
-{ this: BaseSubsystem => } // TODO: ideally this bound would be softened to LazyModule
+{ this: BaseSubsystem =>
+  val debugNode: IntSyncOutwardNode
+} // TODO: ideally this bound would be softened to LazyModule
 
 /** Standardized interface by which parameterized tiles can be attached to contexts containing interconnect resources.
   *
@@ -291,10 +291,7 @@ trait CanAttachTile {
     //       we stub out missing interrupts with constant sources here.
 
     // 1. Debug interrupt is definitely asynchronous in all cases.
-    domain.tile.intInwardNode :=
-      context.debugOpt
-        .map { domain { IntSyncAsyncCrossingSink(3) } := _.intnode }
-        .getOrElse { NullIntSource() }
+    domain.tile.intInwardNode := domain { IntSyncAsyncCrossingSink(3) } := context.debugNode
 
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
     //    so might need to be synchronized depending on the Tile's crossing type.
