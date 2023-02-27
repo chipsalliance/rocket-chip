@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.system
 
+import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
@@ -13,6 +14,7 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
     with CanHaveMasterAXI4MemPort
     with CanHaveMasterAXI4MMIOPort
     with CanHaveSlaveAXI4Port
+    with HasPeripheryDebug
 {
   // optionally add ROM devices
   // Note that setting BootROMLocated will override the reset_vector for all tiles
@@ -26,3 +28,4 @@ class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends
     with HasRTCModuleImp
     with HasExtInterruptsModuleImp
     with DontTouch
+    with HasPeripheryDebugModuleImp
