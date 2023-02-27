@@ -5,7 +5,7 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.dontTouch
 import freechips.rocketchip.config.{Field, Parameters}
-import freechips.rocketchip.devices.debug.{HasPeripheryDebug, HasPeripheryDebugModuleImp}
+import freechips.rocketchip.devices.debug.{HasPeripheryDebug}
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -440,7 +440,7 @@ trait HasTiles extends InstantiatesTiles with HasCoreMonitorBundles with Default
 }
 
 /** Provides some Chisel connectivity to certain tile IOs */
-trait HasTilesModuleImp extends LazyModuleImp with HasPeripheryDebugModuleImp {
+trait HasTilesModuleImp extends LazyModuleImp {
   val outer: HasTiles with HasTileInterruptSources with HasTileInputConstants
 
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }

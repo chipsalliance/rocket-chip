@@ -97,62 +97,63 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     }
     tlDM
   }
-}
 
-trait HasPeripheryDebugModuleImp extends LazyModuleImp {
-  val outer: HasPeripheryDebug
+  val psd = InModuleBody {
+    val psd = IO(new PSDIO)
+    psd
+  }
 
-  val psd = IO(new PSDIO)
-
-  val resetctrl = outer.debugOpt.map { outerdebug =>
-    outerdebug.module.io.tl_reset := outer.debugTLDomainOpt.get.in.head._1.reset
-    outerdebug.module.io.tl_clock := outer.debugTLDomainOpt.get.in.head._1.clock
-    val resetctrl = IO(new ResetCtrlIO(outerdebug.dmOuter.dmOuter.intnode.edges.out.size))
-    outerdebug.module.io.hartIsInReset := resetctrl.hartIsInReset
-    resetctrl.hartResetReq.foreach { rcio => outerdebug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
-    resetctrl
+  val resetctrl = InModuleBody {
+    debugOpt.map { debug =>
+      debug.module.io.tl_reset := debugTLDomainOpt.get.in.head._1.reset
+      debug.module.io.tl_clock := debugTLDomainOpt.get.in.head._1.clock
+      val resetctrl = IO(new ResetCtrlIO(debug.dmOuter.dmOuter.intnode.edges.out.size))
+      debug.module.io.hartIsInReset := resetctrl.hartIsInReset
+      resetctrl.hartResetReq.foreach { rcio => debug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
+      resetctrl
+    }
   }
 
   // noPrefix is workaround https://github.com/freechipsproject/chisel3/issues/1603
-  val debug = noPrefix(outer.debugOpt.map { outerdebug =>
+  val debug = InModuleBody { noPrefix(debugOpt.map { debugmod =>
     val debug = IO(new DebugIO)
 
     require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
-      "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
+      "You cannot have both DMI and JTAG interface in HasPeripheryDebug")
 
     require(!(debug.clockeddmi.isDefined && debug.apb.isDefined),
-      "You cannot have both DMI and APB interface in HasPeripheryDebugModuleImp")
+      "You cannot have both DMI and APB interface in HasPeripheryDebug")
 
     require(!(debug.systemjtag.isDefined && debug.apb.isDefined),
-      "You cannot have both APB and JTAG interface in HasPeripheryDebugModuleImp")
+      "You cannot have both APB and JTAG interface in HasPeripheryDebug")
 
-    debug.clockeddmi.foreach { dbg => outerdebug.module.io.dmi.get <> dbg }
+    debug.clockeddmi.foreach { dbg => debugmod.module.io.dmi.get <> dbg }
 
     (debug.apb
-      zip outer.apbDebugNodeOpt
-      zip outerdebug.module.io.apb_clock
-      zip outerdebug.module.io.apb_reset).foreach {
+      zip apbDebugNodeOpt
+      zip debugmod.module.io.apb_clock
+      zip debugmod.module.io.apb_reset).foreach {
       case (((io, apb), c ), r) =>
         apb.out(0)._1 <> io
         c:= io.clock
         r:= io.reset
     }
 
-    outerdebug.module.io.debug_reset := debug.reset
-    outerdebug.module.io.debug_clock := debug.clock
+    debugmod.module.io.debug_reset := debug.reset
+    debugmod.module.io.debug_clock := debug.clock
 
-    debug.ndreset := outerdebug.module.io.ctrl.ndreset
-    debug.dmactive := outerdebug.module.io.ctrl.dmactive
-    outerdebug.module.io.ctrl.dmactiveAck := debug.dmactiveAck
-    debug.extTrigger.foreach { x => outerdebug.module.io.extTrigger.foreach {y => x <> y}}
+    debug.ndreset := debugmod.module.io.ctrl.ndreset
+    debug.dmactive := debugmod.module.io.ctrl.dmactive
+    debugmod.module.io.ctrl.dmactiveAck := debug.dmactiveAck
+    debug.extTrigger.foreach { x => debugmod.module.io.extTrigger.foreach {y => x <> y}}
 
     // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
-    outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
+    debugmod.module.io.ctrl.debugUnavail.foreach { _ := false.B }
 
     debug
-  })
+  })}
 
-  val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
+  val dtm = InModuleBody { debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_))) }
 
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
@@ -168,7 +169,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.io.jtag_version := sj.version
     dtm.rf_reset := sj.reset
 
-    outer.debugOpt.map { outerdebug => 
+    debugOpt.map { outerdebug =>
       outerdebug.module.io.dmi.get.dmi <> dtm.io.dmi
       outerdebug.module.io.dmi.get.dmiClock := sj.jtag.TCK
       outerdebug.module.io.dmi.get.dmiReset := sj.reset
