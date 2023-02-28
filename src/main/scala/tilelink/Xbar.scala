@@ -333,7 +333,7 @@ object TLXbar_ACancel
       }
 
       if (connectEOI(o).exists(x=>x)) {
-        io_out(o).e :<>= out(o).e
+        io_out(o).e :<>= out(o).e.squeezeAll
         io_out(o).e.bits.sink := trim(out(o).e.bits.sink, r.size)
       } else {
         out(o).e.ready := true.B
