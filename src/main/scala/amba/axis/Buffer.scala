@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.amba.axis
 
+import chisel3._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
