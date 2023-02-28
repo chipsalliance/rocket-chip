@@ -560,7 +560,7 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
     val ((key, data, flip), i) = tuple
     // Trim trailing _0_1_2 stuff so that when we append _# we don't create collisions.
     val regex = new Regex("(_[0-9]+)*$")
-    val element = if (flip) Flipped(data.cloneType) else data.cloneType
+    val element = if (flip) Flipped(chiselTypeOf(data)) else chiselTypeOf(data)
     (regex.replaceAllIn(key, ""), element, i)
   }
 }
