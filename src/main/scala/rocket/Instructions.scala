@@ -1546,7 +1546,3 @@ object CSRs {
     res.toArray
   }
 }
-
-case class Op(insn: BitPat) extends DecodePattern {
-  def bitPat: BitPat = insn
-}
