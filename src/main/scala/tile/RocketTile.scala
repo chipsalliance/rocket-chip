@@ -162,7 +162,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu => 
     fpu.io <> DontCare
-    core.io.fpu <> fpu.io 
+    (core.io.fpu: Data).waiveAll :<>= (fpu.io: Data).waiveAll
   }
   core.io.ptw <> ptw.io.dpath
 
