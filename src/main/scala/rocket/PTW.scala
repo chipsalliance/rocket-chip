@@ -228,6 +228,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       */
     val dpath = new DatapathPTWIO
   })
+  io.mem <> DontCare
 
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(8)
   val state = RegInit(s_ready)

@@ -166,4 +166,5 @@ trait HasCoreIO extends HasTileParameters {
     val wfi = Output(Bool())
     val traceStall = Input(Bool())
   })
+  io <> DontCare
 }

@@ -160,10 +160,14 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
+  fpuOpt foreach { fpu => 
+    fpu.io <> DontCare
+    core.io.fpu <> fpu.io 
+  }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
+  core.io.rocc <> DontCare
   if (outer.roccs.size > 0) {
     cmdRouter.get.io.in <> core.io.rocc.cmd
     outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
@@ -184,6 +188,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // TODO figure out how to move the below into their respective mix-ins
   dcacheArb.io.requestor <> dcachePorts.toSeq
   ptw.io.requestor <> ptwPorts.toSeq
+  core.io.reset_vector := DontCare
 }
 
 trait HasFpuOpt { this: RocketTileModuleImp =>
