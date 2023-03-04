@@ -344,6 +344,7 @@ class TLEdgeOut(
     require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
+    a :#= DontCare
     a.opcode  := TLMessages.AcquireBlock
     a.param   := growPermissions
     a.size    := lgSize
@@ -374,6 +375,7 @@ class TLEdgeOut(
     require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
+    c :#= DontCare
     c.opcode  := TLMessages.Release
     c.param   := shrinkPermissions
     c.size    := lgSize
@@ -388,6 +390,7 @@ class TLEdgeOut(
     require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
     val c = Wire(new TLBundleC(bundle))
+    c :#= DontCare
     c.opcode  := TLMessages.ReleaseData
     c.param   := shrinkPermissions
     c.size    := lgSize
@@ -534,6 +537,7 @@ class TLEdgeOut(
     require (manager.anySupportHint, s"TileLink: No managers visible from this edge support Hints, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsHintFast(toAddress, lgSize)
     val a = Wire(new TLBundleA(bundle))
+    a :#= DontCare
     a.opcode  := TLMessages.Hint
     a.param   := param
     a.size    := lgSize
@@ -548,6 +552,7 @@ class TLEdgeOut(
   def AccessAck(b: TLBundleB): TLBundleC = AccessAck(b.source, address(b), b.size)
   def AccessAck(fromSource: UInt, toAddress: UInt, lgSize: UInt) = {
     val c = Wire(new TLBundleC(bundle))
+    c :#= DontCare
     c.opcode  := TLMessages.AccessAck
     c.param   := 0.U
     c.size    := lgSize
@@ -563,6 +568,7 @@ class TLEdgeOut(
   def AccessAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt): TLBundleC = AccessAck(fromSource, toAddress, lgSize, data, false.B)
   def AccessAck(fromSource: UInt, toAddress: UInt, lgSize: UInt, data: UInt, corrupt: Bool) = {
     val c = Wire(new TLBundleC(bundle))
+    c :#= DontCare
     c.opcode  := TLMessages.AccessAckData
     c.param   := 0.U
     c.size    := lgSize
@@ -576,6 +582,7 @@ class TLEdgeOut(
   def HintAck(b: TLBundleB): TLBundleC = HintAck(b.source, address(b), b.size)
   def HintAck(fromSource: UInt, toAddress: UInt, lgSize: UInt) = {
     val c = Wire(new TLBundleC(bundle))
+    c :#= DontCare
     c.opcode  := TLMessages.HintAck
     c.param   := 0.U
     c.size    := lgSize
