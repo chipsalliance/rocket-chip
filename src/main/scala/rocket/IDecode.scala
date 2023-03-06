@@ -741,33 +741,34 @@ class VectorDecode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends D
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
     VECTOR_IVV ->
-                List(Y,N,Y,N,N,N,N,N,N,N,N,N,  A2_X,  A1_X, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_MVV ->
-                List(Y,N,Y,N,N,N,N,N,N,N,N,N,  A2_X,  A1_X, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
-    VECTOR_MVV_VWXUNARY0 ->
-                List(Y,N,Y,N,N,N,N,N,N,N,N,N,  A2_X,  A1_X, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+    //VECTOR_MVV_VWXUNARY0 ->
+    //            List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     VECTOR_IVI ->
-                List(Y,N,Y,N,N,N,N,N,N,N,N,N,  A2_X,A1_IMM, IMM_I, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_IVX ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_MVX ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
-    VECTOR_SET_RD_RS1 ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    VECTOR_SET_RD ->
-                List(Y,N,Y,N,N,N,N,N,N,N,N,N,  A2_X,  A1_X, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    VECTOR_SET_RD_RS1_RS2 ->
-                List(Y,N,Y,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_VL ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_VLS ->
-                List(Y,N,Y,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,Y,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_VLX ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_VS ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_VSS ->
-                List(Y,N,Y,N,N,N,Y,Y,N,N,N,N,A2_RS2,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+                List(Y,N,Y,N,N,N,Y,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_VSX ->
-                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,  A2_X,A1_RS1, IMM_X, DW_XPR, aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N))
+                List(Y,N,Y,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+    VECTOR_SET_RD_RS1 ->
+                List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VECTOR_SET_RD ->
+                List(Y,N,N,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VECTOR_SET_RD_RS1_RS2 ->
+                List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+
 }

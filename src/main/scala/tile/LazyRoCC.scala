@@ -31,6 +31,12 @@ class RoCCCommand(implicit p: Parameters) extends CoreBundle()(p) {
   val rs1 = Bits(xLen.W)
   val rs2 = Bits(xLen.W)
   val status = new MStatus
+  // FIXME: should not in command
+  val vector = new Bundle {
+    val vconfig = new VConfig
+    val vstart = UInt(log2Ceil(maxVLMax).W)
+    val vxrm = UInt(2.W)
+  }
 }
 
 class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
