@@ -185,6 +185,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (fLen >= 32)    new FDecode(aluFn) +: (xLen > 32).option(new F64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
     (if (minFLen == 16) new HDecode(aluFn) +: (xLen > 32).option(new H64Decode(aluFn)).toSeq ++: (fLen >= 64).option(new HDDecode(aluFn)).toSeq else Nil) ++:
+    (usingVector.option(new VectorDecode(aluFn))) ++:
     (usingRoCC.option(new RoCCDecode(aluFn))) ++:
     (rocketParams.useSCIE.option(new SCIEDecode(aluFn))) ++:
     (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: (xLen == 32).option(new ZBS32Decode).toSeq ++: (xLen == 64).option(new ZBS64Decode).toSeq ++: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
@@ -812,6 +813,22 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     iobpw.valid(0) := wphit
     iobpw.action := bp.control.action
   }
+  if (usingVector) {
+    csr.io.vector.get <> 0.U.asTypeOf(csr.io.vector.get)
+    when (wb_reg_inst(6,0) === "b1010111".U && wb_reg_inst(14,12) === "b111".U) {
+      val vconfig = Wire(new VConfig)
+      val zimm = wb_reg_inst(29,20)
+      val avl = Wire(UInt(32.W)) // TODO
+      avl := wb_reg_inst(19,15)
+      vconfig.vtype := VType.fromUInt(zimm)
+      vconfig.vl := VType.computeVL(avl, zimm, 0.U, false.B, false.B, false.B)
+      csr.io.vector.get.set_vconfig.valid := true.B
+      csr.io.vector.get.set_vconfig.bits := vconfig
+
+      csr.io.vector.get.set_vstart.valid := true.B
+      csr.io.vector.get.set_vstart.bits := 0.U
+    }
+  }
 
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= 0.U, id_raddr1),
                            (id_ctrl.rxs2 && id_raddr2 =/= 0.U, id_raddr2),
@@ -962,6 +979,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.inst := wb_reg_inst.asTypeOf(new RoCCInstruction())
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
+  if (usingVector) {
+    io.rocc.cmd.bits.vector.vconfig := csr.io.vector.get.vconfig
+    io.rocc.cmd.bits.vector.vstart := csr.io.vector.get.vstart
+    io.rocc.cmd.bits.vector.vxrm := csr.io.vector.get.vxrm
+  } else {
+    io.rocc.cmd.bits.vector := 0.U
+  }
 
   // gate the clock
   val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0.U || csr.io.inhibit_cycle || io.dmem.perf.release || take_pc

@@ -24,7 +24,7 @@ trait CoreParams {
   val useCompressed: Boolean
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
-  val useVector: Boolean = false
+  val useVector: Boolean = true
   val useSCIE: Boolean
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
@@ -66,10 +66,10 @@ trait CoreParams {
   def dcacheReqTagBits: Int = 6
 
   def minFLen: Int = 32
-  def vLen: Int = 0
+  def vLen: Int = 256
   def sLen: Int = 0
   def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
-  def vMemDataBits: Int = 0
+  def vMemDataBits: Int = 32
 }
 
 trait HasCoreParameters extends HasTileParameters {
