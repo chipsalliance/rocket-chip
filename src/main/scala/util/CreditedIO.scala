@@ -45,38 +45,36 @@ final class CreditedIO[T <: Data](gen: T) extends Bundle
 
   /** Provide a DecoupledIO interface for sending CreditedIO[Data].
     * Convert an IrrevocableIO input to DecoupledIO via Decoupled().
-    * maxDepth controls the maximum number of Data beats inflight.
-    * Sender powers on with credits=maxDepth, so sender and receiver must agree on maxDepth.
+    * depth controls the maximum number of Data beats inflight.
+    * Sender powers on with credits=depth, so sender and receiver must agree on depth.
     * pipe=false increases the receiver=>sender trip time by one cycle.
     * pipe=true causes debit to depend on credit.
     */
-  def toSender(depth: UInt, maxDepth: Int, pipe: Boolean): DecoupledIO[T] = {
-    require (maxDepth >= 1)
+  def toSender(depth: Int, pipe: Boolean = true): DecoupledIO[T] = {
+    require (depth >= 1)
     val res = Wire(DecoupledIO(genType))
-    val counter = new CreditedIOCounter(maxDepth, depth, maxDepth)
+    val counter = new CreditedIOCounter(depth, depth)
     counter.update(this)
     res.ready := !counter.empty || (pipe.B && credit)
-    debit := res.fire()
+    debit := res.fire
     bits  := res.bits
     res
   }
-  def toSender(maxDepth: Int, pipe: Boolean = true): DecoupledIO[T] =
-    toSender(maxDepth.U, maxDepth, pipe)
 
   /** Provide an IrrevocableIO interface for receiving CreditedIO[Data].
     * Conversion to DecoupledIO is done via application of Decoupled().
-    * maxDepth controls the Queue depth and thus maximum number of elements inflight.
+    * depth controls the Queue depth and thus maximum number of elements inflight.
     * flow=false increases the sender=>receiver trip time by one cycle.
     * flow=true causes credit to depend on debit.
     */
-  def toReceiver(maxDepth: Int, flow: Boolean = true): IrrevocableIO[T] = {
-    require (maxDepth >= 1)
+  def toReceiver(depth: Int, flow: Boolean = true): IrrevocableIO[T] = {
+    require (depth >= 1)
     val enq = Wire(DecoupledIO(genType))
     enq.valid := debit
     enq.bits := bits
     assert (!enq.valid || enq.ready)
-    val res = Queue.irrevocable(enq, maxDepth, pipe=true, flow=flow)
-    credit := res.fire()
+    val res = Queue.irrevocable(enq, depth, pipe=true, flow=flow)
+    credit := res.fire
     res
   }
 
@@ -108,21 +106,18 @@ object CreditedIO
 {
   def apply[T <: Data](genType: T) = new CreditedIO(genType)
 
-  def fromSender[T <: Data](x: ReadyValidIO[T], depth: UInt, maxDepth: Int, pipe: Boolean): CreditedIO[T] = {
+  def fromSender[T <: Data](x: ReadyValidIO[T], depth: Int, pipe: Boolean = true): CreditedIO[T] = {
     val res = Wire(CreditedIO(chiselTypeOf(x.bits)))
-    val dec = res.toSender(depth, maxDepth, pipe)
+    val dec = res.toSender(depth, pipe)
     dec.valid := x.valid
     dec.bits := x.bits
     x.ready := dec.ready
     res
   }
 
-  def fromSender[T <: Data](x: ReadyValidIO[T], maxDepth: Int, pipe: Boolean = true): CreditedIO[T] =
-    fromSender(x, maxDepth.U, maxDepth, pipe)
-
-  def fromReceiver[T <: Data](x: ReadyValidIO[T], maxDepth: Int, flow: Boolean = true): CreditedIO[T] = {
+  def fromReceiver[T <: Data](x: ReadyValidIO[T], depth: Int, flow: Boolean = true): CreditedIO[T] = {
     val res = Wire(CreditedIO(chiselTypeOf(x.bits)))
-    val irr = res.toReceiver(maxDepth, flow)
+    val irr = res.toReceiver(depth, flow)
     x.valid := irr.valid
     x.bits := irr.bits
     irr.ready := x.ready
@@ -130,18 +125,17 @@ object CreditedIO
   }
 }
 
-class CreditedIOCounter(val init: Int, val depth: UInt, val maxDepth: Int) {
+class CreditedIOCounter(val init: Int, val depth: Int) {
   require (0 <= init)
-  require (init <= maxDepth)
-  assert (depth <= maxDepth.U, "Depth exceeding maxDepth for CreditedIO")
+  require (init <= depth)
 
-  private val v = RegInit(init.U(log2Ceil(maxDepth+1).W))
+  private val v = RegInit(init.U(log2Ceil(depth+1).W))
   private val nextV = WireInit(v)
 
   val value = v + 0.U
   val nextValue = nextV + 0.U
 
-  def full: Bool = v >= depth
+  def full: Bool = v === depth.U
   def empty: Bool = v === 0.U
 
   def update(credit: Bool, debit: Bool): Unit = {

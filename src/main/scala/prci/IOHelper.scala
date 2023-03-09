@@ -3,7 +3,6 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import chisel3.experimental.IO
 import freechips.rocketchip.diplomacy._
 
 object IOHelper {

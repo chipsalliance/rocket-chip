@@ -185,8 +185,8 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
   val nEnq    = RegInit(capacity.U(capBits1.W)) // enq.ready
   val nCommit = RegInit(       0.U(capBits1.W)) // commit.ready
 
-  val freed     = io.free  .map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.deq.ready)
-  val committed = io.commit.map(x => Mux(x.fire(), x.bits, 0.U)).getOrElse(io.enq.valid)
+  val freed     = io.free  .map(x => Mux(x.fire, x.bits, 0.U)).getOrElse(io.deq.ready)
+  val committed = io.commit.map(x => Mux(x.fire, x.bits, 0.U)).getOrElse(io.enq.valid)
   io.free.foreach   { x => x.ready := x.bits <= nFree   + io.deq.ready }
   io.commit.foreach { x => x.ready := x.bits <= nCommit + io.enq.valid }
 
@@ -536,7 +536,7 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
     assert (c.ready || c.bits > legal)
     c.valid := LFSR64()(0)
     c.bits  := ((legal + 1.U) * LFSR64()) >> 63 // 50% likely to be legal
-    when (c.fire()) { com := com + c.bits }
+    when (c.fire) { com := com + c.bits }
   }
 
   q.io.free.foreach { f =>
@@ -544,19 +544,19 @@ class PositionedQueueTest(queueFactory: LanePositionedQueue, lanes: Int, rows: I
     assert (f.ready || f.bits > legal)
     f.valid := LFSR64()(0)
     f.bits  := ((legal + 1.U) * LFSR64()) >> 63
-    when (f.fire()) { abt := abt + f.bits }
+    when (f.fire) { abt := abt + f.bits }
   }
 
   q.io.rewind.foreach { r =>
     val f = q.io.free.get
     r := (LFSR64() & 0xf.U) === 0.U
-    when (r) { deq := Mux(f.fire(), abt + f.bits, abt) }
+    when (r) { deq := Mux(f.fire, abt + f.bits, abt) }
   }
 
   q.io.abort .foreach { a =>
     val c = q.io.commit.get
     a := (LFSR64() & 0xf.U) === 0.U
-    when (a) { enq := Mux(c.fire(), com + c.bits, com) }
+    when (a) { enq := Mux(c.fire, com + c.bits, com) }
   }
 
   when (enq >= (cycles*lanes).U) { done := true.B }
