@@ -41,7 +41,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val corrupt_in = edgeIn.corrupt(in.bits)
       val corrupt_out = corrupt_in || corrupt_reg
 
-      when (in.fire()) {
+      when (in.fire) {
         count := count + 1.U
         corrupt_reg := corrupt_out
         when (last) {
@@ -61,7 +61,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         val rdata = Reg(Vec(ratio-1, chiselTypeOf(idata)))
         val pdata = rdata :+ idata
         val mdata = (masked_enable zip (odata zip pdata)) map { case (e, (o, p)) => Mux(e, o, p) }
-        when (in.fire() && !last) {
+        when (in.fire && !last) {
           rdata_written_once := true.B
           (rdata zip mdata) foreach { case (r, m) => r := m }
         }
@@ -101,7 +101,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val first = count === 0.U
       val last  = count === limit || !hasData
 
-      when (out.fire()) {
+      when (out.fire) {
         count := count + 1.U
         when (last) { count := 0.U }
       }
@@ -180,7 +180,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         val dropBits = log2Ceil(edgeIn.manager.beatBytes)
         val sources  = Reg(Vec(edgeIn.client.endSourceId, UInt((keepBits-dropBits).W)))
         val a_sel = in.a.bits.address(keepBits-1, dropBits)
-        when (in.a.fire()) {
+        when (in.a.fire) {
           sources(in.a.bits.source) := a_sel
         }
 
