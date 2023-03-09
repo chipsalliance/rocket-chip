@@ -31,17 +31,17 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
     val tail = Reg(init = UInt(0, log2Up(n)))
     val size = Reg(init = UInt(0, log2Up(n + 1)))
 
-    when (io.in.fire()) {
+    when (io.in.fire) {
       wdata(head) := io.in.bits
       head := head + UInt(1)
     }
 
-    when (io.out.fire()) { tail := tail + UInt(1) }
+    when (io.out.fire) { tail := tail + UInt(1) }
 
     size := MuxCase(size, Seq(
-      (io.in.fire() && io.out.fire()) -> (size + UInt(nBeats - 1)),
-      io.in.fire() -> (size + UInt(nBeats)),
-      io.out.fire() -> (size - UInt(1))))
+      (io.in.fire && io.out.fire) -> (size + UInt(nBeats - 1)),
+      io.in.fire -> (size + UInt(nBeats)),
+      io.out.fire -> (size - UInt(1))))
 
     io.out.valid := size > UInt(0)
     io.out.bits := rdata(tail)
@@ -60,17 +60,17 @@ class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
     val tail = Reg(init = UInt(0, log2Up(n)))
     val size = Reg(init = UInt(0, log2Up(n * nBeats + 1)))
 
-    when (io.in.fire()) {
+    when (io.in.fire) {
       wdata(head) := io.in.bits
       head := head + UInt(1)
     }
 
-    when (io.out.fire()) { tail := tail + UInt(1) }
+    when (io.out.fire) { tail := tail + UInt(1) }
 
     size := MuxCase(size, Seq(
-      (io.in.fire() && io.out.fire()) -> (size - UInt(nBeats - 1)),
-      io.in.fire() -> (size + UInt(1)),
-      io.out.fire() -> (size - UInt(nBeats))))
+      (io.in.fire && io.out.fire) -> (size - UInt(nBeats - 1)),
+      io.in.fire -> (size + UInt(1)),
+      io.out.fire -> (size - UInt(nBeats))))
 
     io.count := size >> UInt(log2Up(nBeats))
     io.out.valid := io.count > UInt(0)
@@ -93,11 +93,11 @@ class MultiWidthFifoTest extends UnitTest {
   val bl_data = Vec.tabulate(4){i => UInt((2 * i + 1) * 256 + 2 * i, 16)}
   val lb_data = Vec.tabulate(8){i => UInt(i, 8)}
 
-  val (bl_send_cnt, bl_send_done) = Counter(big2little.io.in.fire(), 4)
-  val (lb_send_cnt, lb_send_done) = Counter(little2big.io.in.fire(), 8)
+  val (bl_send_cnt, bl_send_done) = Counter(big2little.io.in.fire, 4)
+  val (lb_send_cnt, lb_send_done) = Counter(little2big.io.in.fire, 8)
 
-  val (bl_recv_cnt, bl_recv_done) = Counter(big2little.io.out.fire(), 8)
-  val (lb_recv_cnt, lb_recv_done) = Counter(little2big.io.out.fire(), 4)
+  val (bl_recv_cnt, bl_recv_done) = Counter(big2little.io.out.fire, 8)
+  val (lb_recv_cnt, lb_recv_done) = Counter(little2big.io.out.fire, 4)
 
   big2little.io.in.valid := bl_send
   big2little.io.in.bits := bl_data(bl_send_cnt)

@@ -89,13 +89,13 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       a_flight.size   := edge.size(in.a.bits)
       a_flight.opcode := in.a.bits.opcode
 
-      when (in.a.fire()) { flight(in.a.bits.source) := a_flight }
+      when (in.a.fire) { flight(in.a.bits.source) := a_flight }
       val bypass = if (edge.manager.minLatency > 0) Bool(false) else in.a.valid && in.a.bits.source === out.d.bits.source
       val d_flight = RegEnable(Mux(bypass, a_flight, flight(out.d.bits.source)), edge.first(out.d))
 
       // Process A access requests
       val a = Reg(next = in.a.bits)
-      val a_fire = Reg(next = in.a.fire(), init = Bool(false))
+      val a_fire = Reg(next = in.a.fire, init = Bool(false))
       val (a_first, a_last, _, a_address_inc) = edge.addr_inc(a, a_fire)
       val a_size = edge.size(a)
       val a_sizeOH = UIntToOH(a_size)
@@ -199,7 +199,7 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
 
       // Process D access responses
       val d = RegNext(out.d.bits)
-      val d_fire = Reg(next = out.d.fire(), init = Bool(false))
+      val d_fire = Reg(next = out.d.fire, init = Bool(false))
       val (d_first, d_last, _, d_address_inc) = edge.addr_inc(d, d_fire)
       val d_size = edge.size(d)
       val d_sizeOH = UIntToOH(d_size)

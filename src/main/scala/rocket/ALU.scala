@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{BitPat, Fill, Cat, Reverse}
+import chisel3.util.{BitPat, Fill, Reverse}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile.CoreModule
 

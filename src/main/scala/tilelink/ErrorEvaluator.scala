@@ -51,20 +51,20 @@ class TLErrorEvaluator(test: RequestPattern, testOn: Boolean, testOff: Boolean, 
       val (d_first, d_last, _) = edgeOut.firstlast(out.d)
       val d_hasData = edgeOut.hasData(out.d.bits)
 
-      when (in.a.fire()) { inject_map.write(in.a.bits.source, inject_now) }
+      when (in.a.fire) { inject_map.write(in.a.bits.source, inject_now) }
 
-      val bypass = Bool(edgeOut.manager.minLatency == 0) && in.a.fire() && in.a.bits.source === in.d.bits.source
+      val bypass = Bool(edgeOut.manager.minLatency == 0) && in.a.fire && in.a.bits.source === in.d.bits.source
       val d_inject = Mux(bypass, inject_now, inject_map.read(in.d.bits.source)) holdUnless d_first
       in.d.bits.corrupt := out.d.bits.corrupt || (d_inject &&   d_hasData)
       in.d.bits.denied  := out.d.bits.denied  || (d_inject && (!d_hasData || Bool(deny)))
 
       val r_detect = Reg(Bool())
       val d_detect = (!d_first && r_detect) || (Bool(!deny) && out.d.bits.corrupt) || out.d.bits.denied
-      when (out.d.fire()) { r_detect := d_detect }
+      when (out.d.fire) { r_detect := d_detect }
 
       val d_hint = out.d.bits.opcode === TLMessages.HintAck // even illegal hints can succeed
-      assert (Bool(!testOn)  || !out.d.fire() || !d_last || !d_inject ||  d_detect || d_hint, "Denied/Corrupt flag was not set!")
-      assert (Bool(!testOff) || !out.d.fire() || !d_last ||  d_inject || !d_detect, "Denied/Corrupt flag was set!")
+      assert (Bool(!testOn)  || !out.d.fire || !d_last || !d_inject ||  d_detect || d_hint, "Denied/Corrupt flag was not set!")
+      assert (Bool(!testOff) || !out.d.fire || !d_last ||  d_inject || !d_detect, "Denied/Corrupt flag was set!")
     }
   }
 }

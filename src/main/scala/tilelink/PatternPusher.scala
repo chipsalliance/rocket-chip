@@ -59,15 +59,15 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
     val d = tl_out.d
 
     // Expected response?
-    val check  = Vec(pattern.map(p => Bool(p.dataIn.isDefined)))(step) holdUnless a.fire()
-    val expect = Vec(pattern.map(p => UInt(p.dataIn.getOrElse(BigInt(0)))))(step) holdUnless a.fire()
-    assert (!check || !d.fire() || expect === d.bits.data)
+    val check  = Vec(pattern.map(p => Bool(p.dataIn.isDefined)))(step) holdUnless a.fire
+    val expect = Vec(pattern.map(p => UInt(p.dataIn.getOrElse(BigInt(0)))))(step) holdUnless a.fire
+    assert (!check || !d.fire || expect === d.bits.data)
 
-    when (a.fire()) {
+    when (a.fire) {
       flight := Bool(true)
       step := step + UInt(1)
     }
-    when (d.fire()) {
+    when (d.fire) {
       flight := Bool(false)
     }
 

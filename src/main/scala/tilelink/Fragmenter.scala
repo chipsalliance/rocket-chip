@@ -206,7 +206,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         // calculate the original size
         val dFirst_size = OH1ToUInt((dFragnum << log2Ceil(minSize)) | dsizeOH1)
 
-        when (out.d.fire()) {
+        when (out.d.fire) {
           acknum := Mux(dFirst, dFirst_acknum, acknum - ack_decrement)
           when (dFirst) {
             dOrig := dFirst_size
@@ -230,7 +230,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         if (edgeOut.manager.mayDenyPut) {
           val r_denied = Reg(Bool())
           val d_denied = (!dFirst && r_denied) || out.d.bits.denied
-          when (out.d.fire()) { r_denied := d_denied }
+          when (out.d.fire) { r_denied := d_denied }
           in.d.bits.denied := d_denied
         }
         if (edgeOut.manager.mayDenyGet) {
@@ -298,7 +298,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val aToggle = !Mux(aFirst, dToggle, RegEnable(dToggle, aFirst))
         val aFull = if (earlyAck == EarlyAck.PutFulls) Some(in_a.bits.opcode === TLMessages.PutFullData) else None
 
-        when (out.a.fire()) { gennum := new_gennum }
+        when (out.a.fire) { gennum := new_gennum }
 
         repeater.io.repeat := !aHasData && aFragnum =/= UInt(0)
         out.a <> in_a

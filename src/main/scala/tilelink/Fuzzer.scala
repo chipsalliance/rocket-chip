@@ -26,10 +26,10 @@ class IDMapGenerator(numIds: Int) extends Module {
   io.alloc.valid := bitmap.orR
 
   val clr = Wire(init = UInt(0, width = numIds))
-  when (io.alloc.fire()) { clr := UIntToOH(io.alloc.bits) }
+  when (io.alloc.fire) { clr := UIntToOH(io.alloc.bits) }
 
   val set = Wire(init = UInt(0, width = numIds))
-  when (io.free.fire()) { set := UIntToOH(io.free.bits) }
+  when (io.free.fire) { set := UIntToOH(io.free.bits) }
 
   bitmap := (bitmap & ~clr) | set
   assert (!io.free.valid || !(bitmap & ~clr)(io.free.bits)) // No double freeing
@@ -199,7 +199,7 @@ class TLFuzzer(
     val a_gen = if (nOperations>0) num_reqs =/= UInt(0) else Bool(true)
     out.a.valid := !reset && a_gen && legal && (!a_first || idMap.io.alloc.valid)
     idMap.io.alloc.ready := a_gen && legal && a_first && out.a.ready
-    idMap.io.free.valid := d_first && out.d.fire()
+    idMap.io.free.valid := d_first && out.d.fire
     idMap.io.free.bits := out.d.bits.source
 
     out.a.bits  := bits
@@ -210,14 +210,14 @@ class TLFuzzer(
 
     // Increment the various progress-tracking states
     inc := !legal || req_done
-    inc_beat := !legal || out.a.fire()
+    inc_beat := !legal || out.a.fire
 
     if (nOperations>0) {
-      when (out.a.fire() && a_last) {
+      when (out.a.fire && a_last) {
         num_reqs := num_reqs - UInt(1)
       }
 
-      when (out.d.fire() && d_last) {
+      when (out.d.fire && d_last) {
         num_resps := num_resps - UInt(1)
       }
     }

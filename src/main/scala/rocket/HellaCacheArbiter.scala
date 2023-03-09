@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Cat,log2Up}
+import chisel3.util.log2Up
 import org.chipsalliance.cde.config.Parameters
 
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module

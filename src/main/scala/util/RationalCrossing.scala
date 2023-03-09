@@ -89,7 +89,7 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
   deq.bits1  := RegEnable(enq.bits, equal)
   enq.ready  := Mux(equal, deq.ready, count(1) =/= deq.sink(0))
 
-  when (enq.fire()) { count := Cat(count(0), !count(1)) }
+  when (enq.fire) { count := Cat(count(0), !count(1)) }
 
   // Ensure the clocking is setup correctly
   direction match {
@@ -124,7 +124,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   deq.bits  := Mux(equal, enq.bits0, enq.bits1)
   deq.valid := Mux(equal, enq.valid, count(1) =/= enq.source(0))
 
-  when (deq.fire()) { count := Cat(count(0), !count(1)) }
+  when (deq.fire) { count := Cat(count(0), !count(1)) }
 
   // Ensure the clocking is setup correctly
   direction match {

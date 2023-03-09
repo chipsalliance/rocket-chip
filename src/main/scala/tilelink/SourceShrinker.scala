@@ -68,12 +68,12 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         in.d <> out.d
         in.d.bits.source := Mux(bypass, in.a.bits.source, sourceIdMap(out.d.bits.source))
 
-        when (a_first && in.a.fire()) {
+        when (a_first && in.a.fire) {
           sourceIdMap(nextFree) := in.a.bits.source
         }
 
-        val alloc = a_first && in.a.fire()
-        val free = d_last && in.d.fire()
+        val alloc = a_first && in.a.fire
+        val free = d_last && in.d.fire
         val alloc_id = Mux(alloc, nextFreeOH, UInt(0))
         val free_id = Mux(free, UIntToOH(out.d.bits.source), UInt(0))
         allocated := (allocated | alloc_id) & ~free_id

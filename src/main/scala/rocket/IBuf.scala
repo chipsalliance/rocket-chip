@@ -3,7 +3,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Decoupled,log2Ceil,Cat,UIntToOH,Fill}
+import chisel3.util.{Decoupled,log2Ceil,UIntToOH,Fill}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._

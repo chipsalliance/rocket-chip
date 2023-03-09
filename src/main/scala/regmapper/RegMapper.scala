@@ -4,7 +4,7 @@ package freechips.rocketchip.regmapper
 
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.util.{DecoupledIO, Decoupled, Queue, Cat, FillInterleaved, UIntToOH}
+import chisel3.util.{DecoupledIO, Decoupled, Queue, FillInterleaved, UIntToOH}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property

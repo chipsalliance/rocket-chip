@@ -111,7 +111,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       // We always accept E
       in.e.ready := true.B
       (trackers zip UIntToOH(in.e.bits.sink).asBools) foreach { case (tracker, select) =>
-        tracker.e_last := select && in.e.fire()
+        tracker.e_last := select && in.e.fire
       }
 
       // Depending on the high source bits, we might transform D
@@ -140,8 +140,8 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       // A tracker response is anything neither dropped nor a ReleaseAck
       val d_response = d_hasData || !d_what(1)
       (trackers zip d_trackerOH.asBools) foreach { case (tracker, select) =>
-        tracker.d_last := select && d_normal.fire() && d_response && d_last
-        tracker.probedack := select && out.d.fire() && d_drop
+        tracker.d_last := select && d_normal.fire && d_response && d_last
+        tracker.probedack := select && out.d.fire && d_drop
       }
 
       d_allow := filter.io.update.ready || !d_response || !d_last
@@ -168,13 +168,13 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val CisN = in.c.bits.param === TLPermissions.TtoN ||
                  in.c.bits.param === TLPermissions.BtoN ||
                  in.c.bits.param === TLPermissions.NtoN
-      val clearOH = Mux(in.c.fire() && (c_probeack || c_probeackdata) && CisN, whoC, 0.U)
+      val clearOH = Mux(in.c.fire && (c_probeack || c_probeackdata) && CisN, whoC, 0.U)
 
       // Decrement the tracker's outstanding probe counter
       (trackers zip c_trackerOH) foreach { case (tracker, select) =>
         tracker.clearOH := Mux(select, clearOH, 0.U)
-        tracker.probenack := in.c.fire() && c_probeack && select
-        tracker.probesack := in.c.fire() && select && (c_probeack || c_probeackdata) && (
+        tracker.probenack := in.c.fire && c_probeack && select
+        tracker.probesack := in.c.fire && select && (c_probeack || c_probeackdata) && (
           in.c.bits.param === TLPermissions.TtoB ||
           in.c.bits.param === TLPermissions.BtoB)
       }
@@ -225,7 +225,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       if (caches.size != 0) {
         in.b.bits := edgeIn.Probe(probe_line << lineShift, probe_target, lineShift.U, probe_perms)._2
       }
-      when (in.b.fire()) { probe_todo := probe_todo & ~probe_next }
+      when (in.b.fire) { probe_todo := probe_todo & ~probe_next }
 
       // Which cache does a request come from?
       val a_cache = if (caches.size == 0) 0.U else VecInit(caches.map(_.contains(in.a.bits.source))).asUInt
@@ -258,7 +258,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val others = filter.io.response.bits.cacheOH & ~filter.io.response.bits.allocOH
       val todo = Mux(leaveB, 0.U, others)
       filter.io.response.ready := !probe_busy
-      when (filter.io.response.fire()) {
+      when (filter.io.response.fire) {
         probe_todo  := todo
         probe_line  := filter.io.response.bits.address >> lineShift
         probe_perms := Mux(filter.io.response.bits.needT, TLPermissions.toN, TLPermissions.toB)
@@ -268,9 +268,9 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val responseCache = filter.io.response.bits.cacheOH | filter.io.response.bits.allocOH
       val responseCount = PopCount(todo)
       val responseMSHR = UIntToOH(filter.io.response.bits.mshr, params.numTrackers).asBools
-      val sack = filter.io.response.fire() && leaveB && others =/= 0.U
+      val sack = filter.io.response.fire && leaveB && others =/= 0.U
       (trackers zip responseMSHR) foreach { case (tracker, select) =>
-        tracker.probe.valid := filter.io.response.fire() && select
+        tracker.probe.valid := filter.io.response.fire && select
         tracker.probe.bits.count   := responseCount
         tracker.probe.bits.cacheOH := responseCache
         when (sack && select) { tracker.probesack := true.B }
@@ -435,7 +435,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
   val cacheOH = Reg(UInt(caches.W))
   val idle    = got_e && sent_d
 
-  when (io.in_a.fire() && io.in_a_first) {
+  when (io.in_a.fire && io.in_a_first) {
     assert (idle)
     sent_d  := false.B
     shared  := false.B

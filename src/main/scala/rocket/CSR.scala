@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{BitPat, Cat, Fill, Mux1H, PopCount, PriorityMux, RegEnable, UIntToOH, Valid, log2Ceil, log2Up}
+import chisel3.util.{BitPat, Fill, Mux1H, PopCount, PriorityMux, RegEnable, UIntToOH, Valid, log2Ceil, log2Up}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.tile._

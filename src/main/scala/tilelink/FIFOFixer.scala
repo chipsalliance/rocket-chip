@@ -70,12 +70,12 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       // Keep one bit for each source recording if there is an outstanding request that must be made FIFO
       // Sources unused in the stall signal calculation should be pruned by DCE
       val flight = RegInit(Vec.fill(edgeIn.client.endSourceId) { Bool(false) })
-      when (a_first && in.a.fire()) { flight(in.a.bits.source) := !a_notFIFO }
-      when (d_first && in.d.fire()) { flight(in.d.bits.source) := Bool(false) }
+      when (a_first && in.a.fire) { flight(in.a.bits.source) := !a_notFIFO }
+      when (d_first && in.d.fire) { flight(in.d.bits.source) := Bool(false) }
 
       val stalls = edgeIn.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).map { c =>
         val a_sel = c.sourceId.contains(in.a.bits.source)
-        val id    = RegEnable(a_id, in.a.fire() && a_sel && !a_notFIFO)
+        val id    = RegEnable(a_id, in.a.fire && a_sel && !a_notFIFO)
         val track = flight.slice(c.sourceId.start, c.sourceId.end)
 
         a_sel && a_first && track.reduce(_ || _) && (a_noDomain || id =/= a_id)
@@ -109,10 +109,10 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       val SourceIdSet = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
       val SourceIdClear = Wire(init = UInt(0, width = edgeIn.client.endSourceId))
 
-      when (a_first && in.a.fire() && !a_notFIFO)  {
+      when (a_first && in.a.fire && !a_notFIFO)  {
         SourceIdSet := UIntToOH(in.a.bits.source)
       }
-      when (d_first && in.d.fire())  {
+      when (d_first && in.d.fire)  {
         SourceIdClear := UIntToOH(in.d.bits.source)
       }
 

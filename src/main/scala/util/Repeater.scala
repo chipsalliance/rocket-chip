@@ -25,8 +25,8 @@ class Repeater[T <: Data](gen: T) extends Module
   io.deq.bits := Mux(full, saved, io.enq.bits)
   io.full := full
 
-  when (io.enq.fire() &&  io.repeat) { full := true.B; saved := io.enq.bits }
-  when (io.deq.fire() && !io.repeat) { full := false.B }
+  when (io.enq.fire &&  io.repeat) { full := true.B; saved := io.enq.bits }
+  when (io.deq.fire && !io.repeat) { full := false.B }
 }
 
 object Repeater

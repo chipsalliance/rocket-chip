@@ -116,13 +116,13 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
 
         // Track in-flight sinkIds
         val pool = Module(new IDPool(sinkIds))
-        pool.io.free.valid := in.e.fire()
+        pool.io.free.valid := in.e.fire
         pool.io.free.bits  := in.e.bits.sink
 
         val in_d = Wire(in.d)
         val d_first = edgeOut.first(in_d)
         val d_grant = in_d.bits.opcode === GrantData || in_d.bits.opcode === Grant
-        pool.io.alloc.ready := in.d.fire() && d_first && d_grant
+        pool.io.alloc.ready := in.d.fire && d_first && d_grant
         in.d.valid := in_d.valid && (pool.io.alloc.valid || !d_first || !d_grant)
         in_d.ready := in.d.ready && (pool.io.alloc.valid || !d_first || !d_grant)
         in.d.bits := in_d.bits
@@ -141,7 +141,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         val bypass = Bool(edgeIn.manager.minLatency == 0) && in.a.valid && in.a.bits.source === d_d.bits.source
         val dWHeld = Mux(bypass, aWOk, dWOk) holdUnless d_first
 
-        when (in.a.fire()) {
+        when (in.a.fire) {
           wSourceVec(in.a.bits.source) := aWOk
         }
 

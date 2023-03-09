@@ -3,7 +3,7 @@
 package freechips.rocketchip.regmapper
 
 import chisel3._
-import chisel3.util.{Cat, log2Ceil}
+import chisel3.util.log2Ceil
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.LazyModuleImp
 import freechips.rocketchip.util.{Pow2ClockDivider}

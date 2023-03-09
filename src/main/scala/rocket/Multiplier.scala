@@ -4,7 +4,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
+import chisel3.util.{log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
 import freechips.rocketchip.util._
 
 class MultiplierReq(dataBits: Int, tagBits: Int, aluFn: ALUFN = new ALUFN) extends Bundle {
@@ -155,10 +155,10 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
     }
     when (divby0 && !isHi) { neg_out := false.B }
   }
-  when (io.resp.fire() || io.kill) {
+  when (io.resp.fire || io.kill) {
     state := s_ready
   }
-  when (io.req.fire()) {
+  when (io.req.fire) {
     state := Mux(cmdMul, s_mul, Mux(lhs_sign || rhs_sign, s_neg_inputs, s_div))
     isHi := cmdHi
     resHi := false.B
