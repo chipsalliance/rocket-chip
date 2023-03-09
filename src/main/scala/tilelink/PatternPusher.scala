@@ -72,7 +72,8 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
     }
 
     val (plegal, pbits) = pattern.map(_.bits(edgeOut)).unzip
-    assert (end || Vec(plegal)(step), s"Pattern pusher ${name} tried to push an illegal request")
+    val msg = s"Pattern pusher $name tried to push an illegal request"
+    assert(end || Vec(plegal)(step), msg)
 
     a.valid := io.run && ready && !end && !flight
     a.bits  := Vec(pbits)(step)

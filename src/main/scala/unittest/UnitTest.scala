@@ -29,10 +29,10 @@ trait UnitTestModule extends Module with HasUnitTestIO {
 abstract class UnitTest(val timeout: Int = 4096) extends Module with UnitTestLegacyModule {
   val testName = this.getClass.getSimpleName
 
-  when (io.start) { printf(s"Started UnitTest $testName\n") }
+  when (io.start) { printf(cf"Started UnitTest $testName\n") }
 
   val timed_out = SimpleTimer(timeout, io.start, io.finished)
-  assert(!timed_out, s"UnitTest $testName timed out")
+  assert(!timed_out, cf"UnitTest $testName timed out")
 }
 
 case object UnitTests extends Field[Parameters => Seq[UnitTest]]
