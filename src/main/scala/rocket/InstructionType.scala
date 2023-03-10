@@ -898,5 +898,5 @@ object InstructionType {
    "XPERM4"           -> BitPat("b0010100??????????010?????0110011"),
    "XPERM8"           -> BitPat("b0010100??????????100?????0110011"),
   )
-  val AllType = IType ++ ZBA64Type ++ I64Type ++ ZK64Type ++ A64Type ++ AType ++ ZBKBType ++ ZBSType ++ ZBS64Type ++ ZKSType ++ CType ++ C64Type ++ C_DType ++ ZICBOType ++ ZBKCType ++ ZBCType ++ ZBBType ++ ZBB64Type ++ ZICSRType ++ MType ++ M64Type ++ SYSTEMType ++ DType ++ ZFHType ++ QType ++ FType ++ D_ZFHType ++ D64Type ++ ZFH64Type ++ Q_ZFHType ++ Q64Type ++ F64Type ++ ZIFENCEIType ++ HType ++ SVINVALType ++ H64Type ++ ZBKB64Type ++ ZKS64Type ++ SType ++ ZBAType ++ ZKType ++ VType ++ ZBKXType
+  val AllType = IType ++ ZBA64Type ++ I64Type ++ ZK64Type ++ A64Type ++ AType ++ ZBKBType ++ ZBSType ++ ZBS64Type ++ ZKSType ++ C64Type ++ C_DType ++ ZICBOType ++ ZBKCType ++ ZBCType ++ ZBBType ++ ZBB64Type ++ ZICSRType ++ MType ++ M64Type ++ SYSTEMType ++ DType ++ ZFHType ++ QType ++ FType ++ D_ZFHType ++ D64Type ++ ZFH64Type ++ Q_ZFHType ++ Q64Type ++ F64Type ++ ZIFENCEIType ++ HType ++ SVINVALType ++ H64Type ++ ZBKB64Type ++ ZKS64Type ++ SType ++ ZBAType ++ ZKType ++ VType ++ ZBKXType // CType not support in ID stage
 }
