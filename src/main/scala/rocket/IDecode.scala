@@ -31,6 +31,10 @@ trait BitsField_5 extends DecodeField[Op, UInt] with FieldName {
   def chiselType: UInt = UInt(5.W)
 }
 
+case class Op(insn: BitPat) extends DecodePattern {
+  def bitPat: BitPat = insn
+}
+
 class IntCtrlSigs(pipelinedMul: Boolean, supportsFlushLine: Boolean, flushDCache: Boolean, aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends Bundle {
   private val (v, cmd) = if (flushDCache) (Y, BitPat(M_FLUSH_ALL)) else (N, M_X)
   private def zapRs1(x: BitPat) = if (supportsFlushLine) x else BitPat(x.value.U)
