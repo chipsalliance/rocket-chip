@@ -35,7 +35,7 @@ case class Op(insn: BitPat) extends DecodePattern {
   def bitPat: BitPat = insn
 }
 
-class IntCtrlSigs(pipelinedMul: Boolean, supportsFlushLine: Boolean, flushDCache: Boolean, aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends Bundle {
+class IntCtrlSigs(pipelinedMul: Boolean, supportsFlushLine: Boolean, flushDCache: Boolean, aluFn: ALUFN = ALUFN(), truthTable: Seq[Op])(implicit val p: Parameters) extends Bundle {
   private val (v, cmd) = if (flushDCache) (Y, BitPat(M_FLUSH_ALL)) else (N, M_X)
   private def zapRs1(x: BitPat) = if (supportsFlushLine) x else BitPat(x.value.U)
   val M = if (pipelinedMul) Y else N
@@ -792,8 +792,7 @@ class IntCtrlSigs(pipelinedMul: Boolean, supportsFlushLine: Boolean, flushDCache
   val amo = Bool()
   val dp = Bool()
 
-  private val decodeTable: DecodeTable[Op] = new DecodeTable[Op](InstructionType.AllType.toSeq.map {case(s, i) => Op(i)}, all)
-  // def decode:              UInt => DecodeBundle = decodeTable.decode
+  private val decodeTable: DecodeTable[Op] = new DecodeTable[Op](truthTable, all)
   def bundle:              DecodeBundle = decodeTable.bundle
 
   def decode(inst: UInt) = {

@@ -178,38 +178,67 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
 
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
-  // val decode_table = {
-  //   require(!usingRoCC || !rocketParams.useSCIE)
-  //   (if (usingMulDiv) new MDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new M64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
-  //   (if (usingAtomics) new ADecode(aluFn) +: (xLen > 32).option(new A64Decode(aluFn)).toSeq else Nil) ++:
-  //   (if (fLen >= 32)    new FDecode(aluFn) +: (xLen > 32).option(new F64Decode(aluFn)).toSeq else Nil) ++:
-  //   (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
-  //   (if (minFLen == 16) new HDecode(aluFn) +: (xLen > 32).option(new H64Decode(aluFn)).toSeq ++: (fLen >= 64).option(new HDDecode(aluFn)).toSeq else Nil) ++:
-  //   (usingRoCC.option(new RoCCDecode(aluFn))) ++:
-  //   (rocketParams.useSCIE.option(new SCIEDecode(aluFn))) ++:
-  //   (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: (xLen == 32).option(new ZBS32Decode).toSeq ++: (xLen == 64).option(new ZBS64Decode).toSeq ++: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
-  //   (if (usingBitManip && !usingBitManipCrypto) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
-  //   (if (usingBitManip || usingBitManipCrypto) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 32).option(new ZBBR32Decode).toSeq ++: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
-  //   (if (usingBitManipCrypto) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
-  //   (if (usingCryptoNIST) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
-  //   (if (usingCryptoNIST) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
-  //   (if (usingCryptoNIST) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
-  //   (usingCryptoSM.option(new ZKSDecode)) ++:
-  //   (if (xLen == 32) new I32Decode(aluFn) else new I64Decode(aluFn)) +:
-  //   (usingVM.option(new SVMDecode(aluFn))) ++:
-  //   (usingSupervisor.option(new SDecode(aluFn))) ++:
-  //   (usingHypervisor.option(new HypervisorDecode(aluFn))) ++:
-  //   ((usingHypervisor && (xLen == 64)).option(new Hypervisor64Decode(aluFn))) ++:
-  //   (usingDebug.option(new DebugDecode(aluFn))) ++:
-  //   (usingNMI.option(new NMIDecode(aluFn))) ++:
-  //   Seq(new FenceIDecode(tile.dcache.flushOnFenceI, aluFn)) ++:
-  //   coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine, aluFn)) ++:
-  //   Seq(new IDecode(aluFn))
-  // } flatMap(_.table)
+  
+  require(!usingRoCC || !rocketParams.useSCIE)
+  var decode_table_var = InstructionType.IType
+  if(usingMulDiv) {
+    decode_table_var = decode_table_var ++ InstructionType.MType
+    if (xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.M64Type
+    }
+  }
+  if(usingAtomics) {
+    decode_table_var = decode_table_var ++ InstructionType.AType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++InstructionType.A64Type
+    }
+  }
+  if(fLen >= 32) {
+    decode_table_var = decode_table_var ++ InstructionType.FType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.F64Type
+    }
+  }
+  if(fLen >= 64) {
+    decode_table_var = decode_table_var ++ InstructionType.DType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.D64Type
+    }
+  }
+  if(minFLen == 16) {
+    decode_table_var = decode_table_var ++ InstructionType.ZFHType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.ZFH64Type
+    }
+    if(fLen >= 64) {
+      decode_table_var = decode_table_var ++InstructionType.D_ZFHType
+    }
+  }
+    // (usingRoCC.option(new RoCCDecode(aluFn))) ++:
+    // (rocketParams.useSCIE.option(new SCIEDecode(aluFn))) ++:
+    // (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: (xLen == 32).option(new ZBS32Decode).toSeq ++: (xLen == 64).option(new ZBS64Decode).toSeq ++: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
+    // (if (usingBitManip && !usingBitManipCrypto) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
+    // (if (usingBitManip || usingBitManipCrypto) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 32).option(new ZBBR32Decode).toSeq ++: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
+    // (if (usingBitManipCrypto) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
+    // (if (usingCryptoNIST) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
+    // (if (usingCryptoNIST) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
+    // (if (usingCryptoNIST) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
+    // (usingCryptoSM.option(new ZKSDecode)) ++:
+    // (if (xLen == 32) new I32Decode(aluFn) else new I64Decode(aluFn)) +:
+    // (usingVM.option(new SVMDecode(aluFn))) ++:
+    // (usingSupervisor.option(new SDecode(aluFn))) ++:
+    // (usingHypervisor.option(new HypervisorDecode(aluFn))) ++:
+    // ((usingHypervisor && (xLen == 64)).option(new Hypervisor64Decode(aluFn))) ++:
+    // (usingDebug.option(new DebugDecode(aluFn))) ++:
+    // (usingNMI.option(new NMIDecode(aluFn))) ++:
+    // Seq(new FenceIDecode(tile.dcache.flushOnFenceI, aluFn)) ++:
+    // coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine, aluFn)) ++:  
+  val decode_table = decode_table_var.toSeq.map {case(_, i) => Op(i)}
 
-  val ex_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn))
-  val mem_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn))
-  val wb_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn))
+
+  val ex_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table))
+  val mem_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table))
+  val wb_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table))
 
   val ex_reg_xcpt_interrupt  = Reg(Bool())
   val ex_reg_valid           = Reg(Bool())
@@ -286,7 +315,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
   require(!(coreParams.useRVE && coreParams.fpu.nonEmpty), "Can't select both RVE and floating-point")
   require(!(coreParams.useRVE && coreParams.useHypervisor), "Can't select both RVE and Hypervisor")
-  val id_ctrl = Wire(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn)).decode(id_inst(0))
+  val id_ctrl = Wire(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table)).decode(id_inst(0))
   val lgNXRegs = if (coreParams.useRVE) 4 else 5
   val regAddrMask = (1 << lgNXRegs) - 1
 
