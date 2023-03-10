@@ -22,7 +22,10 @@ object DecodeLogic
 
   def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)]): UInt =
     chisel3.util.experimental.decode.decoder(QMCMinimizer, addr, TruthTable(mapping, default))
-  def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])]): Seq[UInt] = {
+
+  def apply(addr: UInt, default: BitPat, mapping: Iterable[(BitPat, BitPat)], minimizer: Minimizer): UInt =
+    chisel3.util.experimental.decode.decoder(minimizer, addr, TruthTable(mapping, default))
+  def apply(addr: UInt, default: Seq[BitPat], mappingIn: Iterable[(BitPat, Seq[BitPat])], minimizer: Minimizer = QMCMinimizer): Seq[UInt] = {
     val nElts = default.size
     require(mappingIn.forall(_._2.size == nElts),
       s"All Seq[BitPat] must be of the same length, got $nElts vs. ${mappingIn.find(_._2.size != nElts).get}"
@@ -44,7 +47,7 @@ object DecodeLogic
     val mappingInPadded = mappingIn.map { case (in, elts) =>
       in -> elts.zip(elementWidths).map { case (bp, w) => padBP(bp, w) }
     }
-    val decoded = apply(addr, defaultsPadded.reduce(_ ## _), mappingInPadded.map { case (in, out) => (in, out.reduce(_ ## _)) })
+    val decoded = apply(addr, defaultsPadded.reduce(_ ## _), mappingInPadded.map { case (in, out) => (in, out.reduce(_ ## _)) }, minimizer)
 
     elementIndices.zip(elementIndices.tail).map { case (msb, lsb) => decoded(msb, lsb + 1) }.toList
   }
