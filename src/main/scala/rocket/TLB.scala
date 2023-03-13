@@ -219,13 +219,12 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
         for (((v, e), i) <- (valid zip entry_data).zipWithIndex)
           when (tag_v === virtual && i.U === sectorIdx(vpn)) { v := false.B }
       }
-
-      // For fragmented superpage mappings, we assume the worst (largest)
-      // case, and zap entries whose most-significant VPNs match
-      when (((tag_vpn ^ vpn) >> (pgLevelBits * (pgLevels - 1))) === 0.U) {
-        for ((v, e) <- valid zip entry_data)
-          when (tag_v === virtual && e.fragmented_superpage) { v := false.B }
-      }
+    }
+    // For fragmented superpage mappings, we assume the worst (largest)
+    // case, and zap entries whose most-significant VPNs match
+    when (((tag_vpn ^ vpn) >> (pgLevelBits * (pgLevels - 1))) === 0.U) {
+      for ((v, e) <- valid zip entry_data)
+        when (tag_v === virtual && e.fragmented_superpage) { v := false.B }
     }
   }
   def invalidateNonGlobal(virtual: Bool): Unit = {
