@@ -243,7 +243,7 @@ class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
   with HasCoreParameters
   with HasL1CacheParameters {
-  val cacheParams = tileParams.icache.get
+  val cacheParams = tileParams.dcache.get
 
   private val blockOffset = blockOffBits
   private val beatOffset = log2Up(cacheDataBits/8)
