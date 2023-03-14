@@ -243,7 +243,7 @@ object `riscv-tests` extends Module {
   }
 
   object suite extends mill.Cross[Suite](
-    os.walk(testsRoot).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).toSet.toSeq.sorted: _*
+    os.walk(testsRoot).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).filter(_ != "").toSet.toSeq.sorted: _*
   )
 
   class Suite(name: String) extends Module {
