@@ -694,12 +694,53 @@ Now we can proceed as with Spike, debugging works in a similar way:
 
 Further information about GDB debugging is available [here](https://sourceware.org/gdb/onlinedocs/gdb/) and [here](https://sourceware.org/gdb/onlinedocs/gdb/Remote-Debugging.html#Remote-Debugging).
 
-## <a name="ide"></a> Building Rocket Chip with an IDE
+## <a name="ide"></a> IDEs Support
 
+<<<<<<< HEAD
 The Rocket Chip Scala build uses the standard Scala build tool SBT.
 IDEs like [IntelliJ](https://www.jetbrains.com/idea/) and [VSCode](https://code.visualstudio.com/)
 are popular in the Scala community and work with Rocket Chip.
 To use one of these IDEs, there is one minor peculiarity of the Rocket Chip build that must be addressed.
+=======
+The Rocket Chip Scala build uses [mill](https://github.com/com-lihaoyi/mill) as build tool.
+
+IDEs like [IntelliJ](https://www.jetbrains.com/idea/) and [VSCode](https://code.visualstudio.com/) are popular in the Scala community and work with Rocket Chip.
+
+The Rocket Chip currently uses `nix` to configure the build and/or development environment, you need to install it first depending on your OS distro.
+
+Then follow the steps:
+
+1. Generate BSP config by running:
+
+   ```
+   mill mill.bsp.BSP/install
+   ```
+
+2. Patch the `argv` in `.bsp/mill-bsp.json`, from
+
+   ```json
+   {"name":"mill-bsp","argv":["/usr/bin/mill","--bsp","--disable-ticker","--color","false","--jobs","1"],"millVersion":"0.10.9","bspVersion":"2.0.0","languages":["scala","java"]}
+   ```
+
+   to
+
+   ```json
+   {"name":"mill-bsp","argv":["/usr/bin/nix","develop","-c","mill","--bsp","--disable-ticker","--color","false","--jobs","1"],"millVersion":"0.10.9","bspVersion":"2.0.0","languages":["scala","java"]}
+   ```
+   
+### For IntelliJ users
+
+3. Install and configure [Scala](https://plugins.jetbrains.com/plugin/1347-scala) plugin.
+
+4. BSP should be automatically run.
+   If it doesn't, click `bsp` on the right bar, then right-click on your project to reload.
+
+### For VSCode users
+
+3. Install and configure [Metals](https://marketplace.visualstudio.com/items?itemName=scalameta.metals) extension.
+
+4. Execute VSCode command `Metals: Import build`.
+>>>>>>> 399ef9e09 (Update 'IDEs Support' section in README)
 
 ## <a name="contributors"></a> Contributors
 
