@@ -225,10 +225,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     decode_table_var = decode_table_var ++ CustomInstructions.customInstructionsType
   }
   if(usingVM) {
-    decode_table_var = decode_table_var ++ Map("SFENCE_VMA" -> BitPat("b0001001??????????000000001110011"))
+    decode_table_var = decode_table_var ++ Map("SFENCE_VMA" -> InstructionType.SType("SFENCE_VMA"))
   }
   if(usingSupervisor) {
-    decode_table_var = decode_table_var ++ Map("SRET" -> BitPat("b00010000001000000000000001110011"))
+    decode_table_var = decode_table_var ++ Map("SRET" -> InstructionType.SType("SRET"))
   }  
   if(usingHypervisor) {
     decode_table_var = decode_table_var ++ InstructionType.HType
@@ -237,18 +237,17 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
   if(usingDebug) {
-    decode_table_var = decode_table_var ++ Map("DRET" -> BitPat("b01111011001000000000000001110011"))    
+    decode_table_var = decode_table_var ++ Map("DRET" -> InstructionType.SYSTEMType("DRET"))
   }
   if(usingNMI) {
-    decode_table_var = decode_table_var ++ Map("MNRET" -> BitPat("b01110000001000000000000001110011"))
+    decode_table_var = decode_table_var ++ Map("MNRET" -> CustomInstructions.MNRET)
   }
   decode_table_var = decode_table_var ++ InstructionType.ZIFENCEIType // FenceI
   if(coreParams.haveCFlush) {
     decode_table_var = decode_table_var ++ Map(
-      "CFLUSH_D_L1" -> BitPat("b111111000000?????000000001110011"),
-      "CDISCARD_D_L1" -> BitPat("b111111000010?????000000001110011")
+      "CFLUSH_D_L1" -> CustomInstructions.CFLUSH_D_L1,
+      "CDISCARD_D_L1" -> CustomInstructions.CDISCARD_D_L1,
     )
-    // TODO: zapRs1
   }
   if(usingBitManip) {
     // ZBADecode
@@ -260,21 +259,21 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       decode_table_var = decode_table_var ++ InstructionType.ZBS64Type
       // ZBBC64Decode
       decode_table_var = decode_table_var ++ Map(
-        "CLZW"             -> BitPat("b011000000000?????001?????0011011"),
-        "CPOPW"            -> BitPat("b011000000010?????001?????0011011"),
-        "CTZW"             -> BitPat("b011000000001?????001?????0011011"),
+        "CLZW"             -> InstructionType.ZBB64Type("CLZW"),
+        "CPOPW"            -> InstructionType.ZBB64Type("CPOPW"),
+        "CTZW"             -> InstructionType.ZBB64Type("CTZW"),
       )
     }
     // ZBBMDecode
     decode_table_var = decode_table_var ++ Map(
-      "MAX"              -> BitPat("b0000101??????????110?????0110011"),
-      "MAXU"             -> BitPat("b0000101??????????111?????0110011"),
-      "MIN"              -> BitPat("b0000101??????????100?????0110011"),
-      "MINU"             -> BitPat("b0000101??????????101?????0110011"),
+      "MAX"              -> InstructionType.ZBBType("MAX"),
+      "MAXU"             -> InstructionType.ZBBType("MAXU"),
+      "MIN"              -> InstructionType.ZBBType("MIN"),
+      "MINU"             -> InstructionType.ZBBType("MINU"),
     )
     // ZBBORCBDecode
     decode_table_var = decode_table_var ++ Map(
-      "ORC_B"            -> BitPat("b001010000111?????101?????0010011"),
+      "ORC_B"            -> InstructionType.ZBBType("ORC_B"),
     )
     // ZBCRDecode
     decode_table_var = decode_table_var ++ InstructionType.ZBCType
@@ -283,69 +282,69 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     if(xLen == 32) {
       // ZBS32Decode
       decode_table_var = decode_table_var ++ Map(
-        "Instructions32.BEXTI"              -> BitPat("b0100100??????????101?????0010011"),
-        "Instructions32.BCLRI"              -> BitPat("b0100100??????????001?????0010011"),
-        "Instructions32.BINVI"              -> BitPat("b0110100??????????001?????0010011"),
-        "Instructions32.BSETI"              -> BitPat("b0010100??????????001?????0010011"),
+        "Instructions32.BEXTI"              -> Instructions32.BEXTI,
+        "Instructions32.BCLRI"              -> Instructions32.BCLRI,
+        "Instructions32.BINVI"              -> Instructions32.BINVI,
+        "Instructions32.BSETI"              -> Instructions32.BSETI,
       )
     }
     // ZBBSEDecode
     decode_table_var = decode_table_var ++ Map(
-      "SEXT_B"           -> BitPat("b011000000100?????001?????0010011"),
-      "SEXT_H"           -> BitPat("b011000000101?????001?????0010011"),
+      "SEXT_B"           -> InstructionType.ZBBType("SEXT_B"),
+      "SEXT_H"           -> InstructionType.ZBBType("SEXT_H"),
     )
     // ZBBCDecode
     decode_table_var = decode_table_var ++ Map(
-      "CLZ"              -> BitPat("b011000000000?????001?????0010011"),
-      "CTZ"              -> BitPat("b011000000001?????001?????0010011"),
-      "CPOP"             -> BitPat("b011000000010?????001?????0010011"),
+      "CLZ"              -> InstructionType.ZBBType("CLZ"),
+      "CTZ"              -> InstructionType.ZBBType("CTZ"),
+      "CPOP"             -> InstructionType.ZBBType("CPOP"),
     )
   }
   if (usingBitManip && !usingBitManipCrypto) {
     if(xLen == 32) {
       // ZBBZE32Decode
       decode_table_var = decode_table_var ++ Map(
-        "Instructions32.ZEXT_H"             -> BitPat("b000010000000?????100?????0110011"),
+        "Instructions32.ZEXT_H" -> Instructions32.ZEXT_H,
       )
     }
     if(xLen == 64) {
       // ZBBZE64Decode
       decode_table_var = decode_table_var ++ Map(
-        "ZEXT_H"           -> BitPat("b000010000000?????100?????0111011"),
+        "ZEXT_H"           -> InstructionType.ZBB64Type("ZEXT_H"),
       )
     }
   }
   if (usingBitManip || usingBitManipCrypto) {
     // ZBBNDecode
     decode_table_var = decode_table_var ++ Map(
-      "ANDN"             -> BitPat("b0100000??????????111?????0110011"),
-      "ORN"              -> BitPat("b0100000??????????110?????0110011"),
-      "XNOR"             -> BitPat("b0100000??????????100?????0110011"),
+      "ANDN"             -> InstructionType.ZBKBType("ANDN"),
+      "ORN"              -> InstructionType.ZBKBType("ORN"),
+      "XNOR"             -> InstructionType.ZBKBType("XNOR"),
     )
     // ZBCDecode
     decode_table_var = decode_table_var ++ InstructionType.ZBKCType
     // ZBBRDecode
     decode_table_var = decode_table_var ++ Map(
-      "ROL"              -> BitPat("b0110000??????????001?????0110011"),
-      "ROR"              -> BitPat("b0110000??????????101?????0110011"),
+      "ROL"              -> InstructionType.ZBKBType("ROL"),
+      "ROR"              -> InstructionType.ZBKBType("ROR"),
     )
     if(xLen == 32) {
       // ZBBR32Decode
       decode_table_var = decode_table_var ++ Map(
-        "Instructions32.RORI"               -> BitPat("b0110000??????????101?????0010011"),
+        "Instructions32.RORI" -> Instructions32.RORI,
       )
       // ZBBREV832Decode
       decode_table_var = decode_table_var ++ Map(
-        "Instructions32.REV8"               -> BitPat("b011010011000?????101?????0010011"),
+        "Instructions32.REV8" -> Instructions32.REV8,
       )
     }
     if(xLen == 64) {
       // ZBBR64Decode
       decode_table_var = decode_table_var ++ Map(
-        "ROLW"             -> BitPat("b0110000??????????001?????0111011"),
-        "RORI"             -> BitPat("b011000???????????101?????0010011"),
-        "RORIW"            -> BitPat("b0110000??????????101?????0011011"),
-        "RORW"             -> BitPat("b0110000??????????101?????0111011"),
+        "ROLW"             -> InstructionType.ZBKB64Type("ROLW"),
+        "RORI"             -> InstructionType.ZBKB64Type("RORI"),
+        "RORIW"            -> InstructionType.ZBKB64Type("RORIW"),
+        "RORW"             -> InstructionType.ZBKB64Type("RORW"),
       )
       // ZBBREV864Decode
       decode_table_var = decode_table_var ++ InstructionType.ZKS64Type
@@ -356,60 +355,76 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     decode_table_var = decode_table_var ++ InstructionType.ZBKXType
     // ZBKBDecode
     decode_table_var = decode_table_var ++ Map(
-      "PACK"             -> BitPat("b0000100??????????100?????0110011"),
-      "PACKH"            -> BitPat("b0000100??????????111?????0110011"),
-      "BREV8"            -> BitPat("b011010000111?????101?????0010011"),
+      "PACK"             -> InstructionType.ZBKBType("PACK"),
+      "PACKH"            -> InstructionType.ZBKBType("PACKH"),
+      "BREV8"            -> InstructionType.ZKSType("BREV8"),
     )
     if(xLen == 32) {
       // ZBKB32Decode 
       decode_table_var = decode_table_var ++ Map(
-        "Instructions32.UNZIP"             -> BitPat("b000010001111?????101?????0010011"),
-        "Instructions32.ZIP"               -> BitPat("b000010001111?????001?????0010011"),
+        "Instructions32.UNZIP"  -> Instructions32.UNZIP,
+        "Instructions32.ZIP"    -> Instructions32.ZIP,
       )
     }
     if(xLen == 64) {
       // ZBKB64Decode
       decode_table_var = decode_table_var ++ Map(
-        "PACKW"            -> BitPat("b0000100??????????100?????0111011"),
+        "PACKW"            -> InstructionType.ZBKB64Type("PACKW"),
       )
     }
   }
   if (usingCryptoNIST) {
     if(xLen == 32) {
       // ZKND32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.AES32DSI"  -> Instructions32.AES32DSI,
+        "Instructions32.AES32DSMI" ->Instructions32.AES32DSMI,
+      )
       // ZKNE32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.AES32ESI"  -> Instructions32.AES32ESI,
+        "Instructions32.AES32ESMI" -> Instructions32.AES32ESMI,
+      )
       // ZKNH32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.SHA512SIG0L" -> Instructions32.SHA512SIG0L,
+        "Instructions32.SHA512SIG1L" -> Instructions32.SHA512SIG1L,
+        "Instructions32.SHA512SIG0H" -> Instructions32.SHA512SIG0H,
+        "Instructions32.SHA512SIG1H" -> Instructions32.SHA512SIG1H,
+        "Instructions32.SHA512SUM0R" -> Instructions32.SHA512SUM0R,
+        "Instructions32.SHA512SUM1R" ->Instructions32.SHA512SUM1R 
+      )
     }
     if(xLen == 64) {
       // ZKND64Decode
       decode_table_var = decode_table_var ++ Map(
-        "AES64DS"          -> BitPat("b0011101??????????000?????0110011"),
-        "AES64DSM"         -> BitPat("b0011111??????????000?????0110011"),
-        "AES64IM"          -> BitPat("b001100000000?????001?????0010011"),
-        "AES64KS1I"        -> BitPat("b00110001?????????001?????0010011"),
-        "AES64KS2"         -> BitPat("b0111111??????????000?????0110011"),
+        "AES64DS"          -> InstructionType.ZK64Type("AES64DS"),
+        "AES64DSM"         -> InstructionType.ZK64Type("AES64DSM"),
+        "AES64IM"          -> InstructionType.ZK64Type("AES64IM"),
+        "AES64KS1I"        -> InstructionType.ZK64Type("AES64KS1I"),
+        "AES64KS2"         -> InstructionType.ZK64Type("AES64KS2"),
       )
       // ZKNE64Decode
       decode_table_var = decode_table_var ++ Map(
-        "AES64ES"          -> BitPat("b0011001??????????000?????0110011"),
-        "AES64ESM"         -> BitPat("b0011011??????????000?????0110011"),
+        "AES64ES"          -> InstructionType.ZK64Type("AES64ES"),
+        "AES64ESM"         -> InstructionType.ZK64Type("AES64ESM"),
       )
       // ZKNH64Decode
       decode_table_var = decode_table_var ++ Map(
-        "SHA512SIG0"       -> BitPat("b000100000110?????001?????0010011"),
-        "SHA512SIG1"       -> BitPat("b000100000111?????001?????0010011"),
-        "SHA512SUM0"       -> BitPat("b000100000100?????001?????0010011"),
-        "SHA512SUM1"       -> BitPat("b000100000101?????001?????0010011"),
+        "SHA512SIG0"       -> InstructionType.ZK64Type("SHA512SIG0"),
+        "SHA512SIG1"       -> InstructionType.ZK64Type("SHA512SIG1"),
+        "SHA512SUM0"       -> InstructionType.ZK64Type("SHA512SUM0"),
+        "SHA512SUM1"       -> InstructionType.ZK64Type("SHA512SUM1"),
       )
     }
     // ZKNHDecode
     decode_table_var = decode_table_var ++ InstructionType.ZKType
     // ZKSDecode
     decode_table_var = decode_table_var ++ Map(
-      "SM3P0"            -> BitPat("b000100001000?????001?????0010011"),
-      "SM3P1"            -> BitPat("b000100001001?????001?????0010011"),
-      "SM4ED"            -> BitPat("b??11000??????????000?????0110011"),
-      "SM4KS"            -> BitPat("b??11010??????????000?????0110011"),
+      "SM3P0"            -> InstructionType.ZKSType("SM3P0"),
+      "SM3P1"            -> InstructionType.ZKSType("SM3P1"),
+      "SM4ED"            -> InstructionType.ZKSType("SM4ED"),
+      "SM4KS"            -> InstructionType.ZKSType("SM4KS"),
     )
   }
   val decode_table = decode_table_var.toSeq.map {case(_, i) => Op(i)}
