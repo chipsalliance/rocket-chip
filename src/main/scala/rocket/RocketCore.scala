@@ -995,11 +995,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   } else {
     io.rocc.cmd.bits.vector := 0.U
   }
-  val vector_mem_cmd = io.rocc.cmd.fire //&& wb_ctrl.rocc_mem // FIXME
-  val vector_mem_resp = io.rocc.resp.fire //&& io.rocc.resp.bits.mem
+  val vector_mem_cmd = io.rocc.cmd.fire && wb_ctrl.rocc_mem // FIXME
+  val vector_mem_resp = io.rocc.resp.fire && io.rocc.resp.bits.vector.mem
   // counter for counting whether there is vector mem in flight
   val vector_mem = RegInit(0.U(8.W))
-  vector_mem_busy := false.B//vector_mem.orR // not equal to 0.U
+  // busy when vector_mem in flight or in wb
+  vector_mem_busy := vector_mem.orR || // not equal to 0.U
+    wb_reg_valid && wb_ctrl.rocc_mem
   vector_mem := Mux1H(Seq(
     (vector_mem_cmd && vector_mem_resp) -> vector_mem,
     (!vector_mem_cmd && !vector_mem_resp) -> vector_mem,
