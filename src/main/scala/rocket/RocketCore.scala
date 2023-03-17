@@ -662,8 +662,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
   val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
-  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem
-  val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
+  val vector_mem_busy = Wire(Bool())
+  val vector_kill_mem = mem_reg_valid && vector_mem_busy
+  val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem || vector_kill_mem
+  val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || vector_kill_mem || !mem_reg_valid
   div.io.kill := killm_common && RegNext(div.io.req.fire)
   val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem
 
@@ -886,6 +888,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
   val rocc_blocked = Reg(Bool())
   rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
+  val vector_busy = Wire(Bool())
+  val vector_csr_blocked = vector_busy ||
+    ex_reg_valid && ex_ctrl.rocc ||
+    mem_reg_valid && mem_ctrl.rocc ||
+    wb_reg_valid && wb_ctrl.rocc
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
@@ -894,6 +901,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
     id_ctrl.rocc && rocc_blocked || // reduce activity while RoCC is busy
+    id_csr_en && csr.io.decode(0).vector_csr && vector_csr_blocked || // reduce activity when try to read vxsat while Vector is busy
     id_ctrl.div && (!(div.io.req.ready || (div.io.resp.valid && !wb_wxd)) || div.io.req.valid) || // reduce odds of replay
     !clock_en ||
     id_do_fence ||
@@ -983,9 +991,33 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     io.rocc.cmd.bits.vector.vconfig := csr.io.vector.get.vconfig
     io.rocc.cmd.bits.vector.vstart := csr.io.vector.get.vstart
     io.rocc.cmd.bits.vector.vxrm := csr.io.vector.get.vxrm
+    csr.io.vector.get.set_vxsat := io.rocc.resp.valid && io.rocc.resp.bits.vector.vxsat
   } else {
     io.rocc.cmd.bits.vector := 0.U
   }
+  val vector_mem_cmd = io.rocc.cmd.fire //&& wb_ctrl.rocc_mem // FIXME
+  val vector_mem_resp = io.rocc.resp.fire //&& io.rocc.resp.bits.mem
+  // counter for counting whether there is vector mem in flight
+  val vector_mem = RegInit(0.U(8.W))
+  vector_mem_busy := false.B//vector_mem.orR // not equal to 0.U
+  vector_mem := Mux1H(Seq(
+    (vector_mem_cmd && vector_mem_resp) -> vector_mem,
+    (!vector_mem_cmd && !vector_mem_resp) -> vector_mem,
+    (!vector_mem_cmd && vector_mem_resp) -> (vector_mem - 1.U),
+    (vector_mem_cmd && !vector_mem_resp) -> (vector_mem + 1.U),
+    ))
+
+  val vector_cmd = io.rocc.cmd.fire
+  val vector_resp = io.rocc.resp.fire
+  // counter for counting whether there is vector mem in flight
+  val vector_counter = RegInit(0.U(8.W)) // FIXME
+  vector_busy := vector_counter.orR // not equal to 0.U
+  vector_counter := Mux1H(Seq(
+    (vector_cmd && vector_resp) -> vector_counter,
+    (!vector_cmd && !vector_resp) -> vector_counter,
+    (!vector_cmd && vector_resp) -> (vector_counter - 1.U),
+    (vector_cmd && !vector_resp) -> (vector_counter + 1.U),
+    ))
 
   // gate the clock
   val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0.U || csr.io.inhibit_cycle || io.dmem.perf.release || take_pc
