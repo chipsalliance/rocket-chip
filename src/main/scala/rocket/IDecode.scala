@@ -739,13 +739,21 @@ import VectorInstructions._
 
 class VectorDecode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends DecodeConstants
 {
+  val mvv: List[BitPat] =
+                List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N)
   val table: Array[(BitPat, List[BitPat])] = Array(
     VECTOR_IVV ->
                 List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
-    VECTOR_MVV ->
-                List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
-    //VECTOR_MVV_VWXUNARY0 ->
-    //            List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VECTOR_MVV_VWXUNARY0 ->
+                List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    // other MVV
+    VECTOR_MVV_VXUNARY0 -> mvv,
+    VECTOR_MVV_VXUNARY0 -> mvv,
+    VECTOR_MVV_VMUNARY0 -> mvv,
+    VECTOR_MVV_VCOMPRESS -> mvv,
+    VECTOR_MVV_OTHER0 -> mvv,
+    VECTOR_MVV_OTHER1 -> mvv,
+    VECTOR_MVV_OTHER2 -> mvv,
     VECTOR_IVI ->
                 List(Y,N,Y,N,N,N,N,N,N,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_ADD,           N,M_X,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
     VECTOR_IVX ->
