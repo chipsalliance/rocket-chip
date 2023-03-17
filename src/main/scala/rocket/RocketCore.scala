@@ -735,6 +735,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
 
+  val new_vl = WireDefault(0.U((maxVLMax.log2 + 1).W))
+
   div.io.resp.ready := !wb_wxd
   val ll_wdata = WireDefault(div.io.resp.bits.data)
   val ll_waddr = WireDefault(div.io.resp.bits.tag)
@@ -764,7 +766,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
                  Mux(ll_wen, ll_wdata,
                  Mux(wb_ctrl.csr =/= CSR.N, csr.io.rw.rdata,
                  Mux(wb_ctrl.mul, mul.map(_.io.resp.bits.data).getOrElse(wb_reg_wdata),
-                 wb_reg_wdata))))
+                 Mux(wb_ctrl.vset, new_vl,
+                 wb_reg_wdata)))))
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
 
   // hook up control/status regfile
@@ -817,18 +820,31 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
   if (usingVector) {
     csr.io.vector.get <> 0.U.asTypeOf(csr.io.vector.get)
-    when (wb_reg_inst(6,0) === "b1010111".U && wb_reg_inst(14,12) === "b111".U) {
+    when (wb_reg_valid && wb_ctrl.vset) {
+      val vsetvli = !wb_reg_inst(31)
+      val vsetivli = wb_reg_inst(31,30).andR
+      val vsetvl = wb_reg_inst(31) && !wb_reg_inst(30)
+
+      val zimm = Cat(Mux(vsetvli, wb_reg_inst(30), 0.U(1.W)), wb_reg_inst(29,20))
+      val uimm = wb_reg_inst(19,15)
+      val rs1 = wb_reg_inst(19,15)
+      val rd = wb_reg_inst(11,7)
+      val vl = csr.io.vector.get.vconfig.vl
+      val avl = Mux(vsetivli, uimm, wb_reg_wdata)
+      val vtype = Mux(vsetvl, wb_reg_rs2, zimm)
+
       val vconfig = Wire(new VConfig)
-      val zimm = wb_reg_inst(29,20)
-      val avl = Wire(UInt(32.W)) // TODO
-      avl := wb_reg_inst(19,15)
-      vconfig.vtype := VType.fromUInt(zimm)
-      vconfig.vl := VType.computeVL(avl, zimm, 0.U, false.B, false.B, false.B)
+      new_vl := VType.computeVL(avl, vtype, vl, useCurrentVL = !(rs1.orR || rd.orR), useMax = (!rs1.orR && rd.orR), useZero = false.B)
+      vconfig.vtype := VType.fromUInt(vtype)
+      vconfig.vl := new_vl
+
       csr.io.vector.get.set_vconfig.valid := true.B
       csr.io.vector.get.set_vconfig.bits := vconfig
 
       csr.io.vector.get.set_vstart.valid := true.B
       csr.io.vector.get.set_vstart.bits := 0.U
+
+      csr.io.vector.get.set_vs_dirty := true.B
     }
   }
 
