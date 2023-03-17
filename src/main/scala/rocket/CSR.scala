@@ -230,6 +230,7 @@ class CSRDecodeIO(implicit p: Parameters) extends CoreBundle {
   val fp_illegal = Output(Bool())
   val vector_illegal = Output(Bool())
   val fp_csr = Output(Bool())
+  val vector_csr = Output(Bool())
   val rocc_illegal = Output(Bool())
   val read_illegal = Output(Bool())
   val write_illegal = Output(Bool())
@@ -853,6 +854,8 @@ class CSRFile(
     io_dec.fp_illegal := io.status.fs === 0.U || reg_mstatus.v && reg_vsstatus.fs === 0.U || !reg_misa('f'-'a')
     io_dec.vector_illegal := io.status.vs === 0.U || reg_mstatus.v && reg_vsstatus.vs === 0.U || !reg_misa('v'-'a')
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
+    // FIXME: only trap vxsat csr now
+    io_dec.vector_csr := addr === CSRs.vxsat.U
     io_dec.rocc_illegal := io.status.xs === 0.U || reg_mstatus.v && reg_vsstatus.xs === 0.U || !reg_misa('x'-'a')
     val csr_addr_legal = reg_mstatus.prv >= CSR.mode(addr) ||
       usingHypervisor.B && !reg_mstatus.v && reg_mstatus.prv === PRV.S.U && CSR.mode(addr) === PRV.H.U
