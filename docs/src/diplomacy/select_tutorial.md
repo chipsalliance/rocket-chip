@@ -11,7 +11,7 @@ We will use the following `LazyModule`s in the examples below.
 ```scala mdoc
 import chisel3.Bool
 import freechips.rocketchip.aop.Select
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{
   BundleBridgeSink,
   BundleBridgeSource,
@@ -27,16 +27,16 @@ class Top(implicit p: Parameters) extends LazyModule {
   val aInput = BundleBridgeSource[Bool](() => Bool())
   a.input := aInput
 
-  val aOutput = a.output.makeSink
+  val aOutput = a.output.makeSink()
 
   val fooInput = BundleBridgeSource[Bool](() => Bool())
   foo.input := fooInput
 
-  val fooOutput = foo.output.makeSink
+  val fooOutput = foo.output.makeSink()
 
   lazy val module = new LazyModuleImp(this) {
-    aInput.makeIO
-    fooOutput.makeIO
+    aInput.makeIO()
+    fooOutput.makeIO()
     fooInput.bundle := aOutput.bundle
   }
 }
@@ -55,7 +55,7 @@ class A(implicit p: Parameters) extends LazyModule {
   val input = b.input
   val output = c.output
 
-  val bOutput = b.output.makeSink
+  val bOutput = b.output.makeSink()
   val cInput = BundleBridgeSource[Bool](() => Bool())
   c.input := cInput
   lazy val module = new LazyModuleImp(this) {
