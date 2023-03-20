@@ -1092,9 +1092,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   def encodeVirtualAddress(a0: UInt, ea: UInt) = if (vaddrBitsExtended == vaddrBits) ea else {
     // efficient means to compress 64-bit VA into vaddrBits+1 bits
     // (VA is bad if VA(vaddrBits) != VA(vaddrBits-1))
-    val a = a0.asSInt >> vaddrBits
-    val msb = Mux(a === 0.S || a === -1.S, ea(vaddrBits), !ea(vaddrBits-1))
-    Cat(msb, ea(vaddrBits-1,0))
+    val b = vaddrBitsExtended-1
+    val a = (a0 >> b).asSInt
+    val msb = Mux(a === 0.S || a === -1.S, ea(b), !ea(b-1))
+    Cat(msb, ea(b-1, 0))
   }
 
   class Scoreboard(n: Int, zero: Boolean = false)
