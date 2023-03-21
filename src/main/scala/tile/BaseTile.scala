@@ -190,7 +190,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
     }
   def vpnBits: Int = vaddrBits - pgIdxBits
   def ppnBits: Int = paddrBits - pgIdxBits
-  def vpnBitsExtended: Int = vpnBits + (vaddrBits < xLen).toInt
+  def vpnBitsExtended: Int = vpnBits + (if (vaddrBits < xLen) 1 + usingHypervisor.toInt else 0)
   def vaddrBitsExtended: Int = vpnBitsExtended + pgIdxBits
 }
 
