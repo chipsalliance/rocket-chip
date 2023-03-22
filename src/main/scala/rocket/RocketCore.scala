@@ -27,6 +27,7 @@ case class RocketCoreParams(
   useSCIE: Boolean = false,
   useBitManip: Boolean = false,
   useBitManipCrypto: Boolean = false,
+  useVector: Boolean = false,
   useCryptoNIST: Boolean = false,
   useCryptoSM: Boolean = false,
   nLocalInterrupts: Int = 0,

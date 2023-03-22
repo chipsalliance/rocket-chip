@@ -12,6 +12,7 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
 
 case object BuildVector extends Field[Option[Parameters => Vector]](None)
+case object VLen extends Field[Int](0)
 
 class VectorCommand(implicit p: Parameters) extends CoreBundle()(p) {
   val inst = Bits(32.W)
@@ -41,6 +42,8 @@ abstract class Vector()(implicit p: Parameters) extends LazyModule {
   val module: VectorModuleImp
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
+
+  require(p(VLen) > 0, s"vLen can not be 0 when instantiating Vector module, do you forget to apply WithVector?")
 }
 
 class VectorModuleImp(outer: Vector) extends LazyModuleImp(outer) {
