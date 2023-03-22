@@ -44,6 +44,7 @@ class RocketTile private(
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
+    with HasVector
     with HasHellaCache
     with HasICacheFrontend
 {
@@ -165,18 +166,20 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Connect the coprocessor interfaces
   if (outer.roccs.size > 0) {
-    val vector = outer.roccs(0)
-    vector.module.io.cmd <> core.io.rocc.cmd
-    core.io.rocc.resp <> vector.module.io.resp
-    //vector.module.io.mem <> DontCare
-    core.io.rocc.busy := vector.module.io.busy
-    core.io.rocc.interrupt := vector.module.io.interrupt
-    vector.module.io.exception := core.io.rocc.exception
-    //cmdRouter.get.io.in <> core.io.rocc.cmd
-    //outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
-    //core.io.rocc.resp <> respArb.get.io.out
-    //core.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
-    //core.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+    cmdRouter.get.io.in <> core.io.rocc.cmd
+    outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
+    core.io.rocc.resp <> respArb.get.io.out
+    core.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
+    core.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+  }
+
+  // Connect the vector coprocessor interfaces
+  if (outer.vector.nonEmpty) {
+    val vector = outer.vector.get
+    vector.module.io.cmd <> core.io.vector.cmd
+    core.io.vector.resp <> vector.module.io.resp
+    //core.io.rocc.busy := vector.module.io.busy
+    //vector.module.io.exception := core.io.vector.exception
   }
 
   // Rocket has higher priority to DTIM than other TileLink clients
