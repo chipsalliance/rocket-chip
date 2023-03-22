@@ -330,6 +330,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_raddr1_illegal && !id_ctrl.scie && id_ctrl.rxs1 ||
     id_waddr_illegal && !id_ctrl.scie && id_ctrl.wxd ||
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
+    id_ctrl.vector && csr.io.decode(0).vector_illegal ||
     id_ctrl.scie && !(id_scie_decoder.unpipelined || id_scie_decoder.pipelined) ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
     !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal) ||
@@ -348,6 +349,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_rocc_busy = usingRoCC.B &&
     (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
      mem_reg_valid && mem_ctrl.rocc || wb_reg_valid && wb_ctrl.rocc)
+  // FIXME: vector/fence behavior
   val id_do_fence = WireDefault(id_rocc_busy && id_ctrl.fence ||
     id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
 
@@ -631,8 +633,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     ))
     mem_br_taken := alu.io.cmp_out
 
-    when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
-      val size = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_reg_mem_size)
+    when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_ctrl.vector || ex_sfence)) {
+      val size = Mux(ex_ctrl.rocc || ex_ctrl.vector, log2Ceil(xLen/8).U, ex_reg_mem_size)
       mem_reg_rs2 := new StoreGen(size, 0.U, ex_rs(1), coreDataBytes).data
     }
     when (ex_ctrl.jalr && csr.io.status.debug) {
@@ -679,7 +681,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_sfence := mem_reg_sfence
     wb_reg_wdata := Mux(mem_scie_pipelined, mem_scie_pipelined_wdata,
       Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata))
-    when (mem_ctrl.rocc || mem_reg_sfence) {
+    when (mem_ctrl.rocc || mem_ctrl.vector || mem_reg_sfence) {
       wb_reg_rs2 := mem_reg_rs2
     }
     wb_reg_cause := mem_cause
@@ -722,10 +724,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val wb_pc_valid = wb_reg_valid || wb_reg_replay || wb_reg_xcpt
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
-  val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
+  val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc || wb_ctrl.vector
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
-  val replay_wb = replay_wb_common || replay_wb_rocc
+  val replay_wb_vector = wb_reg_valid && wb_ctrl.vector && !io.vector.cmd.ready
+  val replay_wb = replay_wb_common || replay_wb_rocc || replay_wb_vector
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
@@ -750,10 +753,22 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ll_wen := true.B
     }
   }
+  if (usingVector) {
+    io.vector.resp.ready := !wb_wxd
+    when (io.vector.resp.fire) {
+      div.io.resp.ready := false.B
+      io.rocc.resp.ready := false.B
+      ll_wdata := io.vector.resp.bits.data
+      ll_waddr := io.vector.resp.bits.rd
+      ll_wen := true.B
+    }
+  }
   when (dmem_resp_replay && dmem_resp_xpu) {
     div.io.resp.ready := false.B
     if (usingRoCC)
       io.rocc.resp.ready := false.B
+    if (usingVector)
+      io.vector.resp.ready := false.B
     ll_waddr := dmem_resp_waddr
     ll_wen := true.B
   }
@@ -867,7 +882,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   sboard.set(wb_set_sboard && wb_wen, wb_waddr)
 
   // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
-  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.mul || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc || ex_scie_pipelined
+  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.mul || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc || ex_ctrl.vector || ex_scie_pipelined
   val data_hazard_ex = ex_ctrl.wxd && checkHazards(hazard_targets, _ === ex_waddr)
   val fp_data_hazard_ex = id_ctrl.fp && ex_ctrl.wfd && checkHazards(fp_hazard_targets, _ === ex_waddr)
   val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)
@@ -876,7 +891,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val mem_mem_cmd_bh =
     if (fastLoadWord) (!fastLoadByte).B && mem_reg_slow_bypass
     else true.B
-  val mem_cannot_bypass = mem_ctrl.csr =/= CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.mul || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc
+  val mem_cannot_bypass = mem_ctrl.csr =/= CSR.N || mem_ctrl.mem && mem_mem_cmd_bh || mem_ctrl.mul || mem_ctrl.div || mem_ctrl.fp || mem_ctrl.rocc || mem_ctrl.vector
   val data_hazard_mem = mem_ctrl.wxd && checkHazards(hazard_targets, _ === mem_waddr)
   val fp_data_hazard_mem = id_ctrl.fp && mem_ctrl.wfd && checkHazards(fp_hazard_targets, _ === mem_waddr)
   val id_mem_hazard = mem_reg_valid && (data_hazard_mem && mem_cannot_bypass || fp_data_hazard_mem)
@@ -906,9 +921,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
   val vector_busy = Wire(Bool())
   val vector_csr_blocked = vector_busy ||
-    ex_reg_valid && ex_ctrl.rocc ||
-    mem_reg_valid && mem_ctrl.rocc ||
-    wb_reg_valid && wb_ctrl.rocc
+    ex_reg_valid && ex_ctrl.vector ||
+    mem_reg_valid && mem_ctrl.vector ||
+    wb_reg_valid && wb_ctrl.vector
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
@@ -1003,21 +1018,30 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.inst := wb_reg_inst.asTypeOf(new RoCCInstruction())
   io.rocc.cmd.bits.rs1 := wb_reg_wdata
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
+
+  io.vector.cmd.valid := wb_reg_valid && wb_ctrl.vector && !replay_wb_common
+  //io.vector.exception := wb_xcpt && csr.io.status.vs.orR
+  io.vector.cmd.bits.inst := wb_reg_inst
+  io.vector.cmd.bits.rs1 := wb_reg_wdata
+  io.vector.cmd.bits.rs2 := wb_reg_rs2
   if (usingVector) {
-    io.rocc.cmd.bits.vector.vconfig := csr.io.vector.get.vconfig
-    io.rocc.cmd.bits.vector.vstart := csr.io.vector.get.vstart
-    io.rocc.cmd.bits.vector.vxrm := csr.io.vector.get.vxrm
-    csr.io.vector.get.set_vxsat := io.rocc.resp.valid && io.rocc.resp.bits.vector.vxsat
+    io.vector.cmd.bits.vconfig := csr.io.vector.get.vconfig
+    io.vector.cmd.bits.vstart := csr.io.vector.get.vstart
+    io.vector.cmd.bits.vxrm := csr.io.vector.get.vxrm
+    csr.io.vector.get.set_vxsat := io.vector.resp.valid && io.vector.resp.bits.vxsat
   } else {
-    io.rocc.cmd.bits.vector := 0.U
+    io.vector.cmd.bits.vconfig := 0.U
+    io.vector.cmd.bits.vstart := 0.U
+    io.vector.cmd.bits.vxrm := 0.U
   }
-  val vector_mem_cmd = io.rocc.cmd.fire && wb_ctrl.rocc_mem // FIXME
-  val vector_mem_resp = io.rocc.resp.fire && io.rocc.resp.bits.vector.mem
+
+  val vector_mem_cmd = io.vector.cmd.fire && wb_ctrl.vmem
+  val vector_mem_resp = io.vector.resp.fire && io.vector.resp.bits.mem
   // counter for counting whether there is vector mem in flight
   val vector_mem = RegInit(0.U(8.W))
   // busy when vector_mem in flight or in wb
   vector_mem_busy := vector_mem.orR || // not equal to 0.U
-    wb_reg_valid && wb_ctrl.rocc_mem
+    wb_reg_valid && wb_ctrl.vmem
   vector_mem := Mux1H(Seq(
     (vector_mem_cmd && vector_mem_resp) -> vector_mem,
     (!vector_mem_cmd && !vector_mem_resp) -> vector_mem,
@@ -1025,8 +1049,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (vector_mem_cmd && !vector_mem_resp) -> (vector_mem + 1.U),
     ))
 
-  val vector_cmd = io.rocc.cmd.fire
-  val vector_resp = io.rocc.resp.fire
+  val vector_cmd = io.vector.cmd.fire
+  val vector_resp = io.vector.resp.fire
   // counter for counting whether there is vector mem in flight
   val vector_counter = RegInit(0.U(8.W)) // FIXME
   vector_busy := vector_counter.orR // not equal to 0.U
