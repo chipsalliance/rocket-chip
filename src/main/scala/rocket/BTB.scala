@@ -202,7 +202,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val tgts = Reg(Vec(entries, UInt((matchBits - log2Up(coreInstBytes)).W)))
   val tgtPages = Reg(Vec(entries, UInt(log2Up(nPages).W)))
   val pages = Reg(Vec(nPages, UInt((vaddrBits - matchBits).W)))
-  val pageValid = RegInit(init = 0.U(nPages.W))
+  val pageValid = RegInit(0.U(nPages.W))
   val pagesMasked = (pageValid.asBools zip pages).map { case (v, p) => Mux(v, p, 0.U) }
 
   val isValid = RegInit(0.U(entries.W))

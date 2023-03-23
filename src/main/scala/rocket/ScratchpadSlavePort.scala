@@ -4,7 +4,6 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import chisel3.util.ImplicitConversions._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -85,11 +84,11 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       }
 
       req.size := a.size
-      req.signed := false
+      req.signed := false.B
       req.addr := a.address
       req.tag := 0.U
-      req.phys := true
-      req.no_xcpt := true
+      req.phys := true.B
+      req.no_xcpt := true.B
       req.data := 0.U
       req.no_alloc := false.B
       req.mask := 0.U
@@ -112,7 +111,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     io.dmem.s1_data.data := acq.data
     io.dmem.s1_data.mask := acq.mask
     io.dmem.s1_kill := state =/= s_wait1
-    io.dmem.s2_kill := false
+    io.dmem.s2_kill := false.B
 
     tl_in.d.valid := io.dmem.resp.valid || state === s_grant
     tl_in.d.bits := Mux(acq.opcode.isOneOf(TLMessages.PutFullData, TLMessages.PutPartialData),

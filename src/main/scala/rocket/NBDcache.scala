@@ -5,7 +5,6 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import chisel3.util.ImplicitConversions._
 import chisel3.experimental.dataview._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tilelink._
@@ -198,7 +197,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   rpq.io.deq.ready := (io.replay.ready && state === s_drain_rpq) || state === s_invalid
 
   val acked = Reg(Bool())
-  when (io.mem_grant.valid) { acked := true }
+  when (io.mem_grant.valid) { acked := true.B }
 
   when (state === s_drain_rpq && !rpq.io.deq.valid) {
     state := s_invalid
@@ -237,7 +236,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   }
   when (io.req_pri_val && io.req_pri_rdy) {
     req := io.req_bits
-    acked := false
+    acked := false.B
     val old_coh = io.req_bits.old_meta.coh
     val needs_wb = old_coh.onCacheControl(M_FLUSH)._1
     val (is_hit, _, coh_on_hit) = old_coh.onAccess(io.req_bits.cmd)
@@ -271,9 +270,9 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   io.req_sec_rdy := sec_rdy && rpq.io.enq.ready
 
   val meta_hazard = RegInit(0.U(2.W))
-  when (meta_hazard =/= 0.U) { meta_hazard := meta_hazard + 1 }
-  when (io.meta_write.fire) { meta_hazard := 1 }
-  io.probe_rdy := !idx_match || (!state.isOneOf(states_before_refill) && meta_hazard === 0) 
+  when (meta_hazard =/= 0.U) { meta_hazard := meta_hazard + 1.U }
+  when (io.meta_write.fire) { meta_hazard := 1.U }
+  io.probe_rdy := !idx_match || (!state.isOneOf(states_before_refill) && meta_hazard === 0.U)
 
   io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
@@ -294,7 +293,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   io.mem_acquire.bits := edge.AcquireBlock(
                                 fromSource = id.U,
                                 toAddress = Cat(io.tag, req_idx) << blockOffBits,
-                                lgSize = lgCacheBlockBytes,
+                                lgSize = lgCacheBlockBytes.U,
                                 growPermissions = grow_param)._2
 
   io.meta_read.valid := state === s_drain_rpq
@@ -335,7 +334,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
   })
 
   // determine if the request is cacheable or not
-  val cacheable = edge.manager.supportsAcquireBFast(io.req.bits.addr, lgCacheBlockBytes)
+  val cacheable = edge.manager.supportsAcquireBFast(io.req.bits.addr, lgCacheBlockBytes.U)
 
   val sdq_val = RegInit(0.U(cfg.nSDQ.W))
   val sdq_alloc_id = PriorityEncoder(~sdq_val(cfg.nSDQ-1,0))
@@ -361,8 +360,8 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
   var pri_rdy = false.B
   var sec_rdy = false.B
 
-  io.fence_rdy := true
-  io.probe_rdy := true
+  io.fence_rdy := true.B
+  io.probe_rdy := true.B
 
   val mshrs = (0 until cfg.nMSHRs) map { i =>
     val mshr = Module(new MSHR(i))
@@ -394,8 +393,8 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     sec_rdy = sec_rdy || mshr.io.req_sec_rdy
     idx_match = idx_match || mshr.io.idx_match
 
-    when (!mshr.io.req_pri_rdy) { io.fence_rdy := false }
-    when (!mshr.io.probe_rdy) { io.probe_rdy := false }
+    when (!mshr.io.req_pri_rdy) { io.fence_rdy := false.B }
+    when (!mshr.io.probe_rdy) { io.probe_rdy := false.B }
 
     mshr
   }
@@ -474,20 +473,20 @@ class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   val data_req_cnt = RegInit(0.U(log2Up(refillCycles+1).W)) //TODO Zero width
   val (_, last_beat, all_beats_done, beat_count) = edge.count(io.release)
 
-  io.release.valid := false
+  io.release.valid := false.B
   when (active) {
-    r1_data_req_fired := false
+    r1_data_req_fired := false.B
     r2_data_req_fired := r1_data_req_fired
     when (io.data_req.fire && io.meta_read.fire) {
-      r1_data_req_fired := true
-      data_req_cnt := data_req_cnt + 1
+      r1_data_req_fired := true.B
+      data_req_cnt := data_req_cnt + 1.U
     }
     when (r2_data_req_fired) {
-      io.release.valid := true
+      io.release.valid := true.B
       when(!io.release.ready) {
-        r1_data_req_fired := false
-        r2_data_req_fired := false
-        data_req_cnt := data_req_cnt - Mux[UInt]((refillCycles > 1).B && r1_data_req_fired, 2, 1)
+        r1_data_req_fired := false.B
+        r2_data_req_fired := false.B
+        data_req_cnt := data_req_cnt - Mux[UInt]((refillCycles > 1).B && r1_data_req_fired, 2.U, 1.U)
       }
       when(!r1_data_req_fired) {
         // We're done if this is the final data request and the Release can be sent
@@ -496,8 +495,8 @@ class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
     }
   }
   when (io.req.fire) {
-    active := true
-    data_req_cnt := 0
+    active := true.B
+    data_req_cnt := 0.U
     req := io.req.bits
   }
 
@@ -521,14 +520,14 @@ class WritebackUnit(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   val probeResponse = edge.ProbeAck(
                           fromSource = req.source,
                           toAddress = r_address,
-                          lgSize = lgCacheBlockBytes,
+                          lgSize = lgCacheBlockBytes.U,
                           reportPermissions = req.param,
                           data = io.data_resp)
 
   val voluntaryRelease = edge.Release(
                           fromSource = req.source,
                           toAddress = r_address,
-                          lgSize = lgCacheBlockBytes,
+                          lgSize = lgCacheBlockBytes.U,
                           shrinkPermissions = req.param,
                           data = io.data_resp)._2
                           
@@ -755,7 +754,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   dtlb.io.sfence.bits.addr := s1_req.addr
   dtlb.io.sfence.bits.asid := io.cpu.s1_data.data
   dtlb.io.sfence.bits.hv := s1_req.cmd === M_HFENCEV
-  dtlb.io.sfence.bits.hg := s1_req.cmd == M_HFENCEG
+  dtlb.io.sfence.bits.hg := s1_req.cmd === M_HFENCEG
 
   when (io.cpu.req.valid) {
     s1_req := io.cpu.req.bits
@@ -843,23 +842,23 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // load-reserved/store-conditional
   val lrsc_count = RegInit(0.U)
-  val lrsc_valid = lrsc_count > lrscBackoff
+  val lrsc_valid = lrsc_count > lrscBackoff.U
   val lrsc_addr = Reg(UInt())
   val (s2_lr, s2_sc) = (s2_req.cmd === M_XLR, s2_req.cmd === M_XSC)
   val s2_lrsc_addr_match = lrsc_valid && lrsc_addr === (s2_req.addr >> blockOffBits)
   val s2_sc_fail = s2_sc && !s2_lrsc_addr_match
-  when (lrsc_count > 0) { lrsc_count := lrsc_count - 1 }
+  when (lrsc_count > 0.U) { lrsc_count := lrsc_count - 1.U }
   when (s2_valid_masked && s2_hit || s2_replay) {
     when (s2_lr) {
-      lrsc_count := lrscCycles - 1
+      lrsc_count := lrscCycles.U - 1.U
       lrsc_addr := s2_req.addr >> blockOffBits
     }
-    when (lrsc_count > 0) {
-      lrsc_count := 0
+    when (lrsc_count > 0.U) {
+      lrsc_count := 0.U
     }
   }
   when (s2_valid_masked && !(s2_tag_match && s2_has_permission) && s2_lrsc_addr_match) {
-    lrsc_count := 0
+    lrsc_count := 0.U
   }
 
   val s2_data = Wire(Vec(nWays, Bits(encRowBits.W)))
@@ -968,10 +967,10 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_store_bypass_data = Reg(Bits(coreDataBits.W))
   val s2_store_bypass = Reg(Bool())
   when (s1_clk_en) {
-    s2_store_bypass := false
+    s2_store_bypass := false.B
     when (bypasses.map(_._1).reduce(_||_)) {
       s2_store_bypass_data := PriorityMux(bypasses)
-      s2_store_bypass := true
+      s2_store_bypass := true.B
     }
   }
 
@@ -1049,5 +1048,5 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.perf.tlbMiss := io.ptw.req.fire
 
   // no clock-gating support
-  io.cpu.clock_enabled := true
+  io.cpu.clock_enabled := true.B
 }
