@@ -314,6 +314,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
     when (recv_beat === cacheDataBeats.U) {
       addr := next_addr
       state := Mux(zero_found || finished, s_resp, s_acq)
+      recv_beat := 0.U
     } .otherwise {
       state := s_gnt
     }
