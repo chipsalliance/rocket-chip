@@ -87,3 +87,11 @@ case class IntSyncSinkNode(sync: Int)(implicit valName: ValName)
 {
   override lazy val nodedebugstring = s"sync:${sync}"
 }
+
+case class IntSyncNexusNode(
+  sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
+  sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
+  inputRequiresOutput: Boolean = true,
+  outputRequiresInput: Boolean = true)(
+  implicit valName: ValName)
+  extends NexusNode(IntSyncImp)(sourceFn, sinkFn, inputRequiresOutput, outputRequiresInput) with IntFormatNode
