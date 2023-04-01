@@ -205,15 +205,15 @@ trait HasTileInputConstants extends InstantiatesTiles { this: BaseSubsystem =>
   * They need to be instantiated before tiles are attached to the subsystem containing them.
   */
 trait HasTileNotificationSinks { this: LazyModule =>
-  val tileHaltXbarNode = IntXbar(p)
+  val tileHaltXbarNode = IntXbar()
   val tileHaltSinkNode = IntSinkNode(IntSinkPortSimple())
   tileHaltSinkNode := tileHaltXbarNode
 
-  val tileWFIXbarNode = IntXbar(p)
+  val tileWFIXbarNode = IntXbar()
   val tileWFISinkNode = IntSinkNode(IntSinkPortSimple())
   tileWFISinkNode := tileWFIXbarNode
 
-  val tileCeaseXbarNode = IntXbar(p)
+  val tileCeaseXbarNode = IntXbar()
   val tileCeaseSinkNode = IntSinkNode(IntSinkPortSimple())
   tileCeaseSinkNode := tileCeaseXbarNode
 }
