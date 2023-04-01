@@ -14,7 +14,7 @@ import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters, ClockSinkNode}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts.{NullIntSyncSource}
+import freechips.rocketchip.interrupts.{NullIntSyncSource, IntSyncXbar}
 
 /** Protocols used for communicating with external debugging tools */
 sealed trait DebugExportProtocol
@@ -99,7 +99,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     tlDM
   }
 
-  lazy val debugNode = debugOpt.map(_.intnode).getOrElse(NullIntSyncSource())
+  lazy val debugNode = debugOpt.map(_.intnode).getOrElse(IntSyncXbar() := NullIntSyncSource())
 
   val psd = InModuleBody {
     val psd = IO(new PSDIO)
