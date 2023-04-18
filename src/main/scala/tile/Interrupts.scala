@@ -29,7 +29,7 @@ class TileInterrupts(implicit p: Parameters) extends CoreBundle()(p) {
 trait SinksExternalInterrupts { this: BaseTile =>
 
   val intInwardNode = intXbar.intnode :=* IntIdentityNode()(ValName("int_local"))
-  protected val intSinkNode = IntSinkNode(IntSinkPortSimple())
+  val intSinkNode = IntSinkNode(IntSinkPortSimple())
   intSinkNode := intXbar.intnode
 
   def cpuDevice: Device
