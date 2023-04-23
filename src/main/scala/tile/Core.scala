@@ -29,6 +29,7 @@ trait CoreParams {
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
   val useRVE: Boolean
+  val useConditionalZero: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
