@@ -92,6 +92,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingCryptoNIST = coreParams.useCryptoNIST
   val usingCryptoSM = coreParams.useCryptoSM
   val usingNMI = coreParams.useNMI
+  val usingConditionalZero = coreParams.useConditionalZero
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth

@@ -163,9 +163,9 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
               Mux(io.fn === aluFn.FN_SL,                           shout_l, 0.U)
 
   // CZEQZ, CZNEZ
-  val cond_out = Option.when(coreParams.useConditionalZero)(
-    Mux(io.fn === aluFn.FN_CZEQZ && io.in2 =/= 0.U, io.in1, 0.U) |
-    Mux(io.fn === aluFn.FN_CZNEZ && io.in2 === 0.U, io.in1, 0.U)
+  val in2_not_zero = io.in2.orR
+  val cond_out = Option.when(usingConditionalZero)(
+    Mux((io.fn === aluFn.FN_CZEQZ && in2_not_zero) || (io.fn === aluFn.FN_CZNEZ && !in2_not_zero), io.in1, 0.U)
   )
 
   // AND, OR, XOR
