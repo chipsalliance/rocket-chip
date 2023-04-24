@@ -5,7 +5,7 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.dontTouch
 import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINTConsts, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, MTIMERConsts, SWIConsts, CLINTKey, PLICKey, CanHavePeripheryPLIC, CanHavePeripheryCLINT}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile._
@@ -296,10 +296,22 @@ trait CanAttachTile {
     // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
     //    so might need to be synchronized depending on the Tile's crossing type.
 
-    //    From CLINT: "msip" and "mtip"
-    domain.crossIntIn(crossingParams.crossingType) :=
-      context.clintOpt.map { _.intnode }
-        .getOrElse { NullIntSource(sources = CLINTConsts.ints) }
+    //    From ACLINT: "msip" and "mtip"
+    val clintParams = p(CLINTKey).map { params =>
+      if (params.isACLINT) {
+        domain.crossIntIn(crossingParams.crossingType) :=
+          context.mswiOpt.map { _.intnode }
+            .getOrElse { NullIntSource(sources = SWIConsts.ints) }
+
+        domain.crossIntIn(crossingParams.crossingType) :=
+          context.mtimerOpt.map { _.intnode }
+            .getOrElse { NullIntSource(sources = MTIMERConsts.ints) }
+      } else {
+        domain.crossIntIn(crossingParams.crossingType) := 
+          context.mswiOpt.map { _.intnode }
+            .getOrElse { NullIntSource(sources = SWIConsts.ints + MTIMERConsts.ints) }
+      }
+    }
 
     //    From PLIC: "meip"
     domain.crossIntIn(crossingParams.crossingType) :=
