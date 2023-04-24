@@ -171,11 +171,13 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   // AND, OR, XOR
   val logic = Mux(io.fn === aluFn.FN_XOR || io.fn === aluFn.FN_OR, in1_xor_in2, 0.U) |
               Mux(io.fn === aluFn.FN_OR || io.fn === aluFn.FN_AND, io.in1 & io.in2, 0.U)
-  val shift_logic = cond_out match {
-    case Some(co) => (aluFn.isCmp (io.fn) && slt) | logic | shout | co
-    case _ => (aluFn.isCmp (io.fn) && slt) | logic | shout
+
+  val shift_logic = (aluFn.isCmp (io.fn) && slt) | logic | shout
+  val shift_logic_cond = cond_out match {
+    case Some(co) => shift_logic | co
+    case _ => shift_logic 
   }
-  val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic)
+  val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic_cond)
 
   io.out := out
   if (xLen > 32) {
