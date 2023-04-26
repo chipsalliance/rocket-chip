@@ -891,7 +891,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   when (metaArb.io.in(4).fire()) { release_state := s_ready }
 
   // cached response
-  io.cpu.resp.bits <> s2_req
+  (io.cpu.resp.bits: Data).waiveAll :<>= (s2_req: Data).waiveAll
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false.B
   io.cpu.s2_uncached := s2_uncached && !s2_hit
@@ -1176,7 +1176,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   def probeIdx(b: TLBundleB): UInt = b.address(idxMSB, idxLSB)
   def addressToProbe(vaddr: UInt, paddr: UInt): TLBundleB = {
     val res = Wire(new TLBundleB(edge.bundle))
-    res <> DontCare
+    res :#= DontCare
     res.address := paddr
     res.source := (mmioOffset - 1).U
     res

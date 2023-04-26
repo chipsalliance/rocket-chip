@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 

@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 import chisel3.Record
 import chisel3.reflect.DataMirror.internal.chiselTypeClone
 import scala.collection.immutable.ListMap

@@ -109,14 +109,14 @@ trait HasNonDiplomaticTileParameters {
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
-      //Some(Seq("Zicntr")) ++
-      Some(Seq("Zicsr", "Zifencei", "Zihpm")) ++
-      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("Zfh")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("Zba", "Zbb", "Zbc")) ++
-      Option.when(tileParams.core.hasBitManipCrypto)(Seq("Zbkb", "Zbkc", "Zbkx")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("Zbs")) ++
-      Option.when(tileParams.core.useCryptoNIST)(Seq("Zknd", "Zkne", "Zknh")) ++
-      Option.when(tileParams.core.useCryptoSM)(Seq("Zksed", "Zksh")) ++
+      //Some(Seq("zicntr")) ++
+      Some(Seq("zicsr", "zifencei", "zihpm")) ++
+      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
+      Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
+      Option.when(tileParams.core.hasBitManipCrypto)(Seq("zbkb", "zbkc", "zbkx")) ++
+      Option.when(tileParams.core.useBitManip)(Seq("zbs")) ++
+      Option.when(tileParams.core.useCryptoNIST)(Seq("zknd", "zkne", "zknh")) ++
+      Option.when(tileParams.core.useCryptoSM)(Seq("zksed", "zksh")) ++
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten

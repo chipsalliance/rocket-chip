@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 
 @deprecated("GenericParameterizedBundle is useless anymore after autoclonetype2 is on.", "Rocket Chip 2021.04")
 abstract class GenericParameterizedBundle[+T <: Object](val params: T) extends Bundle
