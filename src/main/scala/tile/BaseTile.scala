@@ -117,6 +117,7 @@ trait HasNonDiplomaticTileParameters {
       Option.when(tileParams.core.useBitManip)(Seq("Zbs")) ++
       Option.when(tileParams.core.useCryptoNIST)(Seq("Zknd", "Zkne", "Zknh")) ++
       Option.when(tileParams.core.useCryptoSM)(Seq("Zksed", "Zksh")) ++
+      Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
