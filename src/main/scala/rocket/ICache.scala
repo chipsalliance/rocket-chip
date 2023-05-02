@@ -12,7 +12,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.dontTouch
 import chisel3.util.random.LFSR
 

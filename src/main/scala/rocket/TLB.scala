@@ -14,7 +14,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import freechips.rocketchip.devices.debug.DebugModuleKey
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)

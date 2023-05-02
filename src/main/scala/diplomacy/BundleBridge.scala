@@ -3,7 +3,7 @@
 package freechips.rocketchip.diplomacy
 
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.experimental.{DataMirror,IO}
 import chisel3.experimental.DataMirror.internal.chiselTypeClone
 import org.chipsalliance.cde.config.Parameters

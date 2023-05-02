@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
