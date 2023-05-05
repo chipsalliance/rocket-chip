@@ -12,6 +12,7 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import freechips.rocketchip.scie._
 import scala.collection.mutable.ArrayBuffer
+import CustomInstructions._
 
 case class RocketCoreParams(
   bootFreqHz: BigInt = 0,
@@ -178,38 +179,260 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
 
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
-  val decode_table = {
-    require(!usingRoCC || !rocketParams.useSCIE)
-    (if (usingMulDiv) new MDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new M64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
-    (if (usingAtomics) new ADecode(aluFn) +: (xLen > 32).option(new A64Decode(aluFn)).toSeq else Nil) ++:
-    (if (fLen >= 32)    new FDecode(aluFn) +: (xLen > 32).option(new F64Decode(aluFn)).toSeq else Nil) ++:
-    (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
-    (if (minFLen == 16) new HDecode(aluFn) +: (xLen > 32).option(new H64Decode(aluFn)).toSeq ++: (fLen >= 64).option(new HDDecode(aluFn)).toSeq else Nil) ++:
-    (usingRoCC.option(new RoCCDecode(aluFn))) ++:
-    (rocketParams.useSCIE.option(new SCIEDecode(aluFn))) ++:
-    (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: (xLen == 32).option(new ZBS32Decode).toSeq ++: (xLen == 64).option(new ZBS64Decode).toSeq ++: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
-    (if (usingBitManip && !usingBitManipCrypto) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
-    (if (usingBitManip || usingBitManipCrypto) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 32).option(new ZBBR32Decode).toSeq ++: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
-    (if (usingBitManipCrypto) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
-    (usingCryptoSM.option(new ZKSDecode)) ++:
-    (if (xLen == 32) new I32Decode(aluFn) else new I64Decode(aluFn)) +:
-    (usingVM.option(new SVMDecode(aluFn))) ++:
-    (usingSupervisor.option(new SDecode(aluFn))) ++:
-    (usingHypervisor.option(new HypervisorDecode(aluFn))) ++:
-    ((usingHypervisor && (xLen == 64)).option(new Hypervisor64Decode(aluFn))) ++:
-    (usingDebug.option(new DebugDecode(aluFn))) ++:
-    (usingNMI.option(new NMIDecode(aluFn))) ++:
-    Seq(new FenceIDecode(tile.dcache.flushOnFenceI, aluFn)) ++:
-    coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine, aluFn)) ++:
-    Seq(new IDecode(aluFn))
-  } flatMap(_.table)
+  
+  require(!usingRoCC || !rocketParams.useSCIE)
+  var decode_table_var = InstructionType.IType
+  if(xLen != 32) {
+    decode_table_var = decode_table_var ++ InstructionType.I64Type
+  }
+  if(usingMulDiv) {
+    decode_table_var = decode_table_var ++ InstructionType.MType
+    if (xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.M64Type
+    }
+  }
+  if(usingAtomics) {
+    decode_table_var = decode_table_var ++ InstructionType.AType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++InstructionType.A64Type
+    }
+  }
+  if(fLen >= 32) {
+    decode_table_var = decode_table_var ++ InstructionType.FType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.F64Type
+    }
+  }
+  if(fLen >= 64) {
+    decode_table_var = decode_table_var ++ InstructionType.DType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.D64Type
+    }
+  }
+  if(minFLen == 16) {
+    decode_table_var = decode_table_var ++ InstructionType.ZFHType
+    if(xLen > 32) {
+      decode_table_var = decode_table_var ++ InstructionType.ZFH64Type
+    }
+    if(fLen >= 64) {
+      decode_table_var = decode_table_var ++ InstructionType.D_ZFHType
+    }
+  }
+  if(rocketParams.useSCIE) {
+    decode_table_var = decode_table_var ++ Map("SCIE.opcode" -> SCIE.opcode)
+  }
+  if(usingRoCC) {
+    decode_table_var = decode_table_var ++ CustomInstructions.customInstructionsType
+  }
+  if(usingVM) {
+    decode_table_var = decode_table_var ++ Map("SFENCE_VMA" -> InstructionType.SType("SFENCE_VMA"))
+  }
+  if(usingSupervisor) {
+    decode_table_var = decode_table_var ++ Map("SRET" -> InstructionType.SType("SRET"))
+  }  
+  if(usingHypervisor) {
+    decode_table_var = decode_table_var ++ InstructionType.HType
+    if(xLen == 64) {
+      decode_table_var = decode_table_var ++ InstructionType.H64Type
+    }
+  }
+  if(usingDebug) {
+    decode_table_var = decode_table_var ++ Map("DRET" -> InstructionType.SYSTEMType("DRET"))
+  }
+  if(usingNMI) {
+    decode_table_var = decode_table_var ++ Map("MNRET" -> CustomInstructions.MNRET)
+  }
+  decode_table_var = decode_table_var ++ InstructionType.ZIFENCEIType // FenceI
+  if(coreParams.haveCFlush) {
+    decode_table_var = decode_table_var ++ Map(
+      "CFLUSH_D_L1" -> CustomInstructions.CFLUSH_D_L1,
+      "CDISCARD_D_L1" -> CustomInstructions.CDISCARD_D_L1,
+    )
+  }
+  if(usingBitManip) {
+    // ZBADecode
+    decode_table_var = decode_table_var ++ InstructionType.ZBAType
+    if(xLen == 64) {
+      // ZBA64Decode
+      decode_table_var = decode_table_var ++ InstructionType.ZBA64Type
+      // ZBS64Decode
+      decode_table_var = decode_table_var ++ InstructionType.ZBS64Type
+      // ZBBC64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "CLZW"             -> InstructionType.ZBB64Type("CLZW"),
+        "CPOPW"            -> InstructionType.ZBB64Type("CPOPW"),
+        "CTZW"             -> InstructionType.ZBB64Type("CTZW"),
+      )
+    }
+    // ZBBMDecode
+    decode_table_var = decode_table_var ++ Map(
+      "MAX"              -> InstructionType.ZBBType("MAX"),
+      "MAXU"             -> InstructionType.ZBBType("MAXU"),
+      "MIN"              -> InstructionType.ZBBType("MIN"),
+      "MINU"             -> InstructionType.ZBBType("MINU"),
+    )
+    // ZBBORCBDecode
+    decode_table_var = decode_table_var ++ Map(
+      "ORC_B"            -> InstructionType.ZBBType("ORC_B"),
+    )
+    // ZBCRDecode
+    decode_table_var = decode_table_var ++ InstructionType.ZBCType
+    // ZBSDecode
+    decode_table_var = decode_table_var ++ InstructionType.ZBSType
+    if(xLen == 32) {
+      // ZBS32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.BEXTI"              -> Instructions32.BEXTI,
+        "Instructions32.BCLRI"              -> Instructions32.BCLRI,
+        "Instructions32.BINVI"              -> Instructions32.BINVI,
+        "Instructions32.BSETI"              -> Instructions32.BSETI,
+      )
+    }
+    // ZBBSEDecode
+    decode_table_var = decode_table_var ++ Map(
+      "SEXT_B"           -> InstructionType.ZBBType("SEXT_B"),
+      "SEXT_H"           -> InstructionType.ZBBType("SEXT_H"),
+    )
+    // ZBBCDecode
+    decode_table_var = decode_table_var ++ Map(
+      "CLZ"              -> InstructionType.ZBBType("CLZ"),
+      "CTZ"              -> InstructionType.ZBBType("CTZ"),
+      "CPOP"             -> InstructionType.ZBBType("CPOP"),
+    )
+  }
+  if (usingBitManip && !usingBitManipCrypto) {
+    if(xLen == 32) {
+      // ZBBZE32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.ZEXT_H" -> Instructions32.ZEXT_H,
+      )
+    }
+    if(xLen == 64) {
+      // ZBBZE64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "ZEXT_H"           -> InstructionType.ZBB64Type("ZEXT_H"),
+      )
+    }
+  }
+  if (usingBitManip || usingBitManipCrypto) {
+    // ZBBNDecode
+    decode_table_var = decode_table_var ++ Map(
+      "ANDN"             -> InstructionType.ZBKBType("ANDN"),
+      "ORN"              -> InstructionType.ZBKBType("ORN"),
+      "XNOR"             -> InstructionType.ZBKBType("XNOR"),
+    )
+    // ZBCDecode
+    decode_table_var = decode_table_var ++ InstructionType.ZBKCType
+    // ZBBRDecode
+    decode_table_var = decode_table_var ++ Map(
+      "ROL"              -> InstructionType.ZBKBType("ROL"),
+      "ROR"              -> InstructionType.ZBKBType("ROR"),
+    )
+    if(xLen == 32) {
+      // ZBBR32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.RORI" -> Instructions32.RORI,
+      )
+      // ZBBREV832Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.REV8" -> Instructions32.REV8,
+      )
+    }
+    if(xLen == 64) {
+      // ZBBR64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "ROLW"             -> InstructionType.ZBKB64Type("ROLW"),
+        "RORI"             -> InstructionType.ZBKB64Type("RORI"),
+        "RORIW"            -> InstructionType.ZBKB64Type("RORIW"),
+        "RORW"             -> InstructionType.ZBKB64Type("RORW"),
+      )
+      // ZBBREV864Decode
+      decode_table_var = decode_table_var ++ InstructionType.ZKS64Type
+    }
+  }
+  if (usingBitManipCrypto) {
+    // ZBKXDecode
+    decode_table_var = decode_table_var ++ InstructionType.ZBKXType
+    // ZBKBDecode
+    decode_table_var = decode_table_var ++ Map(
+      "PACK"             -> InstructionType.ZBKBType("PACK"),
+      "PACKH"            -> InstructionType.ZBKBType("PACKH"),
+      "BREV8"            -> InstructionType.ZKSType("BREV8"),
+    )
+    if(xLen == 32) {
+      // ZBKB32Decode 
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.UNZIP"  -> Instructions32.UNZIP,
+        "Instructions32.ZIP"    -> Instructions32.ZIP,
+      )
+    }
+    if(xLen == 64) {
+      // ZBKB64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "PACKW"            -> InstructionType.ZBKB64Type("PACKW"),
+      )
+    }
+  }
+  if (usingCryptoNIST) {
+    if(xLen == 32) {
+      // ZKND32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.AES32DSI"  -> Instructions32.AES32DSI,
+        "Instructions32.AES32DSMI" ->Instructions32.AES32DSMI,
+      )
+      // ZKNE32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.AES32ESI"  -> Instructions32.AES32ESI,
+        "Instructions32.AES32ESMI" -> Instructions32.AES32ESMI,
+      )
+      // ZKNH32Decode
+      decode_table_var = decode_table_var ++ Map(
+        "Instructions32.SHA512SIG0L" -> Instructions32.SHA512SIG0L,
+        "Instructions32.SHA512SIG1L" -> Instructions32.SHA512SIG1L,
+        "Instructions32.SHA512SIG0H" -> Instructions32.SHA512SIG0H,
+        "Instructions32.SHA512SIG1H" -> Instructions32.SHA512SIG1H,
+        "Instructions32.SHA512SUM0R" -> Instructions32.SHA512SUM0R,
+        "Instructions32.SHA512SUM1R" ->Instructions32.SHA512SUM1R 
+      )
+    }
+    if(xLen == 64) {
+      // ZKND64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "AES64DS"          -> InstructionType.ZK64Type("AES64DS"),
+        "AES64DSM"         -> InstructionType.ZK64Type("AES64DSM"),
+        "AES64IM"          -> InstructionType.ZK64Type("AES64IM"),
+        "AES64KS1I"        -> InstructionType.ZK64Type("AES64KS1I"),
+        "AES64KS2"         -> InstructionType.ZK64Type("AES64KS2"),
+      )
+      // ZKNE64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "AES64ES"          -> InstructionType.ZK64Type("AES64ES"),
+        "AES64ESM"         -> InstructionType.ZK64Type("AES64ESM"),
+      )
+      // ZKNH64Decode
+      decode_table_var = decode_table_var ++ Map(
+        "SHA512SIG0"       -> InstructionType.ZK64Type("SHA512SIG0"),
+        "SHA512SIG1"       -> InstructionType.ZK64Type("SHA512SIG1"),
+        "SHA512SUM0"       -> InstructionType.ZK64Type("SHA512SUM0"),
+        "SHA512SUM1"       -> InstructionType.ZK64Type("SHA512SUM1"),
+      )
+    }
+    // ZKNHDecode
+    decode_table_var = decode_table_var ++ InstructionType.ZKType
+    // ZKSDecode
+    decode_table_var = decode_table_var ++ Map(
+      "SM3P0"            -> InstructionType.ZKSType("SM3P0"),
+      "SM3P1"            -> InstructionType.ZKSType("SM3P1"),
+      "SM4ED"            -> InstructionType.ZKSType("SM4ED"),
+      "SM4KS"            -> InstructionType.ZKSType("SM4KS"),
+    )
+  }
+  val decode_table = decode_table_var.toSeq.map {case(_, i) => Op(i)}
 
-  val ex_ctrl = Reg(new IntCtrlSigs(aluFn))
-  val mem_ctrl = Reg(new IntCtrlSigs(aluFn))
-  val wb_ctrl = Reg(new IntCtrlSigs(aluFn))
+
+  val ex_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table))
+  val mem_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table))
+  val wb_ctrl = Reg(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table))
 
   val ex_reg_xcpt_interrupt  = Reg(Bool())
   val ex_reg_valid           = Reg(Bool())
@@ -286,7 +509,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   require(decodeWidth == 1 /* TODO */ && retireWidth == decodeWidth)
   require(!(coreParams.useRVE && coreParams.fpu.nonEmpty), "Can't select both RVE and floating-point")
   require(!(coreParams.useRVE && coreParams.useHypervisor), "Can't select both RVE and Hypervisor")
-  val id_ctrl = Wire(new IntCtrlSigs(aluFn)).decode(id_inst(0), decode_table)
+  val id_ctrl = Wire(new IntCtrlSigs(pipelinedMul, tile.dcache.canSupportCFlushLine, tile.dcache.flushOnFenceI, aluFn, decode_table)).decode(id_inst(0))
   val lgNXRegs = if (coreParams.useRVE) 4 else 5
   val regAddrMask = (1 << lgNXRegs) - 1
 
