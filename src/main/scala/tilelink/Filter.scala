@@ -89,10 +89,14 @@ object TLFilter
   }
 
   // make everything except the intersected address sets visible
-  def mSubtract(except: AddressSet): ManagerFilter = { m =>
-    val filtered = m.address.flatMap(_.subtract(except))
+  def mSubtract(excepts: Seq[AddressSet]): ManagerFilter = { m =>
+    val filtered = excepts.foldLeft(m.address) { (a,e) => a.flatMap(_.subtract(e)) }
     val alignment: BigInt = if (filtered.isEmpty) 0 else filtered.map(_.alignment).min
     transferSizeHelper(m, filtered, alignment)
+  }
+
+  def mSubtract(except: AddressSet): ManagerFilter = { m =>
+    mSubtract(Seq(except))(m)
   }
 
   // adjust supported transfer sizes based on filtered intersection
