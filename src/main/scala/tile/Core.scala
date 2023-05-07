@@ -24,7 +24,7 @@ trait CoreParams {
   val useCompressed: Boolean
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
-  val useVector: Boolean = false
+  val useVector: Boolean
   val useSCIE: Boolean
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
@@ -67,10 +67,8 @@ trait CoreParams {
   def dcacheReqTagBits: Int = 6
 
   def minFLen: Int = 32
-  def vLen: Int = 0
   def sLen: Int = 0
   def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
-  def vMemDataBits: Int = 0
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -101,7 +99,7 @@ trait HasCoreParameters extends HasTileParameters {
   val fetchBytes = coreParams.fetchBytes
   val coreInstBits = coreParams.instBits
   val coreInstBytes = coreInstBits/8
-  val coreDataBits = xLen max fLen max vMemDataBits
+  val coreDataBits = xLen max fLen
   val coreDataBytes = coreDataBits/8
   def coreMaxAddrBits = paddrBits max vaddrBitsExtended
 
@@ -114,16 +112,14 @@ trait HasCoreParameters extends HasTileParameters {
   val customIsaExt = coreParams.customIsaExt
   val traceHasWdata = coreParams.traceHasWdata
 
-  def vLen = coreParams.vLen
+  def vLen = p(VLen)
   def sLen = coreParams.sLen
   def eLen = coreParams.eLen(xLen, fLen)
-  def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
   def maxVLMax = vLen
 
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
-    require(vMemDataBits >= eLen && vLen % vMemDataBits == 0, s"vMemDataBits ($vMemDataBits) must divide vLen ($vLen) and be no less than eLen ($eLen)")
   }
 
   lazy val hartIdLen: Int = p(MaxHartIdBits)
@@ -161,6 +157,7 @@ trait HasCoreIO extends HasTileParameters {
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
+    val vector = new VectorCoreIO().flip
     val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput

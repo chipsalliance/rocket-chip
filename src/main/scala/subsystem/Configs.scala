@@ -337,6 +337,15 @@ class WithHypervisor(hext: Boolean = true) extends Config((site, here, up) => {
   }
 })
 
+class WithVector(vLen: Int, vext: Boolean = true) extends Config((site, here, up) => {
+  case VLen => vLen
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(useVector = vext)))
+    case t => t
+  }
+})
+
 class WithRoccExample extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {
