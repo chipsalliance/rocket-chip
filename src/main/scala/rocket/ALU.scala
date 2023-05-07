@@ -19,6 +19,8 @@ class ALUFN {
   def FN_SR   = 5.U
   def FN_OR   = 6.U
   def FN_AND  = 7.U
+  def FN_CZEQZ = 8.U
+  def FN_CZNEZ = 9.U
   def FN_SUB  = 10.U
   def FN_SRA  = 11.U
   def FN_SLT  = 12.U
@@ -160,11 +162,22 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   val shout = Mux(io.fn === aluFn.FN_SR || io.fn === aluFn.FN_SRA, shout_r, 0.U) |
               Mux(io.fn === aluFn.FN_SL,                           shout_l, 0.U)
 
+  // CZEQZ, CZNEZ
+  val in2_not_zero = io.in2.orR
+  val cond_out = Option.when(usingConditionalZero)(
+    Mux((io.fn === aluFn.FN_CZEQZ && in2_not_zero) || (io.fn === aluFn.FN_CZNEZ && !in2_not_zero), io.in1, 0.U)
+  )
+
   // AND, OR, XOR
   val logic = Mux(io.fn === aluFn.FN_XOR || io.fn === aluFn.FN_OR, in1_xor_in2, 0.U) |
               Mux(io.fn === aluFn.FN_OR || io.fn === aluFn.FN_AND, io.in1 & io.in2, 0.U)
-  val shift_logic = (aluFn.isCmp(io.fn) && slt) | logic | shout
-  val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic)
+
+  val shift_logic = (aluFn.isCmp (io.fn) && slt) | logic | shout
+  val shift_logic_cond = cond_out match {
+    case Some(co) => shift_logic | co
+    case _ => shift_logic 
+  }
+  val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic_cond)
 
   io.out := out
   if (xLen > 32) {

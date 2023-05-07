@@ -29,6 +29,7 @@ case class RocketCoreParams(
   useBitManipCrypto: Boolean = false,
   useCryptoNIST: Boolean = false,
   useCryptoSM: Boolean = false,
+  useConditionalZero: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -82,6 +83,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   require(!fastLoadByte || fastLoadWord)
   require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
+  require(!(usingABLU && usingConditionalZero), "Zicond is not yet implemented in ABLU")
 }
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
@@ -202,6 +204,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     ((usingHypervisor && (xLen == 64)).option(new Hypervisor64Decode(aluFn))) ++:
     (usingDebug.option(new DebugDecode(aluFn))) ++:
     (usingNMI.option(new NMIDecode(aluFn))) ++:
+    (usingConditionalZero.option(new ConditionalZeroDecode(aluFn))) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI, aluFn)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine, aluFn)) ++:
     Seq(new IDecode(aluFn))
