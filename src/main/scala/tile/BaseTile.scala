@@ -110,6 +110,7 @@ trait HasNonDiplomaticTileParameters {
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
       //Some(Seq("zicntr")) ++
+      Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
       Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
