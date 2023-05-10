@@ -64,7 +64,7 @@ object Blockable {
 
   implicit object BlockableTraceBundle extends Blockable[TraceBundle] {
     def blockWhile(enable_blocking: Bool, data: TraceBundle) = {
-      val blocked = Wire(chiselTypeOf(data))
+      val blocked = WireInit(data)
       blocked.insns := implicitly[Blockable[Vec[TracedInstruction]]].blockWhile(enable_blocking, data.insns)
       blocked
     }
