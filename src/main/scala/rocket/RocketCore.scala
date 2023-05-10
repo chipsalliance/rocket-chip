@@ -812,7 +812,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-  io.trace := csr.io.trace
+  io.trace.insns := csr.io.trace
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
     iobpw.valid(0) := wphit
     iobpw.action := bp.control.action

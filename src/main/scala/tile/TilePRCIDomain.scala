@@ -50,13 +50,13 @@ abstract class TilePRCIDomain[T <: BaseTile](
   private val traceSignalName = "trace"
   private val traceCoreSignalName = "tracecore"
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNode: BundleBridgeIdentityNode[Vec[TracedInstruction]] = BundleBridgeNameNode(traceSignalName)
+  val traceNode: BundleBridgeIdentityNode[TraceBundle] = BundleBridgeNameNode(traceSignalName)
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
   val traceCoreNode: BundleBridgeIdentityNode[TraceCoreInterface] = BundleBridgeNameNode(traceCoreSignalName)
 
   /** Function to handle all trace crossings when tile is instantiated inside domains */
   def crossTracesOut(): Unit = this {
-    val traceNexusNode = BundleBridgeBlockDuringReset[Vec[TracedInstruction]](
+    val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
       resetCrossingType = crossingParams.resetCrossingType,
       name = Some(traceSignalName))
     traceNode :*= traceNexusNode := tile.traceNode
