@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.AsyncBundle
@@ -15,12 +15,12 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val iso_out = Bool(INPUT) // Isolate from client to manager
-      val iso_in  = Bool(INPUT) // Isolate from manager to client
+      val iso_out = Input(Bool()) // Isolate from client to manager
+      val iso_in  = Input(Bool()) // Isolate from manager to client
     })
 
-    def ISOo[T <: Data](x: T): T = x.fromBits(fOut(io.iso_out, x.asUInt))
-    def ISOi[T <: Data](x: T): T = x.fromBits(fIn (io.iso_in,  x.asUInt))
+    def ISOo[T <: Data](x: T): T = fOut(io.iso_out, x.asUInt).asTypeOf(x)
+    def ISOi[T <: Data](x: T): T = fIn (io.iso_in,  x.asUInt).asTypeOf(x)
 
     def ABo[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]): Unit = {
       x.mem            := ISOo(y.mem)
@@ -49,14 +49,14 @@ class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implici
     }
 
     def ABz[T <: Data](x: AsyncBundle[T], y: AsyncBundle[T]): Unit = {
-      x.widx           := UInt(0)
-      y.ridx           := UInt(0)
-      (x.index zip y.index) foreach { case (_, y) => y := UInt(0) }
+      x.widx           := 0.U
+      y.ridx           := 0.U
+      (x.index zip y.index) foreach { case (_, y) => y := 0.U }
       (x.safe zip y.safe) foreach { case (x, y) =>
-        x.widx_valid     := Bool(false)
-        x.source_reset_n := Bool(false)
-        y.ridx_valid     := Bool(false)
-        y.sink_reset_n   := Bool(false)
+        x.widx_valid     := false.B
+        x.source_reset_n := false.B
+        y.ridx_valid     := false.B
+        y.sink_reset_n   := false.B
       }
     }
 
