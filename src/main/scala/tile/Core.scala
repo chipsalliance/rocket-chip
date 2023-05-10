@@ -55,6 +55,7 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val traceHasWdata: Boolean
+  def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
@@ -154,6 +155,7 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
 class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
   val time = UInt(64.W)
+  val custom = coreParams.traceCustom
 }
 
 trait HasCoreIO extends HasTileParameters {
