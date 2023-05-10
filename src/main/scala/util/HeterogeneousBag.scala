@@ -9,7 +9,10 @@ import scala.collection.immutable.VectorMap
 final case class HeterogeneousBag[T <: Data](elts: Seq[T]) extends Record with collection.IndexedSeq[T] {
   val elements = VectorMap(elts.zipWithIndex.map { case (n,i) => (i.toString, DataMirror.internal.chiselTypeClone(n)) }:_*)
 
-  def apply(x: Int): T = elements.values.toSeq(x)
+  def apply(x: Int): T = {
+    val key = elements.keys(x) // VectorMap.keys returns a Vector
+    elements(key)
+  }
   def length = elts.length
 
   override def className: String = super.className
