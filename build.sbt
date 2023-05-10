@@ -5,7 +5,7 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
-val chiselVersion = "3.5.6"
+val chiselVersion = "3.6.0"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
@@ -15,7 +15,7 @@ lazy val commonSettings = Seq(
   traceLevel   := 15,
   scalacOptions ++= Seq("-deprecation","-unchecked"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
-  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.6"),
+  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "4.0.0"),
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.2.0" % "test"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
