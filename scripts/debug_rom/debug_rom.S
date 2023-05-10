@@ -33,7 +33,7 @@ _entry:
         // This fence is required because the execution may have written something
         // into the Abstract Data or Program Buffer registers.
         fence
-        csrw CSR_DSCRATCH, s0  // Save s0 to allow signaling MHARTID
+        csrw CSR_DSCRATCH0, s0  // Save s0 to allow signaling MHARTID
 
         // We continue to let the hart know that we are halted in order that
         // a DM which was reset is still made aware that a hart is halted.
@@ -49,7 +49,7 @@ entry_loop:
         andi s0, s0, (1 << FLAG_GO)
         beqz s0, _resume               // If GO is clear at this point, RESUME must be set.
 
-        csrr s0, CSR_DSCRATCH          // Restore s0 here
+        csrr s0, CSR_DSCRATCH0         // Restore s0 here
         sw zero, GOING(zero)           // When debug module sees this write, the GO flag is reset.
         jalr zero, zero, %lo(whereto)          // Rocket-Chip has a specific hack which is that jalr in
                                        // Debug Mode will flush the I-Cache. We need that so that the
@@ -58,7 +58,7 @@ entry_loop:
 _resume:
         csrr s0, CSR_MHARTID
         sw   s0, RESUMING(zero) // When Debug Module sees this write, the RESUME flag is reset.
-        csrr s0, CSR_DSCRATCH   // Restore s0
+        csrr s0, CSR_DSCRATCH0  // Restore s0
         dret
 
 _exception:

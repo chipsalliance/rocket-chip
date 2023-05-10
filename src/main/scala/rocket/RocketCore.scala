@@ -54,7 +54,8 @@ case class RocketCoreParams(
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
-  debugROB: Boolean = false // if enabled, uses a C++ debug ROB to generate trace-with-wdata
+  debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
+  haveCease: Boolean = true // non-standard CEASE instruction
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -66,7 +67,7 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = false // ooo wb, so no wdata in trace
-  override val customIsaExt = Some("xrocket") // CEASE instruction
+  override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }
@@ -208,6 +209,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (usingConditionalZero.option(new ConditionalZeroDecode(aluFn))) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI, aluFn)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine, aluFn)) ++:
+    rocketParams.haveCease.option(new CeaseDecode(aluFn)) ++:
     Seq(new IDecode(aluFn))
   } flatMap(_.table)
 
