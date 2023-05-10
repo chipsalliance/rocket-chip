@@ -17,6 +17,7 @@ sim_vsrcs = \
     $(vsrc)/$(TB).v \
     $(vsrc)/SimDTM.v \
     $(vsrc)/SimJTAG.v \
+    $(vsrc)/debug_rob.v \
     $(bb_vsrcs)
 
 # C sources
@@ -24,6 +25,7 @@ sim_vsrcs = \
 sim_csrcs = \
     $(csrc)/SimDTM.cc \
     $(csrc)/SimJTAG.cc \
+    $(csrc)/debug_rob.cc \
     $(csrc)/remote_bitbang.cc
 
 #--------------------------------------------------------------------
