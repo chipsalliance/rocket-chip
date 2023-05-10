@@ -4,10 +4,10 @@ package freechips.rocketchip.util
 
 import chisel3._
 import chisel3.experimental.DataMirror
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.VectorMap
 
 final case class HeterogeneousBag[T <: Data](elts: Seq[T]) extends Record with collection.IndexedSeq[T] {
-  val elements = ListMap(elts.zipWithIndex.map { case (n,i) => (i.toString, DataMirror.internal.chiselTypeClone(n)) }:_*)
+  val elements = VectorMap(elts.zipWithIndex.map { case (n,i) => (i.toString, DataMirror.internal.chiselTypeClone(n)) }:_*)
 
   def apply(x: Int): T = elements.values.toSeq(x)
   def length = elts.length
