@@ -430,10 +430,17 @@ class WithCryptoSM extends Config((site, here, up) => {
   }
 })
 
+<<<<<<< HEAD
 class WithRocketCease(enable: Boolean = true) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(haveCease = enable)
+=======
+class WithRocketDebugROB(enable: Boolean = true) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(debugROB = enable)
+>>>>>>> d6c09c970 (Add support for an unsynthesizable ROB to produce a TracedInstruction stream from Rocket with wdata)
     ))
   }
 })

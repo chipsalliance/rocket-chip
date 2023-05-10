@@ -8,7 +8,7 @@ output_dir = $(sim_dir)/output
 
 include $(base_dir)/Makefrag
 
-CXXSRCS := emulator SimDTM SimJTAG remote_bitbang
+CXXSRCS := emulator SimDTM SimJTAG remote_bitbang debug_rob
 CXXFLAGS := $(CXXFLAGS) -std=c++17 -I$(RISCV)/include
 LDFLAGS := $(LDFLAGS) -L$(RISCV)/lib -Wl,-rpath,$(RISCV)/lib -L$(abspath $(sim_dir)) -lfesvr -lpthread
 
