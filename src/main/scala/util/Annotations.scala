@@ -12,7 +12,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 
 import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods.{pretty, render}
+import org.json4s.native.JsonMethods.{pretty, render}
 
 /** Record a sram. */
 case class SRAMAnnotation(target: Named,
