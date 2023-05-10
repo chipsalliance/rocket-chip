@@ -100,10 +100,11 @@ extern "C" void debug_rob_pop_trace(int hartid,
   if (front->waiting) {
     for (auto it = wb_datas.begin(); it != wb_datas.end(); it++) {
       if ((*it)->tag == front->wb_tag) {
-	memcpy(front->wdata, (*it)->data, WDATA_BYTES);
-	front->waiting = false;
-	wb_datas.erase(it);
-	break;
+        memcpy(front->wdata, (*it)->data, WDATA_BYTES);
+        front->waiting = false;
+        delete (*it);
+        wb_datas.erase(it);
+        break;
       }
     }
   }
@@ -120,6 +121,7 @@ extern "C" void debug_rob_pop_trace(int hartid,
   *trace_tval = front->tval;
   memcpy(trace_wdata, front->wdata, WDATA_BYTES);
   debug_robs[hartid]->rob.pop_front();
+  delete front;
 }
 
 
