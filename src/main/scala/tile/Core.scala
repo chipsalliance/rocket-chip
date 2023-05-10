@@ -153,6 +153,7 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
 // This is a raw commit trace from the core, not the TraceCoreInterface
 class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
+  val time = UInt(64.W)
 }
 
 trait HasCoreIO extends HasTileParameters {
