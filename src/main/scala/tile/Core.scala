@@ -55,6 +55,7 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val traceHasWdata: Boolean
+  def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
@@ -150,6 +151,13 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
   val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
+// This is a raw commit trace from the core, not the TraceCoreInterface
+class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
+  val insns = Vec(coreParams.retireWidth, new TracedInstruction)
+  val time = UInt(64.W)
+  val custom = coreParams.traceCustom
+}
+
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
   val io = new CoreBundle()(p) {
@@ -161,7 +169,7 @@ trait HasCoreIO extends HasTileParameters {
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
     val rocc = new RoCCCoreIO().flip
-    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val trace = Output(new TraceBundle)
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput
     val wfi = Bool().asOutput
