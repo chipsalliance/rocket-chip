@@ -165,7 +165,7 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
 
   def nBits = n_ways - 1
   def perSet = true
-  private val state_reg = if (nBits == 0) Reg(UInt(0.W)) else RegInit(0.U(nBits.W))
+  protected val state_reg = if (nBits == 0) Reg(UInt(0.W)) else RegInit(0.U(nBits.W))
   def state_read = WireDefault(state_reg)
 
   def access(touch_way: UInt): Unit = {
@@ -271,6 +271,75 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
   def way = get_replace_way(state_reg)
   def miss = access(way)
   def hit = {}
+}
+
+class ValidPseudoLRU(n_ways: Int) extends PseudoLRU(n_ways) {
+  // As long as there is a valid way, ValidPseudoLRU will always choose the oldest valid way
+  // otherwise the behavior is unpredictable
+  require(n_ways % 2 == 0, "n_ways must be even value")
+
+  /** @param state      state_reg bits for this sub-tree
+    * @param tree_nways number of ways in this sub-tree
+    * @param valids     seq of each way, valids(0) is MSB
+    * @return           (result is valid or not, index)
+    */
+  def get_replace_way(state: UInt, tree_nways: Int, valids: Seq[Bool]) : Tuple2[Bool, UInt] = {
+    require(state.getWidth == (tree_nways-1), s"wrong state bits width ${state.getWidth} for $tree_nways ways")
+
+    if(tree_nways > 2) {
+      // we are at a branching node in the tree, so recurse
+      val right_nways: Int = 1 << (log2Ceil(tree_nways) - 1) // number of ways in the right sub-tree
+      val left_nways: Int = tree_nways - right_nways // number of ways in the left sub-tree
+      require(right_nways == left_nways, "right_nways not equal with left_nways")
+      val left_subtree_older  = state(tree_nways-2)
+      val left_subtree_state = state.extract(tree_nways - 3, right_nways - 1)
+      val right_subtree_state = state(right_nways - 2, 0)
+      val left_subtree_valids = valids.slice(0, left_nways)
+      val right_subtree_valids = valids.slice(left_nways, valids.size)
+      require(left_subtree_valids.size == right_subtree_valids.size, "valid size not equal")
+
+      val (left_res_valid, left) = get_replace_way(left_subtree_state, left_nways, left_subtree_valids)
+      val (right_res_valid, right) = get_replace_way(right_subtree_state, right_nways, right_subtree_valids)
+
+      val res = WireInit(Cat(0.U(1.W), left))
+
+      when(left_res_valid && right_res_valid) {
+        // we are at a branching node, and left right result are both valid, so choose the way older
+        res := Cat(left_subtree_older, // return the top state bit (current tree node) as msb of the way-to-replace encoded value
+                Mux(left_subtree_older, // if left sub-tree is older, return left, else return right
+                  left,
+                  right))
+      }.elsewhen(left_res_valid || right_res_valid) {
+        // we are at a branching node, and either left is valid or right is valid, so choose the valid way
+        res := Cat(Mux(left_res_valid, 1.U(1.W), 0.U(1.W)), // if left sub-tree is valid, msb of the way-to-replace encoded value is 1 which means left sub-tree has bigger way number
+                Mux(left_res_valid, // if left sub-tree is valid, return left, else return right
+                  left,
+                  right))
+      }
+
+      (left_res_valid || right_res_valid, res)
+    }else if(tree_nways == 2) {
+      // we are at a leaf node
+      require(valids.size == 2, "leaf error")
+      val res = WireInit(0.U(1.W))
+      when(valids(0) === true.B && valids(1) === true.B) {
+        // choose the way older
+        res := state(0)
+      }.elsewhen(valids(0) === true.B || valids(1) === true.B) {
+        // choose the way valid
+        res := Mux(valids(0), 1.U(1.W), 0.U(1.W))
+      }
+
+      (valids(0) === true.B || valids(1) === true.B, res)
+    }else {
+      assert(false.B, "tree_nways <= 1, we cannot recurse to here")
+      (false.B, 0.U(1.W))
+    }
+  }
+
+  def way(valids: Seq[Bool]): Tuple2[Bool, UInt] = {
+    get_replace_way(state_reg, n_ways, valids)
+  }
 }
 
 class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
