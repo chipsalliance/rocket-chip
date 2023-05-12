@@ -813,6 +813,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
+
+  io.trace.time := csr.io.time
   if (rocketParams.debugROB) {
     val csr_trace_with_wdata = WireInit(csr.io.trace(0))
     csr_trace_with_wdata.wdata.get := rf_wdata
@@ -822,11 +824,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       wb_ctrl.wxd && wb_wen && !wb_set_sboard,
       wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
 
-    io.trace(0) := DebugROB.popTrace(clock, reset, io.hartid)
+    io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
 
     DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
   } else {
-    io.trace := csr.io.trace
+    io.trace.insns := csr.io.trace
   }
 
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
