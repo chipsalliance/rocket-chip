@@ -106,16 +106,31 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
     def beqz = inst(Cat(bImm(12), bImm(10,5), x0, rs1p, 0.U(3.W), bImm(4,1), bImm(11), 0x63.U(7.W)), rs1p, rs1p, x0)
     def bnez = inst(Cat(bImm(12), bImm(10,5), x0, rs1p, 1.U(3.W), bImm(4,1), bImm(11), 0x63.U(7.W)), x0, rs1p, x0)
     def arith = {
-      def srli = Cat(shamt, rs1p, 5.U(3.W), rs1p, 0x13.U(7.W))
-      def srai = srli | (1 << 30).U
-      def andi = Cat(addiImm, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W))
+      def srli = inst(Cat(shamt, rs1p, 5.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+      def srai = inst(Cat(0x10.U, shamt, rs1p, 5.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+      def andi = inst(Cat(addiImm, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
       def rtype = {
-        val funct = Seq(0.U, 4.U, 6.U, 7.U, 0.U, 0.U, 2.U, 3.U)(Cat(x(12), x(6,5)))
+        val funct = Seq(0.U, 4.U, 6.U, 7.U, 0.U, 0.U, 0.U, 3.U)(Cat(x(12), x(6,5)))
         val sub = Mux(x(6,5) === 0.U, (1 << 30).U, 0.U)
-        val opc = Mux(x(12), 0x3B.U(7.W), 0x33.U(7.W))
-        Cat(rs2p, rs1p, funct, rs1p, opc) | sub
+        val mul = Mux(Cat(x(12), x(6,5)) === 6.U, (1 << 25).U, 0.U)
+        val opc = Mux(x(12), Mux(x(6), 0x33.U(7.W), 0x3B.U(7.W)), 0x33.U(7.W))
+        def zcb_q1 = {
+          def zextb = inst(Cat(0xff.U, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+          def sextb = inst(Cat(0x604.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+          def sexth = inst(Cat(0x605.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+          def not   = inst(Cat(0xFFF.U, rs1p, 4.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+          def zextw = inst(Cat(4.U, x0, rs1p, 0.U(3.W), rs1p, 0x3B.U(7.W)), rs1p, rs1p, x0)
+          def zexth64 = inst(Cat(0x80.U, rs1p, 4.U(3.W), rs1p, 0x3B.U(7.W)), rs1p, rs1p, rs2p)
+          def zexth = {
+            if (xLen == 32) inst(Cat(0x80.U, rs1p, 4.U(3.W), rs1p, 0x33.U(7.W)), rs1p, rs1p, rs2p)
+            else zexth64
+          }
+          Seq(zextb, sextb, zexth, sexth, zextw, not)(x(4,2))
+        }
+        def zca = inst(Cat(rs2p, rs1p, funct, rs1p, opc) | sub | mul, rs1p, rs1p, rs2p)
+        Mux(Cat(x(12), x(6,5)) === 7.U, zcb_q1, zca)
       }
-      inst(Seq(srli, srai, andi, rtype)(x(11,10)), rs1p, rs1p, rs2p)
+      Seq(srli, srai, andi, rtype)(x(11,10))
     }
     Seq(addi, jal, li, lui, arith, j, beqz, bnez)
   }
