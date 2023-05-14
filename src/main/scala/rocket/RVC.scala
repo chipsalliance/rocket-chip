@@ -32,6 +32,8 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
   def rs2 = x(6,2)
   def rd = x(11,7)
   def addi4spnImm = Cat(x(10,7), x(12,11), x(5), x(6), 0.U(2.W))
+  def lbImm = Cat(x(5), x(6))
+  def lhImm = Cat(x(5), 0.U(1.W))
   def lwImm = Cat(x(5), x(12,10), x(6), 0.U(2.W))
   def ldImm = Cat(x(6,5), x(12,10), 0.U(3.W))
   def lwspImm = Cat(x(3,2), x(12), x(6,4), 0.U(2.W))
@@ -60,7 +62,16 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
       if (xLen == 32) inst(Cat(lwImm, rs1p, 2.U(3.W), rs2p, 0x07.U(7.W)), rs2p, rs1p, rs2p)
       else ld
     }
-    def unimp = inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x3F.U(7.W)), rs2p, rs1p, rs2p)
+    def zcb_q0 = {
+      def lbu = Cat(lbImm, rs1p, 4.U(3.W), rs2p, 0x03.U(7.W))
+      def lh  = {
+        val func3 = Mux(x(6), 1.U(3.W), 5.U(3.W))
+        Cat(lhImm, rs1p, func3, rs2p, 0x03.U(7.W))
+      }
+      def sb  = Cat(rs2p, rs1p, 0.U(3.W), 0.U(3.W), lbImm(1,0), 0x23.U(7.W))
+      def sh  = Cat(rs2p, rs1p, 1.U(3.W), 0.U(3.W), lhImm(1,0), 0x23.U(7.W))
+      inst(Seq(lbu, lh, sb, sh)(x(11,10)), rs2p, rs1p, rs2p)
+    }
     def sd = inst(Cat(ldImm >> 5, rs2p, rs1p, 3.U(3.W), ldImm(4,0), 0x23.U(7.W)), rs2p, rs1p, rs2p)
     def sw = inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x23.U(7.W)), rs2p, rs1p, rs2p)
     def fsd = inst(Cat(ldImm >> 5, rs2p, rs1p, 3.U(3.W), ldImm(4,0), 0x27.U(7.W)), rs2p, rs1p, rs2p)
@@ -68,7 +79,7 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
       if (xLen == 32) inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x27.U(7.W)), rs2p, rs1p, rs2p)
       else sd
     }
-    Seq(addi4spn, fld, lw, flw, unimp, fsd, sw, fsw)
+    Seq(addi4spn, fld, lw, flw, zcb_q0, fsd, sw, fsw)
   }
 
   def q1 = {
