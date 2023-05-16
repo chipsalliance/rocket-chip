@@ -54,6 +54,7 @@ case class RocketCoreParams(
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
+  debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
   haveCease: Boolean = true // non-standard CEASE instruction
 ) extends CoreParams {
   val lgPauseCycles = 5
@@ -813,9 +814,23 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-  io.trace.insns := csr.io.trace
-  io.trace.time := csr.io.time
   io.rocc.csrs := csr.io.roccCSRs
+  io.trace.time := csr.io.time
+  if (rocketParams.debugROB) {
+    val csr_trace_with_wdata = WireInit(csr.io.trace(0))
+    csr_trace_with_wdata.wdata.get := rf_wdata
+    DebugROB.pushTrace(clock, reset,
+      io.hartid, csr_trace_with_wdata,
+      (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception,
+      wb_ctrl.wxd && wb_wen && !wb_set_sboard,
+      wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
+
+    io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
+
+    DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
+  } else {
+    io.trace.insns := csr.io.trace
+  }
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
     iobpw.valid(0) := wphit
     iobpw.action := bp.control.action

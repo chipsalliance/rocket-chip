@@ -157,6 +157,7 @@ class Emulator(top: String, config: String) extends Module {
       Seq(
         "SimDTM.cc",
         "SimJTAG.cc",
+        "debug_rob.cc",
         "emulator.cc",
         "remote_bitbang.cc",
         ).map(c => PathRef(csrcDir().path / c))
