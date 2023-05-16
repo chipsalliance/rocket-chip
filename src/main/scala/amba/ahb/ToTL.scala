@@ -66,8 +66,8 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       val d_pause = RegInit(true.B)
       val d_fail  = RegInit(false.B)
       val d_write = RegInit(false.B)
-      val d_addr  = Reg(in.haddr)
-      val d_size  = Reg(out.a.bits.size)
+      val d_addr  = Reg(UInt(edgeIn.bundle.addrBits.W))
+      val d_size  = Reg(UInt(edgeOut.bundle.sizeBits.W))
       val d_user  = Reg(BundleMap(edgeOut.bundle.requestFields))
 
       when (out.d.valid) { d_recv  := false.B }
