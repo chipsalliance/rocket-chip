@@ -357,11 +357,13 @@ class VType(implicit p: Parameters) extends CoreBundle {
 
 class CSRFile(
   perfEventSets: EventSets = new EventSets(Seq()),
-  customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
+  customCSRs: Seq[CustomCSR] = Nil,
+  roccCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
     extends CoreModule()(p)
     with HasCoreParameters {
   val io = IO(new CSRFileIO {
     val customCSRs = Output(Vec(CSRFile.this.customCSRs.size, new CustomCSRIO))
+    val roccCSRs = Output(Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO))
   })
 
   val reset_mstatus = WireDefault(0.U.asTypeOf(new MStatus()))
@@ -745,13 +747,15 @@ class CSRFile(
   }
 
   // implementation-defined CSRs
-  val reg_custom = customCSRs.map { csr =>
+  def generateCustomCSR(csr: CustomCSR) = {
     require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
     require(!read_mapping.contains(csr.id))
     val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
     read_mapping += csr.id -> reg
     reg
   }
+  val reg_custom = customCSRs.map(generateCustomCSR(_))
+  val reg_rocc = roccCSRs.map(generateCustomCSR(_))
 
   if (usingHypervisor) {
     read_mapping += CSRs.mtinst -> 0.U
@@ -1102,6 +1106,12 @@ class CSRFile(
     io.value := reg
   }
 
+  for ((io, reg) <- io.roccCSRs zip reg_rocc) {
+    io.wen := false.B
+    io.wdata := wdata
+    io.value := reg
+  }
+
   io.rw.rdata := Mux1H(for ((k, v) <- read_mapping) yield decoded_addr(k) -> v)
 
   // cover access to register
@@ -1421,12 +1431,18 @@ class CSRFile(
         pmp.addr := wdata
       }
     }
-    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+    def writeCustomCSR(io: CustomCSRIO, csr: CustomCSR, reg: UInt) = {
       val mask = csr.mask.U(xLen.W)
       when (decoded_addr(csr.id)) {
         reg := (wdata & mask) | (reg & ~mask)
         io.wen := true.B
       }
+    }
+    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+      writeCustomCSR(io, csr, reg)
+    }
+    for ((io, csr, reg) <- (io.roccCSRs, roccCSRs, reg_rocc).zipped) {
+      writeCustomCSR(io, csr, reg)
     }
     if (usingVector) {
       when (decoded_addr(CSRs.vstart)) { set_vs_dirty := true.B; reg_vstart.get := wdata }

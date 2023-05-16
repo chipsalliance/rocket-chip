@@ -160,6 +160,7 @@ class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParamet
 
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
+  def nTotalRoCCCSRs: Int
   val io = new CoreBundle()(p) {
     val hartid = UInt(hartIdLen.W).asInput
     val reset_vector = UInt(resetVectorLen.W).asInput
@@ -168,7 +169,7 @@ trait HasCoreIO extends HasTileParameters {
     val dmem = new HellaCacheIO
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
-    val rocc = new RoCCCoreIO().flip
+    val rocc = new RoCCCoreIO(nTotalRoCCCSRs).flip
     val trace = Output(new TraceBundle)
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput
