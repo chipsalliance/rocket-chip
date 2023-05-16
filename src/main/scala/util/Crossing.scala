@@ -16,6 +16,6 @@ class CrossingIO[T <: Data](gen: T) extends Bundle {
   val deq = Decoupled(gen)
 }
 
-abstract class Crossing[T <: Data] extends Module {
+abstract class Crossing[T <: Data] extends RawModule {
   val io: CrossingIO[T]
 }
