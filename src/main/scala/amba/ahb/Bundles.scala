@@ -50,9 +50,9 @@ class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
   val hready  = Input(Bool())
 
   // Handy methods that don't care about lite
-  def lock():   Bool = if (params.lite) hmastlock.get else hlock.get
-  def busreq(): Bool = if (params.lite) Wire(true.B) else hbusreq.get
-  def grant():  Bool = if (params.lite) Wire(true.B) else hgrant.get
+  def lock():   Bool = if (params.lite) hmastlock.get    else hlock.get
+  def busreq(): Bool = if (params.lite) WireInit(true.B) else hbusreq.get
+  def grant():  Bool = if (params.lite) WireInit(true.B) else hgrant.get
 
   // A-phase signals from master to arbiter
   val htrans  = Output(UInt(params.transBits.W))

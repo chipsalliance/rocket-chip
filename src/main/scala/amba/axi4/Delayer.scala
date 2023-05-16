@@ -45,12 +45,18 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
       bits.qos   := LFSRNoiseMaker(bits.params.qosBits)
     }
 
-    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
-      val arnoise = Wire(in.ar.bits)
-      val awnoise = Wire(in.aw.bits)
-      val wnoise  = Wire(in.w .bits)
-      val rnoise  = Wire(in.r .bits)
-      val bnoise  = Wire(in.b .bits)
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      val arnoise = Wire(new AXI4BundleAR(edgeIn.bundle))
+      val awnoise = Wire(new AXI4BundleAW(edgeIn.bundle))
+      val wnoise  = Wire(new  AXI4BundleW(edgeIn.bundle))
+      val rnoise  = Wire(new  AXI4BundleR(edgeIn.bundle))
+      val bnoise  = Wire(new  AXI4BundleB(edgeIn.bundle))
+
+      arnoise := DontCare
+      awnoise := DontCare
+      wnoise := DontCare
+      rnoise := DontCare
+      bnoise := DontCare
 
       anoise(arnoise)
       anoise(awnoise)
