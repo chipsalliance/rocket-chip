@@ -271,4 +271,5 @@ class TLFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 class TLFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new TLFuzzRAM(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }
