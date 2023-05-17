@@ -39,8 +39,8 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     val fields = AXI4RRIdField(ar.bits.params.idBits) +: ar.bits.params.echoFields
     val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, fields)
     val in = Wire(Decoupled(new RegMapperInput(params)))
-    val ar_extra = WireDefault(in.bits.extra)
-    val aw_extra = WireDefault(in.bits.extra)
+    val ar_extra = Wire(BundleMap(params.extraFields))
+    val aw_extra = Wire(BundleMap(params.extraFields))
 
     // Prefer to execute reads first
     in.valid := ar.valid || (aw.valid && w.valid)
@@ -48,8 +48,8 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     aw.ready := in.ready && !ar.valid && w .valid
     w .ready := in.ready && !ar.valid && aw.valid
 
-    ar_extra :<= ar.bits.echo
-    aw_extra :<= aw.bits.echo
+    ar_extra.partialAssignL(ar.bits.echo)
+    aw_extra.partialAssignL(aw.bits.echo)
     ar_extra(AXI4RRId) := ar.bits.id
     aw_extra(AXI4RRId) := aw.bits.id
     val addr = Mux(ar.valid, ar.bits.addr, aw.bits.addr)

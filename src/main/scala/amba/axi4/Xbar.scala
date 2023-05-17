@@ -336,4 +336,5 @@ class AXI4XbarTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Paramete
   val dut12 = Module(LazyModule(new AXI4XbarFuzzTest("Xbar DUT12", txns, 1, 2)).module)
   val dut22 = Module(LazyModule(new AXI4XbarFuzzTest("Xbar DUT22", txns, 2, 2)).module)
   io.finished := Seq(dut21, dut12, dut22).map(_.io.finished).reduce(_ || _)
+  Seq(dut21, dut12, dut22).foreach(_.io.start := io.start)
 }

@@ -3,6 +3,7 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
+import chisel3.util._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.amba.ahb._
 import org.chipsalliance.cde.config.Parameters
@@ -79,6 +80,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
 
       // Initial FSM state
       val resetState = Wire(new AHBControlBundle(edgeIn))
+      resetState := DontCare
       resetState.full  := false.B
       resetState.send  := false.B
       resetState.first := true.B
@@ -205,8 +207,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       // commited AHB requests (A+D phases = 2). To decouple d_ready from
       // a_ready and htrans, we add another entry for aFlow=false.
       val depth = if (aFlow) 2 else 3
-      val d = Wire(in.d)
-      in.d :<> Queue(d, depth, true)
+      val d = Wire(new DecoupledIO(new TLBundleD(edgeIn.bundle)))
+      in.d :<> Queue(d, depth, flow=true)
       assert (!d.valid || d.ready)
 
       val d_flight = RegInit(0.U(2.W))
