@@ -22,6 +22,7 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
+  val useCompressedSuiteB: Boolean
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
   val useVector: Boolean = false
@@ -86,6 +87,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
+  val usingCompressedSuiteB = coreParams.useCompressedSuiteB && usingCompressed
   val usingBitManip = coreParams.useBitManip
   val usingBitManipCrypto = coreParams.hasBitManipCrypto
   val usingVector = coreParams.useVector

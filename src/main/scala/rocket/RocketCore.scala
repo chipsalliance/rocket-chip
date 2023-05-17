@@ -23,6 +23,7 @@ case class RocketCoreParams(
   useAtomics: Boolean = true,
   useAtomicsOnlyForIO: Boolean = false,
   useCompressed: Boolean = true,
+  useCompressedSuiteB: Boolean = false,
   useRVE: Boolean = false,
   useSCIE: Boolean = false,
   useBitManip: Boolean = false,
