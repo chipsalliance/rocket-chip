@@ -150,4 +150,6 @@ class TLRAMAsyncCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p
   val dut_wide   = Module(LazyModule(new TLRAMAsyncCrossing(txns)).module)
   val dut_narrow = Module(LazyModule(new TLRAMAsyncCrossing(txns, AsynchronousCrossing(safe = false, narrow = true))).module)
   io.finished := dut_wide.io.finished && dut_narrow.io.finished
+  dut_wide.io.start := io.start
+  dut_narrow.io.start := io.start
 }

@@ -340,4 +340,5 @@ class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule 
 class TLRAMAtomicAutomataTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new TLRAMAtomicAutomata(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }

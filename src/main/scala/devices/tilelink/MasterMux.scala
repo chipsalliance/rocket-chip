@@ -63,7 +63,7 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
     in0.a.ready := !stall && out.a.ready &&  bypass
     in1.a.ready := !stall && out.a.ready && !bypass
     out.a.valid := !stall && Mux(bypass, in0.a.valid, in1.a.valid)
-    def castA(x: TLBundleA) = { val ret = Wire(out.a.bits); ret <> x; ret }
+    def castA(x: TLBundleA) = { val ret = Wire(x.cloneType); ret <> x; ret }
     out.a.bits := Mux(bypass, castA(in0.a.bits), castA(in1.a.bits))
 
     out.d.ready := Mux(bypass, in0.d.ready, in1.d.ready)
