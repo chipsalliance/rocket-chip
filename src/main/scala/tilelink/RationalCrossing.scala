@@ -205,4 +205,5 @@ class TLRAMRationalCrossing(txns: Int)(implicit p: Parameters) extends LazyModul
 class TLRAMRationalCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new TLRAMRationalCrossing(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }
