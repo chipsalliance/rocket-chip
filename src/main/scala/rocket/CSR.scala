@@ -1543,6 +1543,7 @@ class CSRFile(
     t.cause := cause
     t.interrupt := cause(xLen-1)
     t.tval := io.tval
+    t.wdata.foreach(_ := DontCare)
   }
 
   def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {
