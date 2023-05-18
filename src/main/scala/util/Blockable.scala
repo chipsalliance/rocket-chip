@@ -42,6 +42,20 @@ object Blockable {
     }
   }
 
+  implicit def BlockableCredited[T <: Data]: Blockable[CreditedIO[T]] = new Blockable[CreditedIO[T]] {
+    def blockWhile(enable_blocking: Bool, data: CreditedIO[T]): CreditedIO[T] = {
+      val res = Wire(chiselTypeOf(data))
+      res.debit   := data.debit
+      data.credit := res.credit
+      res.bits    := data.bits
+      when (enable_blocking) {
+        res.debit := false.B
+        data.credit := false.B
+      }
+      res
+    }
+  }
+
   implicit def BlockableVec[T <: Data : Blockable]: Blockable[Vec[T]] = new Blockable[Vec[T]] {
     def blockWhile(enable_blocking: Bool, data: Vec[T]): Vec[T] = {
       VecInit(data.map(x => implicitly[Blockable[T]].blockWhile(enable_blocking, x)))
