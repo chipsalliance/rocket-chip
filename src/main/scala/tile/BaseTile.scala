@@ -113,6 +113,10 @@ trait HasNonDiplomaticTileParameters {
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
+      Option.when(tileParams.core.useCompressed)(Seq("zca")) ++
+      Option.when(tileParams.core.useCompressedSuiteB)(Seq("zcb")) ++
+      Option.when(tileParams.core.useCompressed && tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32)(Seq("zcd")) ++
+      Option.when(tileParams.core.useCompressed && tileParams.core.fpu.nonEmpty)(Seq("zcf")) ++
       Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
       Option.when(tileParams.core.hasBitManipCrypto)(Seq("zbkb", "zbkc", "zbkx")) ++
       Option.when(tileParams.core.useBitManip)(Seq("zbs")) ++
