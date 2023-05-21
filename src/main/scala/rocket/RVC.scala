@@ -16,6 +16,16 @@ class ExpandedInstruction extends Bundle {
   val rs3 = UInt(5.W)
 }
 
+/* Parameters for RVCDecoder
+    - Zcb extension contains the compressed I-type (c.lbu, lhu, lh, sb, sh) , M-type (c.mul) 
+      and Bit Manip instructions.
+    - **usingCompressedSuiteB** parameter is used to enable/disable "Zcb" extension in RocketCore.
+    - If Zcb is enabled, furthur **usingBitManip** and **usingMulDiv** parameters (if set as True) are used to decode
+      the corresponding BitManip and M type Instructions.
+    - If **usingCompressedSuiteB** parameter is not set (i.e. False), decoder will give "unimp" 
+      instruction if it encounters any Zcb instruction. Same is true for **usingBitManip** and **usingMulDiv**.
+*/
+
 class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false, usingBitManip: Boolean = false, usingMulDiv: Boolean = false, usingCompressedSuiteB: Boolean = false) {
   def inst(bits: UInt, rd: UInt = x(11,7), rs1: UInt = x(19,15), rs2: UInt = x(24,20), rs3: UInt = x(31,27)) = {
     val res = Wire(new ExpandedInstruction)
