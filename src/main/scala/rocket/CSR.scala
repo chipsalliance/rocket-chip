@@ -124,6 +124,21 @@ class MIP(implicit p: Parameters) extends CoreBundle()(p)
   val usip = Bool()
 }
 
+class Envcfg extends Bundle {
+  val stce = Bool() // only for menvcfg/henvcfg
+  val pbmte = Bool() // only for menvcfg/henvcfg
+  val zero54 = UInt(54.W)
+  val cbze = Bool()
+  val cbcfe = Bool()
+  val cbie = UInt(2.W)
+  val zero3 = UInt(3.W)
+  val fiom = Bool()
+  def write(wdata: UInt) {
+    val new_envcfg = wdata.asTypeOf(new Envcfg)
+    fiom := new_envcfg.fiom // only FIOM is writable currently
+  }
+}
+
 class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
   def additionalPgLevels = mode.extract(log2Ceil(pgLevels-minPgLevels+1)-1, 0)
   def pgLevelsToMode(i: Int) = (xLen, i) match {
@@ -287,6 +302,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val trace = Output(Vec(retireWidth, new TracedInstruction))
   val mcontext = Output(UInt(coreParams.mcontextWidth.W))
   val scontext = Output(UInt(coreParams.scontextWidth.W))
+  val fiom = Output(Bool())
 
   val vector = usingVector.option(new Bundle {
     val vconfig = Output(new VConfig())
@@ -493,6 +509,10 @@ class CSRFile(
   val reg_rnmie = RegInit(true.B)
   val nmie = reg_rnmie
 
+  val reg_menvcfg = RegInit(0.U.asTypeOf(new Envcfg))
+  val reg_senvcfg = RegInit(0.U.asTypeOf(new Envcfg))
+  val reg_henvcfg = RegInit(0.U.asTypeOf(new Envcfg))
+
   val delegable_counters = ((BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1).U
   val (reg_mcounteren, read_mcounteren) = {
     val reg = Reg(UInt(32.W))
@@ -589,6 +609,7 @@ class CSRFile(
   io.bp := reg_bp take nBreakpoints
   io.mcontext := reg_mcontext.getOrElse(0.U)
   io.scontext := reg_scontext.getOrElse(0.U)
+  io.fiom := (reg_mstatus.prv < PRV.M.U && reg_menvcfg.fiom) || (reg_mstatus.prv < PRV.S.U && reg_senvcfg.fiom) || (reg_mstatus.v && reg_henvcfg.fiom)
   io.pmp := reg_pmp.map(PMP(_))
 
   val isaMaskString =
@@ -700,6 +721,12 @@ class CSRFile(
     }
   }
 
+  if (usingUser) {
+    read_mapping += CSRs.menvcfg -> reg_menvcfg.asUInt
+    if (xLen == 32)
+      read_mapping += CSRs.menvcfgh -> (reg_menvcfg.asUInt >> 32)
+  }
+
   val sie_mask = {
     val sgeip_mask = WireInit(0.U.asTypeOf(new MIP))
     sgeip_mask.sgeip := true.B
@@ -733,6 +760,7 @@ class CSRFile(
     read_mapping += CSRs.scounteren -> read_scounteren
     read_mapping += CSRs.mideleg -> read_mideleg
     read_mapping += CSRs.medeleg -> read_medeleg
+    read_mapping += CSRs.senvcfg -> reg_senvcfg.asUInt
   }
 
   val pmpCfgPerCSR = xLen / new PMPConfig().getWidth
@@ -775,6 +803,9 @@ class CSRFile(
     read_mapping += CSRs.hgeip -> 0.U
     read_mapping += CSRs.htval -> reg_htval
     read_mapping += CSRs.htinst -> 0.U
+    read_mapping += CSRs.henvcfg -> reg_henvcfg.asUInt
+    if (xLen == 32)
+      read_mapping += CSRs.henvcfgh -> (reg_henvcfg.asUInt >> 32)
 
     val read_vsie = (read_hie & read_hideleg) >> 1
     val read_vsip = (read_hip & read_hideleg) >> 1
@@ -1307,6 +1338,7 @@ class CSRFile(
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata }
       when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata }
+      when (decoded_addr(CSRs.senvcfg))    { reg_senvcfg.write(wdata) }
     }
 
     if (usingHypervisor) {
@@ -1378,9 +1410,11 @@ class CSRFile(
       when (decoded_addr(CSRs.vstvec))    { reg_vstvec := wdata }
       when (decoded_addr(CSRs.vscause))   { reg_vscause := wdata & scause_mask }
       when (decoded_addr(CSRs.vstval))    { reg_vstval := wdata }
+      when (decoded_addr(CSRs.henvcfg))   { reg_henvcfg.write(wdata) }
     }
     if (usingUser) {
       when (decoded_addr(CSRs.mcounteren)) { reg_mcounteren := wdata }
+      when (decoded_addr(CSRs.menvcfg))    { reg_menvcfg.write(wdata) }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
