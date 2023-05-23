@@ -133,7 +133,7 @@ object SWI {
     }
 
     val swiRegGroup = RegFieldGroup(mswiType + "sip", Some(mswiType.toUpperCase + "SIP Bits"), ipi.zipWithIndex.flatMap { case (r, i) => 
-      RegField(1, r, RegFieldDesc(mswiType+s"sip_$i", mswiType.toUpperCase+s"SIP bit for Hart $i", reset=Some(0))) :: RegField(SWIConsts.ipiWidth - 1) :: Nil })
+      RegField(1, r, RegFieldDesc(mswiType + s"sip_$i", mswiType.toUpperCase + s"SIP bit for Hart $i", reset=Some(0))) :: RegField(SWIConsts.ipiWidth - 1) :: Nil })
   
     swiRegGroup
   }
