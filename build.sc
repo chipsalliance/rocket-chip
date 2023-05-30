@@ -65,15 +65,24 @@ def envByNameOrRiscv(name: String): String = {
   }
 }
 
+/** object to elaborate verilated emulators. */
 object emulator extends mill.Cross[Emulator](
+  // RocketSuiteA
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig"),
+  // RocketSuiteB
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBufferlessConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
+  // RocketSuiteC
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config"),
-  // Misc
+  // Unittest
+  ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.AMBAUnitTestConfig"),
+  ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.TLSimpleUnitTestConfig"),
+  ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.TLWidthUnitTestConfig"),
+  // DTM
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config"),
+  // Miscellaneous
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultSmallConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualBankConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualChannelConfig"),
@@ -88,6 +97,11 @@ object emulator extends mill.Cross[Emulator](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.MMIOPortOnlyConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.CloneTileConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.HypervisorConfig"),
+  // 
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config"),
 )
 class Emulator(top: String, config: String) extends Module {
 
@@ -97,10 +111,9 @@ class Emulator(top: String, config: String) extends Module {
         mill.modules.Jvm.javaExe,
         "-jar",
         rocketchip.assembly().path,
-        "freechips.rocketchip.system.Generator",
-        "-td", T.dest.toString,
-        "-T", top,
-        "-C", config,
+        "--dir", T.dest.toString,
+        "--top", top,
+        config.split('_').flatMap(c => Seq("--config", c)),
       ).call()
       PathRef(T.dest)
     }
@@ -259,7 +272,7 @@ object `riscv-tests` extends Module {
   }
 }
 
-object `runnable-test` extends mill.Cross[RunableTest](
+object `runnable-riscv-test` extends mill.Cross[RiscvTest](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-ld", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-lh", "none"),
@@ -337,8 +350,9 @@ object `runnable-test` extends mill.Cross[RunableTest](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-v", "none"),
 )
+
 // exclude defaults to "none" instead of "" because it is a file name
-class RunableTest(top: String, config: String, suiteName: String, exclude: String) extends Module {
+class RiscvTest(top: String, config: String, suiteName: String, exclude: String) extends Module {
   def run = T {
     `riscv-tests`.suite(suiteName).binaries().map { bin =>
       val name = bin.path.last

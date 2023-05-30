@@ -41,7 +41,7 @@ jobs:
 
       - name: run riscv-tests
         run: |
-          nix --experimental-features 'nix-command flakes' develop -c mill -i -j 0 "runnable-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }},_,_].run"
+          nix --experimental-features 'nix-command flakes' develop -c mill -i -j 0 "runnable-riscv-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }},_,_].run"
 
   emulator:
     name: emulator
