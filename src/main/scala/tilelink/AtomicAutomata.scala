@@ -173,7 +173,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (0.U, source_c), (edgeOut.numBeats1(in.a.bits), source_i))
 
         // Capture the A state into the CAM
-        when (source_i.fire() && !a_isSupported) {
+        when (source_i.fire && !a_isSupported) {
           (a_cam_sel_free zip cam_a) foreach { case (en, r) =>
             when (en) {
               r.fifoId := a_fifoId
@@ -193,7 +193,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         }
 
         // Advance the put state
-        when (source_c.fire()) {
+        when (source_c.fire) {
           (a_cam_sel_put zip cam_s) foreach { case (en, r) =>
             when (en) {
               r.state := ACK
@@ -215,7 +215,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val d_ackd = out.d.bits.opcode === TLMessages.AccessAckData
         val d_ack  = out.d.bits.opcode === TLMessages.AccessAck
 
-        when (out.d.fire() && d_first) {
+        when (out.d.fire && d_first) {
           (d_cam_sel zip cam_d) foreach { case (en, r) =>
             when (en && d_ackd) {
               r.data := out.d.bits.data

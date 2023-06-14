@@ -46,7 +46,7 @@ class ReadyValidCancel[+T <: Data](gen: T) extends ValidCancel(gen)
 {
   val ready = Input(Bool())
   def mightFire(): Bool = ready && earlyValid
-  def fire():      Bool = ready && validQual()
+  def fire:      Bool = ready && validQual()
 
   /** Down-converts a ReadyValidCancel output to a DecoupledIO bundle, dropping early/late timing split. */
   def asDecoupled(): DecoupledIO[T] = {
