@@ -217,7 +217,7 @@ class Emulator(top: String, config: String) extends Module {
     def verilatorArgs = T.input {
       Seq(
         // format: off
-        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH", "--timing",
+        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH", "--no-timing",
         "--x-assign unique",
         """+define+PRINTF_COND=\$c\(\"verbose\",\"&&\",\"done_reset\"\)""",
         """+define+STOP_COND=\$c\(\"done_reset\"\)""",
