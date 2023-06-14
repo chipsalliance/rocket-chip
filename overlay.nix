@@ -18,6 +18,7 @@ final: prev: {
     buildPhase = "make RISCV_PREFIX=riscv64-none-elf-";
     installPhase = ''
       runHook preInstall
+      make install
       mkdir -p $out/debug/
       cp debug/*.py $out/debug/
       runHook postInstall
