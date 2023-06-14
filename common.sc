@@ -77,7 +77,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
   ) else Agg.empty[Dep]
 
   override def mainClass = T {
-    Some("freechips.rocketchip.system.Generator")
+    Some("freechips.rocketchip.diplomacy.Main")
   }
 
   override def moduleDeps = Seq(macros) ++ chisel3Module :+ hardfloatModule :+ cdeModule
@@ -90,7 +90,8 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     Agg(
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
       ivy"org.json4s::json4s-jackson:4.0.5",
-      ivy"org.scalatest::scalatest:3.2.0"
+      ivy"org.scalatest::scalatest:3.2.0",
+      ivy"com.lihaoyi::mainargs:0.5.0"
     ) ++ chisel3IvyDeps
   }
 
