@@ -217,7 +217,7 @@ class Emulator(top: String, config: String) extends Module {
     def verilatorArgs = T.input {
       Seq(
         // format: off
-        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH",
+        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH", "--timing",
         "--x-assign unique",
         """+define+PRINTF_COND=\$c\(\"verbose\",\"&&\",\"done_reset\"\)""",
         """+define+STOP_COND=\$c\(\"done_reset\"\)""",
@@ -499,5 +499,50 @@ class ArchTest(top: String, config: String, xlen: String, isa: String) extends M
     } else {
       throw new Exception(s"Arch Test $top $config $xlen $isa Failed")
     }
+  }
+}
+
+object `runnable-jtag-dtm-test` extends mill.Cross[JTAGDTMTest](
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "off", "64", "DebugTest"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "off", "64", "MemTest64"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "off", "32", "DebugTest"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "off", "32", "MemTest64"),
+  // SBA
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "on", "64", "MemTest64"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "on", "64", "MemTest32"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config", "on", "32", "MemTest64"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config", "on", "32", "MemTest32"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config", "on", "32", "MemTest8"),
+)
+
+class JTAGDTMTest(top: String, config: String, sba: String, xlen: String, name: String) extends Module {
+  def run = T {
+    val gdbserver = os.Path(sys.env.get("RISCV_TESTS_ROOT").get) / "debug" / "gdbserver.py"
+    val p = os.proc(
+      gdbserver,
+      "--print-failures",
+      "--print-log-names",
+      s"--sim_cmd=${emulator(top, config).elf().path} +jtag_rbb_enable=1 dummybin",
+      "--server_cmd=openocd",
+      "--gdb=riscv64-none-elf-gdb",
+      s"--${xlen}",
+      s"./scripts/RocketSim${xlen}.py",
+      name,
+    ).call(
+      env = Map(
+          "TERM" -> "", // otherwise readline issues on bracketed-paste
+          "JTAG_DTM_ENABLE_SBA" -> sba,
+        ),
+      stdout = T.dest / s"$name.running.log",
+      mergeErrIntoOut = true,
+      check = false)
+    PathRef(if (p.exitCode != 0) {
+      os.move(T.dest / s"$name.running.log", T.dest / s"$name.failed.log")
+      throw new Exception(s"Test $name failed with exit code ${p.exitCode}")
+      T.dest / s"$name.failed.log"
+    } else {
+      os.move(T.dest / s"$name.running.log", T.dest / s"$name.passed.log")
+      T.dest / s"$name.passed.log"
+    })
   }
 }

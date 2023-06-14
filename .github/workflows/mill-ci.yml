@@ -89,3 +89,27 @@ jobs:
       - name: run riscv-arch-test
         run: |
           nix develop -c mill -i -j 0 "runnable-arch-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }}].run"
+
+  jtag-dtm-test:
+    name: jtag-dtm-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: ["freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config"]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: install nix
+        uses: cachix/install-nix-action@v19
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.13.3/install
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Coursier Cache
+        uses: coursier/cache-action@v6
+
+      - name: run jtag-dtm-test
+        run: |
+          nix develop -c mill -i -j 0 "runnable-jtag-dtm-test[freechips.rocketchip.system.TestHarness,${{ matrix.config }},_,_,_].run"

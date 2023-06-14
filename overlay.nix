@@ -16,5 +16,11 @@ final: prev: {
       "--prefix=${placeholder "out"}/riscv64-unknown-elf"
     ];
     buildPhase = "make RISCV_PREFIX=riscv64-none-elf-";
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out/debug/
+      cp debug/*.py $out/debug/
+      runHook postInstall
+    '';
   };
 }
