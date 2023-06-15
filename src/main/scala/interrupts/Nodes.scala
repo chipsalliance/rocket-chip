@@ -21,7 +21,7 @@ object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParamete
 
 trait IntFormatNode extends BaseNode
 {
-  override def formatNode() = "Interrupt Node\n"
+  override def formatNode = "Interrupt Node\n"
 }
 
 case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends SourceNode(IntImp)(portParams) with IntFormatNode

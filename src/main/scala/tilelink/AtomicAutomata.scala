@@ -46,7 +46,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
       // Managers that need help with atomics must necessarily have this node as the root of a tree in the node graph.
       // (But they must also ensure no sideband operations can get between the read and write.)
-      val violations = managersNeedingHelp.flatMap(_.findTreeViolation).map { node => (node.name, node.inputs.map(_._1.name)) }
+      val violations = managersNeedingHelp.flatMap(_.findTreeViolation()).map { node => (node.name, node.inputs.map(_._1.name)) }
       require(violations.isEmpty,
         s"AtomicAutomata can only help nodes for which it is at the root of a diplomatic node tree," +
         "but the following violations were found:\n" +

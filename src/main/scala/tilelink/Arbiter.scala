@@ -91,7 +91,7 @@ object TLArbiter
 
       // Who wants access to the sink?
       val earlyValids = sourcesIn.map(_.earlyValid)
-      val validQuals  = sourcesIn.map(_.validQual)
+      val validQuals  = sourcesIn.map(_.validQual())
       // Arbitrate amongst the requests
       val readys = VecInit(policy(earlyValids.size, Cat(earlyValids.reverse), latch).asBools)
       // Which request wins arbitration?
