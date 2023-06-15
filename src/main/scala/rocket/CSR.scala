@@ -268,7 +268,8 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
 
   val decode = Vec(decodeWidth, new CSRDecodeIO)
 
-  val csr_stall = Output(Bool())
+  val csr_stall = Output(Bool()) // stall retire for wfi
+  val rw_stall = Output(Bool()) // stall rw, rw will have no effect while rw_stall
   val eret = Output(Bool())
   val singleStep = Output(Bool())
 
@@ -381,6 +382,8 @@ class CSRFile(
     val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO)
     val roccCSRs = Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO)
   })
+
+  io.rw_stall := false.B
 
   val reset_mstatus = WireDefault(0.U.asTypeOf(new MStatus()))
   reset_mstatus.mpp := PRV.M.U
@@ -775,10 +778,13 @@ class CSRFile(
   }
 
   // implementation-defined CSRs
-  def generateCustomCSR(csr: CustomCSR, io: CustomCSRIO) = {
+  def generateCustomCSR(csr: CustomCSR, csr_io: CustomCSRIO) = {
     require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
     require(!read_mapping.contains(csr.id))
     val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
+    val read = io.rw.cmd =/= CSR.N && io.rw.addr === csr.id.U
+    csr_io.ren := read
+    when (read && csr_io.stall) { io.rw_stall := true.B }
     read_mapping += csr.id -> reg
     reg
   }
@@ -1188,7 +1194,7 @@ class CSRFile(
     }
   }
 
-  val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
+  val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W) && !io.rw_stall
   io.csrw_counter := Mux(coreParams.haveBasicCounters.B && csr_wen && (io.rw.addr.inRange(CSRs.mcycle.U, (CSRs.mcycle + CSR.nCtr).U) || io.rw.addr.inRange(CSRs.mcycleh.U, (CSRs.mcycleh + CSR.nCtr).U)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
   when (csr_wen) {
     val scause_mask = ((BigInt(1) << (xLen-1)) + 31).U /* only implement 5 LSBs and MSB */

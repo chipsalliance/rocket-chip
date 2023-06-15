@@ -729,7 +729,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
-  val replay_wb = replay_wb_common || replay_wb_rocc
+  val replay_wb_csr: Bool = wb_reg_valid && csr.io.rw_stall
+  val replay_wb = replay_wb_common || replay_wb_rocc || replay_wb_csr
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
