@@ -219,11 +219,11 @@ object SystemBusAccessModule
         sbErrorReg(i) := 0.U
     }.otherwise {
       for (i <- 0 until 3)
-        sbErrorReg(i) := Mux(sberrorWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U(i), // W1C
-                         Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), BadAddr.id.U(i), // Bad address accessed
-                         Mux((tryWrEn || tryRdEn) && sbAlignmentError, AlgnError.id.U(i), // Address alignment error
-                         Mux((tryWrEn || tryRdEn) && sbAccessError, BadAccess.id.U(i), // Access size error
-                         Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, OtherError.id.U(i), sbErrorReg(i)))))) // Response error from TL
+        sbErrorReg(i) := Mux(sberrorWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U.extract(i), // W1C
+                         Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), BadAddr.id.U.extract(i), // Bad address accessed
+                         Mux((tryWrEn || tryRdEn) && sbAlignmentError, AlgnError.id.U.extract(i), // Address alignment error
+                         Mux((tryWrEn || tryRdEn) && sbAccessError, BadAccess.id.U.extract(i), // Access size error
+                         Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, OtherError.id.U.extract(i), sbErrorReg(i)))))) // Response error from TL
     }
 
     SBCSRdData             := SBCSFieldsReg
