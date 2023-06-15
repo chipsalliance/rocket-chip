@@ -157,7 +157,7 @@ class ReadyValidCancelRRArbiter[T <: Data](gen: T, n: Int, rr: Boolean) extends 
     when (io.out.earlyValid) {
       assert(selectEnc_q < n.U, "arbiter round-robin select out of range")
     }
-    when (io.in(selectEnc_q).mightFire && io.in.map(i => i.earlyValid && !i.ready).orR) {
+    when (io.in(selectEnc_q).mightFire() && io.in.map(i => i.earlyValid && !i.ready).orR) {
       assert(selectEnc_in =/= selectEnc_q, "arbiter round-robin select did not advance")
     }
   }
