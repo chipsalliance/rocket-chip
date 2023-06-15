@@ -378,8 +378,8 @@ class CSRFile(
     extends CoreModule()(p)
     with HasCoreParameters {
   val io = IO(new CSRFileIO {
-    val customCSRs = Output(Vec(CSRFile.this.customCSRs.size, new CustomCSRIO))
-    val roccCSRs = Output(Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO))
+    val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO)
+    val roccCSRs = Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO)
   })
 
   val reset_mstatus = WireDefault(0.U.asTypeOf(new MStatus()))
@@ -775,15 +775,15 @@ class CSRFile(
   }
 
   // implementation-defined CSRs
-  def generateCustomCSR(csr: CustomCSR) = {
+  def generateCustomCSR(csr: CustomCSR, io: CustomCSRIO) = {
     require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
     require(!read_mapping.contains(csr.id))
     val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
     read_mapping += csr.id -> reg
     reg
   }
-  val reg_custom = customCSRs.map(generateCustomCSR(_))
-  val reg_rocc = roccCSRs.map(generateCustomCSR(_))
+  val reg_custom = customCSRs.zip(io.customCSRs).map(t => generateCustomCSR(t._1, t._2))
+  val reg_rocc = roccCSRs.zip(io.roccCSRs).map(t => generateCustomCSR(t._1, t._2))
 
   if (usingHypervisor) {
     read_mapping += CSRs.mtinst -> 0.U
@@ -1488,6 +1488,19 @@ class CSRFile(
         reg_vxrm.get := wdata >> 1
       }
     }
+  }
+
+  def setCustomCSR(io: CustomCSRIO, csr: CustomCSR, reg: UInt) = {
+    val mask = csr.mask.U(xLen.W)
+    when (io.set) {
+      reg := (io.sdata & mask) | (reg & ~mask)
+    }
+  }
+  for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+    setCustomCSR(io, csr, reg)
+  }
+  for ((io, csr, reg) <- (io.roccCSRs, roccCSRs, reg_rocc).zipped) {
+    setCustomCSR(io, csr, reg)
   }
 
   io.vector.map { vio =>

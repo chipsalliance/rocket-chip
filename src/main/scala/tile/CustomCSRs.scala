@@ -13,9 +13,12 @@ object CustomCSR {
 }
 
 class CustomCSRIO(implicit p: Parameters) extends CoreBundle {
-  val wen = Bool()
-  val wdata = UInt(xLen.W)
-  val value = UInt(xLen.W)
+  val wen = Output(Bool())          // set by CSRFile, indicates an instruction wrote the CSR
+  val wdata = Output(UInt(xLen.W))  // wdata provided by instruction writing CSR
+  val value = Output(UInt(xLen.W))  // current value of CSR in CSRFile
+
+  val set = Input(Bool())           // set/sdata enables external agents to set the value of this CSR
+  val sdata = Input(UInt(xLen.W))
 }
 
 class CustomCSRs(implicit p: Parameters) extends CoreBundle {

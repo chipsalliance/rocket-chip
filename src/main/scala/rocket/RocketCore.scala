@@ -806,7 +806,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.hgatp := csr.io.hgatp
   io.ptw.vsatp := csr.io.vsatp
-  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
+  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs <> rhs }
   io.ptw.status := csr.io.status
   io.ptw.hstatus := csr.io.hstatus
   io.ptw.gstatus := csr.io.gstatus
@@ -814,8 +814,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-  io.rocc.csrs := csr.io.roccCSRs
+  io.rocc.csrs <> csr.io.roccCSRs
   io.trace.time := csr.io.time
+  io.trace.insns := csr.io.trace
   if (rocketParams.debugROB) {
     val csr_trace_with_wdata = WireInit(csr.io.trace(0))
     csr_trace_with_wdata.wdata.get := rf_wdata

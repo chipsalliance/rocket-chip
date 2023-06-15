@@ -45,7 +45,7 @@ class RoCCCoreIO(val nRoCCCSRs: Int = 0)(implicit p: Parameters) extends CoreBun
   val busy = Output(Bool())
   val interrupt = Output(Bool())
   val exception = Input(Bool())
-  val csrs = Input(Vec(nRoCCCSRs, new CustomCSRIO))
+  val csrs = Flipped(Vec(nRoCCCSRs, new CustomCSRIO))
 }
 
 class RoCCIO(val nPTWPorts: Int, nRoCCCSRs: Int)(implicit p: Parameters) extends RoCCCoreIO(nRoCCCSRs)(p) {
