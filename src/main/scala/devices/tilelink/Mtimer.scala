@@ -15,19 +15,21 @@ import freechips.rocketchip.util._
 object MTIMERConsts
 {
   def mtimecmpOffset(hart: Int) = hart * mtimecmpBytes
-  def mtimecmpBytes   = 8
-  def mtimeWidth      = 64
-  def mtimecmpSize    = 0x8000
-  def mtimeSize       = 0x100
-  def ints            = 1
+  def mtimecmpBytes       = 8
+  def mtimeWidth          = 64
+  def mtimecmpSize        = 0x7ff8
+  def mtimecmpSizeAligned = 0x8000
+  def mtimeSize           = 0x8
+  def mtimeSizeAligned    = 0x1000
+  def ints                = 1
 }
 
 // Notice: Remember to ensure that the size and address meet the requirements of the AddressSet, if you use ACLINT 
 case class MTIMERParams(MTIMECMPBaseAddress: BigInt = 0x02008000, MTIMEBaseAddress: BigInt = 0x02010000, intStages: Int = 0)
 {
-  def mtimecmpAddress = AddressSet(MTIMECMPBaseAddress, MTIMERConsts.mtimecmpSize - 1)
+  def mtimecmpAddress = AddressSet(MTIMECMPBaseAddress, MTIMERConsts.mtimecmpSizeAligned - 1)
 
-  def mtimeAddress = AddressSet(MTIMEBaseAddress, MTIMERConsts.mtimeSize - 1)
+  def mtimeAddress = AddressSet(MTIMEBaseAddress, MTIMERConsts.mtimeSizeAligned - 1)
 }
 
 case class MTIMERAttachParams(
@@ -40,8 +42,21 @@ class MTIMER(params: MTIMERParams, beatBytes: Int)(implicit p: Parameters) exten
 {
   import MTIMERConsts._ 
 
-  val device = new SimpleDevice("mtimer", Seq("riscv,aclint-mtimer")) {
+  val device: SimpleDevice = new SimpleDevice("mtimer", Seq("riscv,aclint-mtimer")) {
     override val alwaysExtended = true
+    override def describe(resources: ResourceBindings): Description = {
+      val Description(name, mapping) = super.describe(resources)
+      val mtimeReg = ResourceAddress(Seq(params.mtimeAddress), ResourcePermissions(false, false, false, false, false))
+      val mtimecmpReg = ResourceAddress(Seq(params.mtimecmpAddress), ResourcePermissions(false, false, false, false, false))
+      // The default `reg' in dts will merge both AddressSets
+      // and the software can not tell where is mtime/mtimecmp
+      val extra = Map(
+        // override `reg'
+        // aclint dt-binding defines the order of mtime and mtimecmp
+        "reg" -> Seq(mtimeReg, mtimecmpReg)
+      )
+      Description(name, mapping ++ extra)
+    }
   }
 
   val mtimecmpNode: TLRegisterNode = TLRegisterNode(
