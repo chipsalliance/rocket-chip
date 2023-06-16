@@ -12,19 +12,9 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-object SWIConsts
-{
-  def sipOffset(hart: Int) = hart * sipBytes
-  def sipBytes = 4
-  def size = 0x4000
-  def ipiWidth = 32
-  def ints = 1
-  def clintSize = 0x10000
-}
-
 case class MSWIParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 {
-  def address = AddressSet(BaseAddress, SWIConsts.size - 1)
+  def address = AddressSet(baseAddress, SWIConsts.size - 1)
 }
 
 case class MSWIAttachParams(
@@ -117,24 +107,5 @@ class MSWI(mswiParams: MSWIParams, mtimerParams: MTIMERParams, isACLINT: Boolean
 
     val mapping = mswiRegMapping ++ mtimerRegMapping
     node.regmap(mapping:_*)    
-  }
-}
-
-object SWI {
-  def apply(mswiType: String, intnode: IntNexusNode, intStages: Int) = {
-    import SWIConsts._ 
-
-    val nTiles  = intnode.out.size
-    val ipi     = Seq.fill(nTiles) { RegInit(0.U(1.W)) }
-    
-    val (intnode_out, _) = intnode.out.unzip
-    intnode_out.zipWithIndex.foreach { case (int, i) =>
-      int(0) := ShiftRegister(ipi(i)(0), intStages)
-    }
-
-    val swiRegGroup = RegFieldGroup(mswiType + "sip", Some(mswiType.toUpperCase + "SIP Bits"), ipi.zipWithIndex.flatMap { case (r, i) => 
-      RegField(1, r, RegFieldDesc(mswiType + s"sip_$i", mswiType.toUpperCase + s"SIP bit for Hart $i", reset=Some(0))) :: RegField(SWIConsts.ipiWidth - 1) :: Nil })
-  
-    swiRegGroup
   }
 }

@@ -40,7 +40,7 @@ trait CanHavePeripheryCLINT { this: BaseSubsystem =>
         val mswiOpt = clintParams.mswi.map { params =>
           val tlbus = locateTLBusWrapper(p(MSWIAttachKey).slaveWhere)
           val beatBytes = tlbus.beatBytes
-          val mswi = LazyModule(new MSWI(params, MTIMERParams(MTIMEBaseAddress = params.BaseAddress + SWIConsts.size), clintParams.isACLINT, beatBytes))
+          val mswi = LazyModule(new MSWI(params, MTIMERParams(mtimeBaseAddress = params.baseAddress + SWIConsts.size), clintParams.isACLINT, beatBytes))
           mswi.node := tlbus.coupleTo("mswi") { TLFragmenter(tlbus) := _ }
 
           InModuleBody {
