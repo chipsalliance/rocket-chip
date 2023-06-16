@@ -91,7 +91,7 @@ object TLArbiter
 
       // Who wants access to the sink?
       val earlyValids = sourcesIn.map(_.earlyValid)
-      val validQuals  = sourcesIn.map(_.validQual)
+      val validQuals  = sourcesIn.map(_.validQual())
       // Arbitrate amongst the requests
       val readys = VecInit(policy(earlyValids.size, Cat(earlyValids.reverse), latch).asBools)
       // Which request wins arbitration?
@@ -111,7 +111,7 @@ object TLArbiter
       // Track remaining beats
       val maskedBeats = (winnerQual zip beatsIn) map { case (w,b) => Mux(w, b, 0.U) }
       val initBeats = maskedBeats.reduce(_ | _) // no winner => 0 beats
-      beatsLeft := Mux(latch, initBeats, beatsLeft - sink.fire())
+      beatsLeft := Mux(latch, initBeats, beatsLeft - sink.fire)
 
       // The one-hot source granted access in the previous cycle
       val state = RegInit(VecInit(Seq.fill(sources.size)(false.B)))
@@ -177,7 +177,7 @@ class TLDecoupledArbiterRobinTest(txns: Int = 128, timeout: Int = 500000, print:
     case (s, i) => s.valid := (if (i % 2 == 1) false.B else valid)
   }
 
-  when (sink.fire()) {
+  when (sink.fire) {
     if (print) { printf("TestRobin: %d\n", sink.bits) }
     when (beatsLeft === 0.U) {
       assert(lastWinner =/= sink.bits, "Round robin did not pick a new idx despite one being valid.")
@@ -189,7 +189,7 @@ class TLDecoupledArbiterRobinTest(txns: Int = 128, timeout: Int = 500000, print:
     }
   }
   if (print) {
-    when (!sink.fire()) { printf("TestRobin: idle (%d %d)\n", valid, ready) }
+    when (!sink.fire) { printf("TestRobin: idle (%d %d)\n", valid, ready) }
   }
 }
 /** This tests that the lowest index is always selected across random single cycle transactions. */
@@ -204,7 +204,7 @@ class TLDecoupledArbiterLowestTest(txns: Int = 128, timeout: Int = 500000)(impli
 
   sources.zipWithIndex.map { case (s, i) => s.valid := lfsr(i) }
   sink.ready := lfsr(15)
-  when (sink.fire()) { (0 until numSources).foreach(assertLowest(_)) }
+  when (sink.fire) { (0 until numSources).foreach(assertLowest(_)) }
 }
 
 /** This tests that the highest index is always selected across random single cycle transactions. */
@@ -219,5 +219,5 @@ class TLDecoupledArbiterHighestTest(txns: Int = 128, timeout: Int = 500000)(impl
 
   sources.zipWithIndex.map { case (s, i) => s.valid := lfsr(i) }
   sink.ready := lfsr(15)
-  when (sink.fire()) { (0 until numSources).foreach(assertHighest(_)) }
+  when (sink.fire) { (0 until numSources).foreach(assertHighest(_)) }
 }

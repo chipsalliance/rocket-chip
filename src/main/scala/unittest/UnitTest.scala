@@ -4,7 +4,6 @@ package freechips.rocketchip.unittest
 
 import chisel3._
 import chisel3.util._
-import chisel3.experimental.{IO}
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.util._
 
@@ -23,7 +22,7 @@ trait UnitTestLegacyModule extends HasUnitTestIO {
 
 trait UnitTestModule extends Module with HasUnitTestIO {
   val io = IO(new Bundle with UnitTestIO)
-  ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
+  ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader())
 }
 
 abstract class UnitTest(val timeout: Int = 4096) extends Module with UnitTestLegacyModule {

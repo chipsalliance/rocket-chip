@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 
 /** Given a list of (frequency, value) pairs, return a random value
   * according to the frequency distribution.  The sum of the
@@ -23,18 +24,18 @@ object Frequency {
     val (firstFreq, firstVal) = dist.head
 
     // Result wire
-    val result = Wire(Bits(width = firstVal.getWidth))
-    result := UInt(0)
+    val result = Wire(Bits(firstVal.getWidth.W))
+    result := 0.U
 
     // Random value
     val randVal = LCG(log2Up(total))
 
     // Pick return value
     var count = firstFreq
-    var select = when (randVal < UInt(firstFreq)) { result := firstVal }
+    var select = when (randVal < firstFreq.U) { result := firstVal }
     for (p <- dist.drop(1)) {
       count = count + p._1
-      select = select.elsewhen(randVal < UInt(count)) { result := p._2 }
+      select = select.elsewhen(randVal < count.U) { result := p._2 }
     }
 
     return result

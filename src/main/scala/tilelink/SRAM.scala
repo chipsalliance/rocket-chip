@@ -258,7 +258,7 @@ class TLRAM(
 
     // Forward pipeline stage from A to R
     when (r_ready) { r_full := false.B }
-    when (in.a.fire()) {
+    when (in.a.fire) {
       r_full     := true.B
       r_sublane  := a_sublane
       r_opcode   := in.a.bits.opcode
@@ -290,7 +290,7 @@ class TLRAM(
     val a_lanes = Cat(Seq.tabulate(lanes) { i => in.a.bits.mask(eccBytes*(i+1)-1, eccBytes*i).orR }.reverse)
 
     // SRAM arbitration
-    val a_fire = in.a.fire()
+    val a_fire = in.a.fire
     val a_ren = a_read || a_atomic || a_sublane
     val r_ren = r_read || r_atomic || r_sublane
     val wen = d_wb || Mux(r_replay, !r_ren, a_fire && !a_ren)

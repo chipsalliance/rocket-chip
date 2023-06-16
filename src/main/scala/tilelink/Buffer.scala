@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -43,12 +43,12 @@ class TLBuffer(
         out.c <> c(in .c)
         out.e <> e(in .e)
       } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
+        in.b.valid := false.B
+        in.c.ready := true.B
+        in.e.ready := true.B
+        out.b.ready := true.B
+        out.c.valid := false.B
+        out.e.valid := false.B
       }
     }
   }
@@ -112,7 +112,7 @@ class TLBufferAndNotCancel(
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out.a <> a(in.a.asDecoupled)
+      out.a <> a(in.a.asDecoupled())
       in .d <> d(out.d)
 
       if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {
@@ -120,12 +120,12 @@ class TLBufferAndNotCancel(
         out.c <> c(in .c)
         out.e <> e(in .e)
       } else {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
+        in.b.valid := false.B
+        in.c.ready := true.B
+        in.e.ready := true.B
+        out.b.ready := true.B
+        out.c.valid := false.B
+        out.e.valid := false.B
       }
     }
   }

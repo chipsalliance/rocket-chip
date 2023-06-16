@@ -109,14 +109,15 @@ trait HasNonDiplomaticTileParameters {
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
-      //Some(Seq("Zicntr")) ++
-      Some(Seq("Zicsr", "Zifencei", "Zihpm")) ++
-      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("Zfh")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("Zba", "Zbb", "Zbc")) ++
-      Option.when(tileParams.core.hasBitManipCrypto)(Seq("Zbkb", "Zbkc", "Zbkx")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("Zbs")) ++
-      Option.when(tileParams.core.useCryptoNIST)(Seq("Zknd", "Zkne", "Zknh")) ++
-      Option.when(tileParams.core.useCryptoSM)(Seq("Zksed", "Zksh")) ++
+      //Some(Seq("zicntr")) ++
+      Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
+      Some(Seq("zicsr", "zifencei", "zihpm")) ++
+      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
+      Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
+      Option.when(tileParams.core.hasBitManipCrypto)(Seq("zbkb", "zbkc", "zbkx")) ++
+      Option.when(tileParams.core.useBitManip)(Seq("zbs")) ++
+      Option.when(tileParams.core.useCryptoNIST)(Seq("zknd", "zkne", "zknh")) ++
+      Option.when(tileParams.core.useCryptoSM)(Seq("zksed", "zksh")) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
@@ -282,10 +283,10 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
 
   protected def traceRetireWidth = tileParams.core.retireWidth
   /** Node for the core to drive legacy "raw" instruction trace. */
-  val traceSourceNode = BundleBridgeSource(() => Vec(traceRetireWidth, new TracedInstruction()))
-  private val traceNexus = BundleBroadcast[Vec[TracedInstruction]]() // backwards compatiblity; not blocked during stretched reset
+  val traceSourceNode = BundleBridgeSource(() => new TraceBundle)
+  private val traceNexus = BundleBroadcast[TraceBundle]() // backwards compatiblity; not blocked during stretched reset
   /** Node for external consumers to source a legacy instruction trace from the core. */
-  val traceNode: BundleBridgeOutwardNode[Vec[TracedInstruction]] = traceNexus := traceSourceNode
+  val traceNode: BundleBridgeOutwardNode[TraceBundle] = traceNexus := traceSourceNode
 
   protected def traceCoreParams = new TraceCoreParams()
   /** Node for core to drive instruction trace conforming to RISC-V Processor Trace spec V1.0 */

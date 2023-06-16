@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{DontCare, WireInit, withClock, withReset}
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
@@ -726,9 +726,9 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val io = IO(new FPUIO)
 
-  val useClockGating = coreParams match {
-    case r: RocketCoreParams => r.clockGate
-    case _ => false
+  val (useClockGating, useDebugROB) = coreParams match {
+    case r: RocketCoreParams => (r.clockGate, r.debugROB)
+    case _ => (false, false)
   }
   val clock_en_reg = Reg(Bool())
   val clock_en = clock_en_reg || io.cp_req.valid
@@ -796,7 +796,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     regfile(load_wb_tag) := wdata
     assert(consistent(wdata))
     if (enableCommitLog)
-      printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32.U, load_wb_data)
+      printf("f%d p%d 0x%x\n", load_wb_tag, load_wb_tag + 32.U, ieee(wdata))
+    if (useDebugROB)
+      DebugROB.pushWb(clock, reset, io.hartid, load_wb, load_wb_tag + 32.U, ieee(wdata))
     frfWriteBundle(0).wrdst := load_wb_tag
     frfWriteBundle(0).wrenf := true.B
     frfWriteBundle(0).wrdata := ieee(wdata)
@@ -940,6 +942,10 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     frfWriteBundle(1).wrenf := true.B
     frfWriteBundle(1).wrdata := ieee(wdata)
   }
+  if (useDebugROB) {
+    DebugROB.pushWb(clock, reset, io.hartid, (!wbInfo(0).cp && wen(0)) || divSqrt_wen, waddr + 32.U, ieee(wdata))
+  }
+
   when (wbInfo(0).cp && wen(0)) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := true.B

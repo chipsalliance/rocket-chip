@@ -46,7 +46,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
       // Managers that need help with atomics must necessarily have this node as the root of a tree in the node graph.
       // (But they must also ensure no sideband operations can get between the read and write.)
-      val violations = managersNeedingHelp.flatMap(_.findTreeViolation).map { node => (node.name, node.inputs.map(_._1.name)) }
+      val violations = managersNeedingHelp.flatMap(_.findTreeViolation()).map { node => (node.name, node.inputs.map(_._1.name)) }
       require(violations.isEmpty,
         s"AtomicAutomata can only help nodes for which it is at the root of a diplomatic node tree," +
         "but the following violations were found:\n" +
@@ -173,7 +173,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         TLArbiter(TLArbiter.lowestIndexFirst)(out.a, (0.U, source_c), (edgeOut.numBeats1(in.a.bits), source_i))
 
         // Capture the A state into the CAM
-        when (source_i.fire() && !a_isSupported) {
+        when (source_i.fire && !a_isSupported) {
           (a_cam_sel_free zip cam_a) foreach { case (en, r) =>
             when (en) {
               r.fifoId := a_fifoId
@@ -193,7 +193,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         }
 
         // Advance the put state
-        when (source_c.fire()) {
+        when (source_c.fire) {
           (a_cam_sel_put zip cam_s) foreach { case (en, r) =>
             when (en) {
               r.state := ACK
@@ -215,7 +215,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
         val d_ackd = out.d.bits.opcode === TLMessages.AccessAckData
         val d_ack  = out.d.bits.opcode === TLMessages.AccessAck
 
-        when (out.d.fire() && d_first) {
+        when (out.d.fire && d_first) {
           (d_cam_sel zip cam_d) foreach { case (en, r) =>
             when (en && d_ackd) {
               r.data := out.d.bits.data
@@ -340,4 +340,5 @@ class TLRAMAtomicAutomata(txns: Int)(implicit p: Parameters) extends LazyModule 
 class TLRAMAtomicAutomataTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new TLRAMAtomicAutomata(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }

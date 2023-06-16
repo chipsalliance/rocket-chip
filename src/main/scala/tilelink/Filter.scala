@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -60,12 +60,12 @@ class TLFilter(
 
       // In case the inner interface removes Acquire, tie-off the channels
       if (!edgeIn.manager.anySupportAcquireB) {
-        in.b.valid := Bool(false)
-        in.c.ready := Bool(true)
-        in.e.ready := Bool(true)
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
+        in.b.valid := false.B
+        in.c.ready := true.B
+        in.e.ready := true.B
+        out.b.ready := true.B
+        out.c.valid := false.B
+        out.e.valid := false.B
       }
     }
   }
@@ -89,10 +89,14 @@ object TLFilter
   }
 
   // make everything except the intersected address sets visible
-  def mSubtract(except: AddressSet): ManagerFilter = { m =>
-    val filtered = m.address.flatMap(_.subtract(except))
+  def mSubtract(excepts: Seq[AddressSet]): ManagerFilter = { m =>
+    val filtered = excepts.foldLeft(m.address) { (a,e) => a.flatMap(_.subtract(e)) }
     val alignment: BigInt = if (filtered.isEmpty) 0 else filtered.map(_.alignment).min
     transferSizeHelper(m, filtered, alignment)
+  }
+
+  def mSubtract(except: AddressSet): ManagerFilter = { m =>
+    mSubtract(Seq(except))(m)
   }
 
   // adjust supported transfer sizes based on filtered intersection

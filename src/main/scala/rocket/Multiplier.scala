@@ -155,10 +155,10 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
     }
     when (divby0 && !isHi) { neg_out := false.B }
   }
-  when (io.resp.fire() || io.kill) {
+  when (io.resp.fire || io.kill) {
     state := s_ready
   }
-  when (io.req.fire()) {
+  when (io.req.fire) {
     state := Mux(cmdMul, s_mul, Mux(lhs_sign || rhs_sign, s_neg_inputs, s_div))
     isHi := cmdHi
     resHi := false.B

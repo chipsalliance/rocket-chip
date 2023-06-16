@@ -29,6 +29,7 @@ case class RocketCoreParams(
   useBitManipCrypto: Boolean = false,
   useCryptoNIST: Boolean = false,
   useCryptoSM: Boolean = false,
+  useConditionalZero: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -52,7 +53,9 @@ case class RocketCoreParams(
   mvendorid: Int = 0, // 0 means non-commercial implementation
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
-  fpu: Option[FPUParams] = Some(FPUParams())
+  fpu: Option[FPUParams] = Some(FPUParams()),
+  debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
+  haveCease: Boolean = true // non-standard CEASE instruction
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -64,7 +67,7 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = false // ooo wb, so no wdata in trace
-  override val customIsaExt = Some("Xrocket") // CEASE instruction
+  override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }
@@ -82,6 +85,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   require(!fastLoadByte || fastLoadWord)
   require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
+  require(!(usingABLU && usingConditionalZero), "Zicond is not yet implemented in ABLU")
 }
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
@@ -118,6 +122,7 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
 class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
+  def nTotalRoCCCSRs = tile.roccCSRs.flatten.size
 
   val clock_en_reg = RegInit(true.B)
   val long_latency_stall = Reg(Bool())
@@ -202,8 +207,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     ((usingHypervisor && (xLen == 64)).option(new Hypervisor64Decode(aluFn))) ++:
     (usingDebug.option(new DebugDecode(aluFn))) ++:
     (usingNMI.option(new NMIDecode(aluFn))) ++:
+    (usingConditionalZero.option(new ConditionalZeroDecode(aluFn))) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI, aluFn)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine, aluFn)) ++:
+    rocketParams.haveCease.option(new CeaseDecode(aluFn)) ++:
     Seq(new IDecode(aluFn))
   } flatMap(_.table)
 
@@ -305,7 +312,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls))
+  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls, tile.roccCSRs.flatten))
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
   val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_expanded_inst(0).rs1 === 0.U
@@ -807,7 +814,23 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-  io.trace := csr.io.trace
+  io.rocc.csrs := csr.io.roccCSRs
+  io.trace.time := csr.io.time
+  if (rocketParams.debugROB) {
+    val csr_trace_with_wdata = WireInit(csr.io.trace(0))
+    csr_trace_with_wdata.wdata.get := rf_wdata
+    DebugROB.pushTrace(clock, reset,
+      io.hartid, csr_trace_with_wdata,
+      (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception,
+      wb_ctrl.wxd && wb_wen && !wb_set_sboard,
+      wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
+
+    io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
+
+    DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
+  } else {
+    io.trace.insns := csr.io.trace
+  }
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
     iobpw.valid(0) := wphit
     iobpw.action := bp.control.action

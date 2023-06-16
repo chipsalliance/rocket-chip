@@ -22,6 +22,8 @@
           verilator cmake ninja
           python3 python3Packages.bootstrapped-pip
           pkgsCross.riscv64-embedded.buildPackages.gcc
+          pkgsCross.riscv64-embedded.buildPackages.gdb
+          openocd
           circt
 
           spike riscvTests
@@ -41,7 +43,7 @@
               export PYTHONPATH="$PIP_PREFIX/${pkgs.python3.sitePackages}:$PYTHONPATH"
               export PATH="$PIP_PREFIX/bin:$PATH"
               unset SOURCE_DATE_EPOCH
-              pip3 install importlib-metadata typing-extensions riscof==1.25.2
+              pip3 install importlib-metadata typing-extensions riscof==1.25.2 pexpect
             '';
           };
         }

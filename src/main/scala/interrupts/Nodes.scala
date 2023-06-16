@@ -3,7 +3,7 @@
 package freechips.rocketchip.interrupts
 
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
@@ -21,7 +21,7 @@ object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParamete
 
 trait IntFormatNode extends BaseNode
 {
-  override def formatNode() = "Interrupt Node\n"
+  override def formatNode = "Interrupt Node\n"
 }
 
 case class IntSourceNode(portParams: Seq[IntSourcePortParameters])(implicit valName: ValName) extends SourceNode(IntImp)(portParams) with IntFormatNode

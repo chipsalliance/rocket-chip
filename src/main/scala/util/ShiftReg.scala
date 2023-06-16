@@ -12,7 +12,7 @@ object ShiftRegInit {
 
   (0 until n).foldRight(in) {
     case (i, next) => {
-      val r = RegNext(next, init = init)
+      val r = RegNext(next, init)
       name.foreach { na => r.suggestName(s"${na}_${i}") }
       r
     }

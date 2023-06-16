@@ -11,7 +11,7 @@ import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util._
 
 case object AXI4RRId extends ControlKey[UInt]("extra_id")
-case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(UInt((1 max width).W), 0.U)
+case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(Output(UInt((1 max width).W)), 0.U)
 
 case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
   extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
@@ -39,8 +39,8 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     val fields = AXI4RRIdField(ar.bits.params.idBits) +: ar.bits.params.echoFields
     val params = RegMapperParams(log2Up((address.mask+1)/beatBytes), beatBytes, fields)
     val in = Wire(Decoupled(new RegMapperInput(params)))
-    val ar_extra = Wire(in.bits.extra)
-    val aw_extra = Wire(in.bits.extra)
+    val ar_extra = Wire(BundleMap(params.extraFields))
+    val aw_extra = Wire(BundleMap(params.extraFields))
 
     // Prefer to execute reads first
     in.valid := ar.valid || (aw.valid && w.valid)
@@ -48,8 +48,8 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     aw.ready := in.ready && !ar.valid && w .valid
     w .ready := in.ready && !ar.valid && aw.valid
 
-    ar_extra :<= ar.bits.echo
-    aw_extra :<= aw.bits.echo
+    ar_extra.partialAssignL(ar.bits.echo)
+    aw_extra.partialAssignL(aw.bits.echo)
     ar_extra(AXI4RRId) := ar.bits.id
     aw_extra(AXI4RRId) := aw.bits.id
     val addr = Mux(ar.valid, ar.bits.addr, aw.bits.addr)

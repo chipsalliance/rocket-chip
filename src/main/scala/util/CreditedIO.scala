@@ -56,7 +56,7 @@ final class CreditedIO[T <: Data](gen: T) extends Bundle
     val counter = new CreditedIOCounter(depth, depth)
     counter.update(this)
     res.ready := !counter.empty || (pipe.B && credit)
-    debit := res.fire()
+    debit := res.fire
     bits  := res.bits
     res
   }
@@ -74,7 +74,7 @@ final class CreditedIO[T <: Data](gen: T) extends Bundle
     enq.bits := bits
     assert (!enq.valid || enq.ready)
     val res = Queue.irrevocable(enq, depth, pipe=true, flow=flow)
-    credit := res.fire()
+    credit := res.fire
     res
   }
 

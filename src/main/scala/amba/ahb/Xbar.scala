@@ -43,7 +43,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
 
       val (in, _) = node.in(0)
       val a_sel = VecInit(route_addrs.map(seq => seq.map(_.contains(in.haddr)).reduce(_ || _)))
-      val d_sel = Reg(a_sel)
+      val d_sel = RegInit(a_sel)
 
       when (in.hready) { d_sel := a_sel }
       (a_sel zip io_out) foreach { case (sel, out) =>

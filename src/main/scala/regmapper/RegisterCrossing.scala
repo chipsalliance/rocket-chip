@@ -107,6 +107,7 @@ class RegisterWriteCrossing[T <: Data](gen: T, sync: Int = 3) extends Module {
   control.io.master_response_ready := io.master_port.response.ready
   io.master_port.request.ready  := control.io.master_request_ready
   io.master_port.response.valid := control.io.master_response_valid
+  io.master_port.response.bits  := DontCare
 
   control.io.crossing_request_ready := crossing.io.enq.ready
   crossing.io.enq.valid := control.io.crossing_request_valid

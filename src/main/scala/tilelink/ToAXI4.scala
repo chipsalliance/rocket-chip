@@ -149,8 +149,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
       val out_w = Wire(chiselTypeOf(out.w))
-      out.w :<> Queue.irrevocable(out_w, entries=depth, flow=combinational)
-      val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
+      out.w :<> Queue.irrevocable(out_w, entries=depth, combinational)
+      val queue_arw = Queue.irrevocable(out_arw, entries=depth, combinational)
 
       // Fan out the ARW channel to AR and AW
       out.ar.bits := queue_arw.bits
@@ -162,7 +162,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val beatBytes = edgeIn.manager.beatBytes
       val maxSize   = log2Ceil(beatBytes).U
       val doneAW    = RegInit(false.B)
-      when (in.a.fire()) { doneAW := !a_last }
+      when (in.a.fire) { doneAW := !a_last }
 
       val arw = out_arw.bits
       arw.wen   := a_isPut
@@ -207,7 +207,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       // R and B => D arbitration
       val r_holds_d = RegInit(false.B)
-      when (out.r.fire()) { r_holds_d := !out.r.bits.last }
+      when (out.r.fire) { r_holds_d := !out.r.bits.last }
       // Give R higher priority than B, unless B has been delayed for 8 cycles
       val b_delay = Reg(UInt(3.W))
       when (out.b.valid && !out.b.ready) {
@@ -225,7 +225,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       // request. We must pulse extend this value as AXI is allowed to change the
       // value of RRESP on every beat, and ChipLink may not.
       val r_first = RegInit(true.B)
-      when (out.r.fire()) { r_first := out.r.bits.last }
+      when (out.r.fire) { r_first := out.r.bits.last }
       val r_denied  = out.r.bits.resp === AXI4Parameters.RESP_DECERR holdUnless r_first
       val r_corrupt = out.r.bits.resp =/= AXI4Parameters.RESP_OKAY
       val b_denied  = out.b.bits.resp =/= AXI4Parameters.RESP_OKAY
@@ -258,8 +258,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         val write = Reg(Bool())
         val idle = count === 0.U
 
-        val inc = as && out_arw.fire()
-        val dec = ds && d_last && in.d.fire()
+        val inc = as && out_arw.fire
+        val dec = ds && d_last && in.d.fire
         count := count + inc.asUInt - dec.asUInt
 
         assert (!dec || count =/= 0.U)        // underflow

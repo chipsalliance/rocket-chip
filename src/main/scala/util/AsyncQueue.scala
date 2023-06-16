@@ -78,12 +78,12 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
   val bits = params.bits
   val sink_ready = WireInit(true.B)
   val mem = Reg(Vec(params.depth, gen)) // This does NOT need to be reset at all.
-  val widx = withReset(reset.asAsyncReset)(GrayCounter(bits+1, io.enq.fire(), !sink_ready, "widx_bin"))
+  val widx = withReset(reset.asAsyncReset)(GrayCounter(bits+1, io.enq.fire, !sink_ready, "widx_bin"))
   val ridx = AsyncResetSynchronizerShiftReg(io.async.ridx, params.sync, Some("ridx_gray"))
   val ready = sink_ready && widx =/= (ridx ^ (params.depth | params.depth >> 1).U)
 
   val index = if (bits == 0) 0.U else io.async.widx(bits-1, 0) ^ (io.async.widx(bits, bits) << (bits-1))
-  when (io.enq.fire()) { mem(index) := io.enq.bits }
+  when (io.enq.fire) { mem(index) := io.enq.bits }
 
   val ready_reg = withReset(reset.asAsyncReset)(RegNext(next=ready, init=false.B).suggestName("ready_reg"))
   io.enq.ready := ready_reg && sink_ready
@@ -141,7 +141,7 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
 
   val bits = params.bits
   val source_ready = WireInit(true.B)
-  val ridx = withReset(reset.asAsyncReset)(GrayCounter(bits+1, io.deq.fire(), !source_ready, "ridx_bin"))
+  val ridx = withReset(reset.asAsyncReset)(GrayCounter(bits+1, io.deq.fire, !source_ready, "ridx_bin"))
   val widx = AsyncResetSynchronizerShiftReg(io.async.widx, params.sync, Some("widx_gray"))
   val valid = source_ready && ridx =/= widx
 
@@ -221,13 +221,8 @@ object ToAsyncBundle
 
 class AsyncQueue[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Crossing[T] {
   val io = IO(new CrossingIO(gen))
-  val source = Module(new AsyncQueueSource(gen, params))
-  val sink   = Module(new AsyncQueueSink  (gen, params))
-
-  source.clock := io.enq_clock
-  source.reset := io.enq_reset
-  sink.clock := io.deq_clock
-  sink.reset := io.deq_reset
+  val source = withClockAndReset(io.enq_clock, io.enq_reset) { Module(new AsyncQueueSource(gen, params)) }
+  val sink   = withClockAndReset(io.deq_clock, io.deq_reset) { Module(new AsyncQueueSink  (gen, params)) }
 
   source.io.enq <> io.enq
   io.deq <> sink.io.deq

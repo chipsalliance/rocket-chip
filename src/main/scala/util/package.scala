@@ -68,7 +68,7 @@ package object util {
     def ^ (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a ^ b }
     def << (n: Int): Seq[Bool] = Seq.fill(n)(false.B) ++ x
     def >> (n: Int): Seq[Bool] = x drop n
-    def unary_~(): Seq[Bool] = x.map(!_)
+    def unary_~ : Seq[Bool] = x.map(!_)
     def andR: Bool = if (x.isEmpty) true.B else x.reduce(_&&_)
     def orR: Bool = if (x.isEmpty) false.B else x.reduce(_||_)
     def xorR: Bool = if (x.isEmpty) false.B else x.reduce(_^_)
