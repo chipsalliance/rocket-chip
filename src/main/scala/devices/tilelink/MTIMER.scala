@@ -25,11 +25,11 @@ object MTIMERConsts
 }
 
 // Notice: Remember to ensure that the size and address meet the requirements of the AddressSet, if you use ACLINT 
-case class MTIMERParams(MTIMECMPBaseAddress: BigInt = 0x02008000, MTIMEBaseAddress: BigInt = 0x02010000, intStages: Int = 0)
+case class MTIMERParams(mtimecmpBaseAddress: BigInt = 0x02008000, mtimeBaseAddress: BigInt = 0x02010000, intStages: Int = 0)
 {
-  def mtimecmpAddress = AddressSet(MTIMECMPBaseAddress, MTIMERConsts.mtimecmpSizeAligned - 1)
+  def mtimecmpAddress = AddressSet(mtimecmpBaseAddress, MTIMERConsts.mtimecmpSizeAligned - 1)
 
-  def mtimeAddress = AddressSet(MTIMEBaseAddress, MTIMERConsts.mtimeSizeAligned - 1)
+  def mtimeAddress = AddressSet(mtimeBaseAddress, MTIMERConsts.mtimeSizeAligned - 1)
 }
 
 case class MTIMERAttachParams(

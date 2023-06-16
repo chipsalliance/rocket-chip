@@ -22,7 +22,7 @@ object SWIConsts
   def clintSize = 0x10000
 }
 
-case class MSWIParams(BaseAddress: BigInt = 0x02000000, intStages: Int = 0)
+case class MSWIParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
 {
   def address = AddressSet(BaseAddress, SWIConsts.size - 1)
 }
