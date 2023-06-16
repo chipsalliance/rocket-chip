@@ -580,8 +580,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_amo_arithmetic, ~paa_array_if_cached, 0.U)
   val must_alloc_array =
     Mux(cmd_put_partial, ~ppp_array, 0.U) |
-    Mux(cmd_amo_logical, ~paa_array, 0.U) |
-    Mux(cmd_amo_arithmetic, ~pal_array, 0.U) |
+    Mux(cmd_amo_logical, ~pal_array, 0.U) |
+    Mux(cmd_amo_arithmetic, ~paa_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
   val pf_ld_array = Mux(cmd_read, ((~Mux(cmd_readx, x_array, r_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_st_array = Mux(cmd_write_perms, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
