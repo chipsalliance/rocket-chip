@@ -16,8 +16,8 @@ import freechips.rocketchip.util._
  *  If isACLINT is true, here is the template:
  *  CLINTParams(
  *    isACLINT: Boolean = true,
- *    mtimer: Option[MTIMERParams]  = Some(MTIMERParams(MTIMECMPBaseAddress= yyy)),
- *    mswi: Option[MSWIParams]      = Some(MSWIParams(BaseAddress = xxx))
+ *    mtimer: Option[MTIMERParams]  = Some(MTIMERParams(mtimecmpBaseAddress = yyy, mtimeBaseAddress = zzz)),
+ *    mswi: Option[MSWIParams]      = Some(MSWIParams(baseAddress = xxx))
  *  )
  */
 case class CLINTParams(
