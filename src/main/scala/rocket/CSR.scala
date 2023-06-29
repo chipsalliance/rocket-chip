@@ -424,7 +424,7 @@ class CSRFile(
 
     (sup.asUInt | supported_high_interrupts, del.asUInt)
   }
-  val delegable_exceptions = Seq(
+  val delegable_base_exceptions = Seq(
     Causes.misaligned_fetch,
     Causes.fetch_page_fault,
     Causes.breakpoint,
@@ -434,11 +434,18 @@ class CSRFile(
     Causes.misaligned_store,
     Causes.illegal_instruction,
     Causes.user_ecall,
+  )
+  val delegable_hypervisor_exceptions = Seq(
     Causes.virtual_supervisor_ecall,
     Causes.fetch_guest_page_fault,
     Causes.load_guest_page_fault,
     Causes.virtual_instruction,
-    Causes.store_guest_page_fault).map(1 << _).sum.U
+    Causes.store_guest_page_fault,
+  )
+  val delegable_exceptions = (
+    delegable_base_exceptions
+    ++ (if (usingHypervisor) delegable_hypervisor_exceptions else Seq())
+  ).map(1 << _).sum.U
 
   val hs_delegable_exceptions = Seq(
     Causes.misaligned_fetch,
