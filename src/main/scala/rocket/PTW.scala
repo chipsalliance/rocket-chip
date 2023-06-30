@@ -135,8 +135,12 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
   val r = Bool()
   /** valid bit */
   val v = Bool()
+  /** the most significant bits are reserved for all types of PTE */
+  def isReserved: Bool = reserved_for_future =/= 0.U
+  /** a non-leaf PTE has more reserved bits than the leaf PTEs */
+  def isReservedIfNonLeaf: Bool = d || a || u
   /** return true if find a pointer to next level page table */
-  def table(dummy: Int = 0) = v && !r && !w && !x && !d && !a && !u && reserved_for_future === 0.U
+  def table(dummy: Int = 0) = v && !r && !w && !x && !isReserved && !isReservedIfNonLeaf
   /** return true if find a leaf PTE */
   def leaf(dummy: Int = 0) = v && (r || (x && !w)) && a
   /** user read */
@@ -695,7 +699,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }.otherwise {
       val gf = stage2 && !stage2_final && !pte.ur()
       val ae = pte.v && invalid_paddr
-      val pf = pte.v && pte.reserved_for_future =/= 0.U
+      val pf = pte.v && (pte.isReserved || count < (pgLevels-1).U && !pte.leaf() && pte.isReservedIfNonLeaf)
       val success = pte.v && !ae && !pf && !gf
 
       when (do_both_stages && !stage2_final && success) {
