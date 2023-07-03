@@ -119,10 +119,9 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false, usingBitMani
     def beqz = inst(Cat(bImm(12), bImm(10,5), x0, rs1p, 0.U(3.W), bImm(4,1), bImm(11), 0x63.U(7.W)), rs1p, rs1p, x0)
     def bnez = inst(Cat(bImm(12), bImm(10,5), x0, rs1p, 1.U(3.W), bImm(4,1), bImm(11), 0x63.U(7.W)), x0, rs1p, x0)
     def arith = {
-      val srai_srli_common = Cat(shamt, rs1p, 5.U(3.W), rs1p, 0x13.U(7.W))
-      def srli = inst(srai_srli_common, rs1p, rs1p, rs2p)
-      def srai = inst(Cat(0x10.U, srai_srli_common), rs1p, rs1p, rs2p)
-      def andi = inst(Cat(addiImm, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
+      def srli = Cat(shamt, rs1p, 5.U(3.W), rs1p, 0x13.U(7.W))
+      def srai = Cat(0x10.U, srli)
+      def andi = Cat(addiImm, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W))
       def rtype = {
         val funct = Seq(0.U, 4.U, 6.U, 7.U, 0.U, 0.U, 0.U, 3.U)(Cat(x(12), x(6,5)))
         val sub = Mux(x(6,5) === 0.U, (1 << 30).U, 0.U)
@@ -131,39 +130,35 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false, usingBitMani
           if(usingMulDiv && usingCompressedSuiteB) Mux(Cat(x(12), x(6,5)) === 6.U, (1 << 25).U, 0.U)
           else 0.U
         }
-        def zca = inst(Cat(rs2p, rs1p, funct, rs1p, opc) | sub | mul, rs1p, rs1p, rs2p)
+        def zca = Cat(rs2p, rs1p, funct, rs1p, opc) | sub | mul
         def zcb_q1 = {
-          def unimp = inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x3F.U(7.W)), rs2p, rs1p, rs2p)
+          def unimp = Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x3F.U(7.W))
           if(usingCompressedSuiteB){
-            def zextb = inst(Cat(0xFF.U, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
-            def not   = inst(Cat(0xFFF.U, rs1p, 4.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
-            def sextb = {
-              if(usingBitManip) inst(Cat(0x604.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
-              else unimp
-            }
-            def sexth = {
-              if(usingBitManip) inst(Cat(0x605.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W)), rs1p, rs1p, rs2p)
-              else unimp
-            }
-            def zextw = {
-              if(usingBitManip) inst(Cat(4.U, x0, rs1p, 0.U(3.W), rs1p, 0x3B.U(7.W)), rs1p, rs1p, x0)
-              else unimp
-            }
+            def zextb = Cat(0xFF.U, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W))
+            def not   = Cat(0xFFF.U, rs1p, 4.U(3.W), rs1p, 0x13.U(7.W))
+            def sextb = Cat(0x604.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W))
+            def sexth = Cat(0x605.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W))
+            def zextw = Cat(4.U, x0, rs1p, 0.U(3.W), rs1p, 0x3B.U(7.W))
             def zexth = {
-              if(usingBitManip) {
-                val zexth_common = Cat(0x80.U, rs1p, 4.U(3.W), rs1p)
-                if (xLen == 32) inst(Cat(zexth_common, 0x33.U(7.W)), rs1p, rs1p, rs2p)
-                else inst(Cat(zexth_common, 0x3B.U(7.W)), rs1p, rs1p, rs2p)
-              }
-              else unimp
+              val zexth_common = Cat(0x80.U, rs1p, 4.U(3.W), rs1p)
+              if (xLen == 32) Cat(zexth_common, 0x33.U(7.W))
+              else Cat(zexth_common, 0x3B.U(7.W))
             }
-            Seq(zextb, sextb, zexth, sexth, zextw, not)(x(4,2))
+            if(usingBitManip){
+              Seq(zextb, sextb, zexth, sexth, zextw, not, unimp, unimp)(x(4,2))
+            } else {
+              Mux (x(4,2)=== 5.U, not, Mux (x(4,2) === 0.U, zextb, unimp)) 
+            }
           }
           else unimp
         }
         Mux(Cat(x(12), x(6,5)) === 7.U, zcb_q1, zca)
       }
-      Seq(srli, srai, andi, rtype)(x(11,10))
+      def op2 = {
+        if(usingCompressedSuiteB) Mux(Cat(x(15,10), x(6,2)) === 0x4FC.U, x0, rs2p)
+        else rs2p
+      }
+      inst(Seq(srli, srai, andi, rtype)(x(11,10)), rs1p, rs1p, op2)
     }
     Seq(addi, jal, li, lui, arith, j, beqz, bnez)
   }
