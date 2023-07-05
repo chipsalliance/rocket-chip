@@ -729,7 +729,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
-  val replay_wb = replay_wb_common || replay_wb_rocc
+  val replay_wb_csr: Bool = wb_reg_valid && csr.io.rw_stall
+  val replay_wb = replay_wb_common || replay_wb_rocc || replay_wb_csr
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
@@ -806,7 +807,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.hgatp := csr.io.hgatp
   io.ptw.vsatp := csr.io.vsatp
-  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
+  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs <> rhs }
   io.ptw.status := csr.io.status
   io.ptw.hstatus := csr.io.hstatus
   io.ptw.gstatus := csr.io.gstatus
@@ -814,9 +815,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-  io.trace.insns := csr.io.trace
+  io.rocc.csrs <> csr.io.roccCSRs
   io.trace.time := csr.io.time
-  io.rocc.csrs := csr.io.roccCSRs
+  io.trace.insns := csr.io.trace
   if (rocketParams.debugROB) {
     val csr_trace_with_wdata = WireInit(csr.io.trace(0))
     csr_trace_with_wdata.wdata.get := rf_wdata
