@@ -7,7 +7,7 @@ import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
 import chisel3.util.Decoupled
 import chisel3.util.DecoupledIO
-import chisel3.experimental.DataMirror
+import chisel3.reflect.DataMirror
 
 abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
 

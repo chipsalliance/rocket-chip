@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.IO
+import chisel3._
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.util.HeterogeneousBag
@@ -1209,10 +1208,10 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
   // but as of today it does not work to do so.
 
   /** Create actual Wires corresponding to the Bundles parameterized by the outward edges of this node. */
-  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
+  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => Wire(outer.bundleO(e).cloneType))
 
   /** Create actual Wires corresponding to the Bundles parameterized by the inward edges of this node. */
-  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
+  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => Wire(inner.bundleI(e).cloneType))
 
   private def emptyDanglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
@@ -1506,7 +1505,7 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   override final def circuitIdentity = true
   override protected[diplomacy] def instantiate(): Seq[Dangle] = {
     val dangles = super.instantiate()
-    (out zip in) foreach { case ((o, _), (i, _)) => o <> i }
+    (out zip in) foreach { case ((o, _), (i, _)) => o :<>= i }
     dangles
   }
   override protected[diplomacy] def cloneDangles(): Seq[Dangle] = super.cloneDangles()

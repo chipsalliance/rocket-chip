@@ -2,8 +2,10 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
-import Chisel.ImplicitConversions._
+import chisel3._
+import chisel3.util.log2Ceil
+// TODO: remove this import
+import chisel3.util.ImplicitConversions._
 import chisel3.util.Valid
 import chisel3.DontCare
 import org.chipsalliance.cde.config.Parameters
@@ -46,8 +48,8 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val errors = t.flip
-      val interrupt = Bool().asOutput
+      val errors = Flipped(t)
+      val interrupt = Output(Bool())
     })
 
     val sources_and_desc = io.errors.toErrorList
@@ -58,37 +60,39 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     val (cause, cause_desc) = DescribedReg(UInt(causeWidth.W),
       "cause", "Cause of error event", reset=Some(0.U(causeWidth.W)), volatile=true, enumerations=sources_enums.toMap)
 
-    val (value, value_desc) = DescribedReg(UInt(width = sources.flatten.map(_.bits.getWidth).max),
+    val (value, value_desc) = DescribedReg(UInt(sources.flatten.map(_.bits.getWidth).max.W),
       "value", "Physical address of error event", reset=None, volatile=true)
     require(value.getWidth <= regWidth)
 
-    val enable = Reg(init = Vec(sources.map(_.nonEmpty.B)))
+    val enable = RegInit(VecInit(sources.map(_.nonEmpty.B)))
     val enable_desc =  sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"enable_$i", "", reset=Some(1))
       else RegFieldDesc.reserved
     }
 
-    val global_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
+    val global_interrupt = RegInit(VecInit.fill(sources.size)(false.B))
     val global_interrupt_desc = sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"plic_interrupt_$i", "", reset=Some(0))
       else RegFieldDesc.reserved
     }
 
-    val accrued = Reg(init = Vec.fill(sources.size)(false.B))
+    val accrued = RegInit(VecInit.fill(sources.size)(false.B))
     val accrued_desc = sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"accrued_$i", "", reset=Some(0), volatile = true)
       else RegFieldDesc.reserved
     }
 
-    val local_interrupt = Reg(init = Vec.fill(sources.size)(false.B))
+    val local_interrupt = RegInit(VecInit.fill(sources.size)(false.B))
     val local_interrupt_desc = sources.zipWithIndex.map { case (s, i) =>
       if (s.nonEmpty) RegFieldDesc(s"local_interrupt_$i", "", reset=Some(0))
       else RegFieldDesc.reserved
     }
 
-    val cause_wen = Wire(init = false.B)
-    val new_cause = Wire(UInt(causeWidth.W), DontCare)
-    val new_value = Wire(UInt(value.getWidth.W), DontCare)
+    val cause_wen = WireDefault(false.B)
+    val new_cause = Wire(UInt(causeWidth.W))
+    new_cause := DontCare
+    val new_value = Wire(UInt(value.getWidth.W))
+    new_value := DontCare
     for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
       when (s.get.valid) {
         acc := true

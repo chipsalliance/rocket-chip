@@ -2,15 +2,12 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel.{defaultCompileOptions => _, _}
-import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
-import chisel3.{Module, RawModule, Reset, withClockAndReset}
-import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
+import chisel3._
+import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord, SourceInfo, UnlocatableSourceInfo}
 import firrtl.passes.InlineAnnotation
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 
-import scala.collection.immutable.{ListMap, SortedMap}
+import scala.collection.immutable.{SeqMap, SortedMap}
 import scala.util.matching._
 
 /** While the [[freechips.rocketchip.diplomacy]] package allows fairly abstract parameter negotiation while constructing a DAG,
@@ -352,11 +349,10 @@ sealed trait LazyModuleImpLike extends RawModule {
     val done = Set() ++ pairing.values.filter(_.size == 2).map { 
       case Seq(a, b) =>
         require(a.flipped != b.flipped)
-        // @todo <> in chisel3 makes directionless connection.
         if (a.flipped) {
-          a.data <> b.data
+          a.data :<>= b.data
         } else {
-          b.data <> a.data
+          b.data :<>= a.data
         }
         a.source
       case _ =>
@@ -369,9 +365,9 @@ sealed trait LazyModuleImpLike extends RawModule {
     // Pass the [[Dangle]]s which remained and were used to generate the [[AutoBundle]] I/O ports up to the [[parent]] [[LazyModule]]
     val dangles = (forward zip auto.elements) map { case (d, (_, io)) =>
       if (d.flipped) {
-        d.data <> io
+        d.data :<>= io
       } else {
-        io <> d.data
+        io :<>= d.data
       }
       d.copy(dataOpt = Some(io), name = wrapper.suggestedName + "_" + d.name)
     }
@@ -414,7 +410,7 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   /** drive reset explicitly. */
   val childReset: Reset = Wire(Reset())
   // the default is that these are disabled
-  childClock := Bool(false).asClock
+  childClock := false.B.asClock
   childReset := chisel3.DontCare
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
@@ -552,7 +548,7 @@ case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: Stri
   */
 final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   // We need to preserve the order of elts, despite grouping by name to disambiguate things.
-  val elements: ListMap[String, Data] = ListMap() ++ elts.zipWithIndex.map(makeElements).groupBy(_._1).values.flatMap {
+  val elements: SeqMap[String, Data] = SeqMap() ++ elts.zipWithIndex.map(makeElements).groupBy(_._1).values.flatMap {
     // If name is unique, it will return a Seq[index -> (name -> data)].
     case Seq((key, element, i)) => Seq(i -> (key -> element))
     // If name is not unique, name will append with j, and return `Seq[index -> (s"${name}_${j}" -> data)]`.
@@ -565,7 +561,7 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
     val ((key, data, flip), i) = tuple
     // Trim trailing _0_1_2 stuff so that when we append _# we don't create collisions.
     val regex = new Regex("(_[0-9]+)*$")
-    val element = if (flip) data.cloneType.flip() else data.cloneType
+    val element = if (flip) Flipped(data.cloneType) else data.cloneType
     (regex.replaceAllIn(key, ""), element, i)
   }
 }
