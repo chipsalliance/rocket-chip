@@ -13,7 +13,7 @@ import freechips.rocketchip.util._
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
 
 /** Defines the fields of the Device PMP registers */
-class DevicePMP(params: DevicePMPParams) extends GenericParameterizedBundle(params)
+class DevicePMP(val params: DevicePMPParams) extends Bundle
 {
   require (params.addressBits > params.pageBits)
 
