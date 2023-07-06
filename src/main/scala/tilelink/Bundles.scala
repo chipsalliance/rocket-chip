@@ -9,7 +9,7 @@ import chisel3.util.Decoupled
 import chisel3.util.DecoupledIO
 import chisel3.reflect.DataMirror
 
-abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
+abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
 
 // common combos in lazy policy:
 //   Put + Acquire
@@ -289,7 +289,7 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParameterizedBundle(params)
+class TLAsyncBundleBase(val params: TLAsyncBundleParameters) extends Bundle
 
 class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
 {

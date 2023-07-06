@@ -45,7 +45,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
       requestKeys    = AMBAProt +: sp.requestKeys)
   })
 
-class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params)
+class AHBControlBundle(val params: TLEdge) extends Bundle
 {
   val full   = Bool()
   val send   = Bool() // => full+data

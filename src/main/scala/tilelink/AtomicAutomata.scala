@@ -288,15 +288,15 @@ object TLAtomicAutomata
 
   case class CAMParams(a: TLBundleParameters, domainsNeedingHelp: Int)
 
-  class CAM_S(params: CAMParams) extends GenericParameterizedBundle(params) {
+  class CAM_S(val params: CAMParams) extends Bundle {
     val state = UInt(2.W)
   }
-  class CAM_A(params: CAMParams) extends GenericParameterizedBundle(params) {
+  class CAM_A(val params: CAMParams) extends Bundle {
     val bits    = new TLBundleA(params.a)
     val fifoId  = UInt(log2Up(params.domainsNeedingHelp).W)
     val lut     = UInt(4.W)
   }
-  class CAM_D(params: CAMParams) extends GenericParameterizedBundle(params) {
+  class CAM_D(val params: CAMParams) extends Bundle {
     val data    = UInt(params.a.dataBits.W)
     val denied  = Bool()
     val corrupt = Bool()
