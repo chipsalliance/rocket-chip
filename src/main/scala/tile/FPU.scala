@@ -5,7 +5,6 @@ package freechips.rocketchip.tile
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
