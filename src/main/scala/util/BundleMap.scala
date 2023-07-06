@@ -38,7 +38,7 @@ sealed trait BundleFieldBase {
 
 abstract class BundleField[T <: Data](val key: BundleKey[T], typeT: => T, val default: T => Unit) extends BundleFieldBase {
   def data: T = typeT
-  def defaultFlip(x: T): Unit
+  def defaultFlip(x: T): Unit = {}
   def setDataDefault(x: Data): Unit = default(x.asInstanceOf[T])
   def setDataDefaultFlip(x: Data): Unit = defaultFlip(x.asInstanceOf[T])
 }
