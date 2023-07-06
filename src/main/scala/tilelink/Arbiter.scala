@@ -7,7 +7,6 @@ import chisel3.util._
 import chisel3.util.random.LFSR
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 object TLArbiter
 {
@@ -69,7 +68,7 @@ object TLArbiter
     applyCancel(policy = policy)(
       sink = sink_ACancel,
       sources = sources_ACancel:_*)
-    sink :<> sink_ACancel.asDecoupled()
+    sink :<>= sink_ACancel.asDecoupled()
   }
 
   def applyCancel[T <: Data](policy: Policy)(sink: ReadyValidCancel[T], sources: (UInt, ReadyValidCancel[T])*): Unit = {
@@ -78,7 +77,7 @@ object TLArbiter
       sink.lateCancel := DontCare
       sink.bits       := DontCare
     } else if (sources.size == 1) {
-      sink :<> sources.head._2
+      sink :<>= sources.head._2
     } else {
       val pairs = sources.toList
       val beatsIn = pairs.map(_._1)

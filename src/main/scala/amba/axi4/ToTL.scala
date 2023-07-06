@@ -9,7 +9,6 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
   extends IdMapEntry
@@ -183,7 +182,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       ok_r.bits.user :<= out.d.bits.user
 
       // AXI4 needs irrevocable behaviour
-      in.r :<> Queue.irrevocable(ok_r, 1, flow=true)
+      in.r :<>= Queue.irrevocable(ok_r, 1, flow=true)
 
       ok_b.bits.id   := out.d.bits.source >> addedBits
       ok_b.bits.resp := d_resp

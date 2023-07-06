@@ -6,7 +6,6 @@ import chisel3._
 import chisel3.util.{isPow2}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 /** Parameters which apply to any RegisterRouter. */
 case class RegisterRouterParams(

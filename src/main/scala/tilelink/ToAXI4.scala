@@ -9,7 +9,6 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.amba._
 import chisel3.util.{log2Ceil, UIntToOH, Queue, Decoupled, Cat}
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)
@@ -149,7 +148,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
       val out_w = Wire(chiselTypeOf(out.w))
-      out.w :<> Queue.irrevocable(out_w, entries=depth, combinational)
+      out.w :<>= Queue.irrevocable(out_w, entries=depth, combinational)
       val queue_arw = Queue.irrevocable(out_arw, entries=depth, combinational)
 
       // Fan out the ARW channel to AR and AW
