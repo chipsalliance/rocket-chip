@@ -6,6 +6,7 @@ package freechips.rocketchip.tile
 import chisel3._
 import chisel3.util._
 import chisel3.{DontCare, WireInit, withClock, withReset}
+import chisel3.experimental.dataview._
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.rocket._
@@ -767,7 +768,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wb_reg_valid = RegNext(mem_reg_valid && (!killm || mem_cp_valid), false.B)
 
   val cp_ctrl = Wire(new FPUCtrlSigs)
-  cp_ctrl <> io.cp_req.bits
+  cp_ctrl :<>= io.cp_req.bits.viewAsSupertype(new FPUCtrlSigs)
   io.cp_resp.valid := false.B
   io.cp_resp.bits.data := 0.U
 
@@ -821,7 +822,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   def fuInput(minT: Option[FType]): FPInput = {
     val req = Wire(new FPInput)
     val tag = ex_ctrl.typeTagIn
-    req := ex_ctrl
+    req.viewAsSupertype(new FPUCtrlSigs) := ex_ctrl
     req.rm := ex_rm
     req.in1 := unbox(ex_rs(0), tag, minT)
     req.in2 := unbox(ex_rs(1), tag, minT)

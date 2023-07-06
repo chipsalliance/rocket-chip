@@ -13,6 +13,7 @@ import freechips.rocketchip.rocket._
 import freechips.rocketchip.subsystem.TileCrossingParamsLike
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters}
+import chisel3.experimental.dataview._
 
 case class RocketTileBoundaryBufferParams(force: Boolean = false)
 
@@ -159,7 +160,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
+  fpuOpt foreach { fpu => core.io.fpu <> fpu.io.viewAsSupertype(new FPUCoreIO) }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
