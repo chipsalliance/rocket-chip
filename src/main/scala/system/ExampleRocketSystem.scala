@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.system
 
+import chisel3.DontCare
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
@@ -25,4 +26,6 @@ class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem
 class ExampleRocketSystemModuleImp[+L <: ExampleRocketSystem](_outer: L) extends RocketSubsystemModuleImp(_outer)
     with HasRTCModuleImp
     with HasExtInterruptsModuleImp
-    with DontTouch
+    with DontTouch {
+  outer.tileNMIIONodes.foreach(_.out.foreach { case (interrupt, _) => interrupt := DontCare })
+}

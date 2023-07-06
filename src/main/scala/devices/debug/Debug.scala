@@ -357,6 +357,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       /** authentication support */
       val dmAuthenticated = cfg.hasAuthentication.option(Input(Bool()))
     })
+    io.innerCtrl.bits.hasel := DontCare
+    io.innerCtrl.bits.hamask := DontCare
+
 
     val omRegMap = withReset(reset.asAsyncReset) {
     // FIXME: Instead of casting reset to ensure it is Async, assert/require reset.Type == AsyncReset (when this feature is available)
@@ -1456,6 +1459,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     }
     // ... and also by custom register read (if implemented)
     val (customs, customParams) = customNode.in.unzip
+    customs.foreach(_ := DontCare)
     val needCustom = (customs.size > 0) && (customParams.head.addrs.size > 0)
     def getNeedCustom = () => needCustom
 

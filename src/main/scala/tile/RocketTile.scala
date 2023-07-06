@@ -126,6 +126,10 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   Annotated.params(this, outer.rocketParams)
 
   val core = Module(new Rocket(outer)(outer.p))
+  // TODO: really?
+  core.io.reset_vector := DontCare
+  core.io.fpu := DontCare
+  core.io.rocc := DontCare
 
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
   outer.reportHalt(List(outer.dcache.module.io.errors))
@@ -149,6 +153,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   core.io.interrupts.nmi.foreach { nmi => nmi := outer.nmiSinkNode.bundle }
 
+  // not implemented yet
+  outer.traceCoreSourceNode.bundle := DontCare
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
   core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
@@ -160,7 +166,35 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  fpuOpt foreach { fpu => core.io.fpu <> fpu.io.viewAsSupertype(new FPUCoreIO) }
+  fpuOpt foreach { fpu =>
+    core.io.fpu :<>= fpu.io.viewAsSupertype(new FPUCoreIO)
+    // TODO: really?
+    fpu.io.cp_req.valid := DontCare
+    fpu.io.cp_req.bits.ldst := DontCare
+    fpu.io.cp_req.bits.wen := DontCare
+    fpu.io.cp_req.bits.ren1 := DontCare
+    fpu.io.cp_req.bits.ren2 := DontCare
+    fpu.io.cp_req.bits.ren3 := DontCare
+    fpu.io.cp_req.bits.swap12 := DontCare
+    fpu.io.cp_req.bits.swap23 := DontCare
+    fpu.io.cp_req.bits.typeTagIn := DontCare
+    fpu.io.cp_req.bits.typeTagOut := DontCare
+    fpu.io.cp_req.bits.fromint := DontCare
+    fpu.io.cp_req.bits.toint := DontCare
+    fpu.io.cp_req.bits.fastpipe := DontCare
+    fpu.io.cp_req.bits.fma := DontCare
+    fpu.io.cp_req.bits.div := DontCare
+    fpu.io.cp_req.bits.sqrt := DontCare
+    fpu.io.cp_req.bits.wflags := DontCare
+    fpu.io.cp_req.bits.rm := DontCare
+    fpu.io.cp_req.bits.fmaCmd := DontCare
+    fpu.io.cp_req.bits.typ := DontCare
+    fpu.io.cp_req.bits.fmt := DontCare
+    fpu.io.cp_req.bits.in1 := DontCare
+    fpu.io.cp_req.bits.in2 := DontCare
+    fpu.io.cp_req.bits.in3 := DontCare
+    fpu.io.cp_resp.ready := DontCare
+  }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces

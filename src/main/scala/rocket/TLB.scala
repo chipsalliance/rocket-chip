@@ -318,6 +318,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     /** suppress a TLB refill, one cycle after a miss */
     val kill = Input(Bool())
   })
+  io.ptw.customCSRs := DontCare
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)

@@ -122,6 +122,30 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
 class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
+  // TODO: make sure these connections are really unused
+  io.imem.btb_update.bits.taken := DontCare
+  io.imem.ras_update.valid := DontCare
+  io.imem.ras_update.bits.cfiType := DontCare
+  io.imem.ras_update.bits.returnAddr := DontCare
+  io.dmem.req.bits.no_alloc := DontCare
+  io.dmem.req.bits.no_xcpt := DontCare
+  io.dmem.req.bits.data := DontCare
+  io.dmem.req.bits.mask := DontCare
+  io.dmem.s1_data.mask := DontCare
+  io.rocc := DontCare
+  io.rocc.interrupt := DontCare
+  io.rocc.busy := DontCare
+  io.rocc.mem.keep_clock_enabled := DontCare
+  io.rocc.mem.s2_kill := DontCare
+  io.rocc.mem.s1_data.mask := DontCare
+  io.rocc.mem.s1_data.data := DontCare
+  io.rocc.mem.s1_kill := DontCare
+  io.rocc.mem.req.bits.mask := DontCare
+  io.rocc.mem.req.bits.data := DontCare
+  io.rocc.mem.req.bits.no_xcpt := DontCare
+  io.rocc.mem.req.bits.no_alloc := DontCare
+  io.rocc.mem.req.bits.phys := DontCare
+  io.bpwatch := DontCare
   def nTotalRoCCCSRs = tile.roccCSRs.flatten.size
 
   val clock_en_reg = RegInit(true.B)

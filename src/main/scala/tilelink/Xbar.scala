@@ -235,8 +235,9 @@ object TLXbar_ACancel
       val r = inputIdRanges(i)
 
       if (connectAIO(i).exists(x=>x)) {
-        in(i).a :<>= io_in(i).a
+        in(i).a.squeezeAll.waiveAll :<>= io_in(i).a.squeezeAll.waiveAll
         in(i).a.bits.source := io_in(i).a.bits.source | r.start.U
+        in(i).a.bits.user := DontCare
       } else {
         in(i).a.earlyValid := false.B
         in(i).a.lateCancel := DontCare
@@ -247,7 +248,7 @@ object TLXbar_ACancel
       }
 
       if (connectBIO(i).exists(x=>x)) {
-        io_in(i).b :<>= in(i).b
+        io_in(i).b.squeezeAll.waiveAll :<>= in(i).b.squeezeAll.waiveAll
         io_in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
       } else {
         in(i).b.ready := true.B
@@ -257,8 +258,9 @@ object TLXbar_ACancel
       }
 
       if (connectCIO(i).exists(x=>x)) {
-        in(i).c :<>= io_in(i).c
+        in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
         in(i).c.bits.source := io_in(i).c.bits.source | r.start.U
+        in(i).c.bits.user := DontCare
       } else {
         in(i).c.valid := false.B
         in(i).c.bits  := DontCare
@@ -267,7 +269,7 @@ object TLXbar_ACancel
       }
 
       if (connectDIO(i).exists(x=>x)) {
-        io_in(i).d :<>= in(i).d
+        io_in(i).d.squeezeAll.waiveAll :<>= in(i).d.squeezeAll.waiveAll
         io_in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
       } else {
         in(i).d.ready := true.B
@@ -277,7 +279,7 @@ object TLXbar_ACancel
       }
 
       if (connectEIO(i).exists(x=>x)) {
-        in(i).e :<>= io_in(i).e
+        in(i).e.squeezeAll.waiveAll :<>= io_in(i).e.squeezeAll.waiveAll
       } else {
         in(i).e.valid := false.B
         in(i).e.bits  := DontCare
@@ -292,7 +294,7 @@ object TLXbar_ACancel
       val r = outputIdRanges(o)
 
       if (connectAOI(o).exists(x=>x)) {
-        io_out(o).a :<>= out(o).a
+        io_out(o).a.squeezeAll.waiveAll :<>= out(o).a.squeezeAll.waiveAll
       } else {
         out(o).a.ready      := true.B
         out(o).a.lateCancel := DontCare
@@ -303,7 +305,7 @@ object TLXbar_ACancel
       }
 
       if (connectBOI(o).exists(x=>x)) {
-        out(o).b :<>= io_out(o).b
+        out(o).b.squeezeAll.waiveAll :<>= io_out(o).b.squeezeAll.waiveAll
       } else {
         out(o).b.valid := false.B
         out(o).b.bits  := DontCare
@@ -312,7 +314,7 @@ object TLXbar_ACancel
       }
 
       if (connectCOI(o).exists(x=>x)) {
-        io_out(o).c :<>= out(o).c
+        io_out(o).c.squeezeAll.waiveAll :<>= out(o).c.squeezeAll.waiveAll
       } else {
         out(o).c.ready := true.B
         out(o).c.bits  := DontCare
@@ -321,7 +323,7 @@ object TLXbar_ACancel
       }
 
       if (connectDOI(o).exists(x=>x)) {
-        out(o).d :<>= io_out(o).d
+        out(o).d.squeezeAll.waiveAll :<>= io_out(o).d.squeezeAll.waiveAll
         out(o).d.bits.sink := io_out(o).d.bits.sink | r.start.U
       } else {
         out(o).d.valid := false.B
@@ -331,7 +333,7 @@ object TLXbar_ACancel
       }
 
       if (connectEOI(o).exists(x=>x)) {
-        io_out(o).e :<>= out(o).e
+        io_out(o).e.squeezeAll.waiveAll :<>= out(o).e.squeezeAll.waiveAll
         io_out(o).e.bits.sink := trim(out(o).e.bits.sink, r.size)
       } else {
         out(o).e.ready := true.B

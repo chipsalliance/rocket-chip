@@ -70,7 +70,7 @@ case class TLRegisterNode(
     in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra :<= a.bits.echo
+    in.bits.extra.squeezeAll.waiveAll :<= a.bits.echo.squeezeAll.waiveAll
 
     val a_extra = in.bits.extra(TLRegisterRouterExtra)
     a_extra.source := a.bits.source
@@ -91,7 +91,7 @@ case class TLRegisterNode(
 
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
-    d.bits.echo :<= out.bits.extra
+    d.bits.echo.squeezeAll.waiveAll :<= out.bits.extra.squeezeAll.waiveAll
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
 
     // Tie off unused channels

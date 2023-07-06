@@ -277,6 +277,14 @@ trait HasHellaCacheModule {
   val dcachePorts = ListBuffer[HellaCacheIO]()
   val dcacheArb = Module(new HellaCacheArbiter(outer.nDCachePorts)(outer.p))
   outer.dcache.module.io.cpu <> dcacheArb.io.mem
+  outer.dcache.module match {
+    case module: DCacheModule =>
+      module.tlb_port.req.valid := DontCare
+      module.tlb_port.req.bits := DontCare
+      module.tlb_port.s2_kill := DontCare
+    case module: NonBlockingDCacheModule =>
+    case _ =>
+  }
 }
 
 /** Metadata array used for all HellaCaches */

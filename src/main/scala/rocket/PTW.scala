@@ -228,6 +228,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       */
     val dpath = new DatapathPTWIO
   })
+  io.mem.req.bits.tag := DontCare
+  io.mem.req.bits.no_alloc := DontCare
+  io.mem.req.bits.no_xcpt := DontCare
+  io.mem.req.bits.data := DontCare
+  io.mem.req.bits.mask := DontCare
+  io.mem.s1_data.data := DontCare
+  io.mem.s1_data.mask := DontCare
+  io.mem.keep_clock_enabled := DontCare
 
   val s_ready :: s_req :: s_wait1 :: s_dummy1 :: s_wait2 :: s_wait3 :: s_dummy2 :: s_fragment_superpage :: Nil = Enum(8)
   val state = RegInit(s_ready)

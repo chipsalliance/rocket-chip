@@ -171,8 +171,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.cache := 0.U // do not allow AXI to modify our transactions
       arw.prot  := AXI4Parameters.PROT_PRIVILEGED
       arw.qos   := 0.U // no QoS
-      arw.user :<= in.a.bits.user
-      arw.echo :<= in.a.bits.echo
+      arw.user.squeezeAll.waiveAll :<= in.a.bits.user.squeezeAll.waiveAll
+      arw.echo.squeezeAll.waiveAll :<= in.a.bits.echo.squeezeAll.waiveAll
       val a_extra = arw.echo(AXI4TLState)
       a_extra.source := a_source
       a_extra.size   := a_size
@@ -229,9 +229,9 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val r_d = edgeIn.AccessAck(r_source, r_size, 0.U, denied = r_denied, corrupt = r_corrupt || r_denied)
       val b_d = edgeIn.AccessAck(b_source, b_size, denied = b_denied)
       r_d.user :<= out.r.bits.user
-      r_d.echo :<= out.r.bits.echo
-      b_d.user :<= out.b.bits.user
-      b_d.echo :<= out.b.bits.echo
+      r_d.echo.squeezeAll.waiveAll :<= out.r.bits.echo.squeezeAll.waiveAll
+      b_d.user.squeezeAll.waiveAll :<= out.b.bits.user.squeezeAll.waiveAll
+      b_d.echo.squeezeAll.waiveAll :<= out.b.bits.echo.squeezeAll.waiveAll
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux

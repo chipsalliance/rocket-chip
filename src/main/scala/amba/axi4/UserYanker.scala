@@ -56,14 +56,14 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val ar_ready = VecInit(rqueues.map(_.enq.ready))(arid)
       in .ar.ready := out.ar.ready && ar_ready
       out.ar.valid := in .ar.valid && ar_ready
-      out.ar.bits :<= in .ar.bits
+      out.ar.bits.squeezeAll.waiveAll :<= in.ar.bits.squeezeAll.waiveAll
 
       val rid = out.r.bits.id
       val r_valid = VecInit(rqueues.map(_.deq.valid))(rid)
       val r_bits = VecInit(rqueues.map(_.deq.bits))(rid)
       assert (!out.r.valid || r_valid) // Q must be ready faster than the response
-      in.r :<>= out.r
-      in.r.bits.echo :<= r_bits
+      in.r.squeezeAll.waiveAll :<>= out.r.squeezeAll.waiveAll
+      in.r.bits.echo.squeezeAll.waiveAll :<= r_bits.squeezeAll.waiveAll
 
       val arsel = UIntToOH(arid, edgeIn.master.endId).asBools
       val rsel  = UIntToOH(rid,  edgeIn.master.endId).asBools
@@ -71,19 +71,23 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
         q.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
         q.enq.valid := in .ar.valid && out.ar.ready && ar
         q.enq.bits :<= in.ar.bits.echo
+        q.count := DontCare
+        q.enq.ready := DontCare
+        q.deq.valid := DontCare
+        q.deq.bits := DontCare
       }
 
       val awid = in.aw.bits.id
       val aw_ready = VecInit(wqueues.map(_.enq.ready))(awid)
       in .aw.ready := out.aw.ready && aw_ready
       out.aw.valid := in .aw.valid && aw_ready
-      out.aw.bits :<= in .aw.bits
+      out.aw.bits.squeezeAll.waiveAll :<= in.aw.bits.squeezeAll.waiveAll
 
       val bid = out.b.bits.id
       val b_valid = VecInit(wqueues.map(_.deq.valid))(bid)
       val b_bits = VecInit(wqueues.map(_.deq.bits))(bid)
       assert (!out.b.valid || b_valid) // Q must be ready faster than the response
-      in.b :<>= out.b
+      in.b.squeezeAll.waiveAll :<>= out.b.squeezeAll.waiveAll
       in.b.bits.echo :<= b_bits
 
       val awsel = UIntToOH(awid, edgeIn.master.endId).asBools
@@ -92,6 +96,10 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
         q.deq.ready := out.b .valid && in .b .ready && b
         q.enq.valid := in .aw.valid && out.aw.ready && aw
         q.enq.bits :<= in.aw.bits.echo
+        q.count := DontCare
+        q.enq.ready := DontCare
+        q.deq.valid := DontCare
+        q.deq.bits := DontCare
       }
 
       out.w :<>= in.w

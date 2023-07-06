@@ -725,6 +725,7 @@ class FPUFMAPipe(val latency: Int, val t: FType)
 
 class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val io = IO(new FPUIO)
+  io.cp_resp.bits.exc := DontCare
 
   val (useClockGating, useDebugROB) = coreParams match {
     case r: RocketCoreParams => (r.clockGate, r.debugROB)
@@ -868,8 +869,11 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_inFlight = WireDefault(false.B)
   val divSqrt_waddr = Reg(UInt(5.W))
   val divSqrt_typeTag = Wire(UInt(log2Up(floatTypes.size).W))
+  divSqrt_typeTag := DontCare
   val divSqrt_wdata = Wire(UInt((fLen+1).W))
+  divSqrt_wdata := DontCare
   val divSqrt_flags = Wire(UInt(FPConstants.FLAGS_SZ.W))
+  divSqrt_flags := DontCare
 
   // writeback arbitration
   case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, res: FPResult)

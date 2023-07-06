@@ -37,6 +37,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     val io = IO(new Bundle {
       val dmem = new HellaCacheIO
     })
+    io.dmem.keep_clock_enabled := DontCare
 
     require(coreDataBytes * 8 == io.dmem.resp.bits.data.getWidth, "ScratchpadSlavePort is misconfigured: coreDataBytes must match D$ data width")
 

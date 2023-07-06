@@ -205,6 +205,7 @@ object FromAsyncBundle
   def apply[T <: Data](x: AsyncBundle[T]): DecoupledIO[T] = apply(x, x.params.sync)
   def apply[T <: Data](x: AsyncBundle[T], sync: Int): DecoupledIO[T] = {
     val sink = Module(new AsyncQueueSink(chiselTypeOf(x.mem(0)), x.params.copy(sync = sync)))
+    sink.io.async.safe.foreach(_ := DontCare)
     sink.io.async <> x
     sink.io.deq
   }
@@ -214,6 +215,7 @@ object ToAsyncBundle
 {
   def apply[T <: Data](x: ReadyValidIO[T], params: AsyncQueueParams = AsyncQueueParams()): AsyncBundle[T] = {
     val source = Module(new AsyncQueueSource(chiselTypeOf(x.bits), params))
+    source.io.async.safe.foreach(_ := DontCare)
     source.io.enq <> x
     source.io.async
   }

@@ -19,6 +19,18 @@ class TLAsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends L
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out.a.safe.foreach(_ := DontCare)
+      out.b.safe.foreach(_ := DontCare)
+      out.c.safe.foreach(_ := DontCare)
+      out.d.safe.foreach(_ := DontCare)
+      out.e.safe.foreach(_ := DontCare)
+
+      out.a.mem.foreach(_ := DontCare)
+      out.b.mem.foreach(_ := DontCare)
+      out.c.mem.foreach(_ := DontCare)
+      out.d.mem.foreach(_ := DontCare)
+      out.e.mem.foreach(_ := DontCare)
+
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
       val psync = sync.getOrElse(edgeOut.manager.async.sync)
       val params = edgeOut.manager.async.copy(sync = psync)
@@ -55,6 +67,17 @@ class TLAsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implici
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
+      in.a.safe.foreach(_ := DontCare)
+      in.b.safe.foreach(_ := DontCare)
+      in.c.safe.foreach(_ := DontCare)
+      in.d.safe.foreach(_ := DontCare)
+      in.e.safe.foreach(_ := DontCare)
+
+      in.a.mem.foreach(_ := DontCare)
+      in.b.mem.foreach(_ := DontCare)
+      in.c.mem.foreach(_ := DontCare)
+      in.d.mem.foreach(_ := DontCare)
+      in.e.mem.foreach(_ := DontCare)
 
       out.a <> FromAsyncBundle(in.a, params.sync)
       in.d <> ToAsyncBundle(out.d, params)
@@ -150,6 +173,4 @@ class TLRAMAsyncCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p
   val dut_wide   = Module(LazyModule(new TLRAMAsyncCrossing(txns)).module)
   val dut_narrow = Module(LazyModule(new TLRAMAsyncCrossing(txns, AsynchronousCrossing(safe = false, narrow = true))).module)
   io.finished := dut_wide.io.finished && dut_narrow.io.finished
-  dut_wide.io.start := io.start
-  dut_narrow.io.start := io.start
 }
