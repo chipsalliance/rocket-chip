@@ -382,6 +382,15 @@ class WithoutMulDiv extends Config((site, here, up) => {
   }
 })
 
+class WithoutDiv extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(
+        mulDiv = tp.tileParams.core.mulDiv.map(_.copy(divEnabled = false)))))
+    case t => t
+  }
+})
+
 class WithoutFPU extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
