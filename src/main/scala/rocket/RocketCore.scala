@@ -185,7 +185,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
     require(!usingRoCC || !rocketParams.useSCIE)
-    (if (usingMulDiv) new MDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new M64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
+    (if (usingMulDiv) new MMulDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new MMul64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
+    (if (usingMulDiv && mulDivParams.divEnabled) new MDivDecode(aluFn) +: (xLen > 32).option(new MDiv64Decode(aluFn)).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode(aluFn) +: (xLen > 32).option(new A64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 32)    new FDecode(aluFn) +: (xLen > 32).option(new F64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
