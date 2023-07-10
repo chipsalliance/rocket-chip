@@ -98,7 +98,7 @@ trait HasNonDiplomaticTileParameters {
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {
     val ie = if (tileParams.core.useRVE) "e" else "i"
-    val m = if (tileParams.core.mulDiv.nonEmpty) "m" else ""
+    val m = if (tileParams.core.mulDiv.nonEmpty && tileParams.core.mulDiv.get.divEnabled) "m" else ""
     val a = if (tileParams.core.useAtomics) "a" else ""
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
@@ -112,6 +112,7 @@ trait HasNonDiplomaticTileParameters {
       //Some(Seq("zicntr")) ++
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
+      Option.when(tileParams.core.mulDiv.nonEmpty)(Seq("zmmul")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
       Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
       Option.when(tileParams.core.hasBitManipCrypto)(Seq("zbkb", "zbkc", "zbkx")) ++
