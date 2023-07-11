@@ -720,6 +720,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           resp_valid(r_req_dest) := true.B
         }
 
+        resp_ae_ptw := ae && count < (pgLevels-1).U && pte.table()
         resp_ae_final := ae
         resp_pf := pf && !stage2
         resp_gf := gf || (pf && stage2)
