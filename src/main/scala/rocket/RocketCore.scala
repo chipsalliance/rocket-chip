@@ -752,7 +752,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ll_waddr := io.rocc.resp.bits.rd
       ll_wen := true.B
     }
+  } else {
+    // tie off RoCC
+    io.rocc.resp.ready := false.B
+    io.rocc.mem.req.ready := false.B
   }
+  // Dont care mem since not all RoCC need accessing memory
+  io.rocc.mem := DontCare
+
   when (dmem_resp_replay && dmem_resp_xpu) {
     div.io.resp.ready := false.B
     if (usingRoCC)
@@ -836,6 +843,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
     iobpw.valid(0) := wphit
     iobpw.action := bp.control.action
+    // tie off bpwatch valids
+    iobpw.rvalid.foreach(_ := false.B)
+    iobpw.wvalid.foreach(_ := false.B)
+    iobpw.ivalid.foreach(_ := false.B)
   }
 
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= 0.U, id_raddr1),
@@ -944,6 +955,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.imem.btb_update.bits.br_pc := (if (usingCompressed) mem_reg_pc + Mux(mem_reg_rvc, 0.U, 2.U) else mem_reg_pc)
   io.imem.btb_update.bits.pc := ~(~io.imem.btb_update.bits.br_pc | (coreInstBytes*fetchWidth-1).U)
   io.imem.btb_update.bits.prediction := mem_reg_btb_resp
+  io.imem.btb_update.bits.taken := DontCare
 
   io.imem.bht_update.valid := mem_reg_valid && !take_pc_wb
   io.imem.bht_update.bits.pc := io.imem.btb_update.bits.pc
@@ -951,6 +963,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.imem.bht_update.bits.mispredict := mem_wrong_npc
   io.imem.bht_update.bits.branch := mem_ctrl.branch
   io.imem.bht_update.bits.prediction := mem_reg_btb_resp.bht
+
+  // Connect RAS in Frontend
+  io.imem.ras_update := DontCare
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
@@ -975,7 +990,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
   io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv
+  io.dmem.req.bits.no_alloc := DontCare
+  io.dmem.req.bits.no_xcpt := DontCare
+  io.dmem.req.bits.data := DontCare
+  io.dmem.req.bits.mask := DontCare
+
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
+  io.dmem.s1_data.mask := DontCare
+
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
   io.dmem.s2_kill := false.B
   // don't let D$ go to sleep if we're probably going to use it soon

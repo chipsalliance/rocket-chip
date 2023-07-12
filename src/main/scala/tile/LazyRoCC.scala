@@ -406,11 +406,11 @@ object OpcodeSet {
 
 class RoccCommandRouter(opcodes: Seq[OpcodeSet])(implicit p: Parameters)
     extends CoreModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val in = Flipped(Decoupled(new RoCCCommand))
     val out = Vec(opcodes.size, Decoupled(new RoCCCommand))
     val busy = Output(Bool())
-  }
+  })
 
   val cmd = Queue(io.in)
   val cmdReadys = io.out.zip(opcodes).map { case (out, opcode) =>
