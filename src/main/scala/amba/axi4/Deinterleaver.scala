@@ -8,7 +8,6 @@ import chisel3.util.{Cat, isPow2, log2Ceil, ReadyValidIO,
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.leftOR
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 /** This adapter deinterleaves read responses on the R channel.
   *
@@ -48,14 +47,14 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
       val beats = maxBeats(edgeOut.slave)
 
       // This adapter passes through the AR/AW control + W/B write data channels
-      out.ar :<> in.ar
-      out.aw :<> in.aw
-      out.w :<> in.w
-      in.b :<> out.b
+      out.ar :<>= in.ar
+      out.aw :<>= in.aw
+      out.w :<>= in.w
+      in.b :<>= out.b
 
       // Only the R channel has the possibility of being changed
       if (nothingToDeinterleave(edgeOut.slave)) {
-        in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<> buffer.irrevocable(out.r)
+        in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<>= buffer.irrevocable(out.r)
       } else {
         // We only care to deinterleave ids that are actually in use
         val maxFlightPerId = Seq.tabulate(endId) { i =>
