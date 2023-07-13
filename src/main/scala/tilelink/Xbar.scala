@@ -7,7 +7,6 @@ import chisel3.util._
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 // Trades off slave port proximity against routing resource cost
 object ForceFanout
@@ -80,83 +79,20 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
   }
 }
 
-class TLXbar_ACancel(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
-{
-  val node = new TLNexusNode_ACancel(
-    clientFn  = { seq =>
-      seq(0).v1copy(
-        echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
-        requestFields = BundleField.union(seq.flatMap(_.requestFields)),
-        responseKeys  = seq.flatMap(_.responseKeys).distinct,
-        minLatency = seq.map(_.minLatency).min,
-        clients = (TLXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-          port.clients map { client => client.v1copy(
-            sourceId = client.sourceId.shift(range.start)
-          )}
-        }
-      )
-    },
-    managerFn = { seq =>
-      val fifoIdFactory = TLXbar.relabeler()
-      seq(0).v1copy(
-        responseFields = BundleField.union(seq.flatMap(_.responseFields)),
-        requestKeys = seq.flatMap(_.requestKeys).distinct,
-        minLatency = seq.map(_.minLatency).min,
-        endSinkId = TLXbar.mapOutputIds(seq).map(_.end).max,
-        managers = seq.flatMap { port =>
-          require (port.beatBytes == seq(0).beatBytes,
-            s"Xbar ($name with parent $parent) data widths don't match: ${port.managers.map(_.name)} has ${port.beatBytes}B vs ${seq(0).managers.map(_.name)} has ${seq(0).beatBytes}B")
-          val fifoIdMapper = fifoIdFactory()
-          port.managers map { manager => manager.v1copy(
-            fifoId = manager.fifoId.map(fifoIdMapper(_))
-          )}
-        }
-      )
-    })
-  {
-    override def circuitIdentity = outputs == 1 && inputs == 1
-  }
-
-  lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
-    if ((node.in.size * node.out.size) > (8*32)) {
-      println (s"!!! WARNING !!!")
-      println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
-      println (s"!!! WARNING !!!")
-    }
-
-    TLXbar_ACancel.circuit(policy, node.in, node.out)
-  }
-}
-
 object TLXbar
 {
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]): Unit = {
-    val seqOut_ACancel = seqOut.map(sOut => (Wire(new TLBundle_ACancel(sOut._1.params)), sOut._2))
-    val seqIn_ACancel = seqIn.map(sIn => (TLBundle_ACancel(sIn._1), sIn._2))
-    TLXbar_ACancel.circuit(policy, seqIn_ACancel, seqOut_ACancel)
-    (seqOut.map(_._1) zip seqOut_ACancel.map(_._1)) foreach { case (sOut, sOut_ACancel) =>
-      sOut <> sOut_ACancel.asDecoupled()
-    }
-  }
+  def mapInputIds(ports: Seq[TLMasterPortParameters]) = assignRanges(ports.map(_.endSourceId))
 
-  def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode =
-  {
-    val xbar = LazyModule(new TLXbar(policy))
-    xbar.node
-  }
-
-  def mapInputIds (ports: Seq[TLMasterPortParameters]) = assignRanges(ports.map(_.endSourceId))
-  def mapOutputIds(ports: Seq[TLSlavePortParameters ]) = assignRanges(ports.map(_.endSinkId))
+  def mapOutputIds(ports: Seq[TLSlavePortParameters]) = assignRanges(ports.map(_.endSinkId))
 
   def assignRanges(sizes: Seq[Int]) = {
     val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
     val tuples = pow2Sizes.zipWithIndex.sortBy(_._1) // record old index, then sort by increasing size
     val starts = tuples.scanRight(0)(_._1 + _).tail // suffix-sum of the sizes = the start positions
     val ranges = (tuples zip starts) map { case ((sz, i), st) =>
-      (if (sz == 0) IdRange(0,0) else IdRange(st, st+sz), i)
+      (if (sz == 0) IdRange(0, 0) else IdRange(st, st + sz), i)
     }
-    ranges.sortBy(_._2).map(_._1) // Restore original order
+    ranges.sortBy(_._2).map(_._1) // Restore orignal order
   }
 
   def relabeler() = {
@@ -173,22 +109,7 @@ object TLXbar
       }
     }
   }
-
-  // Replicate an input port to each output port
-  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool], force: Seq[Boolean] = Nil): Seq[DecoupledIO[T]] = {
-    val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
-    for (i <- 0 until select.size) {
-      filtered(i).bits := (if (force.lift(i).getOrElse(false)) IdentityModule(input.bits) else input.bits)
-      filtered(i).valid := input.valid && (select(i) || (select.size == 1).B)
-    }
-    input.ready := Mux1H(select, filtered.map(_.ready))
-    filtered
-  }
-}
-
-object TLXbar_ACancel
-{
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle_ACancel, TLEdge)], seqOut: Seq[(TLBundle_ACancel, TLEdge)]): Unit = {
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]) {
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 
@@ -231,114 +152,114 @@ object TLXbar_ACancel
     def trim(id: UInt, size: Int): UInt = if (size <= 1) 0.U else id(log2Ceil(size)-1, 0)
 
     // Transform input bundle sources (sinks use global namespace on both sides)
-    val in = Wire(Vec(io_in.size, TLBundle_ACancel(wide_bundle)))
+    val in = Wire(Vec(io_in.size, TLBundle(wide_bundle)))
     for (i <- 0 until in.size) {
       val r = inputIdRanges(i)
 
       if (connectAIO(i).exists(x=>x)) {
-        in(i).a :<> io_in(i).a
+        in(i).a.squeezeAll.waiveAll :<>= io_in(i).a.squeezeAll.waiveAll
+        in(i).a.bits.user := DontCare
         in(i).a.bits.source := io_in(i).a.bits.source | r.start.U
       } else {
-        in(i).a.earlyValid := false.B
-        in(i).a.lateCancel := DontCare
-        in(i).a.bits       := DontCare
-        io_in(i).a.ready      := true.B
-        io_in(i).a.lateCancel := DontCare
-        io_in(i).a.bits       := DontCare
+        in(i).a := DontCare
+        io_in(i).a := DontCare
+        in(i).a.valid := false.B
+        io_in(i).a.ready := true.B
       }
 
       if (connectBIO(i).exists(x=>x)) {
-        io_in(i).b :<> in(i).b
+        io_in(i).b.squeezeAll :<>= in(i).b.squeezeAll
         io_in(i).b.bits.source := trim(in(i).b.bits.source, r.size)
       } else {
+        in(i).b := DontCare
+        io_in(i).b  := DontCare
         in(i).b.ready := true.B
-        in(i).b.bits  := DontCare
         io_in(i).b.valid := false.B
-        io_in(i).b.bits  := DontCare
       }
 
       if (connectCIO(i).exists(x=>x)) {
-        in(i).c :<> io_in(i).c
+        in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
+        in(i).c.bits.user := DontCare
         in(i).c.bits.source := io_in(i).c.bits.source | r.start.U
       } else {
+        in(i).c := DontCare
+        io_in(i).c := DontCare
         in(i).c.valid := false.B
-        in(i).c.bits  := DontCare
         io_in(i).c.ready := true.B
-        io_in(i).c.bits  := DontCare
       }
 
       if (connectDIO(i).exists(x=>x)) {
-        io_in(i).d :<> in(i).d
+        io_in(i).d.squeezeAll.waiveAll :<>= in(i).d.squeezeAll.waiveAll
         io_in(i).d.bits.source := trim(in(i).d.bits.source, r.size)
       } else {
+        in(i).d := DontCare
+        io_in(i).d  := DontCare
         in(i).d.ready := true.B
-        in(i).d.bits  := DontCare
         io_in(i).d.valid := false.B
-        io_in(i).d.bits  := DontCare
       }
 
       if (connectEIO(i).exists(x=>x)) {
-        in(i).e :<> io_in(i).e
+        in(i).e.squeezeAll :<>= io_in(i).e.squeezeAll
       } else {
+        in(i).e := DontCare
+        io_in(i).e  := DontCare
         in(i).e.valid := false.B
-        in(i).e.bits  := DontCare
         io_in(i).e.ready := true.B
-        io_in(i).e.bits  := DontCare
       }
     }
 
     // Transform output bundle sinks (sources use global namespace on both sides)
-    val out = Wire(Vec(io_out.size, TLBundle_ACancel(wide_bundle)))
+    val out = Wire(Vec(io_out.size, TLBundle(wide_bundle)))
     for (o <- 0 until out.size) {
       val r = outputIdRanges(o)
 
       if (connectAOI(o).exists(x=>x)) {
-        io_out(o).a :<> out(o).a
+        io_out(o).a.squeezeAll.waiveAll :<>= out(o).a.squeezeAll.waiveAll
+        out(o).a.bits.user := DontCare
       } else {
-        out(o).a.ready      := true.B
-        out(o).a.lateCancel := DontCare
-        out(o).a.bits       := DontCare
-        io_out(o).a.earlyValid := false.B
-        io_out(o).a.lateCancel := DontCare
-        io_out(o).a.bits       := DontCare
+        out(o).a := DontCare
+        io_out(o).a := DontCare
+        out(o).a.ready := true.B
+        io_out(o).a.valid := false.B
       }
 
       if (connectBOI(o).exists(x=>x)) {
-        out(o).b :<> io_out(o).b
+        out(o).b.squeezeAll :<>= io_out(o).b.squeezeAll
       } else {
+        out(o).b := DontCare
+        io_out(o).b := DontCare
         out(o).b.valid := false.B
-        out(o).b.bits  := DontCare
         io_out(o).b.ready := true.B
-        io_out(o).b.bits  := DontCare
       }
 
       if (connectCOI(o).exists(x=>x)) {
-        io_out(o).c :<> out(o).c
+        io_out(o).c.squeezeAll.waiveAll :<>= out(o).c.squeezeAll.waiveAll
+        out(o).c.bits.user := DontCare
       } else {
+        out(o).c  := DontCare
+        io_out(o).c  := DontCare
         out(o).c.ready := true.B
-        out(o).c.bits  := DontCare
         io_out(o).c.valid := false.B
-        io_out(o).c.bits  := DontCare
       }
 
       if (connectDOI(o).exists(x=>x)) {
-        out(o).d :<> io_out(o).d
+        out(o).d.squeezeAll :<>= io_out(o).d.squeezeAll
         out(o).d.bits.sink := io_out(o).d.bits.sink | r.start.U
       } else {
+        out(o).d := DontCare
+        io_out(o).d := DontCare
         out(o).d.valid := false.B
-        out(o).d.bits  := DontCare
         io_out(o).d.ready := true.B
-        io_out(o).d.bits  := DontCare
       }
 
       if (connectEOI(o).exists(x=>x)) {
-        io_out(o).e :<> out(o).e
+        io_out(o).e.squeezeAll :<>= out(o).e.squeezeAll
         io_out(o).e.bits.sink := trim(out(o).e.bits.sink, r.size)
       } else {
+        out(o).e := DontCare
+        io_out(o).e  := DontCare
         out(o).e.ready := true.B
-        out(o).e.bits  := DontCare
         io_out(o).e.valid := false.B
-        io_out(o).e.bits  := DontCare
       }
     }
 
@@ -392,17 +313,17 @@ object TLXbar_ACancel
     val beatsEI = (in  zip edgesIn)  map { case (i, e) => e.numBeats1(i.e.bits) }
 
     // Fanout the input sources to the output sinks
-    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar_ACancel.fanout(i.a, r, edgesOut.map(_.params(ForceFanoutKey).a)) })
-    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar        .fanout(o.b, r, edgesIn .map(_.params(ForceFanoutKey).b)) })
-    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => TLXbar        .fanout(i.c, r, edgesOut.map(_.params(ForceFanoutKey).c)) })
-    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => TLXbar        .fanout(o.d, r, edgesIn .map(_.params(ForceFanoutKey).d)) })
-    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => TLXbar        .fanout(i.e, r, edgesOut.map(_.params(ForceFanoutKey).e)) })
+    val portsAOI = transpose((in  zip requestAIO) map { case (i, r) => TLXbar.fanout(i.a, r, edgesOut.map(_.params(ForceFanoutKey).a)) })
+    val portsBIO = transpose((out zip requestBOI) map { case (o, r) => TLXbar.fanout(o.b, r, edgesIn .map(_.params(ForceFanoutKey).b)) })
+    val portsCOI = transpose((in  zip requestCIO) map { case (i, r) => TLXbar.fanout(i.c, r, edgesOut.map(_.params(ForceFanoutKey).c)) })
+    val portsDIO = transpose((out zip requestDOI) map { case (o, r) => TLXbar.fanout(o.d, r, edgesIn .map(_.params(ForceFanoutKey).d)) })
+    val portsEOI = transpose((in  zip requestEIO) map { case (i, r) => TLXbar.fanout(i.e, r, edgesOut.map(_.params(ForceFanoutKey).e)) })
 
     // Arbitrate amongst the sources
     for (o <- 0 until out.size) {
-      TLArbiter.applyCancel(policy)(out(o).a, filter(beatsAI zip portsAOI(o), connectAOI(o)):_*)
-      TLArbiter            (policy)(out(o).c, filter(beatsCI zip portsCOI(o), connectCOI(o)):_*)
-      TLArbiter            (policy)(out(o).e, filter(beatsEI zip portsEOI(o), connectEOI(o)):_*)
+      TLArbiter(policy)(out(o).a, filter(beatsAI zip portsAOI(o), connectAOI(o)):_*)
+      TLArbiter(policy)(out(o).c, filter(beatsCI zip portsCOI(o), connectCOI(o)):_*)
+      TLArbiter(policy)(out(o).e, filter(beatsEI zip portsEOI(o), connectEOI(o)):_*)
       filter(portsAOI(o), connectAOI(o).map(!_)) foreach { r => r.ready := false.B }
       filter(portsCOI(o), connectCOI(o).map(!_)) foreach { r => r.ready := false.B }
       filter(portsEOI(o), connectEOI(o).map(!_)) foreach { r => r.ready := false.B }
@@ -416,19 +337,18 @@ object TLXbar_ACancel
     }
   }
 
-  def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode_ACancel =
+  def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode =
   {
-    val xbar = LazyModule(new TLXbar_ACancel(policy))
+    val xbar = LazyModule(new TLXbar(policy))
     xbar.node
   }
 
   // Replicate an input port to each output port
-  def fanout[T <: TLChannel](input: ReadyValidCancel[T], select: Seq[Bool], force: Seq[Boolean] = Nil): Seq[ReadyValidCancel[T]] = {
+  def fanout[T <: TLChannel](input: DecoupledIO[T], select: Seq[Bool], force: Seq[Boolean] = Nil): Seq[DecoupledIO[T]] = {
     val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
       filtered(i).bits := (if (force.lift(i).getOrElse(false)) IdentityModule(input.bits) else input.bits)
-      filtered(i).lateCancel := input.lateCancel
-      filtered(i).earlyValid := input.earlyValid && (select(i) || (select.size == 1).B)
+      filtered(i).valid := input.valid && (select(i) || (select.size == 1).B)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))
     filtered
