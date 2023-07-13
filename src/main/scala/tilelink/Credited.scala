@@ -8,7 +8,6 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
 {
@@ -19,11 +18,11 @@ class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters) extends L
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out.a :<> in.a.pipeline(delay.a)
-      in.b :<> out.b.pipeline(delay.b)
-      out.c :<> in.c.pipeline(delay.c)
-      in.d :<> out.d.pipeline(delay.d)
-      out.e :<> in.e.pipeline(delay.e)
+      out.a :<>= in.a.pipeline(delay.a)
+      in.b :<>= out.b.pipeline(delay.b)
+      out.c :<>= in.c.pipeline(delay.c)
+      in.d :<>= out.d.pipeline(delay.d)
+      out.e :<>= in.e.pipeline(delay.e)
     }
   }
 }
@@ -44,11 +43,11 @@ class TLCreditedSource(delay: TLCreditedDelay)(implicit p: Parameters) extends L
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val tld = edgeOut.delay
-      out.a :<> CreditedIO.fromSender(in.a, tld.a.total).pipeline(delay.a)
-      in.b :<> Decoupled(out.b.pipeline(delay.b).toReceiver(tld.b.total))
-      out.c :<> CreditedIO.fromSender(in.c, tld.c.total).pipeline(delay.c)
-      in.d :<> Decoupled(out.d.pipeline(delay.d).toReceiver(tld.d.total))
-      out.e :<> CreditedIO.fromSender(in.e, tld.e.total).pipeline(delay.e)
+      out.a :<>= CreditedIO.fromSender(in.a, tld.a.total).pipeline(delay.a)
+      in.b :<>= Decoupled(out.b.pipeline(delay.b).toReceiver(tld.b.total))
+      out.c :<>= CreditedIO.fromSender(in.c, tld.c.total).pipeline(delay.c)
+      in.d :<>= Decoupled(out.d.pipeline(delay.d).toReceiver(tld.d.total))
+      out.e :<>= CreditedIO.fromSender(in.e, tld.e.total).pipeline(delay.e)
     }
   }
 }
@@ -69,11 +68,11 @@ class TLCreditedSink(delay: TLCreditedDelay)(implicit p: Parameters) extends Laz
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val tld = edgeIn.delay
-      out.a :<> Decoupled(in.a.pipeline(delay.a).toReceiver(tld.a.total))
-      in.b :<> CreditedIO.fromSender(out.b, tld.b.total).pipeline(delay.b)
-      out.c :<> Decoupled(in.c.pipeline(delay.c).toReceiver(tld.c.total))
-      in.d :<> CreditedIO.fromSender(out.d, tld.d.total).pipeline(delay.d)
-      out.e :<> Decoupled(in.e.pipeline(delay.e).toReceiver(tld.e.total))
+      out.a :<>= Decoupled(in.a.pipeline(delay.a).toReceiver(tld.a.total))
+      in.b :<>= CreditedIO.fromSender(out.b, tld.b.total).pipeline(delay.b)
+      out.c :<>= Decoupled(in.c.pipeline(delay.c).toReceiver(tld.c.total))
+      in.d :<>= CreditedIO.fromSender(out.d, tld.d.total).pipeline(delay.d)
+      out.e :<>= Decoupled(in.e.pipeline(delay.e).toReceiver(tld.e.total))
     }
   }
 }
