@@ -73,7 +73,9 @@ case class TLRegisterNode(
     in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra :<= a.bits.echo
+    Connectable.waiveUnmatched(in.bits.extra, a.bits.echo) match {
+      case (lhs, rhs) => lhs :<= rhs
+    }
 
     val a_extra = in.bits.extra(TLRegisterRouterExtra)
     a_extra.source := a.bits.source
@@ -94,7 +96,10 @@ case class TLRegisterNode(
 
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
-    d.bits.echo :<= out.bits.extra
+    Connectable.waiveUnmatched(d.bits.echo, out.bits.extra) match {
+      case (lhs, rhs) => lhs :<= rhs
+    }
+
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
 
     // Tie off unused channels
