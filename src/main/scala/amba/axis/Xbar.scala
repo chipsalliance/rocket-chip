@@ -105,14 +105,18 @@ object AXISXbar
       val allowed = Mux(idle, readys, state)
       (sources zip allowed) foreach { case (s, r) => s.ready := sink.ready && r }
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
-      sink.bits :<= Mux1H(muxState, sources.map(_.bits))
+      Connectable.waiveUnmatched(sink.bits, Mux1H(muxState, sources.map(_.bits))) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
     }
   }
 
   def fanout(input: AXISBundle, select: Seq[Bool]): Seq[AXISBundle] = {
     val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
-      filtered(i).bits :<= input.bits
+      Connectable.waiveUnmatched(filtered(i).bits, input.bits) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
       filtered(i).valid := input.valid && (select(i) || (select.size == 1).B)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))
