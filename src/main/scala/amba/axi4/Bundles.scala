@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
 
-abstract class AXI4BundleBase(params: AXI4BundleParameters) extends GenericParameterizedBundle(params)
+abstract class AXI4BundleBase(val params: AXI4BundleParameters) extends Bundle
 
 /**
   * Common signals of AW and AR channels of AXI4 protocol
