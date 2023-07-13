@@ -9,7 +9,6 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.amba._
 import chisel3.util.{log2Ceil, UIntToOH, Queue, Decoupled, Cat}
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)
@@ -17,13 +16,10 @@ class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
 }
 
 case object AXI4TLState extends ControlKey[AXI4TLStateBundle]("tl_state")
-case class AXI4TLStateField(sourceBits: Int) extends BundleField(AXI4TLState) {
-  def data = Output(new AXI4TLStateBundle(sourceBits))
-  def default(x: AXI4TLStateBundle) = {
-    x.size   := 0.U
-    x.source := 0.U
-  }
-}
+case class AXI4TLStateField(sourceBits: Int) extends BundleField[AXI4TLStateBundle](AXI4TLState, Output(new AXI4TLStateBundle(sourceBits)), x => {
+  x.size := 0.U
+  x.source := 0.U
+})
 
 /** TLtoAXI4IdMap serves as a record for the translation performed between id spaces.
   *
@@ -149,7 +145,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
       val out_w = Wire(chiselTypeOf(out.w))
-      out.w :<> Queue.irrevocable(out_w, entries=depth, combinational)
+      out.w :<>= Queue.irrevocable(out_w, entries=depth, combinational)
       val queue_arw = Queue.irrevocable(out_arw, entries=depth, combinational)
 
       // Fan out the ARW channel to AR and AW
@@ -175,8 +171,12 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.cache := 0.U // do not allow AXI to modify our transactions
       arw.prot  := AXI4Parameters.PROT_PRIVILEGED
       arw.qos   := 0.U // no QoS
-      arw.user :<= in.a.bits.user
-      arw.echo :<= in.a.bits.echo
+      Connectable.waiveUnmatched(arw.user, in.a.bits.user) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
+      Connectable.waiveUnmatched(arw.echo, in.a.bits.echo) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
       val a_extra = arw.echo(AXI4TLState)
       a_extra.source := a_source
       a_extra.size   := a_size
@@ -232,10 +232,18 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       val r_d = edgeIn.AccessAck(r_source, r_size, 0.U, denied = r_denied, corrupt = r_corrupt || r_denied)
       val b_d = edgeIn.AccessAck(b_source, b_size, denied = b_denied)
-      r_d.user :<= out.r.bits.user
-      r_d.echo :<= out.r.bits.echo
-      b_d.user :<= out.b.bits.user
-      b_d.echo :<= out.b.bits.echo
+      Connectable.waiveUnmatched(r_d.user, out.r.bits.user) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(r_d.echo, out.r.bits.echo) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(b_d.user, out.b.bits.user) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(b_d.echo, out.b.bits.echo) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
 
       in.d.bits := Mux(r_wins, r_d, b_d)
       in.d.bits.data := out.r.bits.data // avoid a costly Mux
