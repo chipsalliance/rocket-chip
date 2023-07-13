@@ -18,10 +18,13 @@ class TLRegisterRouterExtraBundle(val sourceBits: Int, val sizeBits: Int) extend
 }
 
 case object TLRegisterRouterExtra extends ControlKey[TLRegisterRouterExtraBundle]("tlrr_extra")
-case class TLRegisterRouterExtraField(sourceBits: Int, sizeBits: Int) extends BundleField[TLRegisterRouterExtraBundle](TLRegisterRouterExtra, Output(new TLRegisterRouterExtraBundle(sourceBits, sizeBits)), x => {
-  x.size   := 0.U
-  x.source := 0.U
-})
+case class TLRegisterRouterExtraField(sourceBits: Int, sizeBits: Int) extends BundleField(TLRegisterRouterExtra) {
+  def data = Output(new TLRegisterRouterExtraBundle(sourceBits, sizeBits))
+  def default(x: TLRegisterRouterExtraBundle) = {
+    x.size   := 0.U
+    x.source := 0.U
+  }
+}
 
 /** TLRegisterNode is a specialized TL SinkNode that encapsulates MMIO registers.
   * It provides functionality for describing and outputting metdata about the registers in several formats.
