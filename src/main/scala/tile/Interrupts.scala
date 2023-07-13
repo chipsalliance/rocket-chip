@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
-
+import chisel3._
+import chisel3.util.{RegEnable, log2Ceil}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._

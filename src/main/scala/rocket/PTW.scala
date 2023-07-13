@@ -522,6 +522,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   // if SFENCE occurs during walk, don't refill PTE cache or L2 TLB until next walk
   invalidated := io.dpath.sfence.valid || (invalidated && state =/= s_ready)
   // mem request
+  io.mem.keep_clock_enabled := false.B
+
   io.mem.req.valid := state === s_req || state === s_dummy1
   io.mem.req.bits.phys := true.B
   io.mem.req.bits.cmd  := M_XRD
@@ -531,7 +533,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.idx.foreach(_ := pte_addr)
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
   io.mem.req.bits.dv := do_both_stages && !stage2
+  io.mem.req.bits.tag := DontCare
+  io.mem.req.bits.no_alloc := DontCare
+  io.mem.req.bits.no_xcpt := DontCare
+  io.mem.req.bits.data := DontCare
+  io.mem.req.bits.mask := DontCare
+
   io.mem.s1_kill := l2_hit || state =/= s_wait1
+  io.mem.s1_data := DontCare
   io.mem.s2_kill := false.B
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)

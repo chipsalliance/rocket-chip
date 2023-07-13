@@ -2,10 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.experimental.CloneModuleAsRecord
-import chisel3.internal.sourceinfo.{SourceInfo}
-
+import chisel3._
+import chisel3.experimental.{CloneModuleAsRecord, SourceInfo}
 
 final class CloneLazyModule private (val base: LazyModule)
 {
