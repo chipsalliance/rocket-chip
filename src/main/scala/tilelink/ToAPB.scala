@@ -89,7 +89,9 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       out.pprot   := PROT_DEFAULT
       out.pwdata  := a.bits.data
       out.pstrb   := Mux(a_write, a.bits.mask, 0.U)
-      out.pauser :<= a.bits.user
+      Connectable.waiveUnmatched(out.pauser, a.bits.user) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
       a.bits.user.lift(AMBAProt).foreach { x =>
         val pprot = Wire(Vec(3, Bool()))
         pprot(0) :=  x.privileged
@@ -110,8 +112,12 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       d.bits.denied  :=  d_write && out.pslverr
       d.bits.data    := out.prdata
       d.bits.corrupt := !d_write && out.pslverr
-      d.bits.user    :<= out.pduser
-      d.bits.echo    :<= d_echo
+      Connectable.waiveUnmatched(d.bits.user, out.pduser) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
+      Connectable.waiveUnmatched(d.bits.echo, d_echo) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
     }
   }
 }
