@@ -141,7 +141,6 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       // Irrevocable queues in front because we want to accept the request before responses come back
       val (in_ar, ar_last, _)       = fragment(Queue.irrevocable(in.ar, 1, flow=true), readSizes1)
       val (in_aw, aw_last, w_beats) = fragment(Queue.irrevocable(in.aw, 1, flow=true), writeSizes1)
-      in_ar.ready := DontCare
 
       // AXI ready may not depend on valid of other channels
       // We cut wready here along with awready and arready before AXI4ToTL
