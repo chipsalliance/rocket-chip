@@ -148,7 +148,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       val in_w = Queue.irrevocable(in.w, 1, flow=true)
 
       // AR flow control; super easy
-      Connectable.waiveUnmatched(out.ar.bits, in_ar.bits) match {
+      Connectable.waiveUnmatched(out.ar, in_ar) match {
         case (lhs, rhs) => lhs :<>= rhs
       }
       out.ar.bits.echo(AXI4FragLast) := ar_last
