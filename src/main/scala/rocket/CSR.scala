@@ -837,8 +837,8 @@ class CSRFile(
     read_mapping += CSRs.vstvec -> read_vstvec
   }
 
-  // mimpid, marchid, and mvendorid are 0 unless overridden by customCSRs
-  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
+  // mimpid, marchid, mvendorid, and mconfigptr are 0 unless overridden by customCSRs
+  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid, CSRs.mconfigptr).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
 
   val decoded_addr = {
     val addr = Cat(io.status.v, io.rw.addr)
