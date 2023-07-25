@@ -1041,7 +1041,7 @@ class CSRFile(
       reg_mstatus.v := true.B
       reg_vsstatus.spp := reg_mstatus.prv
       reg_vsepc := epc
-      reg_vscause := Mux(cause(xLen-1), interruptMSB.U | (Mux(cause_lsbs > 12, cause_lsbs, cause_lsbs - 1)), cause) 
+      reg_vscause := Mux(cause(xLen-1) && !cause_lsbs(cause_lsbs.getWidth-1, 4).orR, Cat(cause(xLen-1, 2), 1.U(2.W)), cause)
       reg_vstval := tval
       reg_vsstatus.spie := reg_vsstatus.sie
       reg_vsstatus.sie := false.B
