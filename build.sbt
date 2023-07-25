@@ -110,6 +110,7 @@ lazy val docs = project
   .dependsOn(rocketchip)
   .enablePlugins(MdocPlugin)
   .settings(commonSettings)
+  .settings(chiselSettings)
   .settings(
       scalacOptions += "-language:reflectiveCalls",
       mdocIn := file("docs/src"),

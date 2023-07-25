@@ -14,7 +14,7 @@
 ## What is Diplomacy?
 
 From the [Diplomatic Design Patterns: A TileLink Case Study](https://carrv.github.io/2017/papers/cook-diplomacy-carrv2017.pdf):
-> Diplomacy is a parameter negotiation framework for generating parameterized 
+> Diplomacy is a parameter negotiation framework for generating parameterized
   protocol implementations.
 
 The goal of this walkthrough is to demonstrate an extremely simple Diplomacy
@@ -36,7 +36,7 @@ smaller of the two widths from the drivers versus the monitor, which is the oppo
 behavior of typical Chisel width inference.
 
 ```scala mdoc:invisible
-import chipsalliance.rocketchip.config.{Config, Parameters}
+import org.chipsalliance.cde.config.{Config, Parameters}
 import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.stage.ChiselStage
@@ -247,15 +247,18 @@ signals an error if the `Adder` returns an incorrect result. It has two
 `AdderMonitorNode` to take in the sum from the `Adder`.
 
 ```scala mdoc
+
+class ErrorIO extends Bundle {
+  val error = Output(Bool())
+}
 /** monitor (sink) */
 class AdderMonitor(width: Int, numOperands: Int)(implicit p: Parameters) extends LazyModule {
   val nodeSeq = Seq.fill(numOperands) { new AdderMonitorNode(UpwardParam(width)) }
   val nodeSum = new AdderMonitorNode(UpwardParam(width))
 
-  lazy val module = new LazyModuleImp(this) {
-    val io = IO(new Bundle {
-      val error = Output(Bool())
-    })
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    val io = IO(new ErrorIO)
 
     // print operation
     printf(nodeSeq.map(node => p"${node.in.head._1}").reduce(_ + p" + " + _) + p" = ${nodeSum.in.head._1}")
@@ -294,7 +297,8 @@ class AdderTestHarness()(implicit p: Parameters) extends LazyModule {
   drivers.zip(monitor.nodeSeq).foreach { case (driver, monitorNode) => monitorNode := driver.node }
   monitor.nodeSum := adder.node
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     when(monitor.module.io.error) {
       printf("something went wrong")
     }
