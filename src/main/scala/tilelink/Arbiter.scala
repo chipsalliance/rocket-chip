@@ -7,7 +7,6 @@ import chisel3.util._
 import chisel3.util.random.LFSR
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 object TLArbiter
 {
@@ -51,7 +50,7 @@ object TLArbiter
     if (sources.isEmpty) {
       sink.bits       := DontCare
     } else if (sources.size == 1) {
-      sink :<> sources.head._2
+      sink :<>= sources.head._2
     } else {
       val pairs = sources.toList
       val beatsIn = pairs.map(_._1)

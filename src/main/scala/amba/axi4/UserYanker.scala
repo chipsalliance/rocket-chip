@@ -8,7 +8,6 @@ import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 /** This adapter prunes all user bit fields of the echo type from request messages,
   * storing them in queues and echoing them back when matching response messages are received.
@@ -58,13 +57,17 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val ar_ready = VecInit(rqueues.map(_.enq.ready))(arid)
       in .ar.ready := out.ar.ready && ar_ready
       out.ar.valid := in .ar.valid && ar_ready
-      out.ar.bits :<= in .ar.bits
+      Connectable.waiveUnmatched(out.ar.bits, in.ar.bits) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
 
       val rid = out.r.bits.id
       val r_valid = VecInit(rqueues.map(_.deq.valid))(rid)
       val r_bits = VecInit(rqueues.map(_.deq.bits))(rid)
       assert (!out.r.valid || r_valid) // Q must be ready faster than the response
-      in.r :<> out.r
+      Connectable.waiveUnmatched(in.r, out.r) match {
+        case (lhs, rhs) => lhs :<>= rhs
+      }
       in.r.bits.echo :<= r_bits
 
       val arsel = UIntToOH(arid, edgeIn.master.endId).asBools
@@ -79,13 +82,17 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val aw_ready = VecInit(wqueues.map(_.enq.ready))(awid)
       in .aw.ready := out.aw.ready && aw_ready
       out.aw.valid := in .aw.valid && aw_ready
-      out.aw.bits :<= in .aw.bits
+      Connectable.waiveUnmatched(out.aw.bits, in.aw.bits) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
 
       val bid = out.b.bits.id
       val b_valid = VecInit(wqueues.map(_.deq.valid))(bid)
       val b_bits = VecInit(wqueues.map(_.deq.bits))(bid)
       assert (!out.b.valid || b_valid) // Q must be ready faster than the response
-      in.b :<> out.b
+      Connectable.waiveUnmatched(in.b, out.b) match {
+        case (lhs, rhs) => lhs :<>= rhs
+      }
       in.b.bits.echo :<= b_bits
 
       val awsel = UIntToOH(awid, edgeIn.master.endId).asBools
@@ -96,7 +103,7 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
         q.enq.bits :<= in.aw.bits.echo
       }
 
-      out.w :<> in.w
+      out.w :<>= in.w
     }
   }
 }
