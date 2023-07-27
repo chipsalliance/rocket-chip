@@ -16,13 +16,10 @@ class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
 }
 
 case object AXI4TLState extends ControlKey[AXI4TLStateBundle]("tl_state")
-case class AXI4TLStateField(sourceBits: Int) extends BundleField(AXI4TLState) {
-  def data = Output(new AXI4TLStateBundle(sourceBits))
-  def default(x: AXI4TLStateBundle) = {
-    x.size   := 0.U
-    x.source := 0.U
-  }
-}
+case class AXI4TLStateField(sourceBits: Int) extends BundleField[AXI4TLStateBundle](AXI4TLState, Output(new AXI4TLStateBundle(sourceBits)), x => {
+  x.size := 0.U
+  x.source := 0.U
+})
 
 /** TLtoAXI4IdMap serves as a record for the translation performed between id spaces.
   *
