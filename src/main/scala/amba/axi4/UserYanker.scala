@@ -4,7 +4,6 @@ package freechips.rocketchip.amba.axi4
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
@@ -74,8 +73,12 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       val rsel  = UIntToOH(rid,  edgeIn.master.endId).asBools
       (rqueues zip (arsel zip rsel)) foreach { case (q, (ar, r)) =>
         q.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
+        q.deq.valid := DontCare
+        q.deq.bits := DontCare
         q.enq.valid := in .ar.valid && out.ar.ready && ar
-        q.enq.bits :<= in.ar.bits.echo
+        q.enq.ready := DontCare
+        q.enq.bits :<>= in.ar.bits.echo
+        q.count := DontCare
       }
 
       val awid = in.aw.bits.id
@@ -83,7 +86,7 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       in .aw.ready := out.aw.ready && aw_ready
       out.aw.valid := in .aw.valid && aw_ready
       Connectable.waiveUnmatched(out.aw.bits, in.aw.bits) match {
-        case (lhs, rhs) => lhs :<= rhs
+        case (lhs, rhs) => lhs :<>= rhs
       }
 
       val bid = out.b.bits.id
@@ -93,14 +96,18 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       Connectable.waiveUnmatched(in.b, out.b) match {
         case (lhs, rhs) => lhs :<>= rhs
       }
-      in.b.bits.echo :<= b_bits
+      in.b.bits.echo :<>= b_bits
 
       val awsel = UIntToOH(awid, edgeIn.master.endId).asBools
       val bsel  = UIntToOH(bid,  edgeIn.master.endId).asBools
       (wqueues zip (awsel zip bsel)) foreach { case (q, (aw, b)) =>
         q.deq.ready := out.b .valid && in .b .ready && b
+        q.deq.valid := DontCare
+        q.deq.bits := DontCare
         q.enq.valid := in .aw.valid && out.aw.ready && aw
-        q.enq.bits :<= in.aw.bits.echo
+        q.enq.ready := DontCare
+        q.enq.bits :<>= in.aw.bits.echo
+        q.count := DontCare
       }
 
       out.w :<>= in.w
