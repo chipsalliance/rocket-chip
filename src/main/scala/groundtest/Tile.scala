@@ -7,7 +7,7 @@ import chisel3._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
-import freechips.rocketchip.rocket.{BuildHellaCache, ICacheParams, RocketCoreParams}
+import freechips.rocketchip.rocket.{BuildHellaCache, DCache, DCacheModule, ICacheParams, NonBlockingDCache, NonBlockingDCacheModule, RocketCoreParams}
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 
@@ -40,7 +40,14 @@ abstract class GroundTestTile(
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(p(BuildHellaCache)(this)(p)) }
 
-  dcacheOpt.foreach { _.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode } }
+  dcacheOpt.foreach { m =>
+    m.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode }
+    InModuleBody {
+      m.module match {
+        case module: DCacheModule => module.tlb_port := DontCare
+      }
+    }
+  }
 
   override lazy val module = new GroundTestTileModuleImp(this)
 }
