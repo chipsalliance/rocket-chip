@@ -8,7 +8,6 @@ import chisel3.{Module, RawModule, Reset, withClockAndReset}
 import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
 import firrtl.passes.InlineAnnotation
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 
 import scala.collection.immutable.{SeqMap, SortedMap}
 import scala.util.matching._

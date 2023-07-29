@@ -5,9 +5,9 @@ package freechips.rocketchip.tile
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.experimental.SourceInfo
+import chisel3.experimental.dataview._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
@@ -768,9 +768,10 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wb_reg_valid = RegNext(mem_reg_valid && (!killm || mem_cp_valid), false.B)
 
   val cp_ctrl = Wire(new FPUCtrlSigs)
-  cp_ctrl <> io.cp_req.bits
+  cp_ctrl :<>= io.cp_req.bits.viewAsSupertype(new FPUCtrlSigs)
   io.cp_resp.valid := false.B
   io.cp_resp.bits.data := 0.U
+  io.cp_resp.bits.exc := DontCare
 
   val ex_ctrl = Mux(ex_cp_valid, cp_ctrl, ex_reg_ctrl)
   val mem_ctrl = RegEnable(ex_ctrl, req_valid)
@@ -822,7 +823,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   def fuInput(minT: Option[FType]): FPInput = {
     val req = Wire(new FPInput)
     val tag = ex_ctrl.typeTagIn
-    req := ex_ctrl
+    req.viewAsSupertype(new Bundle with HasFPUCtrlSigs) :#= ex_ctrl.viewAsSupertype(new Bundle with HasFPUCtrlSigs)
     req.rm := ex_rm
     req.in1 := unbox(ex_rs(0), tag, minT)
     req.in2 := unbox(ex_rs(1), tag, minT)
@@ -870,7 +871,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_typeTag = Wire(UInt(log2Up(floatTypes.size).W))
   val divSqrt_wdata = Wire(UInt((fLen+1).W))
   val divSqrt_flags = Wire(UInt(FPConstants.FLAGS_SZ.W))
-
+  divSqrt_typeTag := DontCare
+  divSqrt_wdata := DontCare
+  divSqrt_flags := DontCare
   // writeback arbitration
   case class Pipe(p: Module, lat: Int, cond: (FPUCtrlSigs) => Bool, res: FPResult)
   val pipes = List(

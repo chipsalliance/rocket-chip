@@ -641,6 +641,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     if (supportHartArray) {
       io.innerCtrl.bits.hasel      := Mux(haselWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
       io.innerCtrl.bits.hamask     := hamask
+    } else {
+      io.innerCtrl.bits.hasel := DontCare
+      io.innerCtrl.bits.hamask := DontCare
     }
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset

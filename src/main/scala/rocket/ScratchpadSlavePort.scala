@@ -105,6 +105,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
     dmem_req_valid := (tl_in.a.valid && ready) || state === s_replay
     val dmem_req_valid_likely = (tl_in.a.valid && ready_likely) || state === s_replay
 
+    io.dmem.keep_clock_enabled := DontCare
     io.dmem.req.valid := dmem_req_valid_likely
     tl_in.a.ready := io.dmem.req.ready && ready
     io.dmem.req.bits := formCacheReq(Mux(state === s_replay, acq, tl_in.a.bits))
