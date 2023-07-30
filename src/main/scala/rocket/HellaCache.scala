@@ -269,6 +269,11 @@ trait HasHellaCache { this: BaseTile =>
   tlMasterXbar.node := dcache.node
   dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
   dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
+  InModuleBody {
+    dcache.module match {
+      case module: DCacheModule => module.tlb_port := DontCare
+    }
+  }
 }
 
 trait HasHellaCacheModule {

@@ -69,6 +69,7 @@ abstract class LazyRoCC(
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
   val io = IO(new RoCCIO(outer.nPTWPorts, outer.roccCSRs.size))
+  io := DontCare
 }
 
 /** Mixins for including RoCC **/

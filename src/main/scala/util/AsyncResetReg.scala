@@ -2,8 +2,6 @@
 
 package freechips.rocketchip.util
 
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-
 import chisel3._
 
 /** This black-boxes an Async Reset
