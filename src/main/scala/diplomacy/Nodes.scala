@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.IO
+import chisel3._
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.util.HeterogeneousBag
