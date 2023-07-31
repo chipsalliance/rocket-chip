@@ -4,11 +4,11 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 
 val defaultVersions = Map(
-  "chisel3" -> "3.6.0",
-  "chisel3-plugin" -> "3.6.0"
+  "chisel" -> "5.0.0",
+  "chisel-plugin" -> "5.0.0"
 )
 
-def getVersion(dep: String, org: String = "edu.berkeley.cs", cross: Boolean = false) = {
+def getVersion(dep: String, org: String = "org.chipsalliance", cross: Boolean = false) = {
   val version = sys.env.getOrElse(dep + "Version", defaultVersions(dep))
   if (cross)
     ivy"$org:::$dep:$version"
@@ -73,7 +73,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
   def cdeModule: PublishModule
 
   def chisel3IvyDeps = if (chisel3Module.isEmpty) Agg(
-    getVersion("chisel3")
+    getVersion("chisel")
   ) else Agg.empty[Dep]
 
   override def mainClass = T {
@@ -95,7 +95,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     ) ++ chisel3IvyDeps
   }
 
-  private val chisel3Plugin = getVersion("chisel3-plugin", cross = true)
+  private val chisel3Plugin = getVersion("chisel-plugin", cross = true)
 
   override def repositories = super.repositories ++ Seq(
     MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),

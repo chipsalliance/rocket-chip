@@ -31,11 +31,11 @@ object hardfloatRocket extends hardfloat.build.hardfloat {
 
   // use same chisel version with RocketChip
   def chisel3IvyDeps = if(chisel3Module.isEmpty) Agg(
-    common.getVersion("chisel3")
+    common.getVersion("chisel")
   ) else Agg.empty[Dep]
 
   def chisel3PluginIvyDeps = if(chisel3Module.isEmpty) Agg(
-    common.getVersion("chisel3-plugin", cross = true)
+    common.getVersion("chisel-plugin", cross = true)
   ) else Agg.empty[Dep]
 
   override def repositories = super.repositories ++ Seq(
