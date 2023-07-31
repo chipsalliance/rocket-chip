@@ -25,12 +25,12 @@ class BundleBridgeImp[T <: Data]() extends SimpleNodeImp[BundleBridgeParams[T], 
     (sourceOpt, sinkOpt) match {
       case (None,    None)    =>
         throw new Exception("BundleBridge needs source or sink to provide bundle generator function")
-      case (Some(a), None)    => a
-      case (None,    Some(b)) => b
+      case (Some(a), None)    => chiselTypeClone(a)
+      case (None,    Some(b)) => chiselTypeClone(b)
       case (Some(a), Some(b)) => {
         require(DataMirror.checkTypeEquivalence(a, b),
           s"BundleBridge requires doubly-specified source and sink generators to have equivalent Chisel Data types, but got \n$a\n vs\n$b")
-        a
+        chiselTypeClone(a)
       }
     }
   }
