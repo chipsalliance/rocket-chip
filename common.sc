@@ -47,16 +47,12 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     }
   }
 
-  object test extends Tests {
+  object test extends SbtModuleTests with TestModule.ScalaTest {
     override def scalacPluginClasspath = m.scalacPluginClasspath
 
     override def ivyDeps = m.ivyDeps() ++ Agg(
       ivy"org.scalatest::scalatest:3.2.0"
     )
-
-    def testFrameworks = T {
-      Seq("org.scalatest.tools.Framework")
-    }
   }
 
   override def millSourcePath = super.millSourcePath / os.up
@@ -93,10 +89,12 @@ trait CommonRocketChip extends SbtModule with PublishModule {
 
   private val chisel3Plugin = getVersion("chisel3-plugin", cross = true)
 
-  override def repositories = super.repositories ++ Seq(
-    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
-    MavenRepository("https://oss.sonatype.org/content/repositories/releases")
-  )
+  override def repositoriesTask = T.task {
+    super.repositoriesTask() ++ Seq(
+      MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
+      MavenRepository("https://oss.sonatype.org/content/repositories/releases")
+    )
+  }
 
   override def compileIvyDeps = Agg(macroParadise)
 
