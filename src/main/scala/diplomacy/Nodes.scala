@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.IO
+import chisel3._
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.util.HeterogeneousBag
@@ -1201,18 +1200,23 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     */
   lazy val edges: Edges[EI, EO] = Edges(edgesIn, edgesOut)
 
-  // These need to be chisel3.Wire because Chisel.Wire assigns Reset to a default value of Bool,
-  // and FIRRTL will not allow a Reset assigned to Bool to later be assigned to AsyncReset.
-  // If the diplomatic Bundle contains Resets this will hamstring them into synchronous resets.
-  // The jury is still out on whether the lack of ability to override the reset type
-  // is a Chisel/firrtl bug or whether this should be supported,
-  // but as of today it does not work to do so.
-
   /** Create actual Wires corresponding to the Bundles parameterized by the outward edges of this node. */
-  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
+  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map { e =>
+    val x = Wire(outer.bundleO(e)).suggestName(s"${valName.name}Out")
+    // TODO: Don't care unconnected forwarded diplomatic signals for compatibility issue,
+    //       In the future, we should add an option to decide whether allowing unconnected in the LazyModule
+    x := DontCare
+    x
+  }
 
   /** Create actual Wires corresponding to the Bundles parameterized by the inward edges of this node. */
-  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
+  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map { e =>
+    val x = Wire(inner.bundleI(e)).suggestName(s"${valName.name}In")
+    // TODO: Don't care unconnected forwarded diplomatic signals for compatibility issue,
+    //       In the future, we should add an option to decide whether allowing unconnected in the LazyModule
+    x := DontCare
+    x
+  }
 
   private def emptyDanglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
@@ -1506,7 +1510,7 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   override final def circuitIdentity = true
   override protected[diplomacy] def instantiate(): Seq[Dangle] = {
     val dangles = super.instantiate()
-    (out zip in) foreach { case ((o, _), (i, _)) => o <> i }
+    (out zip in) foreach { case ((o, _), (i, _)) => o :<>= i }
     dangles
   }
   override protected[diplomacy] def cloneDangles(): Seq[Dangle] = super.cloneDangles()
