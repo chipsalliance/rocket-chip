@@ -633,7 +633,7 @@ class CSRFile(
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
-    (if (customIsaExt.isDefined) "X" else "") +
+    (if (customIsaExt.isDefined || usingRoCC) "X" else "") +
     (if (usingSupervisor) "S" else "") +
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
@@ -902,6 +902,7 @@ class CSRFile(
     io_dec.vector_illegal := io.status.vs === 0.U || reg_mstatus.v && reg_vsstatus.vs === 0.U || !reg_misa('v'-'a')
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
     io_dec.rocc_illegal := io.status.xs === 0.U || reg_mstatus.v && reg_vsstatus.xs === 0.U || !reg_misa('x'-'a')
+    dontTouch(io_dec.rocc_illegal)
     val csr_addr_legal = reg_mstatus.prv >= CSR.mode(addr) ||
       usingHypervisor.B && !reg_mstatus.v && reg_mstatus.prv === PRV.S.U && CSR.mode(addr) === PRV.H.U
     val csr_exists = decodeAny(read_mapping)
