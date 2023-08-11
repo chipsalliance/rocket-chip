@@ -633,7 +633,7 @@ class CSRFile(
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
-    (if (customIsaExt.isDefined) "X" else "") +
+    (if (customIsaExt.isDefined || usingRoCC) "X" else "") +
     (if (usingSupervisor) "S" else "") +
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
