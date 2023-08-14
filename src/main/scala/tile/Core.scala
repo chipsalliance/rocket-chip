@@ -24,7 +24,7 @@ trait CoreParams {
   val useCompressed: Boolean
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
-  val useVector: Boolean = false
+  val useVector: Boolean
   val useSCIE: Boolean
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
@@ -115,7 +115,7 @@ trait HasCoreParameters extends HasTileParameters {
   val customIsaExt = coreParams.customIsaExt
   val traceHasWdata = coreParams.traceHasWdata
 
-  def vLen = coreParams.vLen
+  def vLen = p(VLen)
   def sLen = coreParams.sLen
   def eLen = coreParams.eLen(xLen, fLen)
   def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
@@ -170,6 +170,7 @@ trait HasCoreIO extends HasTileParameters {
     val ptw = Flipped(new DatapathPTWIO())
     val fpu = Flipped(new FPUCoreIO())
     val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
+    val vector = Flipped(new VectorCoreIO())
     val trace = Output(new TraceBundle)
     val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
     val cease = Output(Bool())

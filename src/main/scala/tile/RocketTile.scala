@@ -45,6 +45,7 @@ class RocketTile private(
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
+    with HasVector
     with HasHellaCache
     with HasICacheFrontend
 {
@@ -196,6 +197,15 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   }
   // Dont care mem since not all RoCC need accessing memory
   core.io.rocc.mem := DontCare
+
+  // Connect the vector coprocessor interfaces
+  if (outer.vector.nonEmpty) {
+    val vector = outer.vector.get
+    vector.module.io.cmd <> core.io.vector.cmd
+    core.io.vector.resp <> vector.module.io.resp
+    //core.io.rocc.busy := vector.module.io.busy
+    //vector.module.io.exception := core.io.vector.exception
+  }
 
   // Rocket has higher priority to DTIM than other TileLink clients
   outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
