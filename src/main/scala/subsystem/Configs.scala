@@ -257,6 +257,16 @@ class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
   }
 })
 
+
+class WithRocketCacheRowBits(n: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(rowBits = n)),
+      icache = tp.tileParams.icache.map(_.copy(rowBits = n))))
+    case t => t
+  }
+})
+
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
   case CacheBlockBytes => linesize
 })
