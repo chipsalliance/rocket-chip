@@ -456,6 +456,14 @@ class WithRocketCease(enable: Boolean = true) extends Config((site, here, up) =>
   }
 })
 
+class WithNoSimulationTimeout extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(haveSimTimeout = false)))
+    case t => t
+  }
+})
+
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
   case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
 })

@@ -55,7 +55,8 @@ case class RocketCoreParams(
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
   debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
-  haveCease: Boolean = true // non-standard CEASE instruction
+  haveCease: Boolean = true, // non-standard CEASE instruction
+  haveSimTimeout: Boolean = true // add plusarg for simulation timeout
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -1116,7 +1117,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   xrfWriteBundle.excpt := false.B
   xrfWriteBundle.priv_mode := csr.io.trace(0).priv
 
-  PlusArg.timeout(
+  if (rocketParams.haveSimTimeout) PlusArg.timeout(
     name = "max_core_cycles",
     docstring = "Kill the emulation after INT rdtime cycles. Off if 0."
   )(csr.io.time)
