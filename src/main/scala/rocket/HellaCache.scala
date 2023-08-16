@@ -237,6 +237,8 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
   dontTouch(io.cpu.s1_data)
 
+  require(rowBits == edge.bundle.dataBits)
+
   private val fifoManagers = edge.manager.managers.filter(TLFIFOFixer.allVolatile)
   fifoManagers.foreach { m =>
     require (m.fifoId == fifoManagers.head.fifoId,
@@ -266,7 +268,7 @@ trait HasHellaCache { this: BaseTile =>
   var nDCachePorts = 0
   lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
-  tlMasterXbar.node := dcache.node
+  tlMasterXbar.node := TLWidthWidget(tileParams.dcache.get.rowBits/8) := dcache.node
   dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
   dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
   InModuleBody {
