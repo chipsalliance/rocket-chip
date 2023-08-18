@@ -179,12 +179,14 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     
     val maxDevs = Reg(Vec(nHarts, UInt(log2Ceil(nDevices+1).W)))
     val pendingUInt = Cat(pending.reverse)
-    for (hart <- 0 until nHarts) {
-      val fanin = Module(new PLICFanIn(nDevices, prioBits))
-      fanin.io.prio := priority
-      fanin.io.ip   := enableVec(hart) & pendingUInt
-      maxDevs(hart) := fanin.io.dev
-      harts(hart)   := ShiftRegister(RegNext(fanin.io.max) > threshold(hart), params.intStages)
+    if(nDevices > 0) {
+      for (hart <- 0 until nHarts) {
+        val fanin = Module(new PLICFanIn(nDevices, prioBits))
+        fanin.io.prio := priority
+        fanin.io.ip := enableVec(hart) & pendingUInt
+        maxDevs(hart) := fanin.io.dev
+        harts(hart) := ShiftRegister(RegNext(fanin.io.max) > threshold(hart), params.intStages)
+      }
     }
 
     // Priority registers are 32-bit aligned so treat each as its own group.
