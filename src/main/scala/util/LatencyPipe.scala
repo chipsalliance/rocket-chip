@@ -19,7 +19,7 @@ class LatencyPipe[T <: Data](typ: T, latency: Int) extends Module {
 
 object LatencyPipe {
   def apply[T <: Data](in: DecoupledIO[T], latency: Int): DecoupledIO[T] = {
-    val pipe = Module(new LatencyPipe(in.bits, latency))
+    val pipe = Module(new LatencyPipe(chiselTypeOf(in.bits), latency))
     pipe.io.in <> in
     pipe.io.out
   }

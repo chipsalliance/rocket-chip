@@ -449,7 +449,9 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
   val free_sdq = io.replay.fire && isWrite(io.replay.bits.cmd)
   io.replay.bits.data := sdq(RegEnable(replay_arb.io.out.bits.sdq_id, free_sdq))
   io.replay.bits.mask := 0.U
-  io.replay <> replay_arb.io.out
+  io.replay.valid := replay_arb.io.out.valid
+  replay_arb.io.out.ready := io.replay.ready
+  io.replay.bits.viewAsSupertype(new HellaCacheReqInternal) <> replay_arb.io.out.bits.viewAsSupertype(new HellaCacheReqInternal)
 
   when (io.replay.valid || sdq_enq) {
     sdq_val := sdq_val & ~(UIntToOH(replay_arb.io.out.bits.sdq_id) & Fill(cfg.nSDQ, free_sdq)) |
@@ -706,6 +708,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   // ECC is only supported on the data array
   require(cacheParams.tagCode.isInstanceOf[IdentityCode])
   val dECC = cacheParams.dataCode
+
+  io.cpu := DontCare
+  io.errors := DontCare
 
   val wb = Module(new WritebackUnit)
   val prober = Module(new ProbeUnit)
