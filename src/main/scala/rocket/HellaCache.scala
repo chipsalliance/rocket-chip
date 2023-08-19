@@ -274,6 +274,7 @@ trait HasHellaCache { this: BaseTile =>
   InModuleBody {
     dcache.module match {
       case module: DCacheModule => module.tlb_port := DontCare
+      case other => other
     }
   }
 }
