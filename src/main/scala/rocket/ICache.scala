@@ -636,6 +636,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       io.resp.bits.data := Mux1H(s1_tag_hit, s1_dout)
       io.resp.bits.ae := s1_tl_error.asUInt.orR
       io.resp.valid := s1_valid && s1_hit
+      io.resp.bits.replay := false.B
 
     // if I$ latency is 2, can have ITIM and ECC.
     case 2 =>
