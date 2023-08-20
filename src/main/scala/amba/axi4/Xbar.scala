@@ -168,7 +168,7 @@ class AXI4Xbar(
     // Transform output bundles
     val out = Wire(Vec(io_out.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until out.size) {
-      io_out(i) :<>= out(i)
+      io_out(i).squeezeAll :<>= out(i).squeezeAll
 
       if (io_in.size > 1) {
         // Block AW if we cannot record the W source

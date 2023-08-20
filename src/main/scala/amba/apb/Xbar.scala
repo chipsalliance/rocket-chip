@@ -43,7 +43,7 @@ class APBFanout()(implicit p: Parameters) extends LazyModule {
 
       val sel = VecInit(route_addrs.map(seq => seq.map(_.contains(in.paddr)).reduce(_ || _)))
       (sel zip io_out) foreach { case (sel, out) =>
-        out :<>= in
+        out.squeezeAll :<>= in.squeezeAll
         out.psel    := sel && in.psel
         out.penable := sel && in.penable
       }
