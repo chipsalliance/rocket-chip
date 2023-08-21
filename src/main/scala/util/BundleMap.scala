@@ -98,7 +98,7 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
   // All fields must have distinct key.names
   require(fields.map(_.key.name).distinct.size == fields.size)
 
-  val elements: SeqMap[String, Data] = SeqMap(fields.map { bf => bf.key.name -> chisel3.reflect.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
+  val elements: SeqMap[String, Data] = SeqMap(fields.map { bf => bf.key.name -> chisel3.reflect.DataMirror.internal.chiselTypeClone[Data](bf.data) } :_*)
 
   // A BundleMap is best viewed as a map from BundleKey to Data
   def keydata: Seq[(BundleKeyBase, Data)] = (fields zip elements) map { case (field, (_, data)) => (field.key, data) }
