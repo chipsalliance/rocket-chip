@@ -85,7 +85,7 @@ class AXI4Xbar(
     // Transform input bundles
     val in = Wire(Vec(io_in.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until in.size) {
-      in(i) :<>= io_in(i)
+      in(i).squeezeAll :<>= io_in(i).squeezeAll
 
       // Handle size = 1 gracefully (Chisel3 empty range is broken)
       def trim(id: UInt, size: Int) = if (size <= 1) 0.U else id(log2Ceil(size)-1, 0)
@@ -168,7 +168,7 @@ class AXI4Xbar(
     // Transform output bundles
     val out = Wire(Vec(io_out.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until out.size) {
-      io_out(i) :<>= out(i)
+      io_out(i).squeezeAll :<>= out(i).squeezeAll
 
       if (io_in.size > 1) {
         // Block AW if we cannot record the W source

@@ -46,7 +46,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
 
       when (in.hready) { d_sel := a_sel }
       (a_sel zip io_out) foreach { case (sel, out) =>
-        out :<>= in
+        out.squeezeAll :<>= in.squeezeAll
         out.hsel := in.hsel && sel
         out.hmaster.map { _ := 0.U }
       }

@@ -112,7 +112,7 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
   // Create a new BundleMap with only the selected Keys retained
   def subset(fn: BundleKeyBase => Boolean): BundleMap = {
     val out = Wire(BundleMap(fields.filter(x => fn(x.key))))
-    out :<= this
+    out :<= this.waiveAll
     out
   }
 }

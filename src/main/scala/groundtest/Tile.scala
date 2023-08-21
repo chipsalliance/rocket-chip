@@ -45,6 +45,7 @@ abstract class GroundTestTile(
     InModuleBody {
       m.module match {
         case module: DCacheModule => module.tlb_port := DontCare
+        case other => other
       }
     }
   }
@@ -58,6 +59,7 @@ class GroundTestTileModuleImp(outer: GroundTestTile) extends BaseTileModuleImp(o
 
   outer.dcacheOpt foreach { dcache =>
     val ptw = Module(new DummyPTW(1))
+    ptw.io.requestors := DontCare
     ptw.io.requestors.head <> dcache.module.io.ptw
   }
 }
