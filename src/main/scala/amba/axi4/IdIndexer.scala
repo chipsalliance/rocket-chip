@@ -7,7 +7,6 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import chisel3.util.{log2Ceil, Cat}
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
 case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(Output(UInt(width.W)), 0.U)
@@ -61,11 +60,22 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
 
       // Leave everything mostly untouched
-      out.ar :<> in.ar
-      out.aw :<> in.aw
-      out.w :<> in.w
-      in.b :<> out.b
-      in.r :<> out.r
+
+      Connectable.waiveUnmatched(out.ar, in.ar) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(out.aw, in.aw) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(out.w, in.w) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(in.b, out.b) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(in.r, out.r) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
 
       val bits = log2Ceil(edgeIn.master.endId) - idBits
       if (bits > 0) {

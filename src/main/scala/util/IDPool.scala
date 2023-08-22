@@ -23,8 +23,8 @@ class IDPool(numIds: Int, lateValid: Boolean = false, revocableSelect: Boolean =
   io.alloc.bits  := (if (revocableSelect) PriorityEncoder(bitmap) else select)
 
   val taken  = Mux(io.alloc.ready, UIntToOH(io.alloc.bits, numIds), 0.U)
-  val given  = Mux(io.free .valid, UIntToOH(io.free .bits, numIds), 0.U)
-  val bitmap1 = (bitmap & ~taken) | given
+  val allocated = Mux(io.free .valid, UIntToOH(io.free .bits, numIds), 0.U)
+  val bitmap1 = (bitmap & ~taken) | allocated
   val select1 = PriorityEncoder(bitmap1)
   val valid1  = (  (bitmap.orR && !((PopCount(bitmap) === 1.U) && io.alloc.ready))  // bitmap not zero, and not allocating last bit
                 || io.free.valid)

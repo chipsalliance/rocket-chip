@@ -641,6 +641,9 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
     if (supportHartArray) {
       io.innerCtrl.bits.hasel      := Mux(haselWrEn, DMCONTROLWrData.hasel, DMCONTROLReg.hasel)
       io.innerCtrl.bits.hamask     := hamask
+    } else {
+      io.innerCtrl.bits.hasel := DontCare
+      io.innerCtrl.bits.hamask := DontCare
     }
 
     io.ctrl.ndreset := DMCONTROLReg.ndmreset
@@ -895,7 +898,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     if (nComponents > 1) {
       when (~io.dmactive) {
         selectedHartReg := 0.U
-      }.elsewhen (io.innerCtrl.fire()){
+      }.elsewhen (io.innerCtrl.fire){
         selectedHartReg := io.innerCtrl.bits.hartsel
       }
     }
@@ -905,7 +908,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val hamaskReg = Reg(Vec(nComponents, Bool()))
       when (~io.dmactive || ~dmAuthenticated) {
         hamaskReg := hamaskZero
-      }.elsewhen (io.innerCtrl.fire()){
+      }.elsewhen (io.innerCtrl.fire){
         hamaskReg := Mux(io.innerCtrl.bits.hasel, io.innerCtrl.bits.hamask, hamaskZero)
       }
       hamaskFull := hamaskReg
@@ -943,7 +946,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
     when (~io.dmactive || ~dmAuthenticated) {
       hrmaskReg := hrReset
-    }.elsewhen (io.innerCtrl.fire()){
+    }.elsewhen (io.innerCtrl.fire){
       hrmaskReg := io.innerCtrl.bits.hrmask
     }
 
@@ -970,7 +973,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     DMSTATUSRdData.version       := 2.U    // Version 0.13
     io.auth.map(a => DMSTATUSRdData.authbusy := a.dmAuthBusy)
 
-    val resumereq = io.innerCtrl.fire() && io.innerCtrl.bits.resumereq
+    val resumereq = io.innerCtrl.fire && io.innerCtrl.bits.resumereq
 
     when (dmAuthenticated) {
       DMSTATUSRdData.hasresethaltreq := true.B
@@ -1003,7 +1006,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     when(~io.dmactive || ~dmAuthenticated) {
       haveResetBitRegs := 0.U
     }.otherwise {
-      when (io.innerCtrl.fire() && io.innerCtrl.bits.ackhavereset) {
+      when (io.innerCtrl.fire && io.innerCtrl.bits.ackhavereset) {
         haveResetBitRegs := (haveResetBitRegs & (~(hamaskWrSel.asUInt))) | hartIsInResetSync.asUInt 
       }.otherwise {
         haveResetBitRegs := haveResetBitRegs | hartIsInResetSync.asUInt 

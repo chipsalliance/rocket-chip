@@ -12,7 +12,7 @@ object ShiftRegInit {
 
   (0 until n).foldRight(in) {
     case (i, next) => {
-      val r = RegNext(next, init = init)
+      val r = RegNext(next, init)
       name.foreach { na => r.suggestName(s"${na}_${i}") }
       r
     }
@@ -41,7 +41,7 @@ abstract class AbstractPipelineReg(w: Int = 1) extends Module {
 }
 
 object AbstractPipelineReg {
-  def apply [T <: Chisel.Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
+  def apply [T <: Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
     val chain = Module(gen)
     name.foreach{ chain.suggestName(_) }
     chain.io.d := in.asUInt
@@ -69,15 +69,15 @@ class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String
 }
 
 object AsyncResetShiftReg {
-  def apply [T <: Chisel.Data](in: T, depth: Int, init: Int  = 0, name: Option[String] = None): T =
+  def apply [T <: Data](in: T, depth: Int, init: Int  = 0, name: Option[String] = None): T =
     AbstractPipelineReg(new AsyncResetShiftReg(in.getWidth, depth, init), in, name)
 
-  def apply [T <: Chisel.Data](in: T, depth: Int, name: Option[String]): T =
+  def apply [T <: Data](in: T, depth: Int, name: Option[String]): T =
     apply(in, depth, 0, name)
 
-  def apply [T <: Chisel.Data](in: T, depth: Int, init: T, name: Option[String]): T =
+  def apply [T <: Data](in: T, depth: Int, init: T, name: Option[String]): T =
     apply(in, depth, init.litValue.toInt, name)
 
-  def apply [T <: Chisel.Data](in: T, depth: Int, init: T): T =
+  def apply [T <: Data](in: T, depth: Int, init: T): T =
     apply (in, depth, init.litValue.toInt, None)
 }

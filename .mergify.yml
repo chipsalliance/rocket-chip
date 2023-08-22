@@ -1,0 +1,13 @@
+pull_request_rules:
+- name: backport to master
+  conditions:
+  - merged
+  - base=dev
+  - label=backport
+  actions:
+    backport:
+      branches:
+      - master
+      labels:
+      - backporting
+      ignore_conflicts: true

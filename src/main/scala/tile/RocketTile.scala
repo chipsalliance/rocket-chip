@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -126,6 +126,9 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   val core = Module(new Rocket(outer)(outer.p))
 
+  // reset vector is connected in the Frontend to s2_pc
+  core.io.reset_vector := DontCare
+
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
   outer.reportHalt(List(outer.dcache.module.io.errors))
 
@@ -159,18 +162,40 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
+  fpuOpt foreach { fpu =>
+    core.io.fpu :<>= fpu.io.waiveAs[FPUCoreIO](_.cp_req, _.cp_resp)
+    fpu.io.cp_req := DontCare
+    fpu.io.cp_resp := DontCare
+  }
+  if (fpuOpt.isEmpty) {
+    core.io.fpu := DontCare
+  }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
   if (outer.roccs.size > 0) {
     cmdRouter.get.io.in <> core.io.rocc.cmd
-    outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
+    outer.roccs.foreach{ lm =>
+      lm.module.io.exception := core.io.rocc.exception
+      lm.module.io.fpu_req.ready := DontCare
+      lm.module.io.fpu_resp.valid := DontCare
+      lm.module.io.fpu_resp.bits.data := DontCare
+      lm.module.io.fpu_resp.bits.exc := DontCare
+    }
     core.io.rocc.resp <> respArb.get.io.out
     core.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
     core.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
     (core.io.rocc.csrs zip roccCSRIOs.flatten).foreach { t => t._2 := t._1 }
+  } else {
+    // tie off
+    core.io.rocc.cmd.ready := false.B
+    core.io.rocc.resp.valid := false.B
+    core.io.rocc.resp.bits := DontCare
+    core.io.rocc.busy := DontCare
+    core.io.rocc.interrupt := DontCare
   }
+  // Dont care mem since not all RoCC need accessing memory
+  core.io.rocc.mem := DontCare
 
   // Rocket has higher priority to DTIM than other TileLink clients
   outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }

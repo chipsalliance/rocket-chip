@@ -2,105 +2,127 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
-import $file.hardfloat.build
+import $file.hardfloat.common
 import $file.cde.common
 import $file.common
 
-object cdeRocket extends cde.common.CDEModule with PublishModule {
-  override def millSourcePath = os.pwd / "cde" / "cde"
-
-  override def scalaVersion = T {
-    rocketchip.scalaVersion()
-  }
-
-  override def pomSettings = T {
-    rocketchip.pomSettings()
-  }
-
-  override def publishVersion = T {
-    rocketchip.publishVersion()
-  }
-}
-
-object hardfloatRocket extends hardfloat.build.hardfloat {
-  override def millSourcePath = os.pwd / "hardfloat"
-
-  override def scalaVersion = T {
-    rocketchip.scalaVersion()
-  }
-
-  // use same chisel version with RocketChip
-  def chisel3IvyDeps = if(chisel3Module.isEmpty) Agg(
-    common.getVersion("chisel3")
-  ) else Agg.empty[Dep]
-
-  def chisel3PluginIvyDeps = if(chisel3Module.isEmpty) Agg(
-    common.getVersion("chisel3-plugin", cross = true)
-  ) else Agg.empty[Dep]
-
-  override def repositories = super.repositories ++ Seq(
-    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
-    MavenRepository("https://oss.sonatype.org/content/repositories/releases")
+object v {
+  val scala = "2.13.10"
+  // the first version in this Map is the mainly supported version which will be used to run tests
+  val chiselCrossVersions = Map(
+    "3.6.0" -> (ivy"edu.berkeley.cs::chisel3:3.6.0", ivy"edu.berkeley.cs:::chisel3-plugin:3.6.0"),
+    "5.0.0" -> (ivy"org.chipsalliance::chisel:5.0.0", ivy"org.chipsalliance:::chisel-plugin:5.0.0"),
   )
+  val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
+  val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
+  val scalaReflect = ivy"org.scala-lang:scala-reflect:${scala}"
 }
 
-object rocketchip extends common.CommonRocketChip {
-  m =>
-  override def scalaVersion: T[String] = T {
-    "2.13.10"
-  }
-  override def ammoniteVersion: T[String] = T {
-    "2.4.0"
-  }
+object macros extends Macros
 
-  def hardfloatModule = hardfloatRocket
+trait Macros
+  extends millbuild.common.MacrosModule
+    with RocketChipPublishModule
+    with SbtModule {
 
-  def cdeModule = cdeRocket
+  def scalaVersion: T[String] = T(v.scala)
+
+  def scalaReflectIvy = v.scalaReflect
 }
 
-def envByNameOrRiscv(name: String): String = {
-  sys.env.get(name) match {
-    case Some(value) => value
-    case None => sys.env("RISCV") // if not found, throws NoSuchElementException exception
-  }
+object hardfloat extends mill.define.Cross[Hardfloat](v.chiselCrossVersions.keys.toSeq)
+
+trait Hardfloat
+  extends millbuild.hardfloat.common.HardfloatModule
+    with RocketChipPublishModule
+    with Cross.Module[String] {
+
+  def scalaVersion: T[String] = T(v.scala)
+
+  override def millSourcePath = os.pwd / "hardfloat" / "hardfloat"
+
+  def chiselModule = None
+
+  def chiselPluginJar = None
+
+  def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
+
+  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
 }
 
-object emulator extends mill.Cross[Emulator](
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBufferlessConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config"),
-  // Misc
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultSmallConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualBankConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualChannelConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualChannelDualBankConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.RoccExampleConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.Edge128BitConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.Edge32BitConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.QuadChannelBenchmarkConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.EightChannelConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualCoreConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.MemPortOnlyConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.MMIOPortOnlyConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.CloneTileConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.HypervisorConfig"),
-)
-class Emulator(top: String, config: String) extends Module {
+object cde extends CDE
+
+trait CDE
+  extends millbuild.cde.common.CDEModule
+    with RocketChipPublishModule
+    with ScalaModule {
+
+  def scalaVersion: T[String] = T(v.scala)
+
+  override def millSourcePath = os.pwd / "cde" / "cde"
+}
+
+object rocketchip extends Cross[RocketChip](v.chiselCrossVersions.keys.toSeq)
+
+trait RocketChip
+  extends millbuild.common.RocketChipModule
+    with RocketChipPublishModule
+    with SbtModule
+    with Cross.Module[String] {
+  def scalaVersion: T[String] = T(v.scala)
+
+  override def millSourcePath = super.millSourcePath / os.up
+
+  def chiselModule = None
+
+  def chiselPluginJar = None
+
+  def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
+
+  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+
+  def macrosModule = macros
+
+  def hardfloatModule = hardfloat(crossValue)
+
+  def cdeModule = cde
+
+  def mainargsIvy = v.mainargs
+
+  def json4sJacksonIvy = v.json4sJackson
+}
+
+trait RocketChipPublishModule
+  extends PublishModule {
+  def pomSettings = PomSettings(
+    description = artifactName(),
+    organization = "org.chipsalliance",
+    url = "http://github.com/chipsalliance/rocket-chip",
+    licenses = Seq(License.`Apache-2.0`),
+    versionControl = VersionControl.github("chipsalliance", "rocket-chip"),
+    developers = Seq(
+      Developer("aswaterman", "Andrew Waterman", "https://aspire.eecs.berkeley.edu/author/waterman/")
+    )
+  )
+
+  override def publishVersion: T[String] = T("1.6-SNAPSHOT")
+}
+
+
+// Tests
+trait Emulator extends Cross.Module2[String, String] {
+  val top: String = crossValue
+  val config: String = crossValue2
 
   object generator extends Module {
     def elaborate = T {
       os.proc(
-        mill.modules.Jvm.javaExe,
+        mill.util.Jvm.javaExe,
         "-jar",
-        rocketchip.assembly().path,
-        "freechips.rocketchip.system.Generator",
-        "-td", T.dest.toString,
-        "-T", top,
-        "-C", config,
+        rocketchip(v.chiselCrossVersions.keys.head).assembly().path,
+        "--dir", T.dest.toString,
+        "--top", top,
+        config.split('_').flatMap(c => Seq("--config", c)),
       ).call()
       PathRef(T.dest)
     }
@@ -144,11 +166,14 @@ class Emulator(top: String, config: String) extends Module {
   }
 
   object verilator extends Module {
-    def spikeRoot = T { envByNameOrRiscv("SPIKE_ROOT") }
+    def spikeRoot = T {
+      envByNameOrRiscv("SPIKE_ROOT")
+    }
 
     def csrcDir = T {
       PathRef(os.pwd / "src" / "main" / "resources" / "csrc")
     }
+
     def vsrcDir = T {
       PathRef(os.pwd / "src" / "main" / "resources" / "vsrc")
     }
@@ -160,7 +185,7 @@ class Emulator(top: String, config: String) extends Module {
         "debug_rob.cc",
         "emulator.cc",
         "remote_bitbang.cc",
-        ).map(c => PathRef(csrcDir().path / c))
+      ).map(c => PathRef(csrcDir().path / c))
     }
 
     def CMakeListsString = T {
@@ -204,7 +229,7 @@ class Emulator(top: String, config: String) extends Module {
     def verilatorArgs = T.input {
       Seq(
         // format: off
-        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH",
+        "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH", "--no-timing",
         "--x-assign unique",
         """+define+PRINTF_COND=\$c\(\"verbose\",\"&&\",\"done_reset\"\)""",
         """+define+STOP_COND=\$c\(\"done_reset\"\)""",
@@ -224,8 +249,8 @@ class Emulator(top: String, config: String) extends Module {
     }
 
     def elf = T.persistent {
-      mill.modules.Jvm.runSubprocess(Seq("cmake", "-G", "Ninja", "-S", cmakefileLists().path, "-B", T.dest.toString).map(_.toString), Map[String, String](), T.dest)
-      mill.modules.Jvm.runSubprocess(Seq("ninja", "-C", T.dest).map(_.toString), Map[String, String](), T.dest)
+      mill.util.Jvm.runSubprocess(Seq("cmake", "-G", "Ninja", "-S", cmakefileLists().path, "-B", T.dest.toString).map(_.toString), Map[String, String](), T.dest)
+      mill.util.Jvm.runSubprocess(Seq("ninja", "-C", T.dest).map(_.toString), Map[String, String](), T.dest)
       PathRef(T.dest / "emulator")
     }
   }
@@ -235,31 +260,46 @@ class Emulator(top: String, config: String) extends Module {
   }
 }
 
-object `riscv-tests` extends Module {
-  def testsRoot =
-    os.Path(envByNameOrRiscv("RISCV_TESTS_ROOT")) / "riscv64-unknown-elf" / "share" / "riscv-tests"
+/** object to elaborate verilated emulators. */
+object emulator extends Cross[Emulator](
+  // RocketSuiteA
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig"),
+  // RocketSuiteB
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBufferlessConfig"),
+  // RocketSuiteC
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig"),
+  // Unittest
+  ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.AMBAUnitTestConfig"),
+  ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.TLSimpleUnitTestConfig"),
+  ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.TLWidthUnitTestConfig"),
+  // DTM
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config"),
+  // Miscellaneous
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultSmallConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualBankConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualChannelConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualChannelDualBankConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.RoccExampleConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.Edge128BitConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.Edge32BitConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.QuadChannelBenchmarkConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.EightChannelConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DualCoreConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.MemPortOnlyConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.MMIOPortOnlyConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.CloneTileConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.HypervisorConfig"),
+  //
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config"),
+)
 
-  def allCases = T {
-    os.walk(testsRoot).filterNot(p => p.last.endsWith("dump"))
-  }
-
-  object suite extends mill.Cross[Suite](
-    os.walk(testsRoot).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).filter(_ != "").toSet.toSeq.sorted: _*
-  )
-
-  class Suite(name: String) extends Module {
-
-    def description = T {
-      s"test suite ${name} from riscv-tests"
-    }
-
-    def binaries = T {
-      allCases().filter(p => p.last.startsWith(name)).map(PathRef(_))
-    }
-  }
-}
-
-object `runnable-test` extends mill.Cross[RunableTest](
+object `runnable-riscv-test` extends mill.Cross[RiscvTest](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-ld", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "rv64mi-p-lh", "none"),
@@ -337,8 +377,72 @@ object `runnable-test` extends mill.Cross[RunableTest](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-v", "none"),
 )
+
+object `runnable-arch-test` extends mill.Cross[ArchTest](
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMAFDCZicsr_Zifencei"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMAFCZicsr_Zifencei"),
+  // For CI within reasonable time
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMACZicsr_Zifencei"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMACZicsr_Zifencei"),
+
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig", "64", "RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config", "32", "RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
+)
+
+object `runnable-jtag-dtm-test` extends mill.Cross[JTAGDTMTest](
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "off", "64", "DebugTest"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "off", "64", "MemTest64"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "off", "32", "DebugTest"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "off", "32", "MemTest64"),
+  // SBA
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "on", "64", "MemTest64"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "on", "64", "MemTest32"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config", "on", "32", "MemTest64"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config", "on", "32", "MemTest32"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config", "on", "32", "MemTest8"),
+)
+
+// TODO: split below into another file.
+def envByNameOrRiscv(name: String): String = {
+  sys.env.get(name) match {
+    case Some(value) => value
+    // TODO: if not found, give a warning
+    case None => sys.env("RISCV")
+  }
+}
+
+object `riscv-tests` extends Module {
+  def testsRoot =
+    os.Path(envByNameOrRiscv("RISCV_TESTS_ROOT")) / "riscv64-unknown-elf" / "share" / "riscv-tests"
+
+  def allCases = T {
+    os.walk(testsRoot).filterNot(p => p.last.endsWith("dump"))
+  }
+
+  object suite extends Cross[Suite](
+    os.walk(testsRoot).map(_.last).filterNot(_.endsWith("dump")).map(_.split('-').dropRight(1).mkString("-")).filter(_ != "").toSet.toSeq.sorted
+  )
+
+  trait Suite extends Cross.Module[String] {
+    val name: String = crossValue
+
+    def description = T {
+      s"test suite ${name} from riscv-tests"
+    }
+
+    def binaries = T {
+      allCases().filter(p => p.last.startsWith(name)).map(PathRef(_))
+    }
+  }
+}
+
 // exclude defaults to "none" instead of "" because it is a file name
-class RunableTest(top: String, config: String, suiteName: String, exclude: String) extends Module {
+trait RiscvTest extends Cross.Module4[String, String, String, String] {
+  val top: String = crossValue
+  val config: String = crossValue2
+  val suiteName: String = crossValue3
+  val exclude: String = crossValue4
+
   def run = T {
     `riscv-tests`.suite(suiteName).binaries().map { bin =>
       val name = bin.path.last
@@ -361,17 +465,12 @@ class RunableTest(top: String, config: String, suiteName: String, exclude: Strin
   }
 }
 
-object `runnable-arch-test` extends mill.Cross[ArchTest](
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMAFDCZicsr_Zifencei"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMAFCZicsr_Zifencei"),
-  // For CI within reasonable time
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMACZicsr_Zifencei"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMACZicsr_Zifencei"),
+trait ArchTest extends Cross.Module4[String, String, String, String] {
+  val top: String = crossValue
+  val config: String = crossValue2
+  val xlen: String = crossValue3
+  val isa: String = crossValue4
 
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig", "64", "RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config", "32", "RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
-)
-class ArchTest(top: String, config: String, xlen: String, isa: String) extends Module {
   def ispecString = T {
     // format: off
     s"""hart_ids: [0]
@@ -400,7 +499,9 @@ class ArchTest(top: String, config: String, xlen: String, isa: String) extends M
     // format: on
   }
 
-  def spikeRoot = T { envByNameOrRiscv("SPIKE_ROOT") }
+  def spikeRoot = T {
+    envByNameOrRiscv("SPIKE_ROOT")
+  }
 
   def CC = T {
     sys.env.get("RV64_TOOLCHAIN_ROOT") match {
@@ -456,7 +557,9 @@ class ArchTest(top: String, config: String, xlen: String, isa: String) extends M
     PathRef(T.dest)
   }
 
-  def home = T { configIni() }
+  def home = T {
+    configIni()
+  }
 
   def src = T {
     if (!os.exists(home().path / "riscv-arch-test")) {
@@ -485,5 +588,43 @@ class ArchTest(top: String, config: String, xlen: String, isa: String) extends M
     } else {
       throw new Exception(s"Arch Test $top $config $xlen $isa Failed")
     }
+  }
+}
+
+trait JTAGDTMTest extends Cross.Module5[String, String, String, String, String] {
+  val top: String = crossValue
+  val config: String = crossValue2
+  val sba: String = crossValue3
+  val xlen: String = crossValue4
+  val name: String = crossValue5
+
+  def run = T {
+    val gdbserver = os.Path(sys.env.get("RISCV_TESTS_ROOT").get) / "debug" / "gdbserver.py"
+    val p = os.proc(
+      gdbserver,
+      "--print-failures",
+      "--print-log-names",
+      s"--sim_cmd=${emulator(top, config).elf().path} +jtag_rbb_enable=1 dummybin",
+      "--server_cmd=openocd",
+      "--gdb=riscv64-none-elf-gdb",
+      s"--${xlen}",
+      s"./scripts/RocketSim${xlen}.py",
+      name,
+    ).call(
+      env = Map(
+        "TERM" -> "", // otherwise readline issues on bracketed-paste
+        "JTAG_DTM_ENABLE_SBA" -> sba,
+      ),
+      stdout = T.dest / s"$name.running.log",
+      mergeErrIntoOut = true,
+      check = false)
+    PathRef(if (p.exitCode != 0) {
+      os.move(T.dest / s"$name.running.log", T.dest / s"$name.failed.log")
+      throw new Exception(s"Test $name failed with exit code ${p.exitCode}")
+      T.dest / s"$name.failed.log"
+    } else {
+      os.move(T.dest / s"$name.running.log", T.dest / s"$name.passed.log")
+      T.dest / s"$name.passed.log"
+    })
   }
 }

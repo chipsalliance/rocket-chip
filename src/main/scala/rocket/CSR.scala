@@ -133,7 +133,7 @@ class Envcfg extends Bundle {
   val cbie = UInt(2.W)
   val zero3 = UInt(3.W)
   val fiom = Bool()
-  def write(wdata: UInt): Unit = {
+  def write(wdata: UInt) {
     val new_envcfg = wdata.asTypeOf(new Envcfg)
     fiom := new_envcfg.fiom // only FIOM is writable currently
   }
@@ -633,7 +633,7 @@ class CSRFile(
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
-    (if (customIsaExt.isDefined) "X" else "") +
+    (if (customIsaExt.isDefined || usingRoCC) "X" else "") +
     (if (usingSupervisor) "S" else "") +
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
@@ -837,8 +837,8 @@ class CSRFile(
     read_mapping += CSRs.vstvec -> read_vstvec
   }
 
-  // mimpid, marchid, and mvendorid are 0 unless overridden by customCSRs
-  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
+  // mimpid, marchid, mvendorid, and mconfigptr are 0 unless overridden by customCSRs
+  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid, CSRs.mconfigptr).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
 
   val decoded_addr = {
     val addr = Cat(io.status.v, io.rw.addr)

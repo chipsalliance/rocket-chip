@@ -257,6 +257,16 @@ class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
   }
 })
 
+
+class WithRocketCacheRowBits(n: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(rowBits = n)),
+      icache = tp.tileParams.icache.map(_.copy(rowBits = n))))
+    case t => t
+  }
+})
+
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
   case CacheBlockBytes => linesize
 })
@@ -430,6 +440,14 @@ class WithCryptoSM extends Config((site, here, up) => {
   }
 })
 
+class WithRocketDebugROB(enable: Boolean = true) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(debugROB = enable)
+    ))
+  }
+})
+
 class WithRocketCease(enable: Boolean = true) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
@@ -438,11 +456,11 @@ class WithRocketCease(enable: Boolean = true) extends Config((site, here, up) =>
   }
 })
 
-class WithRocketDebugROB(enable: Boolean = true) extends Config((site, here, up) => {
+class WithNoSimulationTimeout extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(debugROB = enable)
-    ))
+      core = tp.tileParams.core.copy(haveSimTimeout = false)))
+    case t => t
   }
 })
 
@@ -560,6 +578,17 @@ class WithDefaultSlavePort extends Config((site, here, up) => {
 
 class WithNoSlavePort extends Config((site, here, up) => {
   case ExtIn => None
+})
+
+class WithScratchpadsBaseAddress(address: BigInt) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(
+        _.copy(scratch = Some(address))
+      )
+    ))
+    case t => t
+  }
 })
 
 class WithScratchpadsOnly extends Config((site, here, up) => {

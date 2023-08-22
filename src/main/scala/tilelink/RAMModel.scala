@@ -345,11 +345,11 @@ object TLRAMModel
 
   case class MonitorParameters(addressBits: Int, sizeBits: Int)
 
-  class ByteMonitor(params: MonitorParameters) extends GenericParameterizedBundle(params) {
+  class ByteMonitor(val params: MonitorParameters) extends Bundle {
     val valid = Bool()
     val value = UInt(8.W)
   }
-  class FlightMonitor(params: MonitorParameters) extends GenericParameterizedBundle(params) {
+  class FlightMonitor(val params: MonitorParameters) extends Bundle {
     val base    = UInt(params.addressBits.W)
     val size    = UInt(params.sizeBits.W)
     val opcode  = UInt(3.W)

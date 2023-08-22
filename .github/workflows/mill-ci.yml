@@ -11,9 +11,11 @@ env:
 on:
   push:
     branches:
+      - dev
       - master
   pull_request:
     branches:
+      - dev
       - master
       - chisel3_port
 
@@ -39,14 +41,14 @@ jobs:
 
       - name: run riscv-tests
         run: |
-          nix --experimental-features 'nix-command flakes' develop -c mill -i -j 0 "runnable-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }},_,_].run"
+          nix --experimental-features 'nix-command flakes' develop -c mill -i -j 0 "runnable-riscv-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }},_,_].run"
 
   emulator:
     name: emulator
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: [DefaultSmallConfig, DualBankConfig, DualChannelConfig, DualChannelDualBankConfig, RoccExampleConfig, Edge128BitConfig, Edge32BitConfig, QuadChannelBenchmarkConfig, EightChannelConfig, DualCoreConfig, MemPortOnlyConfig, MMIOPortOnlyConfig, CloneTileConfig]
+        config: [DefaultSmallConfig, DualBankConfig, DualChannelConfig, DualChannelDualBankConfig, RoccExampleConfig, Edge128BitConfig, Edge32BitConfig, QuadChannelBenchmarkConfig, EightChannelConfig, DualCoreConfig, MemPortOnlyConfig, MMIOPortOnlyConfig, CloneTileConfig, HypervisorConfig]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -67,6 +69,7 @@ jobs:
   riscv-arch-test:
     name: riscv-arch-test
     runs-on: [self-hosted, linux]
+    if: ${{ false }}  # disable for now, I prefer adding firesim-based simulation framework in the future.
     strategy:
       matrix:
         config: ["DefaultRV32Config,32,RV32IMACZicsr_Zifencei", "DefaultConfig,64,RV64IMACZicsr_Zifencei", "BitManipCryptoConfig,64,RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh", "BitManipCrypto32Config,32,RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"]
@@ -87,3 +90,27 @@ jobs:
       - name: run riscv-arch-test
         run: |
           nix develop -c mill -i -j 0 "runnable-arch-test[freechips.rocketchip.system.TestHarness,freechips.rocketchip.system.${{ matrix.config }}].run"
+
+  jtag-dtm-test:
+    name: jtag-dtm-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: ["freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config"]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: install nix
+        uses: cachix/install-nix-action@v19
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.13.3/install
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Coursier Cache
+        uses: coursier/cache-action@v6
+
+      - name: run jtag-dtm-test
+        run: |
+          nix develop -c mill -i -j 0 "runnable-jtag-dtm-test[freechips.rocketchip.system.TestHarness,${{ matrix.config }},_,_,_].run"

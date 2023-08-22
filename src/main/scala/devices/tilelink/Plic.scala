@@ -4,7 +4,6 @@ package freechips.rocketchip.devices.tilelink
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
@@ -14,7 +13,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import freechips.rocketchip.prci.{ClockSinkDomain}
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 
 import scala.math.min
 
@@ -180,12 +179,14 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     
     val maxDevs = Reg(Vec(nHarts, UInt(log2Ceil(nDevices+1).W)))
     val pendingUInt = Cat(pending.reverse)
-    for (hart <- 0 until nHarts) {
-      val fanin = Module(new PLICFanIn(nDevices, prioBits))
-      fanin.io.prio := priority
-      fanin.io.ip   := enableVec(hart) & pendingUInt
-      maxDevs(hart) := fanin.io.dev
-      harts(hart)   := ShiftRegister(RegNext(fanin.io.max) > threshold(hart), params.intStages)
+    if(nDevices > 0) {
+      for (hart <- 0 until nHarts) {
+        val fanin = Module(new PLICFanIn(nDevices, prioBits))
+        fanin.io.prio := priority
+        fanin.io.ip := enableVec(hart) & pendingUInt
+        maxDevs(hart) := fanin.io.dev
+        harts(hart) := ShiftRegister(RegNext(fanin.io.max) > threshold(hart), params.intStages)
+      }
     }
 
     // Priority registers are 32-bit aligned so treat each as its own group.

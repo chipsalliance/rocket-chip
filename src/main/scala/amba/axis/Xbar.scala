@@ -5,10 +5,8 @@ package freechips.rocketchip.amba.axis
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
@@ -43,14 +41,14 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
     // Transform input bundle sources (dest uses global namespace on both sides)
     val in = Wire(Vec(io_in.size, AXISBundle(wide_bundle)))
     for (i <- 0 until in.size) {
-      in(i) :<> io_in(i)
+      in(i) :<>= io_in(i)
       in(i).bits.lift(AXISId) foreach { _ := io_in(i).bits.id | inputIdRanges(i).start.U }
     }
 
     // Transform output bundle sinks (id use global namespace on both sides)
     val out = Wire(Vec(io_out.size, AXISBundle(wide_bundle)))
     for (o <- 0 until out.size) {
-      io_out(o) :<> out(o)
+      io_out(o) :<>= out(o)
       io_out(o).bits.lift(AXISDest) foreach { _ := trim(out(o).bits.dest, outputIdRanges(o).size) }
     }
 
@@ -78,7 +76,7 @@ object AXISXbar
     if (sources.isEmpty) {
       sink.valid := false.B
     } else if (sources.size == 1) {
-      sink :<> sources.head
+      sink :<>= sources.head
     } else {
       // The number of beats which remain to be sent
       val idle = RegInit(true.B)
@@ -107,14 +105,18 @@ object AXISXbar
       val allowed = Mux(idle, readys, state)
       (sources zip allowed) foreach { case (s, r) => s.ready := sink.ready && r }
       sink.valid := Mux(idle, valids.reduce(_||_), Mux1H(state, valids))
-      sink.bits :<= Mux1H(muxState, sources.map(_.bits))
+      Connectable.waiveUnmatched(sink.bits, Mux1H(muxState, sources.map(_.bits))) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
     }
   }
 
   def fanout(input: AXISBundle, select: Seq[Bool]): Seq[AXISBundle] = {
     val filtered = Wire(Vec(select.size, chiselTypeOf(input)))
     for (i <- 0 until select.size) {
-      filtered(i).bits :<= input.bits
+      Connectable.waiveUnmatched(filtered(i).bits, input.bits) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
       filtered(i).valid := input.valid && (select(i) || (select.size == 1).B)
     }
     input.ready := Mux1H(select, filtered.map(_.ready))

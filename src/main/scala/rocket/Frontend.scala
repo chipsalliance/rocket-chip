@@ -6,10 +6,11 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util._
 import chisel3.{withClock,withReset}
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink.{TLWidthWidget}
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 
@@ -383,7 +384,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 trait HasICacheFrontend extends CanHavePTW { this: BaseTile =>
   val module: HasICacheFrontendModule
   val frontend = LazyModule(new Frontend(tileParams.icache.get, staticIdForMetadataUseOnly))
-  tlMasterXbar.node := frontend.masterNode
+  tlMasterXbar.node := TLWidthWidget(tileParams.icache.get.rowBits/8) := frontend.masterNode
   connectTLSlave(frontend.slaveNode, tileParams.core.fetchBytes)
   frontend.icache.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode }
   frontend.icache.mmioAddressPrefixSinkNodeOpt.foreach { _ := mmioAddressPrefixNexusNode }
