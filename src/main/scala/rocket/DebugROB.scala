@@ -43,7 +43,6 @@ class DebugROBPushTrace(implicit val p: Parameters) extends BlackBox with HasBla
 
 class DebugROBPushWb(implicit val p: Parameters) extends BlackBox
     with HasBlackBoxResource with HasCoreParameters {
-  require(traceHasWdata && (vLen max xLen) <= 512)
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())

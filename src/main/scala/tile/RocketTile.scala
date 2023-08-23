@@ -28,7 +28,7 @@ case class RocketTileParams(
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
     boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None
-    ) extends InstantiableTileParams[RocketTile] {
+  ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
   def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): RocketTile = {
@@ -80,7 +80,7 @@ class RocketTile private(
   masterNode :=* tlOtherMastersNode
   DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
 
-  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
+  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt + rocketParams.core.useVector.toInt
 
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
@@ -124,7 +124,12 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
+  val vector = outer.rocketParams.core.vector.map(_.build(p))
   val core = Module(new Rocket(outer)(outer.p))
+  vector.foreach { v =>
+    core.io.vector.get <> v.io.core
+    v.io.tlb <> outer.dcache.module.asInstanceOf[DCacheModule].tlb_port
+  }
 
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
@@ -170,6 +175,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   if (fpuOpt.isEmpty) {
     core.io.fpu := DontCare
   }
+  vector foreach { v => dcachePorts += v.io.dmem }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces

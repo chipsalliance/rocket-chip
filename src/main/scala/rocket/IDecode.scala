@@ -49,6 +49,7 @@ class IntCtrlSigs(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends Bu
   val fence = Bool()
   val amo = Bool()
   val dp = Bool()
+  val vec = Bool()
 
   def default: List[BitPat] =
                 //           jal                                                                         renf1               fence.i
@@ -444,6 +445,15 @@ class SCIEDecode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends Dec
     SCIE.opcode->
                 List(Y,N,N,N,N,N,Y,Y,Y,N,N,N,A2_ZERO,A1_RS1, IMM_X, DW_XPR,aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
+
+class VCFGDecode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    VSETVLI  -> List(Y,N,N,N,N,N,N,Y,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VSETIVLI -> List(Y,N,N,N,N,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VSETVL   -> List(Y,N,N,N,N,N,Y,Y,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+}
+
 
 trait UsesABLUFN {
   val aluFn = ABLUFN()

@@ -738,7 +738,17 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   val fp_decoder = Module(new FPUDecoder)
   fp_decoder.io.inst := io.inst
-  val id_ctrl = fp_decoder.io.sigs
+  val id_ctrl = WireInit(fp_decoder.io.sigs)
+  coreParams match { case r: RocketCoreParams => r.vector.map(v => {
+    val v_decode = v.decoder(p) // Only need to get ren1
+    v_decode.io.inst := io.inst
+    when (v_decode.io.read_frs1) {
+      id_ctrl.ren1 := true.B
+      id_ctrl.swap12 := false.B
+      id_ctrl.toint := true.B
+    }
+    when (v_decode.io.write_frd) { id_ctrl.wen := true.B }
+  })}
 
   val ex_reg_valid = RegNext(io.valid, false.B)
   val ex_reg_inst = RegEnable(io.inst, io.valid)
