@@ -621,7 +621,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     ex_reg_pc := ibuf.io.pc
     ex_reg_btb_resp := ibuf.io.btb_resp
     ex_reg_wphit := bpu.io.bpwatch.map { bpw => bpw.ivalid(0) }
-    ex_reg_set_vconfig := id_set_vconfig
+    ex_reg_set_vconfig := id_set_vconfig && !id_xcpt
   }
 
   // replay inst in ex stage?
