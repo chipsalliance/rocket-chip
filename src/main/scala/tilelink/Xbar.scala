@@ -158,6 +158,7 @@ object TLXbar
 
       if (connectAIO(i).exists(x=>x)) {
         in(i).a.squeezeAll.waiveAll :<>= io_in(i).a.squeezeAll.waiveAll
+        in(i).a.bits.echo := DontCare
         in(i).a.bits.user := DontCare
         in(i).a.bits.source := io_in(i).a.bits.source | r.start.U
       } else {

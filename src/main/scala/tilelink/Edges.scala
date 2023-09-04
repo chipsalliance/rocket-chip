@@ -636,6 +636,8 @@ class TLEdgeIn(
     d.denied  := denied
     d.data    := 0.U
     d.corrupt := false.B
+    d.echo    := DontCare
+    d.user    := DontCare
     d
   }
 
@@ -664,6 +666,8 @@ class TLEdgeIn(
     d.denied  := denied
     d.data    := 0.U
     d.corrupt := false.B
+    d.echo    := DontCare
+    d.user    := DontCare
     d
   }
 
