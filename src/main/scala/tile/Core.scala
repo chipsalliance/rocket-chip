@@ -24,7 +24,7 @@ trait CoreParams {
   val useCompressed: Boolean
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
-  val useVector: Boolean = false
+  val useVector: Boolean
   val useSCIE: Boolean
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
