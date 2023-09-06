@@ -45,6 +45,7 @@ class RocketTile private(
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
+    with HasLazyVector
     with HasHellaCache
     with HasICacheFrontend
 {
@@ -121,6 +122,7 @@ class RocketTile private(
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasFpuOpt
     with HasLazyRoCCModule
+    with HasLazyVectorModule
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 

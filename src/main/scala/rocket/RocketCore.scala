@@ -183,6 +183,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ("DTLB miss", () => io.dmem.perf.tlbMiss),
       ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
 
+  // if supports vector, allocate a token for each vector load/store in the execute stage.
+  // this token will be freed at commit stage,
+  // the size of this counter is configurable, this size should be larger than convoy size.
+  val vectorLsuCounterAllocate: Option[Bool] = Option.when(rocketParams.useVector)(WireDefault(false.B))
+  val vectorLsuCounterFree: Option[Bool] = Option.when(rocketParams.useVector)(WireDefault(false.B))
+  val vectorLsuCounter: Option[UInt] = (vectorLsuCounterAllocate zip vectorLsuCounterFree).map(w => TwoWayCounter(w._1,w._2,16))
+
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
     require(!usingRoCC || !rocketParams.useSCIE)
@@ -408,6 +415,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_bypass_src = id_raddr.map(raddr => bypass_sources.map(s => s._1 && s._2 === raddr))
 
   // execute stage
+  // allocate vector lsu counter
+  vectorLsuCounterAllocate.foreach(w => when(ex_ctrl.vmem)(w := true.B))
+
   val bypass_mux = bypass_sources.map(_._3)
   val ex_reg_rs_bypass = Reg(Vec(id_raddr.size, Bool()))
   val ex_reg_rs_lsb = Reg(Vec(id_raddr.size, UInt(log2Ceil(bypass_sources.size).W)))

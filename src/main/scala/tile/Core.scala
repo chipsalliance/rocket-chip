@@ -170,6 +170,7 @@ trait HasCoreIO extends HasTileParameters {
     val ptw = Flipped(new DatapathPTWIO())
     val fpu = Flipped(new FPUCoreIO())
     val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
+    val vector = Option.when(usingVector)(Flipped(new VectorCoreIO(xLen, vLen)))
     val trace = Output(new TraceBundle)
     val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
     val cease = Output(Bool())
