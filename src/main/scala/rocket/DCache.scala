@@ -225,6 +225,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val inWriteback = release_state.isOneOf(s_voluntary_writeback, s_probe_rep_dirty)
   val releaseWay = Wire(UInt())
   io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
+  io.storeBufferClear := !any_pstore_valid
 
   // I/O MSHRs
   val uncachedInFlight = RegInit(VecInit(Seq.fill(maxUncachedInFlight)(false.B)))
