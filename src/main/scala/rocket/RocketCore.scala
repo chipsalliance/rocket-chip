@@ -737,7 +737,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val wb_pc_valid = wb_reg_valid || wb_reg_replay || wb_reg_xcpt
   val wb_wxd = wb_reg_valid && wb_ctrl.wxd
-  val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
+  val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc || wb_ctrl.vector
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
   val replay_wb_csr: Bool = wb_reg_valid && csr.io.rw_stall
@@ -768,6 +768,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     io.rocc.resp.ready := false.B
     io.rocc.mem.req.ready := false.B
   }
+  io.vector.foreach(vio =>
+    when(vio.response.valid && vio.response.bits.rd.valid) {
+      // TODO: handle RoCC ready here.
+      div.io.resp.ready := false.B
+      ll_wdata := vio.response.bits.data
+      ll_wdata := vio.response.bits.rd.bits
+      ll_wen := true.B
+    }
+  )
   // Dont care mem since not all RoCC need accessing memory
   io.rocc.mem := DontCare
 
@@ -945,7 +954,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
   io.imem.progress := RegNext(wb_reg_valid && !replay_wb_common)
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
-  io.imem.sfence.bits.rs1 := wb_reg_mem_size(0)
+  io.imem.sfence.bits.rs1   := wb_reg_mem_size(0)
   io.imem.sfence.bits.rs2 := wb_reg_mem_size(1)
   io.imem.sfence.bits.addr := wb_reg_wdata
   io.imem.sfence.bits.asid := wb_reg_rs2

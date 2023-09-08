@@ -24,27 +24,10 @@ class VectorRequest(xLen: Int, vlWidth: Int) extends Bundle {
 
   // CSRs below will follow datapath going to Vector issue queue for chaining efficiency
 
-  /** Vector Length Register `vl`,
-    * see [[https://github.com/riscv/riscv-v-spec/blob/8c8a53ccc70519755a25203e14c10068a814d4fd/v-spec.adoc#35-vector-length-register-vl]]
-    */
-  val vl: UInt = UInt(vlWidth.W)
-
   /** Vector Start Index CSR `vstart`,
     * see [[https://github.com/riscv/riscv-v-spec/blob/8c8a53ccc70519755a25203e14c10068a814d4fd/v-spec.adoc#37-vector-start-index-csr-vstart]]
     */
   val vstart: UInt = UInt(vlWidth.W)
-
-  /** Vector Register Grouping `vlmul[2:0]`
-    * subfield of `vtype`
-    * see table in [[https://github.com/riscv/riscv-v-spec/blob/8c8a53ccc70519755a25203e14c10068a814d4fd/v-spec.adoc#342-vector-register-grouping-vlmul20]]
-    */
-  val vlmul: UInt = UInt(3.W)
-
-  /** Vector Register Grouping (vlmul[2:0])
-    * subfield of `vtype`
-    * see [[https://github.com/riscv/riscv-v-spec/blob/8c8a53ccc70519755a25203e14c10068a814d4fd/v-spec.adoc#341-vector-selected-element-width-vsew20]]
-    */
-  val vsew: UInt = UInt(2.W)
 
   /** Rounding mode register
     * see [[https://github.com/riscv/riscv-v-spec/blob/8c8a53ccc70519755a25203e14c10068a814d4fd/v-spec.adoc#38-vector-fixed-point-rounding-mode-register-vxrm]]
@@ -87,32 +70,48 @@ class VectorResponse(xLen: Int) extends Bundle {
 
 /** IO for maintaining the memory hazard between Scalar and Vector core. */
 class VectorControl extends Bundle {
+  /** instruction at ID stage.
+    * this is used for pre-decode for hazard control to generate control signals below:
+    * - scalarRdIndex: index to write to Scalar RD.
+    */
+  val idInstruction: UInt = Flipped(UInt(32.W))
+
+  /** vector issue queue is empty, there are no pending vector instructions, scalar can handle interrupt if it is asserted. */
+  val issueQueueTokenFull: Bool = Bool()
+
+  /** vector issue queue is full, scalar core cannot issue any vector instructions,
+    * should back pressure the vector issue datapath(but don't block the entire pipeline).
+    */
+  val issueQueueTokenEmpty: Bool = Bool()
+
   /** Scalar core store buffer is cleared. So Vector memory can start to issue to memory subsystem. */
   val storeBufferClear: Bool = Bool()
 
-  /** when [[memTokenAcquire]] is asserted, indicate one of vector load store is issued in Scalar Core. */
-  val memTokenAcquire: Bool = Bool()
+  /** Vector issued an load/store. it gives back one token to issuer.
+    * issuer is inside Tile(not in core, rather than tile).
+    * core should don't care this signal and listen to valid signal for [[VectorResponse]] bundle.
+    */
+  val vectorLoadStoreCommit: Bool = Bool()
 
-  /** when [[memTokenRelease]] is asserted, indicate one of vector load store instruction finished accessing memory. */
-  val memTokenRelease: Bool = Flipped(Bool())
+  /** when [[memTokenAcquire.valid]] is asserted, indicate scalar core is request to issue an vector load store signal.
+    * when [[memTokenAcquire.ready]] is asserted, indicate there are free tokens for issuing
+    */
+  val memTokenAcquire: DecoupledIO[Bool] = DecoupledIO(Bool())
 }
 /** Vector -> Scalar IO. */
 class VectorCoreIO(xLen: Int, vLen: Int) extends Bundle {
-
   /** Scalar to Vector Datapath.
     * at last stage of Core, [[request.valid]] is asserted.
-    * [[request.ready]] is back-pressured from vector issue queue.
     */
-  val request: DecoupledIO[VectorRequest] = Flipped(Decoupled(new VectorRequest(xLen, log2Ceil(vLen))))
+  val request: Valid[VectorRequest] = Flipped(Valid(new VectorRequest(xLen, log2Ceil(vLen))))
 
   /** Vector to Scalar Datapath.
     * when [[response.valid]], a vector instruction should assert.
     */
   val response: ValidIO[VectorResponse] = Valid(new VectorResponse(xLen))
 
-
-  /** Memory hazard resolving IO. */
-  val control = Flipped(new VectorControl)
+  /** Hazard resolving IO. */
+  val control: VectorControl = Flipped(new VectorControl)
 }
 
 /** The hierarchy under [[BaseTile]]. */
@@ -130,6 +129,8 @@ abstract class LazyVector()(implicit p: Parameters) extends LazyModule {
       visibility = Seq(banksMapping(bank)),
     ))
   )))
+
+  val vectorCoreBundleBridge: BundleBridgeSource[VectorCoreIO] = BundleBridgeSource(() => new VectorCoreIO(p(XLen), p(VLen)))
 }
 
 /** This is a vector interface comply to chipsalliance/t1 project.
@@ -146,26 +147,47 @@ abstract class LazyVectorModuleImp(outer: LazyVector)(implicit p: Parameters) ex
 trait HasLazyVector { this: BaseTile =>
   val vector: Option[LazyVector] = p(BuildVector).map(_(p))
   val vectorMasterNode: Option[TLClientNode] = vector.map(_.vectorMasterNode)
+  val vectorCoreBundleBridge: Option[BundleBridgeSource[VectorCoreIO]] = vector.map(_.vectorCoreBundleBridge.makeSink())
 }
 
 trait HasLazyVectorModule  { this: RocketTileModuleImp =>
-  /** when a vector store instruction is issued, in rocket core, aka goes to execute stage,
-    * it should acquire an token from from [[vectorLoadStoreCounter]]
-    */
-  val vectorLoadStoreAcquire = Option.when(usingVector)(WireDefault(false.B))
-  /** when a vector instruction is finished, release a token, and let scalar goes down. */
-  val vectorLoadStoreRelease = Option.when(usingVector)(WireDefault(false.B))
-  /** the memory load store token issuer:
-    * it will hazard scalar load store instructions for waiting there is not pending vector load store in the pipeline.
-    * TODO: when resolving interrupt, the counter should be 0.
-    */
-  val vectorLoadStoreCounter = Option.when(usingVector)(TwoWayCounter(vectorLoadStoreAcquire.get, vectorLoadStoreRelease.get, 32))
 
+  (outer.vectorCoreBundleBridge zip core.io.vector).foreach { case (vectorIO, coreIO) =>
+    // Maintain the counter
+
+    // TODO: make it configurable
+    val maxCount: Int = 32
+    /** when a vector store instruction is issued, in rocket core, aka goes to execute stage,
+      * it should acquire an token from from [[vectorLoadStoreCounter]]
+      */
+    val vectorLoadStoreAcquire = WireDefault(false.B)
+    /** when a vector instruction is finished, release a token, and let scalar goes down. */
+    val vectorLoadStoreRelease = WireDefault(false.B)
+    /** the memory load store token issuer:
+      * it will hazard scalar load store instructions for waiting there is not pending vector load store in the pipeline.
+      * TODO: when resolving interrupt/exception, the counter should be 0.
+      */
+    val vectorLoadStoreCounter = RegInit(0.U(log2Up(maxCount).W))
+    /** vector load store counter is full, so don't all acquire. */
+    val vectorLoadStoreCounterIsFull = WireDefault(false.B)
+
+    // TODO: use Mux here
+    when(!vectorLoadStoreCounterIsFull && (vectorLoadStoreAcquire && !vectorLoadStoreRelease)) {
+      vectorLoadStoreCounter := vectorLoadStoreCounter + 1.U
+    }
+    when(!vectorLoadStoreCounterIsFull && (vectorLoadStoreRelease && !vectorLoadStoreAcquire)) {
+      vectorLoadStoreCounter := vectorLoadStoreCounter - 1.U
+    }
+    vectorLoadStoreCounterIsFull := vectorLoadStoreCounter === maxCount.U
+
+    vectorLoadStoreAcquire := coreIO.control.memTokenAcquire.fire
+    vectorLoadStoreRelease := coreIO.control.vectorLoadStoreCommit
+    coreIO.control.memTokenAcquire.ready := !vectorLoadStoreCounterIsFull
+
+    vectorIO.bundle.control // outer.dcache.module.io.storeBufferClear
+  }
   core.io.vector.foreach { io =>
     io.request
     io.response
-    vectorLoadStoreAcquire.get := io.control.memTokenAcquire
-    vectorLoadStoreRelease.get := io.control.memTokenRelease
-
   }
 }
