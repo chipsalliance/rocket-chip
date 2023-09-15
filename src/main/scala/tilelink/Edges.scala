@@ -369,6 +369,7 @@ class TLEdgeOut(
     a.mask    := mask(toAddress, lgSize)
     a.data    := 0.U
     a.corrupt := false.B
+    a.user    := DontCare
     (legal, a)
   }
 
