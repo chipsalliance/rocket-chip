@@ -8,7 +8,8 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 
 class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
-  val size = typ(log2Up(log2Up(maxSize)+1)-1,0)
+  val size = Wire(UInt(log2Up(log2Up(maxSize)+1).W))
+  size := typ
   def misaligned: Bool =
     (addr & ((1.U << size) - 1.U)(log2Up(maxSize)-1,0)).orR
 
