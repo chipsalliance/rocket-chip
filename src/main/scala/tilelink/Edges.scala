@@ -370,6 +370,7 @@ class TLEdgeOut(
     a.data    := 0.U
     a.corrupt := false.B
     a.user    := DontCare
+    a.echo    := DontCare
     (legal, a)
   }
 
