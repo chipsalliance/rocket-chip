@@ -4,14 +4,20 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{isPow2,log2Ceil,log2Up,Decoupled,Valid}
+import chisel3.util.{BitPat, Decoupled, Valid, ValidIO, isPow2, log2Ceil, log2Up}
 import chisel3.dontTouch
+import chisel3.util.experimental.BitSet
+import chisel3.util.experimental.decode.TruthTable
 import freechips.rocketchip.amba._
-import org.chipsalliance.cde.config.{Parameters, Field}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.rocket.CustomInstructions.{CDISCARD_D_L1, CFLUSH_D_L1}
+import freechips.rocketchip.rocket.Instructions._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+
+import scala.collection.SeqMap
 import scala.collection.mutable.ListBuffer
 
 case class DCacheParams(
@@ -212,6 +218,25 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
   val hartIdSinkNodeOpt = cfg.scratch.map(_ => BundleBridgeSink[UInt]())
   val mmioAddressPrefixSinkNodeOpt = cfg.scratch.map(_ => BundleBridgeSink[UInt]())
 
+  val tokenizerSourceNode = new LSUTokenizerSinkNode(Seq(LSUTokenizerDiplomaticParameter("HellaCache", cfg.nMSHRs,
+    BitSet(
+      // format: off
+      LB, LH, LW, LBU, LHU, SB, SH, SW,
+      LD, LWU, SD,
+      AMOADD_W, AMOXOR_W, AMOSWAP_W, AMOAND_W, AMOOR_W, AMOMIN_W, AMOMINU_W, AMOMAX_W, AMOMAXU_W, LR_W, SC_W,
+      AMOADD_D, AMOSWAP_D, AMOXOR_D, AMOAND_D, AMOOR_D, AMOMIN_D, AMOMINU_D, AMOMAX_D, AMOMAXU_D, LR_D, SC_D,
+      FLH, FSH,
+      FLW, FSW,
+      FLD, FSD,
+      CFLUSH_D_L1, CDISCARD_D_L1, // support supportsFlushLine
+      SFENCE_VMA,
+      FENCE_I, // support flushDCache
+      HFENCE_VVMA, HFENCE_GVMA, HLV_B, HLV_BU, HLV_H, HLV_HU, HLVX_HU, HLV_W, HLVX_WU, HSV_B, HSV_H, HSV_W,
+      HLV_D, HSV_D, HLV_WU,
+      // format: on
+    )
+  )))
+
   val module: HellaCacheModule
 
   def flushOnFenceI = cfg.scratch.isEmpty && !node.edges.out(0).manager.managers.forall(m => !m.supportsAcquireB || !m.executable || m.regionType >= RegionType.TRACKED || m.regionType <= RegionType.IDEMPOTENT)
@@ -275,6 +300,7 @@ trait HasHellaCache { this: BaseTile =>
   tlMasterXbar.node := TLWidthWidget(tileParams.dcache.get.rowBits/8) := dcache.node
   dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
   dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
+
   InModuleBody {
     dcache.module match {
       case module: DCacheModule => module.tlb_port := DontCare

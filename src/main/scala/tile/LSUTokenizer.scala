@@ -2,15 +2,14 @@ package freechips.rocketchip.tile
 
 import chisel3._
 import chisel3.experimental.SourceInfo
+import chisel3.util.experimental.BitSet
 import chisel3.util.{BitPat, Decoupled, DecoupledIO, Queue, RegEnable, Valid, ValidIO, log2Ceil}
 import chisel3.util.experimental.decode.{TruthTable, decoder}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.TwoWayCounter
 import org.chipsalliance.cde.config.Parameters
 
-case class LSUTokenizerDiplomaticParameter(nodeName: String, outstandingSize: Int, giveTokenToMe: TruthTable) {
-  require(giveTokenToMe.default.value == 0, "doesn't allow default to 1.")
-}
+case class LSUTokenizerDiplomaticParameter(nodeName: String, outstandingSize: Int, giveTokenToMe: BitSet)
 class LSUTokenizerBundle extends Bundle {
 
   /** Grant token from Tokenizer to LSU. */
@@ -83,46 +82,56 @@ class LSUTokenizerImp(outer: LSUTokenizer) extends LazyModuleImp(outer) {
   val issueQueue = new Queue(UInt(outer.sourceNode.in.size.W), outer.sourceNode.in.map(_._2.outstandingSize).sum)
 
   issueQueue.io.enq.valid := coreBundle.executeInstruction.valid
+  // create an OH decoder from downstream instructions
   issueQueue.io.enq.bits := decoder(
     coreBundle.executeInstruction.bits,
-    outer.sourceNode.in
-      .map(_._2.giveTokenToMe)
-      .reduce((l, r) =>
-        TruthTable(
-          // Merge all table together by extending rhs value to 0
-          l.table.map(t => (t._1, t._2 ## BitPat.N(r.table.head._2.width))) ++ r.table
-            .map(t => (t._1, BitPat.N(l.table.head._2.width) ## t._2)),
-          // Set all default to N
-          BitPat.N(l.table.head._2.width + r.table.head._2.width)
-        )
-      )
+    TruthTable(outer.sourceNode.in
+      .map(_._2.giveTokenToMe).zipWithIndex.flatMap {
+        case (bs: BitSet, index: Int) =>
+          bs.terms.map(t => t -> BitPat((1 << index).U(outer.sourceNode.in.size.W)))
+      }, BitPat.N(outer.sourceNode.in.size)
+    )
   )
   assert(issueQueue.io.enq.ready, "issueQueue should always ready.")
 
   /** OH encode to show which lsu is occupied by LSU. */
   val currentLSU: UInt = RegEnable(issueQueue.io.deq.bits, 0.U(outer.sourceNode.in.size.W), issueQueue.io.deq.fire)
 
-  val outstandingCounters: Seq[UInt] = outer.sourceNode.out.zip(issueQueue.io.deq.bits.asBools).map {
-    case ((dstBundle, dstParameter), src) =>
-      val grant: Bool = WireDefault(src && issueQueue.io.deq.fire).suggestName(s"${dstParameter.nodeName}Grant")
-      dstBundle.grant := grant
+  /** if issueQueue dequeues, pull-up corresponding grant signal. */
+  val grants: Seq[Bool] = outer.sourceNode.out.map(_._2.nodeName).lazyZip(issueQueue.io.deq.bits.asBools).map {
+    case (nodeName, src) =>
+      WireDefault(src && issueQueue.io.deq.fire).suggestName(s"${nodeName}Grant")
+  }
 
-      val release: Bool = WireDefault(dstBundle.release).suggestName(s"${dstParameter.nodeName}Release")
+  /** if token is given back, pull-up corresponding release signal. */
+  val releases: Seq[Bool] = outer.sourceNode.out.map {
+    case (dstBundle, LSUTokenizerDiplomaticParameter(nodeName, _, _)) =>
+      WireDefault(dstBundle.release).suggestName(s"${nodeName}Release")
+  }
 
-      val outstandingCounter = RegInit(0.U(log2Ceil(dstParameter.outstandingSize).W)).suggestName(s"${dstParameter.nodeName}OutstandingCounter")
+  /** maintain a counter for each LSU. */
+  val outstandingCounters: Seq[UInt] = outer.sourceNode.out.map(_._2).map {
+    case LSUTokenizerDiplomaticParameter(nodeName, outstandingSize, _) =>
+      RegInit(0.U(log2Ceil(outstandingSize).W)).suggestName(s"${nodeName}OutstandingCounter")
+  }
+
+  // increase or decrease each counters
+  grants.lazyZip(releases).lazyZip(outstandingCounters).foreach {
+    case (grant: Bool, release: Bool, outstandingCounter: UInt) =>
       when(grant && !release) {
         outstandingCounter := outstandingCounter + 1.U
       }
       when(release && !grant) {
         outstandingCounter := outstandingCounter - 1.U
       }
-      outstandingCounter
   }
+
+  // fanin each grants.
+  outer.sourceNode.out.map(_._1.grant).zip(grants).foreach { case (dst, src) => dst := src }
 
   val allLSUFree: Bool = VecInit(outstandingCounters.map(_ === 0.U)).asUInt.andR
 
   issueQueue.io.deq.ready := issueQueue.io.deq.bits === currentLSU && allLSUFree
 
   coreBundle.memoryHazard := allLSUFree && !issueQueue.io.deq.valid
-
 }
