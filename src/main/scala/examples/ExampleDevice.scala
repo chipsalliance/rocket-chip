@@ -3,7 +3,7 @@
 package freechips.rocketchip.examples
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.amba.ahb.HasAHBControlRegMap
 import freechips.rocketchip.amba.axi4.HasAXI4ControlRegMap
 import freechips.rocketchip.diplomacy.LazyModuleImp
@@ -32,7 +32,8 @@ abstract class ExampleDevice(params: ExampleDeviceParams)(implicit p: Parameters
 {
   def nInterrupts = 4
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
 
     val state = RegInit(0.U(params.num.W))
     val pending = RegInit(0xf.U(nInterrupts.W))

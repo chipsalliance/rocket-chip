@@ -2,13 +2,13 @@
 
 package freechips.rocketchip.groundtest
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.system.SimAXIMem
 
 class TestHarness(implicit p: Parameters) extends Module {
-  val io = new Bundle { val success = Bool(OUTPUT) }
+  val io = IO(new Bundle { val success = Output(Bool()) })
   val ldut = LazyModule(new GroundTestSubsystem)
   val dut = Module(ldut.module)
   io.success := dut.success

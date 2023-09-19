@@ -3,21 +3,22 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util.{Cat,log2Up}
+import org.chipsalliance.cde.config.Parameters
 
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {
-  val io = new Bundle {
-    val requestor = Vec(n, new HellaCacheIO).flip
+  val io = IO(new Bundle {
+    val requestor = Flipped(Vec(n, new HellaCacheIO))
     val mem = new HellaCacheIO
-  }
+  })
 
   if (n == 1) {
     io.mem <> io.requestor.head
   } else {
     val s1_id = Reg(UInt())
-    val s2_id = Reg(next=s1_id)
+    val s2_id = RegNext(s1_id)
 
     io.mem.keep_clock_enabled := io.requestor.map(_.keep_clock_enabled).reduce(_||_)
 
@@ -30,8 +31,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       val req = io.requestor(i).req
       def connect_s0() = {
         io.mem.req.bits := req.bits
-        io.mem.req.bits.tag := Cat(req.bits.tag, UInt(i, log2Up(n)))
-        s1_id := UInt(i)
+        io.mem.req.bits.tag := Cat(req.bits.tag, i.U(log2Up(n).W))
+        s1_id := i.U
       }
       def connect_s1() = {
         io.mem.s1_kill := io.requestor(i).s1_kill
@@ -47,8 +48,8 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
         connect_s2()
       } else {
         when (req.valid) { connect_s0() }
-        when (s1_id === UInt(i)) { connect_s1() }
-        when (s2_id === UInt(i)) { connect_s2() }
+        when (s1_id === i.U) { connect_s1() }
+        when (s2_id === i.U) { connect_s2() }
       }
     }
 
@@ -56,14 +57,14 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 
     for (i <- 0 until n) {
       val resp = io.requestor(i).resp
-      val tag_hit = io.mem.resp.bits.tag(log2Up(n)-1,0) === UInt(i)
+      val tag_hit = io.mem.resp.bits.tag(log2Up(n)-1,0) === i.U
       resp.valid := io.mem.resp.valid && tag_hit
       io.requestor(i).s2_xcpt := io.mem.s2_xcpt
       io.requestor(i).s2_gpa := io.mem.s2_gpa
       io.requestor(i).s2_gpa_is_pte := io.mem.s2_gpa_is_pte
       io.requestor(i).ordered := io.mem.ordered
       io.requestor(i).perf := io.mem.perf
-      io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === UInt(i)
+      io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === i.U
       io.requestor(i).s2_nack_cause_raw := io.mem.s2_nack_cause_raw
       io.requestor(i).s2_uncached := io.mem.s2_uncached
       io.requestor(i).s2_paddr := io.mem.s2_paddr
@@ -74,7 +75,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       io.requestor(i).replay_next := io.mem.replay_next
 
       io.requestor(i).uncached_resp.map { uncached_resp =>
-        val uncached_tag_hit = io.mem.uncached_resp.get.bits.tag(log2Up(n)-1,0) === UInt(i)
+        val uncached_tag_hit = io.mem.uncached_resp.get.bits.tag(log2Up(n)-1,0) === i.U
         uncached_resp.valid := io.mem.uncached_resp.get.valid && uncached_tag_hit
         when (uncached_resp.ready && uncached_tag_hit) {
           io.mem.uncached_resp.get.ready := true.B

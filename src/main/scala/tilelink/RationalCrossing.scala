@@ -9,8 +9,8 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -18,7 +18,8 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
 {
   val node = TLRationalSourceNode()
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
       val direction = edgeOut.manager.direction
@@ -31,15 +32,15 @@ class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
         out.c <> ToRational(in.c, direction)
         out.e <> ToRational(in.e, direction)
       } else {
-        in.b.valid   := Bool(false)
-        in.c.ready   := Bool(true)
-        in.e.ready   := Bool(true)
-        out.b.ready  := Bool(true)
-        out.c.valid  := Bool(false)
-        out.e.valid  := Bool(false)
-        out.b.sink   := UInt(0)
-        out.c.source := UInt(0)
-        out.e.source := UInt(0)
+        in.b.valid   := false.B
+        in.c.ready   := true.B
+        in.e.ready   := true.B
+        out.b.ready  := true.B
+        out.c.valid  := false.B
+        out.e.valid  := false.B
+        out.b.sink   := 0.U
+        out.c.source := 0.U
+        out.e.source := 0.U
       }
     }
   }
@@ -49,7 +50,8 @@ class TLRationalCrossingSink(direction: RationalDirection = Symmetric)(implicit 
 {
   val node = TLRationalSinkNode(direction)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
       val direction = edgeIn.manager.direction
@@ -62,15 +64,15 @@ class TLRationalCrossingSink(direction: RationalDirection = Symmetric)(implicit 
         out.c <> FromRational(in.c, direction)
         out.e <> FromRational(in.e, direction)
       } else {
-        out.b.ready := Bool(true)
-        out.c.valid := Bool(false)
-        out.e.valid := Bool(false)
-        in.b.valid  := Bool(false)
-        in.c.ready  := Bool(true)
-        in.e.ready  := Bool(true)
-        in.b.source := UInt(0)
-        in.c.sink   := UInt(0)
-        in.e.sink   := UInt(0)
+        out.b.ready := true.B
+        out.c.valid := false.B
+        out.e.valid := false.B
+        in.b.valid  := false.B
+        in.c.ready  := true.B
+        in.e.ready  := true.B
+        in.b.source := 0.U
+        in.c.sink   := 0.U
+        in.e.sink   := 0.U
       }
     }
   }
@@ -103,12 +105,13 @@ class TLRationalCrossing(direction: RationalDirection = Symmetric)(implicit p: P
 
   sink.node := source.node
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val in_clock  = Clock(INPUT)
-      val in_reset  = Bool(INPUT)
-      val out_clock = Clock(INPUT)
-      val out_reset = Bool(INPUT)
+      val in_clock  = Input(Clock())
+      val in_reset  = Input(Bool())
+      val out_clock = Input(Clock())
+      val out_reset = Input(Bool())
     })
 
     source.module.clock := io.in_clock
@@ -132,9 +135,10 @@ class TLRAMRationalCrossingSource(name: String, txns: Int)(implicit p: Parameter
     := model.node
     := fuzz.node)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val finished = Bool(OUTPUT)
+      val finished = Output(Bool())
     })
     io.finished := fuzz.module.io.finished
   }
@@ -150,7 +154,8 @@ class TLRAMRationalCrossingSink(direction: RationalDirection)(implicit p: Parame
     := TLRationalCrossingSink(direction)
     := node)
 
-  lazy val module = new LazyModuleImp(this) { }
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) { }
 }
 
 class TLRAMRationalCrossing(txns: Int)(implicit p: Parameters) extends LazyModule {
@@ -170,7 +175,8 @@ class TLRAMRationalCrossing(txns: Int)(implicit p: Parameters) extends LazyModul
   val fix_fast_sink   = LazyModule(new TLRAMRationalCrossingSink(SlowToFast))
   fix_fast_sink.node := fix_slow_source.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished :=
       sym_fast_source.module.io.finished &&
       sym_slow_source.module.io.finished &&
@@ -199,4 +205,5 @@ class TLRAMRationalCrossing(txns: Int)(implicit p: Parameters) extends LazyModul
 class TLRAMRationalCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new TLRAMRationalCrossing(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }

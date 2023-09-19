@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import freechips.rocketchip.config.Field
+import org.chipsalliance.cde.config.Field
 import sys.process._
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
@@ -85,14 +85,14 @@ object DTS
         case None => Seq(indent, k, ";\n")
         case Some(ResourceString(_)) => {
           seq.foreach { r => r match {
-            case ResourceString(_) => Unit
+            case ResourceString(_) => ()
             case _ => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
           } }
           Seq(indent, k, " = ", seq.flatMap(z => helper(z, "", myCells)).mkString(", "), ";\n")
         }
         case Some(ResourceAlias(_)) => {
           seq.foreach { r => r match {
-            case ResourceAlias(_) => Unit
+            case ResourceAlias(_) => ()
             case _ => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
           } }
           Seq(indent, k, " = ", seq.flatMap(z => helper(z, "", myCells)).mkString(", "), ";\n")
@@ -102,7 +102,7 @@ object DTS
             case ResourceMap(_, _) => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
             case ResourceString(_) => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
             case ResourceAlias(_)  => require(false, s"The property '${k}' has values of conflicting type: ${seq}")
-            case _ => Unit
+            case _ => ()
           } }
           Seq(indent, k, " = <", seq.flatMap(z => helper(z, "", myCells)).mkString(" "), ">;\n")
         }

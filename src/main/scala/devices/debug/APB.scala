@@ -1,7 +1,7 @@
 // See LICENSE.SiFive for license details.
 
 package freechips.rocketchip.devices.debug
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.amba.apb.{APBRegisterNode}
@@ -21,7 +21,8 @@ class APBDebugRegisters()(implicit p: Parameters) extends LazyModule {
     executable = false
   )
 
-  lazy val module = new LazyModuleImp(this){
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this){
     node.regmap(p(APBDebugRegistersKey).toList:_*)
 
   }

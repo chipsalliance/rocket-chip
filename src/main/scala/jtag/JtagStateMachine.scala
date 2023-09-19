@@ -4,7 +4,7 @@ package freechips.rocketchip.jtag
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.property
 
 object JtagState {
@@ -70,7 +70,7 @@ object JtagState {
 class JtagStateMachine(implicit val p: Parameters) extends Module() {
   class StateMachineIO extends Bundle {
     val tms = Input(Bool())
-    val currState = Output(JtagState.State.chiselType)
+    val currState = Output(JtagState.State.chiselType())
   }
   val io = IO(new StateMachineIO)
 

@@ -3,26 +3,27 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.rocket.constants.MemoryOpConstants
 import freechips.rocketchip.util._
 
 object ClientStates {
   val width = 2
 
-  def Nothing = UInt(0, width)
-  def Branch  = UInt(1, width)
-  def Trunk   = UInt(2, width)
-  def Dirty   = UInt(3, width)
+  def Nothing = 0.U(width.W)
+  def Branch  = 1.U(width.W)
+  def Trunk   = 2.U(width.W)
+  def Dirty   = 3.U(width.W)
 
   def hasReadPermission(state: UInt): Bool = state > Nothing
   def hasWritePermission(state: UInt): Bool = state > Branch
 }
 
 object MemoryOpCategories extends MemoryOpConstants {
-  def wr = Cat(Bool(true), Bool(true))   // Op actually writes
-  def wi = Cat(Bool(false), Bool(true))  // Future op will write
-  def rd = Cat(Bool(false), Bool(false)) // Op only reads
+  def wr = Cat(true.B, true.B)   // Op actually writes
+  def wi = Cat(false.B, true.B)  // Future op will write
+  def rd = Cat(false.B, false.B) // Op only reads
 
   def categorize(cmd: UInt): UInt = {
     val cat = Cat(isWrite(cmd), isWriteIntent(cmd))
@@ -38,7 +39,7 @@ object MemoryOpCategories extends MemoryOpConstants {
   */
 class ClientMetadata extends Bundle {
   /** Actual state information stored in this bundle */
-  val state = UInt(width = ClientStates.width)
+  val state = UInt(ClientStates.width.W)
 
   /** Metadata equality */
   def ===(rhs: UInt): Bool = state === rhs
@@ -54,21 +55,21 @@ class ClientMetadata extends Bundle {
     import TLPermissions._
     import ClientStates._
     val c = categorize(cmd)
-    MuxTLookup(Cat(c, state), (Bool(false), UInt(0)), Seq(
+    MuxTLookup(Cat(c, state), (false.B, 0.U), Seq(
     //(effect, am now) -> (was a hit,   next)
-      Cat(rd, Dirty)   -> (Bool(true),  Dirty),
-      Cat(rd, Trunk)   -> (Bool(true),  Trunk),
-      Cat(rd, Branch)  -> (Bool(true),  Branch),
-      Cat(wi, Dirty)   -> (Bool(true),  Dirty),
-      Cat(wi, Trunk)   -> (Bool(true),  Trunk),
-      Cat(wr, Dirty)   -> (Bool(true),  Dirty),
-      Cat(wr, Trunk)   -> (Bool(true),  Dirty),
+      Cat(rd, Dirty)   -> (true.B,  Dirty),
+      Cat(rd, Trunk)   -> (true.B,  Trunk),
+      Cat(rd, Branch)  -> (true.B,  Branch),
+      Cat(wi, Dirty)   -> (true.B,  Dirty),
+      Cat(wi, Trunk)   -> (true.B,  Trunk),
+      Cat(wr, Dirty)   -> (true.B,  Dirty),
+      Cat(wr, Trunk)   -> (true.B,  Dirty),
     //(effect, am now) -> (was a miss,  param)
-      Cat(rd, Nothing) -> (Bool(false), NtoB),
-      Cat(wi, Branch)  -> (Bool(false), BtoT),
-      Cat(wi, Nothing) -> (Bool(false), NtoT),
-      Cat(wr, Branch)  -> (Bool(false), BtoT),
-      Cat(wr, Nothing) -> (Bool(false), NtoT)))
+      Cat(rd, Nothing) -> (false.B, NtoB),
+      Cat(wi, Branch)  -> (false.B, BtoT),
+      Cat(wi, Nothing) -> (false.B, NtoT),
+      Cat(wr, Branch)  -> (false.B, BtoT),
+      Cat(wr, Nothing) -> (false.B, NtoT)))
   }
 
   /** Determine what state to go to after miss based on Grant param
@@ -116,20 +117,20 @@ class ClientMetadata extends Bundle {
   private def shrinkHelper(param: UInt): (Bool, UInt, UInt) = {
     import ClientStates._
     import TLPermissions._
-    MuxTLookup(Cat(param, state), (Bool(false), UInt(0), UInt(0)), Seq(
+    MuxTLookup(Cat(param, state), (false.B, 0.U, 0.U), Seq(
     //(wanted, am now)  -> (hasDirtyData resp, next)
-      Cat(toT, Dirty)   -> (Bool(true),  TtoT, Trunk),
-      Cat(toT, Trunk)   -> (Bool(false), TtoT, Trunk),
-      Cat(toT, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toT, Nothing) -> (Bool(false), NtoN, Nothing),
-      Cat(toB, Dirty)   -> (Bool(true),  TtoB, Branch),
-      Cat(toB, Trunk)   -> (Bool(false), TtoB, Branch),  // Policy: Don't notify on clean downgrade
-      Cat(toB, Branch)  -> (Bool(false), BtoB, Branch),
-      Cat(toB, Nothing) -> (Bool(false), NtoN, Nothing),
-      Cat(toN, Dirty)   -> (Bool(true),  TtoN, Nothing),
-      Cat(toN, Trunk)   -> (Bool(false), TtoN, Nothing), // Policy: Don't notify on clean downgrade
-      Cat(toN, Branch)  -> (Bool(false), BtoN, Nothing), // Policy: Don't notify on clean downgrade
-      Cat(toN, Nothing) -> (Bool(false), NtoN, Nothing)))
+      Cat(toT, Dirty)   -> (true.B,  TtoT, Trunk),
+      Cat(toT, Trunk)   -> (false.B, TtoT, Trunk),
+      Cat(toT, Branch)  -> (false.B, BtoB, Branch),
+      Cat(toT, Nothing) -> (false.B, NtoN, Nothing),
+      Cat(toB, Dirty)   -> (true.B,  TtoB, Branch),
+      Cat(toB, Trunk)   -> (false.B, TtoB, Branch),  // Policy: Don't notify on clean downgrade
+      Cat(toB, Branch)  -> (false.B, BtoB, Branch),
+      Cat(toB, Nothing) -> (false.B, NtoN, Nothing),
+      Cat(toN, Dirty)   -> (true.B,  TtoN, Nothing),
+      Cat(toN, Trunk)   -> (false.B, TtoN, Nothing), // Policy: Don't notify on clean downgrade
+      Cat(toN, Branch)  -> (false.B, BtoN, Nothing), // Policy: Don't notify on clean downgrade
+      Cat(toN, Nothing) -> (false.B, NtoN, Nothing)))
   }
 
   /** Translate cache control cmds into Probe param */

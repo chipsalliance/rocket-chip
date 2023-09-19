@@ -2,20 +2,22 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.SyncReadMem
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util.log2Ceil
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.{DescribedSRAM, Code}
 
 abstract class DiplomaticSRAM(
     val address: AddressSet,
     beatBytes: Int,
     devName: Option[String],
-    dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule
+    dtsCompat: Option[Seq[String]] = None,
+    devOverride: Option[Device with DeviceRegName] = None)(implicit p: Parameters) extends LazyModule
 {
-  val device = devName
+  val device = devOverride.getOrElse(devName
     .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
     .getOrElse(new MemoryDevice())
+  )
 
   val resources = device.reg("mem")
 
@@ -32,7 +34,7 @@ abstract class DiplomaticSRAM(
       name = devName.getOrElse("mem"),
       desc = devName.getOrElse("mem"),
       size = size,
-      data = Vec(lanes, UInt(width = bits))
+      data = Vec(lanes, UInt(bits.W))
     )
     devName.foreach(n => mem.suggestName(n.split("-").last))
 

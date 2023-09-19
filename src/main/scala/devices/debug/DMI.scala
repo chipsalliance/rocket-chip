@@ -4,7 +4,7 @@ package freechips.rocketchip.devices.debug
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.util._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -83,7 +83,8 @@ class DMIToTL(implicit p: Parameters) extends LazyModule {
       get = TransferSizes(4,4),
       putFull = TransferSizes(4,4)))))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val dmi = Flipped(new DMIIO()(p))
     })

@@ -2,10 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel.{defaultCompileOptions => _, _}
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-
-import chisel3.{withClockAndReset, withReset, RawModule}
+import chisel3._
 
 /** This black-boxes an Async Reset
   *  (or Set)
@@ -35,12 +32,12 @@ import chisel3.{withClockAndReset, withReset, RawModule}
 
 class AsyncResetReg(resetValue: Int = 0) extends RawModule {
   val io = IO(new Bundle {
-    val d = Bool(INPUT)
-    val q = Bool(OUTPUT)
-    val en = Bool(INPUT)
+    val d = Input(Bool())
+    val q = Output(Bool())
+    val en = Input(Bool())
 
-    val clk = Clock(INPUT)
-    val rst = Bool(INPUT)
+    val clk = Input(Clock())
+    val rst = Input(Reset())
   })
 
   val reg = withClockAndReset(io.clk, io.rst.asAsyncReset)(RegInit(resetValue.U(1.W)))
@@ -51,9 +48,9 @@ class AsyncResetReg(resetValue: Int = 0) extends RawModule {
 }
 
 class SimpleRegIO(val w: Int) extends Bundle{
-  val d = UInt(INPUT, width = w)
-  val q = UInt(OUTPUT, width = w)
-  val en = Bool(INPUT)
+  val d = Input(UInt(w.W))
+  val q = Output(UInt(w.W))
+  val en = Input(Bool())
 }
 
 class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
@@ -75,7 +72,7 @@ object AsyncResetReg {
     reg.io.d := d
     reg.io.clk := clk
     reg.io.rst := rst
-    reg.io.en  := Bool(true)
+    reg.io.en  := true.B
     name.foreach(reg.suggestName(_))
     reg.io.q
   }
@@ -96,13 +93,13 @@ object AsyncResetReg {
     resetData, enable, Some(name))
 
 
-  def apply(updateData: UInt, resetData: BigInt): UInt = apply(updateData, resetData, enable=Bool(true))
-  def apply(updateData: UInt, resetData: BigInt, name: String): UInt = apply(updateData, resetData, enable=Bool(true), Some(name))
+  def apply(updateData: UInt, resetData: BigInt): UInt = apply(updateData, resetData, enable = true.B)
+  def apply(updateData: UInt, resetData: BigInt, name: String): UInt = apply(updateData, resetData, enable = true.B, Some(name))
 
   def apply(updateData: UInt, enable: Bool): UInt = apply(updateData, resetData=BigInt(0), enable)
-  def apply(updateData: UInt, enable: Bool, name: String): UInt = apply(updateData, resetData=BigInt(0), enable, Some(name))
+  def apply(updateData: UInt, enable: Bool, name: String): UInt = apply(updateData, resetData = BigInt(0), enable, Some(name))
 
-  def apply(updateData: UInt): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true))
-  def apply(updateData: UInt, name:String): UInt = apply(updateData, resetData=BigInt(0), enable=Bool(true), Some(name))
+  def apply(updateData: UInt): UInt = apply(updateData, resetData = BigInt(0), enable = true.B)
+  def apply(updateData: UInt, name:String): UInt = apply(updateData, resetData = BigInt(0), enable = true.B, Some(name))
 }
 

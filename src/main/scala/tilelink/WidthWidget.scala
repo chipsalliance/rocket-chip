@@ -4,7 +4,7 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util.{DecoupledIO, log2Ceil, Cat, RegEnable}
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -18,7 +18,8 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
     override def circuitIdentity = edges.out.map(_.manager).forall(noChangeRequired)
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {
       val inBytes = edgeIn.manager.beatBytes
       val outBytes = edgeOut.manager.beatBytes
@@ -40,7 +41,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val corrupt_in = edgeIn.corrupt(in.bits)
       val corrupt_out = corrupt_in || corrupt_reg
 
-      when (in.fire()) {
+      when (in.fire) {
         count := count + 1.U
         corrupt_reg := corrupt_out
         when (last) {
@@ -60,7 +61,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         val rdata = Reg(Vec(ratio-1, chiselTypeOf(idata)))
         val pdata = rdata :+ idata
         val mdata = (masked_enable zip (odata zip pdata)) map { case (e, (o, p)) => Mux(e, o, p) }
-        when (in.fire() && !last) {
+        when (in.fire && !last) {
           rdata_written_once := true.B
           (rdata zip mdata) foreach { case (r, m) => r := m }
         }
@@ -100,7 +101,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       val first = count === 0.U
       val last  = count === limit || !hasData
 
-      when (out.fire()) {
+      when (out.fire) {
         count := count + 1.U
         when (last) { count := 0.U }
       }
@@ -179,7 +180,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         val dropBits = log2Ceil(edgeIn.manager.beatBytes)
         val sources  = Reg(Vec(edgeIn.client.endSourceId, UInt((keepBits-dropBits).W)))
         val a_sel = in.a.bits.address(keepBits-1, dropBits)
-        when (in.a.fire()) {
+        when (in.a.fire) {
           sources(in.a.bits.source) := a_sel
         }
 
@@ -239,7 +240,8 @@ class TLRAMWidthWidget(first: Int, second: Int, txns: Int)(implicit p: Parameter
     := model.node
     := fuzz.node)
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

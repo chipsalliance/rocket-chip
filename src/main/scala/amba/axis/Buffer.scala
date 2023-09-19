@@ -2,16 +2,16 @@
 
 package freechips.rocketchip.amba.axis
 
-import freechips.rocketchip.config._
-import freechips.rocketchip.util._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 
 class AXISBuffer(val params: BufferParams)(implicit p: Parameters) extends LazyModule
 {
   val node = AXISAdapterNode()
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out :<>: params.irrevocable(in)
+      out.waiveAs[chisel3.Data]() :<>= params.irrevocable(in).waiveAs[chisel3.Data]()
     }
   }
 }

@@ -100,7 +100,8 @@ CONFIGS=\
 	$(PROJECT).EightChannelConfig \
 	$(PROJECT).DualCoreConfig \
 	$(PROJECT).MemPortOnlyConfig \
-	$(PROJECT).MMIOPortOnlyConfig
+	$(PROJECT).MMIOPortOnlyConfig \
+	$(PROJECT).CloneTileConfig
 endif
 
 # These are the named regression targets.  While it's expected you run them in
@@ -142,7 +143,7 @@ vsim-bmark-tests: $(VSIM_BMARK_TEST_STAMPS)
 vsim-regression-tests: $(VSIM_REGRESSION_TEST_STAMPS)
 vsim-torture: $(VSIM_TORTURE_STAMPS)
 
-submodule_names = torture hardfloat api-config-chipsalliance $(ROCKETCHIP_ADDONS)
+submodule_names = torture hardfloat cde $(ROCKETCHIP_ADDONS)
 
 # Checks out all the rocket-chip submodules
 stamps/other-submodules.stamp:
@@ -160,7 +161,7 @@ stamps/riscv-tests.stamp:
 stamps/rocket-tools_checkout.stamp: | stamps/riscv-tests.stamp
 	git -C $(RISCV_TOOLS) submodule update --init --recursive riscv-isa-sim riscv-pk riscv-openocd fsf-binutils-gdb
 	git -C $(RISCV_TOOLS) submodule update --init riscv-gnu-toolchain
-	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init riscv-binutils-gdb riscv-gcc riscv-newlib
+	git -C $(RISCV_TOOLS)/riscv-gnu-toolchain submodule update --init binutils gcc gdb glibc newlib
 	rm -f $(RISCV_TOOLS)/.travis.yml
 	mkdir -p $(dir $@)
 	date > $@
@@ -334,19 +335,3 @@ emulator-jtag-dtm-tests-64 : $(EMULATOR_JTAG_DTM_64_TEST_STAMPS)
 # Targets for JTAG DTM full-chain simulation
 vsim-jtag-dtm-regression: vsim-jtag-dtm-tests-32 vsim-jtag-dtm-tests-64
 emulator-jtag-dtm-regression: emulator-jtag-dtm-tests-32 emulator-jtag-dtm-tests-64
-
-# Target to run Scalatest regressions 'sbt test'
-.PHONY: scalatest
-scalatest: stamps/other-submodules.stamp $(all_srcs)
-	(cd $(base_dir) && $(SBT) $(SBT_OPTS) test)
-
-# Target to run Scalafix 'sbt scalafix'
-.PHONY: scalafix
-scalafix: stamps/other-submodules.stamp $(all_srcs)
-	(cd $(base_dir) && $(SBT) $(SBT_OPTS) scalafix)
-
-# Target to run Scalafix 'sbt scalafix --check', which will not actually modify
-# Scala files.
-.PHONY: scalafix-check
-scalafix-check: stamps/other-submodules.stamp $(all_srcs)
-	(cd $(base_dir) && $(SBT) $(SBT_OPTS) 'scalafix --check')

@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba.axi4
 
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 
 class AXI4Filter(
@@ -29,9 +29,10 @@ class AXI4Filter(
       out
     })})
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out :<> in
+      out :<>= in
     }
   }
 }

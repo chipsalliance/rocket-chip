@@ -5,7 +5,7 @@ package freechips.rocketchip.system // TODO this should really be in a testharne
 import chisel3._
 import freechips.rocketchip.amba._
 import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.subsystem.{CanHaveMasterAXI4MMIOPort, CanHaveMasterAXI4MemPort, ExtBus, ExtMem}
 
@@ -38,7 +38,7 @@ object SimAXIMem {
       Module(mmio_mem.module).suggestName("mmio_mem")
       mmio_mem.io_axi4.head <> io
       mmio_mem
-    }
+    }.toSeq
   }
 
   def connectMem(dut: CanHaveMasterAXI4MemPort)(implicit p: Parameters): Seq[SimAXIMem] = {
@@ -47,6 +47,6 @@ object SimAXIMem {
       Module(mem.module).suggestName("mem")
       mem.io_axi4.head <> io
       mem
-    }
+    }.toSeq
   }
 }

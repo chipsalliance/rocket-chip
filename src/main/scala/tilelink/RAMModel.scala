@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -26,7 +27,8 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
 {
   val node = TLAdapterNode()
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val edge         = edgeIn
       val endAddress   = edge.manager.maxAddress + 1
@@ -43,7 +45,7 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       val divisor      = CRC.CRC_16F_4_2
 
       // Reset control logic
-      val wipeIndex = RegInit(UInt(0, width = log2Ceil(endAddressHi) + 1))
+      val wipeIndex = RegInit(0.U((log2Ceil(endAddressHi) + 1).W))
       val wipe = !wipeIndex(log2Ceil(endAddressHi))
       wipeIndex := wipeIndex + wipe.asUInt
 
@@ -56,27 +58,27 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       in.d.bits  := out.d.bits
 
       // BCE unsupported
-      in.b.valid := Bool(false)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
-      out.b.ready := Bool(true)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
+      in.b.valid := false.B
+      out.c.valid := false.B
+      out.e.valid := false.B
+      out.b.ready := true.B
+      in.c.ready := true.B
+      in.e.ready := true.B
 
       val params = TLRAMModel.MonitorParameters(addressBits, sizeBits)
 
       // Infer as simple dual port BRAM/M10k with write-first/new-data semantics (bypass needed)
       val shadow = Seq.fill(beatBytes) { Mem(endAddressHi, new TLRAMModel.ByteMonitor(params)) }
-      val inc_bytes = Seq.fill(beatBytes) { Mem(endAddressHi, UInt(width = countBits)) }
-      val dec_bytes = Seq.fill(beatBytes) { Mem(endAddressHi, UInt(width = countBits)) }
-      val inc_trees = Seq.tabulate(decTrees) { i => Mem(endAddressHi >> (i+1), UInt(width = countBits)) }
-      val dec_trees = Seq.tabulate(decTrees) { i => Mem(endAddressHi >> (i+1), UInt(width = countBits)) }
+      val inc_bytes = Seq.fill(beatBytes) { Mem(endAddressHi, UInt(countBits.W)) }
+      val dec_bytes = Seq.fill(beatBytes) { Mem(endAddressHi, UInt(countBits.W)) }
+      val inc_trees = Seq.tabulate(decTrees) { i => Mem(endAddressHi >> (i+1), UInt(countBits.W)) }
+      val dec_trees = Seq.tabulate(decTrees) { i => Mem(endAddressHi >> (i+1), UInt(countBits.W)) }
 
-      val shadow_wen = Wire(init = Fill(beatBytes, wipe))
-      val inc_bytes_wen = Wire(init = Fill(beatBytes, wipe))
-      val dec_bytes_wen = Wire(init = Fill(beatBytes, wipe))
-      val inc_trees_wen = Wire(init = Fill(decTrees, wipe))
-      val dec_trees_wen = Wire(init = Fill(decTrees, wipe))
+      val shadow_wen = WireDefault(Fill(beatBytes, wipe))
+      val inc_bytes_wen = WireDefault(Fill(beatBytes, wipe))
+      val dec_bytes_wen = WireDefault(Fill(beatBytes, wipe))
+      val inc_trees_wen = WireDefault(Fill(decTrees, wipe))
+      val dec_trees_wen = WireDefault(Fill(decTrees, wipe))
 
       // This must be registers b/c we build a CAM from it
       val flight = Reg(Vec(endSourceId, new TLRAMModel.FlightMonitor(params)))
@@ -88,13 +90,13 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       a_flight.size   := edge.size(in.a.bits)
       a_flight.opcode := in.a.bits.opcode
 
-      when (in.a.fire()) { flight(in.a.bits.source) := a_flight }
-      val bypass = if (edge.manager.minLatency > 0) Bool(false) else in.a.valid && in.a.bits.source === out.d.bits.source
+      when (in.a.fire) { flight(in.a.bits.source) := a_flight }
+      val bypass = if (edge.manager.minLatency > 0) false.B else in.a.valid && in.a.bits.source === out.d.bits.source
       val d_flight = RegEnable(Mux(bypass, a_flight, flight(out.d.bits.source)), edge.first(out.d))
 
       // Process A access requests
-      val a = Reg(next = in.a.bits)
-      val a_fire = Reg(next = in.a.fire(), init = Bool(false))
+      val a = RegNext(in.a.bits)
+      val a_fire = RegNext(in.a.fire, false.B)
       val (a_first, a_last, _, a_address_inc) = edge.addr_inc(a, a_fire)
       val a_size = edge.size(a)
       val a_sizeOH = UIntToOH(a_size)
@@ -109,8 +111,8 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       val a_dec_bytes = dec_bytes.map(_.read(a_addr_hi))
       val a_inc_trees = inc_trees.zipWithIndex.map{ case (m, i) => m.read(a_addr_hi >> (i+1)) }
       val a_dec_trees = dec_trees.zipWithIndex.map{ case (m, i) => m.read(a_addr_hi >> (i+1)) }
-      val a_inc_tree = a_inc_trees.fold(UInt(0))(_ + _)
-      val a_dec_tree = a_dec_trees.fold(UInt(0))(_ + _)
+      val a_inc_tree = a_inc_trees.fold(0.U)(_ + _)
+      val a_dec_tree = a_dec_trees.fold(0.U)(_ + _)
       val a_inc = a_inc_bytes.map(_ + a_inc_tree)
       val a_dec = a_dec_bytes.map(_ + a_dec_tree)
 
@@ -119,11 +121,11 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
         assert (a.opcode =/= TLMessages.AcquireBlock && a.opcode =/= TLMessages.AcquirePerm)
 
         // Mark the operation as valid
-        valid(a.source) := Bool(true)
+        valid(a.source) := true.B
 
         // Increase the per-byte flight counter for the whole transaction
         when (a_first && a.opcode =/= TLMessages.Hint && a.opcode =/= TLMessages.Get) {
-          when (a_size <= UInt(shift)) {
+          when (a_size <= shift.U) {
             inc_bytes_wen := a_mask
           }
           inc_trees_wen := a_sizeOH >> (shift+1)
@@ -141,7 +143,7 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
               when (a.opcode === TLMessages.PutPartialData) { printf("PP") }
               when (a.opcode === TLMessages.ArithmeticData) { printf("A ") }
               when (a.opcode === TLMessages.LogicalData) { printf("L ") }
-              printf(" 0x%x := 0x%x #%d %x\n", a_addr_hi << shift | UInt(i), byte, busy, a.param)
+              printf(" 0x%x := 0x%x #%d %x\n", a_addr_hi << shift | i.U, byte, busy, a.param)
             }
           }
         }
@@ -155,16 +157,16 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       val a_shadow = shadow.map(_.read(a_waddr))
       val a_known_old = !(Cat(a_shadow.map(!_.valid).reverse) & a_mask).orR
       val alu = Module(new Atomics(a.params))
-      alu.io.write := Bool(false)
+      alu.io.write := false.B
       alu.io.a := a
       alu.io.data_in := Cat(a_shadow.map(_.value).reverse)
 
-      val crc = Mem(endSourceId, UInt(width = 16))
+      val crc = Mem(endSourceId, UInt(16.W))
       val crc_valid = Mem(endSourceId, Bool())
-      val a_crc_acc = Mux(a_first, UInt(0), crc(a.source))
-      val a_crc_new = Cat(a_shadow.zipWithIndex.map { case (z, i) => Mux(a_mask(i), z.value, UInt(0)) }.reverse)
+      val a_crc_acc = Mux(a_first, 0.U, crc(a.source))
+      val a_crc_new = Cat(a_shadow.zipWithIndex.map { case (z, i) => Mux(a_mask(i), z.value, 0.U) }.reverse)
       val a_crc = CRC(divisor, Cat(a_crc_acc, a_crc_new), 16 + beatBytes*8)
-      val a_crc_valid = a_known_old && Mux(a_first, Bool(true), crc_valid(a.source))
+      val a_crc_valid = a_known_old && Mux(a_first, true.B, crc_valid(a.source))
       when (a_fire) {
         crc.write(a.source, a_crc)
         crc_valid.write(a.source, a_crc_valid)
@@ -174,8 +176,8 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
         val data = Wire(new TLRAMModel.ByteMonitor(params))
         val busy = a_inc(i) =/= a_dec(i) + (!a_first).asUInt
         val amo = a.opcode === TLMessages.ArithmeticData || a.opcode === TLMessages.LogicalData
-        val beat_amo = a.size <= UInt(log2Ceil(beatBytes))
-        data.valid := Mux(wipe, Bool(false), (!busy || a_fifo) && (!amo || (a_known_old && beat_amo)))
+        val beat_amo = a.size <= log2Ceil(beatBytes).U
+        data.valid := Mux(wipe, false.B, (!busy || a_fifo) && (!amo || (a_known_old && beat_amo)))
         data.value := alu.io.data_out(8*(i+1)-1, 8*i)
         when (shadow_wen(i)) {
           shadow(i).write(a_waddr, data)
@@ -183,14 +185,14 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       }
 
       for (i <- 0 until beatBytes) {
-        val data = Mux(wipe, UInt(0), a_inc_bytes(i) + UInt(1))
+        val data = Mux(wipe, 0.U, a_inc_bytes(i) + 1.U)
         when (inc_bytes_wen(i)) {
           inc_bytes(i).write(a_waddr, data)
         }
       }
 
       for (i <- 0 until inc_trees.size) {
-        val data = Mux(wipe, UInt(0), a_inc_trees(i) + UInt(1))
+        val data = Mux(wipe, 0.U, a_inc_trees(i) + 1.U)
         when (inc_trees_wen(i)) {
           inc_trees(i).write(a_waddr >> (i+1), data)
         }
@@ -198,7 +200,7 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
 
       // Process D access responses
       val d = RegNext(out.d.bits)
-      val d_fire = Reg(next = out.d.fire(), init = Bool(false))
+      val d_fire = RegNext(out.d.fire, false.B)
       val (d_first, d_last, _, d_address_inc) = edge.addr_inc(d, d_fire)
       val d_size = edge.size(d)
       val d_sizeOH = UIntToOH(d_size)
@@ -213,24 +215,24 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
       val d_dec_bytes = dec_bytes.map(_.read(d_addr_hi))
       val d_inc_trees = inc_trees.zipWithIndex.map{ case (m, i) => m.read(d_addr_hi >> (i+1)) }
       val d_dec_trees = dec_trees.zipWithIndex.map{ case (m, i) => m.read(d_addr_hi >> (i+1)) }
-      val d_inc_tree = d_inc_trees.fold(UInt(0))(_ + _)
-      val d_dec_tree = d_dec_trees.fold(UInt(0))(_ + _)
+      val d_inc_tree = d_inc_trees.fold(0.U)(_ + _)
+      val d_dec_tree = d_dec_trees.fold(0.U)(_ + _)
       val d_inc = d_inc_bytes.map(_ + d_inc_tree)
       val d_dec = d_dec_bytes.map(_ + d_dec_tree)
       val d_shadow = shadow.map(_.read(d_addr_hi))
       val d_valid = valid(d.source) holdUnless d_first
 
       // CRC check
-      val d_crc_reg = Reg(UInt(width = 16))
-      val d_crc_acc = Mux(d_first, UInt(0), d_crc_reg)
+      val d_crc_reg = Reg(UInt(16.W))
+      val d_crc_acc = Mux(d_first, 0.U, d_crc_reg)
       val d_crc_new = FillInterleaved(8, d_mask) & d.data
       val d_crc = CRC(divisor, Cat(d_crc_acc, d_crc_new), 16 + beatBytes*8)
-      val crc_bypass = if (edge.manager.minLatency > 0) Bool(false) else a_fire && a.source === d.source
+      val crc_bypass = if (edge.manager.minLatency > 0) false.B else a_fire && a.source === d.source
       val d_crc_valid = Mux(crc_bypass, a_crc_valid, crc_valid.read(d.source)) holdUnless d_first
       val d_crc_check = Mux(crc_bypass, a_crc, crc.read(d.source)) holdUnless d_first
 
       val d_no_race_reg = Reg(Bool())
-      val d_no_race = Wire(init = d_no_race_reg)
+      val d_no_race = WireDefault(d_no_race_reg)
 
       when (d_fire) {
         d_crc_reg := d_crc
@@ -246,7 +248,7 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
 
         // Decrease the per-byte flight counter for the whole transaction
         when (d_last && d_flight.opcode =/= TLMessages.Hint && d_flight.opcode =/= TLMessages.Get) {
-          when (d_size <= UInt(shift)) {
+          when (d_size <= shift.U) {
             dec_bytes_wen := d_mask
           }
           dec_trees_wen := d_sizeOH >> (shift+1)
@@ -257,8 +259,8 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
             val f_size = flight(i).size
             val f_bits = UIntToOH1(f_size, addressBits)
             val d_bits = UIntToOH1(d_size, addressBits)
-            val overlap = ~(~(f_base ^ d_base) | (f_bits | d_bits)) === UInt(0)
-            when (overlap) { valid(i) := Bool(false) }
+            val overlap = ~(~(f_base ^ d_base) | (f_bits | d_bits)) === 0.U
+            when (overlap) { valid(i) := false.B }
           }
         }
 
@@ -274,9 +276,9 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
           assert (d.opcode === TLMessages.AccessAckData)
           for (i <- 0 until beatBytes) {
             val got = d.data(8*(i+1)-1, 8*i)
-            val shadow = Wire(init = d_shadow(i))
+            val shadow = WireDefault(d_shadow(i))
             when (d_mask(i)) {
-              val d_addr = d_addr_hi << shift | UInt(i)
+              val d_addr = d_addr_hi << shift | i.U
               printf(log + " ")
               when (d_flight.opcode === TLMessages.Get) { printf("g ") }
               when (d_flight.opcode === TLMessages.ArithmeticData) { printf("a ") }
@@ -288,9 +290,9 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
                 printf(", undefined (concurrent incomplete puts #%d)\n", d_inc(i) - d_dec(i))
               } .elsewhen (!d_fifo && !d_valid) {
                 printf(", undefined (concurrent completed put)\n")
-              } .elsewhen (Bool(ignoreDeniedData) && d.denied) {
+              } .elsewhen (ignoreDeniedData.B && d.denied) {
                 printf(", undefined (denied result)\n")
-              } .elsewhen (Bool(ignoreCorruptData) && d.corrupt) {
+              } .elsewhen (ignoreCorruptData.B && d.corrupt) {
                 printf(", undefined (corrupt result)\n")
               } .otherwise {
                 printf("\n")
@@ -302,12 +304,12 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
         }
 
         when (d_flight.opcode === TLMessages.ArithmeticData || d_flight.opcode === TLMessages.LogicalData) {
-          val race = (d_inc zip d_dec) map { case (i, d) => i - d =/= UInt(1) }
-          when (d_first) { d_no_race := Bool(true) }
-          when ((Cat(race.reverse) & d_mask).orR) { d_no_race := Bool(false) }
+          val race = (d_inc zip d_dec) map { case (i, d) => i - d =/= 1.U }
+          when (d_first) { d_no_race := true.B }
+          when ((Cat(race.reverse) & d_mask).orR) { d_no_race := false.B }
           when (d_last) {
             val must_match = d_crc_valid && (d_fifo || (d_valid && d_no_race))
-            val corrupt = (Bool(ignoreCorruptData) && d.corrupt) || (Bool(ignoreDeniedData) && d.denied)
+            val corrupt = (ignoreCorruptData.B && d.corrupt) || (ignoreDeniedData.B && d.denied)
             printf(log + " crc = 0x%x %d\n", d_crc, must_match.asUInt)
             when (!corrupt && must_match && d_crc =/= d_crc_check) { printf("EXPECTED: 0x%x\n", d_crc_check) }
             assert (corrupt || !must_match || d_crc === d_crc_check)
@@ -317,14 +319,14 @@ class TLRAMModel(log: String = "", ignoreCorruptData: Boolean = false, ignoreDen
 
       val d_waddr = Mux(wipe, wipeIndex, d_addr_hi)
       for (i <- 0 until beatBytes) {
-        val data = Mux(wipe, UInt(0), d_dec_bytes(i) + UInt(1))
+        val data = Mux(wipe, 0.U, d_dec_bytes(i) + 1.U)
         when (dec_bytes_wen(i)) {
           dec_bytes(i).write(d_waddr, data)
         }
       }
 
       for (i <- 0 until dec_trees.size) {
-        val data = Mux(wipe, UInt(0), d_dec_trees(i) + UInt(1))
+        val data = Mux(wipe, 0.U, d_dec_trees(i) + 1.U)
         when (dec_trees_wen(i)) {
           dec_trees(i).write(d_waddr >> (i+1), data)
         }
@@ -343,13 +345,13 @@ object TLRAMModel
 
   case class MonitorParameters(addressBits: Int, sizeBits: Int)
 
-  class ByteMonitor(params: MonitorParameters) extends GenericParameterizedBundle(params) {
+  class ByteMonitor(val params: MonitorParameters) extends Bundle {
     val valid = Bool()
-    val value = UInt(width = 8)
+    val value = UInt(8.W)
   }
-  class FlightMonitor(params: MonitorParameters) extends GenericParameterizedBundle(params) {
-    val base    = UInt(width = params.addressBits)
-    val size    = UInt(width = params.sizeBits)
-    val opcode  = UInt(width = 3)
+  class FlightMonitor(val params: MonitorParameters) extends Bundle {
+    val base    = UInt(params.addressBits.W)
+    val size    = UInt(params.sizeBits.W)
+    val opcode  = UInt(3.W)
   }
 }

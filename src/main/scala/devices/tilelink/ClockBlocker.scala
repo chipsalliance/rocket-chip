@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.regmapper._
@@ -27,7 +27,8 @@ class TLClockBlocker(params: BasicBusBlockerParams)(implicit p: Parameters)
 
   val clockNode = ClockAdapterNode()
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val allow = RegInit(true.B)
     val pending = RegNext(bar.module.io.pending)
 

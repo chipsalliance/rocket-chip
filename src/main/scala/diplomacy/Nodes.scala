@@ -2,10 +2,9 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel._
-import chisel3.experimental.IO
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.{Field, Parameters}
+import chisel3._
+import chisel3.experimental.SourceInfo
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.util.HeterogeneousBag
 
 import scala.collection.immutable
@@ -226,6 +225,11 @@ abstract class BaseNode(implicit val valName: ValName) {
     * @return A sequence of [[Dangle]]s from this node that leave this [[BaseNode]]'s [[LazyScope]].
     */
   protected[diplomacy] def instantiate(): Seq[Dangle]
+  /** Determine the [[Dangle]]'s for connections without instantiating the node, or any child nodes
+    *
+    * @return A sequence of [[Dangle]]s from this node that leave this [[BaseNode]]'s [[LazyScope]].
+    */
+  protected[diplomacy] def cloneDangles(): Seq[Dangle]
 
   /** @return name of this node. */
   def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
@@ -1196,37 +1200,50 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     */
   lazy val edges: Edges[EI, EO] = Edges(edgesIn, edgesOut)
 
-  // These need to be chisel3.Wire because Chisel.Wire assigns Reset to a default value of Bool,
-  // and FIRRTL will not allow a Reset assigned to Bool to later be assigned to AsyncReset.
-  // If the diplomatic Bundle contains Resets this will hamstring them into synchronous resets.
-  // The jury is still out on whether the lack of ability to override the reset type
-  // is a Chisel/firrtl bug or whether this should be supported,
-  // but as of today it does not work to do so.
-
   /** Create actual Wires corresponding to the Bundles parameterized by the outward edges of this node. */
-  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map(e => chisel3.Wire(outer.bundleO(e)))
+  protected[diplomacy] lazy val bundleOut: Seq[BO] = edgesOut.map { e =>
+    val x = Wire(outer.bundleO(e)).suggestName(s"${valName.name}Out")
+    // TODO: Don't care unconnected forwarded diplomatic signals for compatibility issue,
+    //       In the future, we should add an option to decide whether allowing unconnected in the LazyModule
+    x := DontCare
+    x
+  }
 
   /** Create actual Wires corresponding to the Bundles parameterized by the inward edges of this node. */
-  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map(e => chisel3.Wire(inner.bundleI(e)))
+  protected[diplomacy] lazy val bundleIn:  Seq[BI] = edgesIn .map { e =>
+    val x = Wire(inner.bundleI(e)).suggestName(s"${valName.name}In")
+    // TODO: Don't care unconnected forwarded diplomatic signals for compatibility issue,
+    //       In the future, we should add an option to decide whether allowing unconnected in the LazyModule
+    x := DontCare
+    x
+  }
 
-  /** Create the [[Dangle]]s which describe the connections from this node output to other nodes inputs. */
-  protected[diplomacy] def danglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
+  private def emptyDanglesOut: Seq[Dangle] = oPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(serial, i),
       sink   = HalfEdge(n.serial, j),
       flipped= false,
       name   = wirePrefix + "out",
-      data   = bundleOut(i))
+      dataOpt= None)
   }
-
-  /** Create the [[Dangle]]s which describe the connections from this node input from other nodes outputs. */
-  protected[diplomacy] def danglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
+  private def emptyDanglesIn: Seq[Dangle] = iPorts.zipWithIndex.map { case ((j, n, _, _), i) =>
     Dangle(
       source = HalfEdge(n.serial, j),
       sink   = HalfEdge(serial, i),
       flipped= true,
       name   = wirePrefix + "in",
-      data   = bundleIn(i))
+      dataOpt=None)
+  }
+
+
+  /** Create the [[Dangle]]s which describe the connections from this node output to other nodes inputs. */
+  protected[diplomacy] def danglesOut: Seq[Dangle] = emptyDanglesOut.zipWithIndex.map {
+    case (d,i) => d.copy(dataOpt = Some(bundleOut(i)))
+  }
+
+  /** Create the [[Dangle]]s which describe the connections from this node input from other nodes outputs. */
+  protected[diplomacy] def danglesIn: Seq[Dangle] = emptyDanglesIn.zipWithIndex.map {
+    case (d,i) => d.copy(dataOpt = Some(bundleIn(i)))
   }
 
   private[diplomacy] var instantiated = false
@@ -1266,6 +1283,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     } }
     danglesOut ++ danglesIn
   }
+
+  protected[diplomacy] def cloneDangles(): Seq[Dangle] = emptyDanglesOut ++ emptyDanglesIn
 
   /** Connects the outward part of a node with the inward part of this node. */
   protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
@@ -1491,9 +1510,10 @@ class IdentityNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(imp
   override final def circuitIdentity = true
   override protected[diplomacy] def instantiate(): Seq[Dangle] = {
     val dangles = super.instantiate()
-    (out zip in) foreach { case ((o, _), (i, _)) => o <> i }
+    (out zip in) foreach { case ((o, _), (i, _)) => o :<>= i }
     dangles
   }
+  override protected[diplomacy] def cloneDangles(): Seq[Dangle] = super.cloneDangles()
 }
 
 /** [[EphemeralNode]]s are used as temporary connectivity placeholders, but disappear from the final node graph.
@@ -1511,6 +1531,7 @@ class EphemeralNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])()(im
     instantiated = true
     Nil
   }
+  override protected[diplomacy] def cloneDangles(): Seq[Dangle] = Nil
 }
 
 /** [[MixedNexusNode]] is used when the number of nodes connecting from either side is unknown (e.g. a Crossbar which also is a protocol adapter).
@@ -1625,7 +1646,7 @@ class SourceNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(po: Seq
 
   def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
     val bundles = this.out.map(_._1)
-    val ios = IO(Flipped(new HeterogeneousBag(bundles.map(_.cloneType))))
+    val ios = IO(Flipped(new HeterogeneousBag(bundles)))
     ios.suggestName(valName.name)
     bundles.zip(ios).foreach { case (bundle, io) => bundle <> io }
     ios
@@ -1689,7 +1710,7 @@ class SinkNode[D, U, EO, EI, B <: Data](imp: NodeImp[D, U, EO, EI, B])(pi: Seq[U
 
   def makeIOs()(implicit valName: ValName): HeterogeneousBag[B] = {
     val bundles = this.in.map(_._1)
-    val ios = IO(new HeterogeneousBag(bundles.map(_.cloneType)))
+    val ios = IO(new HeterogeneousBag(bundles))
     ios.suggestName(valName.name)
     bundles.zip(ios).foreach { case (bundle, io) => io <> bundle }
     ios
@@ -1771,5 +1792,9 @@ class MixedTestNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] protected[di
     }
 
     dangles
+  }
+  override protected[diplomacy] def cloneDangles(): Seq[Dangle] = {
+    require(false, "Unsupported")
+    super.cloneDangles()
   }
 }

@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.util.random.LFSR
 
 abstract class Decoding
@@ -30,7 +31,7 @@ abstract class Code
    *  If poison is true, the decoded value will report uncorrectable
    *  error despite uncorrected == corrected == x.
    */
-  def encode(x: UInt, poison: Bool = Bool(false)): UInt
+  def encode(x: UInt, poison: Bool = false.B): UInt
   def decode(x: UInt): Decoding
 
   /** Copy the bits in x to the right bit positions in an encoded word,
@@ -48,7 +49,7 @@ class IdentityCode extends Code
 
   def width(w0: Int) = w0
   def eccIndices(width: Int) = Seq.empty[Int]
-  def encode(x: UInt, poison: Bool = Bool(false)) = {
+  def encode(x: UInt, poison: Bool = false.B) = {
     require (poison.isLit && poison.litValue == 0, "IdentityCode can not be poisoned")
     x
   }
@@ -56,8 +57,8 @@ class IdentityCode extends Code
   def decode(y: UInt) = new Decoding {
     def uncorrected = y
     def corrected = y
-    def correctable = Bool(false)
-    def uncorrectable = Bool(false)
+    def correctable = false.B
+    def uncorrectable = false.B
   }
 }
 
@@ -68,12 +69,12 @@ class ParityCode extends Code
 
   def width(w0: Int) = w0+1
   def eccIndices(w0: Int) = Seq(w0)
-  def encode(x: UInt, poison: Bool = Bool(false)) = Cat(x.xorR ^ poison, x)
+  def encode(x: UInt, poison: Bool = false.B) = Cat(x.xorR ^ poison, x)
   def swizzle(x: UInt) = Cat(false.B, x)
   def decode(y: UInt) = new Decoding {
     val uncorrected = y(y.getWidth-2,0)
     val corrected = uncorrected
-    val correctable = Bool(false)
+    val correctable = false.B
     val uncorrectable = y.xorR
   }
 }
@@ -101,7 +102,7 @@ class SECCode extends Code
   def swizzle(x: UInt) = {
     val k = x.getWidth
     val n = width(k)
-    Cat(UInt(0, width=n-k), x)
+    Cat(0.U((n-k).W), x)
   }
 
   // An (n=16, k=11) Hamming code is naturally encoded as:
@@ -126,14 +127,14 @@ class SECCode extends Code
     val sys2hamm = hamm2sys.zipWithIndex.sortBy(_._1).map(_._2).toIndexedSeq
     def syndrome(j: Int) = {
       val bit = 1 << j
-      UInt("b" + Seq.tabulate(n) { i =>
+      ("b" + Seq.tabulate(n) { i =>
         if ((sys2hamm(i) & bit) != 0) "1" else "0"
-      }.reverse.mkString)
+      }.reverse.mkString).U
     }
     (hamm2sys, sys2hamm, syndrome _)
   }
 
-  def encode(x: UInt, poison: Bool = Bool(false)) = {
+  def encode(x: UInt, poison: Bool = false.B) = {
     val k = x.getWidth
     val n = width(k)
     val (_, _, syndrome) = impl(n, k)
@@ -141,7 +142,7 @@ class SECCode extends Code
     require ((poison.isLit && poison.litValue == 0) || poisonous(n), s"SEC code of length ${n} cannot be poisoned")
 
     /* By setting the entire syndrome on poison, the corrected bit falls off the end of the code */
-    val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j)(k-1, 0) & x).xorR ^ poison }.asUInt
+    val syndromeUInt = VecInit.tabulate(n-k) { j => (syndrome(j)(k-1, 0) & x).xorR ^ poison }.asUInt
     Cat(syndromeUInt, x)
   }
 
@@ -150,15 +151,15 @@ class SECCode extends Code
     val k = n - log2Ceil(n)
     val (_, sys2hamm, syndrome) = impl(n, k)
 
-    val syndromeUInt = Vec.tabulate(n-k) { j => (syndrome(j) & y).xorR }.asUInt
+    val syndromeUInt = VecInit.tabulate(n-k) { j => (syndrome(j) & y).xorR }.asUInt
 
     val hammBadBitOH = UIntToOH(syndromeUInt, n+1)
-    val sysBadBitOH = Vec.tabulate(k) { i => hammBadBitOH(sys2hamm(i)) }.asUInt
+    val sysBadBitOH = VecInit.tabulate(k) { i => hammBadBitOH(sys2hamm(i)) }.asUInt
 
     val uncorrected = y(k-1, 0)
     val corrected = uncorrected ^ sysBadBitOH
     val correctable = syndromeUInt.orR
-    val uncorrectable = if (poisonous(n)) { syndromeUInt > UInt(n) } else { Bool(false) }
+    val uncorrectable = if (poisonous(n)) { syndromeUInt > n.U } else { false.B }
   }
 }
 
@@ -176,7 +177,7 @@ class SECDEDCode extends Code
       case i if i >= w0 => i
     }
   }
-  def encode(x: UInt, poison: Bool = Bool(false)) = {
+  def encode(x: UInt, poison: Bool = false.B) = {
     // toggling two bits ensures the error is uncorrectable
     // to ensure corrected == uncorrected, we pick one redundant
     // bit from SEC (the highest); correcting it does not affect
@@ -239,10 +240,10 @@ class ECCTest(k: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val n = code.width(k)
 
   // Brute force the decode space
-  val test = RegInit(UInt(0, width=n+1))
+  val test = RegInit(0.U((n+1).W))
   val last = test(n)
   test := test + !last
-  io.finished := RegNext(last, Bool(false))
+  io.finished := RegNext(last, false.B)
 
   // Confirm the decoding matches the encoding
   val decoded = code.decode(test(n-1, 0))
@@ -250,21 +251,21 @@ class ECCTest(k: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val distance = PopCount(recoded ^ test)
 
   // Count the cases
-  val correct = RegInit(UInt(0, width=n))
-  val correctable = RegInit(UInt(0, width=n))
-  val uncorrectable = RegInit(UInt(0, width=n))
+  val correct = RegInit(0.U(n.W))
+  val correctable = RegInit(0.U(n.W))
+  val uncorrectable = RegInit(0.U(n.W))
 
   when (!last) {
     when (decoded.uncorrectable) {
-      assert (distance >= UInt(2)) // uncorrectable
-      uncorrectable := uncorrectable + UInt(1)
+      assert (distance >= 2.U) // uncorrectable
+      uncorrectable := uncorrectable + 1.U
     } .elsewhen (decoded.correctable) {
       assert (distance(0)) // correctable => odd bit errors
-      correctable := correctable + UInt(1)
+      correctable := correctable + 1.U
     } .otherwise {
-      assert (distance === UInt(0)) // correct
+      assert (distance === 0.U) // correct
       assert (decoded.uncorrected === decoded.corrected)
-      correct := correct + UInt(1)
+      correct := correct + 1.U
     }
   }
 
@@ -275,8 +276,8 @@ class ECCTest(k: Int, timeout: Int = 500000) extends UnitTest(timeout) {
   val nUncorrectable = nCodes - nCorrectable - nCorrect
 
   when (last) {
-    assert (correct === UInt(nCorrect))
-    assert (correctable === UInt(nCorrectable))
-    assert (uncorrectable === UInt(nUncorrectable))
+    assert (correct === nCorrect.U)
+    assert (correctable === nCorrectable.U)
+    assert (uncorrectable === nUncorrectable.U)
   }
 }

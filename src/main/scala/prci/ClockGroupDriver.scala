@@ -2,8 +2,7 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import chisel3.experimental.IO
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{InModuleBody, ModuleValue, ValName}
 import freechips.rocketchip.util.{RecordMap}
 

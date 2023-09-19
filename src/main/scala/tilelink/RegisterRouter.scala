@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.RawModule
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.util._
@@ -12,18 +13,15 @@ import freechips.rocketchip.util._
 import scala.math.min
 
 class TLRegisterRouterExtraBundle(val sourceBits: Int, val sizeBits: Int) extends Bundle {
-  val source = UInt(width = sourceBits max 1)
-  val size   = UInt(width = sizeBits max 1)
+  val source = UInt((sourceBits max 1).W)
+  val size   = UInt((sizeBits max 1).W)
 }
 
 case object TLRegisterRouterExtra extends ControlKey[TLRegisterRouterExtraBundle]("tlrr_extra")
-case class TLRegisterRouterExtraField(sourceBits: Int, sizeBits: Int) extends BundleField(TLRegisterRouterExtra) {
-  def data = Output(new TLRegisterRouterExtraBundle(sourceBits, sizeBits))
-  def default(x: TLRegisterRouterExtraBundle) = {
-    x.size   := 0.U
-    x.source := 0.U
-  }
-}
+case class TLRegisterRouterExtraField(sourceBits: Int, sizeBits: Int) extends BundleField[TLRegisterRouterExtraBundle](TLRegisterRouterExtra, Output(new TLRegisterRouterExtraBundle(sourceBits, sizeBits)), x => {
+  x.size   := 0.U
+  x.source := 0.U
+})
 
 /** TLRegisterNode is a specialized TL SinkNode that encapsulates MMIO registers.
   * It provides functionality for describing and outputting metdata about the registers in several formats.
@@ -72,7 +70,9 @@ case class TLRegisterNode(
     in.bits.index := edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
-    in.bits.extra :<= a.bits.echo
+    Connectable.waiveUnmatched(in.bits.extra, a.bits.echo) match {
+      case (lhs, rhs) => lhs :<= rhs
+    }
 
     val a_extra = in.bits.extra(TLRegisterRouterExtra)
     a_extra.source := a.bits.source
@@ -93,13 +93,16 @@ case class TLRegisterNode(
 
     // avoid a Mux on the data bus by manually overriding two fields
     d.bits.data := out.bits.data
-    d.bits.echo :<= out.bits.extra
+    Connectable.waiveUnmatched(d.bits.echo, out.bits.extra) match {
+      case (lhs, rhs) => lhs :<= rhs
+    }
+
     d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
 
     // Tie off unused channels
-    bundleIn.b.valid := Bool(false)
-    bundleIn.c.ready := Bool(true)
-    bundleIn.e.ready := Bool(true)
+    bundleIn.b.valid := false.B
+    bundleIn.c.ready := true.B
+    bundleIn.e.ready := true.B
 
     genRegDescsJson(mapping:_*)
   }
@@ -108,7 +111,7 @@ case class TLRegisterNode(
     // Dump out the register map for documentation purposes.
     val base = address.head.base
     val baseHex = s"0x${base.toInt.toHexString}"
-    val name = s"deviceAt${baseHex}" //TODO: It would be better to name this other than "Device at ...."
+    val name = s"${device.describe(ResourceBindings()).name}.At${baseHex}"
     val json = GenRegDescsAnno.serialize(base, name, mapping:_*)
     var suffix = 0
     while( ElaborationArtefacts.contains(s"${baseHex}.${suffix}.regmap.json")) {

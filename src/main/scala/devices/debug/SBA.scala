@@ -5,7 +5,7 @@ package freechips.rocketchip.devices.debug.systembusaccess
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.tilelink._
@@ -219,11 +219,11 @@ object SystemBusAccessModule
         sbErrorReg(i) := 0.U
     }.otherwise {
       for (i <- 0 until 3)
-        sbErrorReg(i) := Mux(sberrorWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U(i), // W1C
-                         Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), BadAddr.id.U(i), // Bad address accessed
-                         Mux((tryWrEn || tryRdEn) && sbAlignmentError, AlgnError.id.U(i), // Address alignment error
-                         Mux((tryWrEn || tryRdEn) && sbAccessError, BadAccess.id.U(i), // Access size error
-                         Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, OtherError.id.U(i), sbErrorReg(i)))))) // Response error from TL
+        sbErrorReg(i) := Mux(sberrorWrEn && SBCSWrData.sberror(i) === 1.U, NoError.id.U.extract(i), // W1C
+                         Mux((sb2tl.module.io.wrEn && !sb2tl.module.io.wrLegal) || (sb2tl.module.io.rdEn && !sb2tl.module.io.rdLegal), BadAddr.id.U.extract(i), // Bad address accessed
+                         Mux((tryWrEn || tryRdEn) && sbAlignmentError, AlgnError.id.U.extract(i), // Address alignment error
+                         Mux((tryWrEn || tryRdEn) && sbAccessError, BadAccess.id.U.extract(i), // Access size error
+                         Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && sb2tl.module.io.respError, OtherError.id.U.extract(i), sbErrorReg(i)))))) // Response error from TL
     }
 
     SBCSRdData             := SBCSFieldsReg
@@ -266,7 +266,8 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     clients = Seq(TLMasterParameters.v1("debug")),
     requestFields = Seq(AMBAProtField()))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val rdEn         = Input(Bool())
       val wrEn         = Input(Bool())

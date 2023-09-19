@@ -17,6 +17,7 @@ sim_vsrcs = \
     $(vsrc)/$(TB).v \
     $(vsrc)/SimDTM.v \
     $(vsrc)/SimJTAG.v \
+    $(vsrc)/debug_rob.v \
     $(bb_vsrcs)
 
 # C sources
@@ -24,6 +25,7 @@ sim_vsrcs = \
 sim_csrcs = \
     $(csrc)/SimDTM.cc \
     $(csrc)/SimJTAG.cc \
+    $(csrc)/debug_rob.cc \
     $(csrc)/remote_bitbang.cc
 
 #--------------------------------------------------------------------
@@ -44,7 +46,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+rad +v2k +vcs+lic+wait \
 	+vc+list -CC "-I$(VCS_HOME)/include" \
 	-CC "-I$(RISCV)/include" \
-	-CC "-std=c++11" \
+	-CC "-std=c++17" \
 	-CC "-Wl,-rpath,$(RISCV)/lib" \
 	$(RISCV)/lib/libfesvr.a \
 	-sverilog \
@@ -58,6 +60,7 @@ VCS_OPTS = -notice -line +lint=all,noVCDE,noONGS,noUI -error=PCWM-L -timescale=1
 	+define+RANDOMIZE_INVALID_ASSIGN \
 	+define+RANDOMIZE_DELAY=0.1 \
 	+define+MODEL=$(MODEL) \
+	+define+FSDB \
 	+libext+.v \
 
 #--------------------------------------------------------------------
@@ -76,7 +79,7 @@ $(simv_debug) : $(sim_vsrcs) $(sim_csrcs)
 	cd $(sim_dir) && \
 	rm -rf csrc && \
 	$(VCS) $(VCS_OPTS) -o $(simv_debug) \
-	+define+DEBUG -debug_pp \
+	+define+DEBUG -debug_pp -debug_access+all -kdb -lca \
 
 #--------------------------------------------------------------------
 # Run

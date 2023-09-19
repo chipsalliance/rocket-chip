@@ -2,13 +2,14 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import chisel3.util.{log2Ceil, Cat}
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
-case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(UInt(OUTPUT, width = width), UInt(0))
+case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(Output(UInt(width.W)), 0.U)
 
 /** This adapter limits the set of FIFO domain ids used by outbound transactions.
   *
@@ -54,15 +55,27 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
     slaveFn = { sp => sp
     })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
 
       // Leave everything mostly untouched
-      out.ar :<> in.ar
-      out.aw :<> in.aw
-      out.w :<> in.w
-      in.b :<> out.b
-      in.r :<> out.r
+
+      Connectable.waiveUnmatched(out.ar, in.ar) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(out.aw, in.aw) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(out.w, in.w) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(in.b, out.b) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
+      Connectable.waiveUnmatched(in.r, out.r) match {
+        case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
+      }
 
       val bits = log2Ceil(edgeIn.master.endId) - idBits
       if (bits > 0) {
@@ -71,8 +84,8 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
         out.aw.bits.echo(AXI4ExtraId) := in.aw.bits.id >> idBits
         // Special care is needed in case of 0 idBits, b/c .id has width 1 still
         if (idBits == 0) {
-          out.ar.bits.id := UInt(0)
-          out.aw.bits.id := UInt(0)
+          out.ar.bits.id := 0.U
+          out.aw.bits.id := 0.U
           in.r.bits.id := out.r.bits.echo(AXI4ExtraId)
           in.b.bits.id := out.b.bits.echo(AXI4ExtraId)
         } else {

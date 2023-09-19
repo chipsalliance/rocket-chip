@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
-import chisel3.internal.InstanceId
+import chisel3._
 import chisel3.experimental.{annotate, ChiselAnnotation}
 import chisel3.RawModule
 import firrtl.annotations._
@@ -45,7 +44,7 @@ case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[
 }
 
 case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) extends ChiselAnnotation {
-  private val paramMap = params.getClass.getDeclaredFields.map(_.getName).zip(params.productIterator.to).toMap
+  private val paramMap = params.getClass.getDeclaredFields.map(_.getName).zip(params.productIterator).toMap
   def toFirrtl = ParamsAnnotation(target.toNamed, params.getClass.getName, paramMap)
 }
 

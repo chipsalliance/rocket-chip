@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
@@ -32,11 +33,11 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val in = Wire(Decoupled(new RegMapperInput(params)))
     val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
 
-    val d_phase = RegInit(Bool(false))
+    val d_phase = RegInit(false.B)
     val d_taken = Reg(Bool())
     val d_read  = Reg(Bool())
-    val d_index = Reg(UInt(width = indexBits))
-    val d_mask  = Reg(UInt(width = beatBytes))
+    val d_index = Reg(UInt(indexBits.W))
+    val d_mask  = Reg(UInt(beatBytes.W))
 
     // Only send the request to the RR once
     d_taken := d_phase && in.ready
@@ -47,7 +48,7 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     in.bits.data  := ahb.hwdata
     in.bits.mask  := d_mask
 
-    when (ahb.hready) { d_phase := Bool(false) }
+    when (ahb.hready) { d_phase := false.B }
     ahb.hreadyout := !d_phase || out.valid
     ahb.hresp     := AHBParameters.RESP_OKAY
     ahb.hrdata    := out.bits.data
@@ -55,14 +56,14 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
     val request = ahb.htrans === AHBParameters.TRANS_NONSEQ || ahb.htrans === AHBParameters.TRANS_SEQ
     when (ahb.hready && ahb.hsel && request) {
       assert (!in.valid || in.ready)
-      d_phase := Bool(true)
-      d_taken := Bool(false)
+      d_phase := true.B
+      d_taken := false.B
       d_read  := !ahb.hwrite
       d_index := ahb.haddr >> log2Ceil(beatBytes)
       d_mask  := MaskGen(ahb.haddr, ahb.hsize, beatBytes)
     }
 
-    out.ready := Bool(true)
+    out.ready := true.B
     assert (d_phase || !out.valid)
   }
 }

@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.regmapper
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util.{Cat, log2Ceil}
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.LazyModuleImp
 import freechips.rocketchip.util.{Pow2ClockDivider}
 
@@ -12,7 +13,7 @@ object LFSR16Seed
   def apply(seed: Int): UInt =
   {
     val width = 16
-    val lfsr = Reg(init=UInt((seed*0x7231) % 65536, width))
+    val lfsr = RegInit(((seed*0x7231) % 65536).U(width.W))
     lfsr := Cat(lfsr(0)^lfsr(2)^lfsr(3)^lfsr(5), lfsr(width-1,1))
     lfsr
   }
@@ -20,23 +21,23 @@ object LFSR16Seed
 
 class RRTestCombinational(val bits: Int, rvalid: Bool => Bool, wready: Bool => Bool) extends Module
 {
-  val io = new Bundle {
-    val rvalid = Bool(OUTPUT)
-    val rready = Bool(INPUT)
-    val rdata  = UInt(OUTPUT, width = bits)
-    val wvalid = Bool(INPUT)
-    val wready = Bool(OUTPUT)
-    val wdata  = UInt(INPUT, width = bits)
-  }
+  val io = IO(new Bundle {
+    val rvalid = Output(Bool())
+    val rready = Input(Bool())
+    val rdata  = Output(UInt(bits.W))
+    val wvalid = Input(Bool())
+    val wready = Output(Bool())
+    val wdata  = Input(UInt(bits.W))
+  })
 
-  val reg = RegInit(UInt(0, width = bits))
+  val reg = RegInit(0.U(bits.W))
 
   val rvalid_s = rvalid(io.rready)
   val wready_s = wready(io.wvalid)
   io.rvalid := rvalid_s
   io.wready := wready_s
 
-  io.rdata := Mux(rvalid_s && io.rready, reg, UInt(0))
+  io.rdata := Mux(rvalid_s && io.rready, reg, 0.U)
   when (io.wvalid && wready_s) { reg := io.wdata }
 }
 
@@ -44,7 +45,7 @@ object RRTestCombinational
 {
   private var seed = 42
 
-  def always: Bool => Bool = _ => Bool(true)
+  def always: Bool => Bool = _ => true.B
 
   def random: Bool => Bool = { ready =>
     seed = seed + 1
@@ -52,17 +53,17 @@ object RRTestCombinational
   }
 
   def delay(x: Int): Bool => Bool = { ready =>
-    val reg = RegInit(UInt(0, width = log2Ceil(x+1)))
-    val valid = reg === UInt(0)
-    reg := Mux(ready && valid, UInt(x), Mux(valid, UInt(0), reg - UInt(1)))
+    val reg = RegInit(0.U(log2Ceil(x+1).W))
+    val valid = reg === 0.U
+    reg := Mux(ready && valid, x.U, Mux(valid, 0.U, reg - 1.U))
     valid
   }
 
   def combo(bits: Int, rvalid: Bool => Bool, wready: Bool => Bool): RegField = {
-    val combo = Module(new RRTestCombinational(bits, rvalid, wready))
+    lazy val combo = Module(new RRTestCombinational(bits, rvalid, wready))
     RegField(bits,
-      RegReadFn { ready => combo.io.rready := ready; (combo.io.rvalid, combo.io.rdata) },
-      RegWriteFn { (valid, data) => combo.io.wvalid := valid; combo.io.wdata := data; combo.io.wready })
+      RegReadFn(ready => {combo.io.rready := ready; (combo.io.rvalid, combo.io.rdata) }),
+      RegWriteFn((valid, data) => {combo.io.wvalid := valid; combo.io.wdata := data; combo.io.wready }))
   }
 }
 
@@ -70,22 +71,22 @@ class RRTestRequest(val bits: Int,
   rflow: (Bool, Bool, UInt) => (Bool, Bool, UInt),
   wflow: (Bool, Bool, UInt) => (Bool, Bool, UInt)) extends Module
 {
-  val io = new Bundle {
-    val rivalid = Bool(INPUT)
-    val riready = Bool(OUTPUT)
-    val rovalid = Bool(OUTPUT)
-    val roready = Bool(INPUT)
-    val rdata  = UInt(OUTPUT, width = bits)
-    val wivalid = Bool(INPUT)
-    val wiready = Bool(OUTPUT)
-    val wovalid = Bool(OUTPUT)
-    val woready = Bool(INPUT)
-    val wdata  = UInt(INPUT, width = bits)
-  }
+  val io = IO(new Bundle {
+    val rivalid = Input(Bool())
+    val riready = Output(Bool())
+    val rovalid = Output(Bool())
+    val roready = Input(Bool())
+    val rdata  = Output(UInt(bits.W))
+    val wivalid = Input(Bool())
+    val wiready = Output(Bool())
+    val wovalid = Output(Bool())
+    val woready = Input(Bool())
+    val wdata  = Input(UInt(bits.W))
+  })
 
-  val (riready, rovalid, _)     = rflow(io.rivalid, io.roready, UInt(0, width = 1))
+  val (riready, rovalid, _)     = rflow(io.rivalid, io.roready, 0.U(1.W))
   val (wiready, wovalid, wdata) = wflow(io.wivalid, io.woready, io.wdata)
-  val reg = RegInit(UInt(0, width = bits))
+  val reg = RegInit(0.U(bits.W))
 
   io.riready := riready
   io.rovalid := rovalid
@@ -95,7 +96,7 @@ class RRTestRequest(val bits: Int,
   val rofire = io.roready && rovalid
   val wofire = io.woready && wovalid
 
-  io.rdata := Mux(rofire, reg, UInt(0))
+  io.rdata := Mux(rofire, reg, 0.U)
   when (wofire) { reg := wdata }
 }
 
@@ -103,9 +104,9 @@ object RRTestRequest
 {
   private var seed = 1231
   def pipe(x: Int): (Bool, Bool, UInt) => (Bool, Bool, UInt) = { (ivalid, oready, idata) =>
-    val full = RegInit(Vec.fill(x)(Bool(false)))
+    val full = RegInit(VecInit.fill(x)(false.B))
     val ready = Wire(Vec(x, Bool()))
-    val data = Reg(Vec(x, UInt(width = idata.getWidth)))
+    val data = Reg(Vec(x, UInt(idata.getWidth.W)))
     // Construct a classic bubble-filling pipeline
     ready(x-1) := oready || !full(x-1)
     when (ready(0)) { data(0) := idata }
@@ -126,8 +127,8 @@ object RRTestRequest
     seed = seed + 1
     (ivalid, oready, idata) => {
       val lfsr = LFSR16Seed(seed)
-      val busy = RegInit(Bool(false))
-      val data = Reg(UInt(width = idata.getWidth))
+      val busy = RegInit(false.B)
+      val data = Reg(UInt(idata.getWidth.W))
       val progress = lfsr(0)
       val iready = progress && !busy
       val ovalid = progress && busy
@@ -210,7 +211,8 @@ abstract class RRTest0(address: BigInt)(implicit p: Parameters)
     base = address,
     size = 32))
 {
-  lazy val module = new LazyModuleImp(this) { regmap(RRTest0Map.map:_*) }
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) { regmap(RRTest0Map.map:_*) }
 }
 
 abstract class RRTest1(address: BigInt, concurrency: Int, undefZero: Boolean = true)(implicit p: Parameters)
@@ -222,23 +224,26 @@ abstract class RRTest1(address: BigInt, concurrency: Int, undefZero: Boolean = t
     concurrency = concurrency,
     undefZero = undefZero))
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val clocks = Module(new Pow2ClockDivider(2))
 
     def x(bits: Int) = {
-      val field = UInt(width = bits)
+      val field = UInt(bits.W)
 
       val readCross = Module(new RegisterReadCrossing(field))
+      readCross.io := DontCare
       readCross.io.master_clock  := clock
       readCross.io.master_reset  := reset
-      readCross.io.master_bypass := Bool(false)
+      readCross.io.master_bypass := false.B
       readCross.io.slave_clock   := clocks.io.clock_out
       readCross.io.slave_reset   := reset
 
       val writeCross = Module(new RegisterWriteCrossing(field))
+      writeCross.io := DontCare
       writeCross.io.master_clock  := clock
       writeCross.io.master_reset  := reset
-      writeCross.io.master_bypass := Bool(false)
+      writeCross.io.master_bypass := false.B
       writeCross.io.slave_clock   := clocks.io.clock_out
       writeCross.io.slave_reset   := reset
 

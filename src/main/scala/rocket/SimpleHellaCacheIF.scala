@@ -3,9 +3,10 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3._
+import chisel3.util.{Valid,Decoupled,Queue,log2Up,OHToUInt,UIntToOH,PriorityEncoderOH,Arbiter,RegEnable,Cat}
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
 
 /**
@@ -17,12 +18,12 @@ import freechips.rocketchip.util._
 class SimpleHellaCacheIFReplayQueue(depth: Int)
     (implicit val p: Parameters) extends Module
     with HasL1HellaCacheParameters {
-  val io = new Bundle {
-    val req = Decoupled(new HellaCacheReq).flip
-    val nack = Valid(Bits(width = coreParams.dcacheReqTagBits)).flip
-    val resp = Valid(new HellaCacheResp).flip
+  val io = IO(new Bundle {
+    val req = Flipped(Decoupled(new HellaCacheReq))
+    val nack = Flipped(Valid(Bits(coreParams.dcacheReqTagBits.W)))
+    val resp = Flipped(Valid(new HellaCacheResp))
     val replay = Decoupled(new HellaCacheReq)
-  }
+  })
 
   // Registers to store the sent request
   // When a request is sent the first time,
@@ -30,7 +31,7 @@ class SimpleHellaCacheIFReplayQueue(depth: Int)
   // and the corresponding inflight bit is set.
   // The reqs register will be deallocated once the request is
   // successfully completed.
-  val inflight = Reg(init = UInt(0, depth))
+  val inflight = RegInit(0.U(depth.W))
   val reqs = Reg(Vec(depth, new HellaCacheReq))
 
   // The nack queue stores the index of nacked requests (in the reqs vector)
@@ -40,8 +41,8 @@ class SimpleHellaCacheIFReplayQueue(depth: Int)
   // successfully completed, at which time the request is dequeued.
   // No new requests will be made or other replays attempted until the head
   // of the nackq is successfully completed.
-  val nackq = Module(new Queue(UInt(width = log2Up(depth)), depth))
-  val replaying = Reg(init = Bool(false))
+  val nackq = Module(new Queue(UInt(log2Up(depth).W), depth))
+  val replaying = RegInit(false.B)
 
   val next_inflight_onehot = PriorityEncoderOH(~inflight)
   val next_inflight = OHToUInt(next_inflight_onehot)
@@ -78,25 +79,26 @@ class SimpleHellaCacheIFReplayQueue(depth: Int)
 
   // Set inflight bit when a request is made
   // Clear it when it is successfully completed
-  inflight := (inflight | Mux(io.req.fire(), next_inflight_onehot, UInt(0))) &
-                          ~Mux(io.resp.valid, resp_onehot, UInt(0))
+  inflight := (inflight | Mux(io.req.fire, next_inflight_onehot, 0.U)) &
+                          ~Mux(io.resp.valid, resp_onehot, 0.U)
 
-  when (io.req.fire()) {
+  when (io.req.fire) {
     reqs(next_inflight) := io.req.bits
   }
 
   // Only one replay outstanding at a time
-  when (io.replay.fire()) { replaying := Bool(true) }
-  when (nack_head || replay_complete) { replaying := Bool(false) }
+  when (io.replay.fire) { replaying := true.B }
+  when (nack_head || replay_complete) { replaying := false.B }
 }
 
 // exposes a sane decoupled request interface
 class SimpleHellaCacheIF(implicit p: Parameters) extends Module
 {
-  val io = new Bundle {
-    val requestor = new HellaCacheIO().flip
+  val io = IO(new Bundle {
+    val requestor = Flipped(new HellaCacheIO())
     val cache = new HellaCacheIO
-  }
+  })
+  io <> DontCare
 
   val replayq = Module(new SimpleHellaCacheIFReplayQueue(2))
   val req_arb = Module(new Arbiter(new HellaCacheReq, 2))
@@ -113,11 +115,11 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   replayq.io.req.valid := req_helper.fire(replayq.io.req.ready)
   replayq.io.req.bits := io.requestor.req.bits
 
-  val s0_req_fire = io.cache.req.fire()
-  val s1_req_fire = Reg(next = s0_req_fire)
-  val s2_req_fire = Reg(next = s1_req_fire)
-  val s1_req_tag = Reg(next = io.cache.req.bits.tag)
-  val s2_req_tag = Reg(next = s1_req_tag)
+  val s0_req_fire = io.cache.req.fire
+  val s1_req_fire = RegNext(s0_req_fire)
+  val s2_req_fire = RegNext(s1_req_fire)
+  val s1_req_tag = RegNext(io.cache.req.bits.tag)
+  val s2_req_tag = RegNext(s1_req_tag)
 
   assert(!RegNext(io.cache.s2_nack) || !s2_req_fire || io.cache.s2_nack)
   assert(!io.cache.s2_nack || !io.cache.req.ready)

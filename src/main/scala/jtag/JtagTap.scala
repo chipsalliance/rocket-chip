@@ -5,7 +5,7 @@ package freechips.rocketchip.jtag
 import scala.collection.SortedMap
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 
 /** JTAG signals, viewed from the master side
   */
@@ -72,7 +72,7 @@ class JtagTapController(irLength: Int, initialInstruction: BigInt)(implicit val 
   // JTAG state machine
   //
 
-  val currState = Wire(JtagState.State.chiselType)
+  val currState = Wire(JtagState.State.chiselType())
 
   // At this point, the TRSTn should already have been
   // combined with any POR, and it should also be
@@ -180,7 +180,7 @@ object JtagTapGenerator {
         require(!(instructions contains icode), "instructions may not contain IDCODE")
         val idcodeChain = Module(CaptureChain(new JTAGIdcodeBundle()))
         idcodeChain.suggestName("idcodeChain")
-        val i = internalIo.idcode.get.asUInt()
+        val i = internalIo.idcode.get.asUInt
         assert(i % 2.U === 1.U, "LSB must be set in IDCODE, see 12.1.1d")
         assert(((i >> 1) & ((1.U << 11) - 1.U)) =/= JtagIdcode.dummyMfrId.U,
           "IDCODE must not have 0b00001111111 as manufacturer identity, see 12.2.1b")

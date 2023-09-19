@@ -3,22 +3,21 @@
 
 package freechips.rocketchip.system
 
-import freechips.rocketchip.config.Config
+import org.chipsalliance.cde.config.Config
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.groundtest.WithTraceGen
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 class WithDebugSBASystem extends freechips.rocketchip.subsystem.WithDebugSBA
 class WithDebugAPB extends freechips.rocketchip.subsystem.WithDebugAPB
 
 class BaseConfig extends Config(
-  new WithDefaultMemPort() ++
-  new WithDefaultMMIOPort() ++
-  new WithDefaultSlavePort() ++
+  new WithDefaultMemPort ++
+  new WithDefaultMMIOPort ++
+  new WithDefaultSlavePort ++
   new WithTimebase(BigInt(1000000)) ++ // 1 MHz
   new WithDTS("freechips,rocketchip-unknown", Nil) ++
   new WithNExtTopInterrupts(2) ++
-  new BaseSubsystemConfig()
+  new BaseSubsystemConfig
 )
 
 class DefaultConfig extends Config(new WithNBigCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)
@@ -26,6 +25,12 @@ class DefaultConfig extends Config(new WithNBigCores(1) ++ new WithCoherentBusTo
 class DefaultBufferlessConfig extends Config(new WithBufferlessBroadcastHub ++ new DefaultConfig)
 class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
+class DefaultFP16Config extends Config(new WithFP16 ++ new DefaultConfig)
+
+class BitManipCryptoConfig extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultConfig)
+class BitManipCrypto32Config extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultRV32Config)
+
+class HypervisorConfig extends Config(new WithHypervisor ++ new DefaultConfig)
 
 class DualBankConfig extends Config(new WithNBanks(2) ++ new DefaultConfig)
 class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusTopology ++ new BaseConfig)
@@ -34,12 +39,12 @@ class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new Defaul
 
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
-  new WithNBanks(4) ++ new DefaultConfig)
+  new WithNBanks(4) ++ new DefaultConfig
+)
 
 class RoccExampleConfig extends Config(new WithRoccExample ++ new DefaultConfig)
 
 class HeterogeneousTileExampleConfig extends Config(
-  new WithTraceGen (n = 2, overrideMemOffset = Some(0x90000000L))() ++
   new WithNBigCores(n = 1) ++
   new WithNMedCores(n = 1) ++
   new WithNSmallCores(n = 1) ++
@@ -48,9 +53,11 @@ class HeterogeneousTileExampleConfig extends Config(
 )
 
 class Edge128BitConfig extends Config(
-  new WithEdgeDataBits(128) ++ new DefaultConfig)
+  new WithEdgeDataBits(128) ++ new DefaultConfig
+)
 class Edge32BitConfig extends Config(
-  new WithEdgeDataBits(32) ++ new DefaultConfig)
+  new WithEdgeDataBits(32) ++ new DefaultConfig
+)
 
 class SingleChannelBenchmarkConfig extends Config(new DefaultConfig)
 class DualChannelBenchmarkConfig extends Config(new WithNMemoryChannels(2) ++ new SingleChannelBenchmarkConfig)
@@ -63,7 +70,8 @@ class TinyConfig extends Config(
   new WithNBanks(0) ++
   new With1TinyCore ++
   new WithIncoherentBusTopology ++
-  new BaseConfig)
+  new BaseConfig
+)
 
 class MemPortOnlyConfig extends Config(
   new WithNoMMIOPort ++
@@ -84,3 +92,5 @@ class MMIOPortOnlyConfig extends Config(
 
 class BaseFPGAConfig extends Config(new BaseConfig ++ new WithCoherentBusTopology)
 class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
+
+class CloneTileConfig extends Config(new WithCloneRocketTiles(7) ++ new WithNBigCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)

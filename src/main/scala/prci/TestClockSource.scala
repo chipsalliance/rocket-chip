@@ -3,7 +3,7 @@ package freechips.rocketchip.prci
 import chisel3._
 import chisel3.util.HasBlackBoxInline
 import chisel3.experimental.DoubleParam
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 class ClockSourceIO extends Bundle {
@@ -74,7 +74,8 @@ class TestClockSource(freqs: Seq[Option[Double]])(implicit p: Parameters) extend
   val node = ClockSourceNode(freqs.map(f =>
     ClockSourceParameters(give = f.map(ff => ClockParameters(freqMHz = ff)))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     node.out.zipWithIndex.foreach { case ((bundle, edge), i) =>
       val source = edge.source.give.map(f =>
         Module(new ClockSourceAtFreq(f.freqMHz)).io

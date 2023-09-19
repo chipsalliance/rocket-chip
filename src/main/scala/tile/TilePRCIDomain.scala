@@ -3,7 +3,7 @@
 package freechips.rocketchip.tile
 
 import chisel3.Vec
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.prci._
@@ -50,13 +50,13 @@ abstract class TilePRCIDomain[T <: BaseTile](
   private val traceSignalName = "trace"
   private val traceCoreSignalName = "tracecore"
   /** Node to broadcast legacy "raw" instruction trace while surpressing it during (async) reset. */
-  val traceNode: BundleBridgeIdentityNode[Vec[TracedInstruction]] = BundleBridgeNameNode(traceSignalName)
+  val traceNode: BundleBridgeIdentityNode[TraceBundle] = BundleBridgeNameNode(traceSignalName)
   /** Node to broadcast standardized instruction trace while surpressing it during (async) reset. */
   val traceCoreNode: BundleBridgeIdentityNode[TraceCoreInterface] = BundleBridgeNameNode(traceCoreSignalName)
 
   /** Function to handle all trace crossings when tile is instantiated inside domains */
   def crossTracesOut(): Unit = this {
-    val traceNexusNode = BundleBridgeBlockDuringReset[Vec[TracedInstruction]](
+    val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
       resetCrossingType = crossingParams.resetCrossingType,
       name = Some(traceSignalName))
     traceNode :*= traceNexusNode := tile.traceNode
@@ -93,7 +93,7 @@ abstract class TilePRCIDomain[T <: BaseTile](
   def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
     val tlSlaveResetXing = this {
       tile_reset_domain.crossTLIn(tile.slaveNode) :*=
-        tile.makeSlaveBoundaryBuffers(crossingType)
+        tile { tile.makeSlaveBoundaryBuffers(crossingType) }
     }
     val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
     tlSlaveClockXing(crossingType)
@@ -104,7 +104,7 @@ abstract class TilePRCIDomain[T <: BaseTile](
     */
   def crossMasterPort(crossingType: ClockCrossingType): TLOutwardNode = {
     val tlMasterResetXing = this { DisableMonitors { implicit p =>
-      tile.makeMasterBoundaryBuffers(crossingType) :=*
+      tile { tile.makeMasterBoundaryBuffers(crossingType) } :=*
         tile_reset_domain.crossTLOut(tile.masterNode)
     } }
     val tlMasterClockXing = this.crossOut(tlMasterResetXing)

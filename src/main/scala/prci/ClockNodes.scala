@@ -1,8 +1,8 @@
 // See LICENSE.SiFive for license details.
 package freechips.rocketchip.prci
 
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import chisel3.experimental.SourceInfo
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 object ClockImp extends SimpleNodeImp[ClockSourceParameters, ClockSinkParameters, ClockEdgeParameters, ClockBundle]

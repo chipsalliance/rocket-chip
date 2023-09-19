@@ -2,15 +2,14 @@
 
 package freechips.rocketchip.diplomacy
 
-import Chisel.{defaultCompileOptions => _, _}
+import chisel3._
 import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
-import chisel3.{MultiIOModule, RawModule, Reset, withClockAndReset}
-import chisel3.experimental.ChiselAnnotation
+import chisel3.{Module, RawModule, Reset, withClockAndReset}
+import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
 import firrtl.passes.InlineAnnotation
-import freechips.rocketchip.config.Parameters
-import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
+import org.chipsalliance.cde.config.Parameters
 
-import scala.collection.immutable.{ListMap, SortedMap}
+import scala.collection.immutable.{SeqMap, SortedMap}
 import scala.util.matching._
 
 /** While the [[freechips.rocketchip.diplomacy]] package allows fairly abstract parameter negotiation while constructing a DAG,
@@ -37,6 +36,10 @@ abstract class LazyModule()(implicit val p: Parameters) {
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
   /** Parent of this LazyModule. If this instance is at the top of the hierarchy, this will be [[None]]. */
   protected[diplomacy] val parent: Option[LazyModule] = LazyModule.scope
+  /** If set, the LazyModule this LazyModule will be a clone of
+    * Note that children of a cloned module will also have this set
+    */
+  protected[diplomacy] var cloneProto: Option[LazyModule] = None
 
   /** Code snippets from [[InModuleBody]] injection. */
   protected[diplomacy] var inModuleBody: List[() => Unit] = List[() => Unit]()
@@ -81,10 +84,16 @@ abstract class LazyModule()(implicit val p: Parameters) {
   def line: String = sourceLine(info)
 
   // Accessing these names can only be done after circuit elaboration!
-  /** Module name in verilog, used in GraphML. */
-  lazy val moduleName: String = module.name
-  /** Hierarchical path of this instance, used in GraphML. */
-  lazy val pathName: String = module.pathName
+  /** Module name in verilog, used in GraphML.
+    * For cloned lazyModules, this is the name of the prototype
+    */
+  lazy val moduleName: String = cloneProto.map(_.module.name).getOrElse(module.name)
+  /** Hierarchical path of this instance, used in GraphML.
+    * For cloned modules, construct this manually (since this.module should not be evaluated)
+    */
+  lazy val pathName: String = cloneProto.map(p => s"${parent.get.pathName}.${p.instanceName}")
+    .getOrElse(module.pathName)
+
   /** Instance name in verilog. Should only be accessed after circuit elaboration. */
   lazy val instanceName: String = pathName.split('.').last
 
@@ -94,6 +103,31 @@ abstract class LazyModule()(implicit val p: Parameters) {
     * Generally, the evaluation of this marks the beginning of phase 2.
     */
   def module: LazyModuleImpLike
+
+  /** Recursively traverse all child LazyModules and Nodes of this LazyModule
+    * to construct the set of empty [[Dangle]]'s that are this module's top-level IO
+    * This is effectively doing the same thing as [[LazyModuleImp.instantiate]], but
+    * without constructing any [[Module]]'s
+    */
+  protected[diplomacy] def cloneDangles(): List[Dangle] = {
+    children.foreach(c => require(c.cloneProto.isDefined, s"${c.info}, ${c.parent.get.info}"))
+    val childDangles = children.reverse.flatMap { c => c.cloneDangles() }
+    val nodeDangles = nodes.reverse.flatMap(n => n.cloneDangles())
+    val allDangles = nodeDangles ++ childDangles
+    val pairing = SortedMap(allDangles.groupBy(_.source).toSeq: _*)
+    val done = Set() ++ pairing.values.filter(_.size == 2).map { 
+      case Seq(a, b) =>
+        require(a.flipped != b.flipped)
+        a.source
+      case _ =>
+        None
+    }
+    val forward = allDangles.filter(d => !done(d.source))
+    val dangles = forward.map { d =>
+      d.copy(name = suggestedName + "_" + d.name)
+    }
+    dangles
+  }
 
   /** Whether to omit generating the GraphML for this [[LazyModule]].
     *
@@ -275,8 +309,33 @@ sealed trait LazyModuleImpLike extends RawModule {
     // 2. return [[Dangle]]s from each module.
     val childDangles = wrapper.children.reverse.flatMap { c =>
       implicit val sourceInfo: SourceInfo = c.info
-      val mod = Module(c.module)
-      mod.dangles
+      c.cloneProto.map { cp =>
+        // If the child is a clone, then recursively set cloneProto of its children as well
+        def assignCloneProtos(bases: Seq[LazyModule], clones: Seq[LazyModule]): Unit = {
+          require(bases.size == clones.size)
+          (bases zip clones).map { case (l,r) =>
+            require(l.getClass == r.getClass, s"Cloned children class mismatch ${l.name} != ${r.name}")
+            l.cloneProto = Some(r)
+            assignCloneProtos(l.children, r.children)
+          }
+        }
+        assignCloneProtos(c.children, cp.children)
+        // Clone the child module as a record, and get its [[AutoBundle]]
+        val clone = CloneModuleAsRecord(cp.module).suggestName(c.suggestedName)
+        val clonedAuto = clone("auto").asInstanceOf[AutoBundle]
+        // Get the empty [[Dangle]]'s of the cloned child
+        val rawDangles = c.cloneDangles()
+        require(rawDangles.size == clonedAuto.elements.size)
+        // Assign the [[AutoBundle]] fields of the cloned record to the empty [[Dangle]]'s
+        val dangles = (rawDangles zip clonedAuto.elements).map { case (d, (_, io)) =>
+          d.copy(dataOpt = Some(io))
+        }
+        dangles
+      } .getOrElse {
+        // For non-clones, instantiate the child module
+        val mod = Module(c.module)
+        mod.dangles
+      }
     }
 
     // Ask each node in this [[LazyModule]] to call [[BaseNode.instantiate]].
@@ -289,15 +348,18 @@ sealed trait LazyModuleImpLike extends RawModule {
     // For each [[source]] set of [[Dangle]]s of size 2, ensure that these
     // can be connected as a source-sink pair (have opposite flipped value).
     // Make the connection and mark them as [[done]].
-    val done = Set() ++ pairing.values.filter(_.size == 2).map { case Seq(a, b) =>
-      require(a.flipped != b.flipped)
-      // @todo <> in chisel3 makes directionless connection.
-      if (a.flipped) {
-        a.data <> b.data
-      } else {
-        b.data <> a.data
-      }
-      a.source
+    val done = Set() ++ pairing.values.filter(_.size == 2).map { 
+      case Seq(a, b) =>
+        require(a.flipped != b.flipped)
+        // @todo <> in chisel3 makes directionless connection.
+        if (a.flipped) {
+          a.data <> b.data
+        } else {
+          b.data <> a.data
+        }
+        a.source
+      case _ =>
+        None
     }
     // Find all [[Dangle]]s which are still not connected. These will end up as [[AutoBundle]] [[IO]] ports on the module.
     val forward = allDangles.filter(d => !done(d.source))
@@ -310,7 +372,7 @@ sealed trait LazyModuleImpLike extends RawModule {
       } else {
         io <> d.data
       }
-      d.copy(data = io, name = wrapper.suggestedName + "_" + d.name)
+      d.copy(dataOpt = Some(io), name = wrapper.suggestedName + "_" + d.name)
     }
     // Push all [[LazyModule.inModuleBody]] to [[chisel3.internal.Builder]].
     wrapper.inModuleBody.reverse.foreach {
@@ -332,7 +394,7 @@ sealed trait LazyModuleImpLike extends RawModule {
   *
   * @param wrapper the [[LazyModule]] from which the `.module` call is being made.
   */
-class LazyModuleImp(val wrapper: LazyModule) extends MultiIOModule with LazyModuleImpLike {
+class LazyModuleImp(val wrapper: LazyModule) extends Module with LazyModuleImpLike {
   /** Instantiate hardware of this `Module`. */
   val (auto, dangles) = instantiate()
 }
@@ -351,7 +413,7 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   /** drive reset explicitly. */
   val childReset: Reset = Wire(Reset())
   // the default is that these are disabled
-  childClock := Bool(false).asClock
+  childClock := false.B.asClock
   childReset := chisel3.DontCare
   val (auto, dangles) = withClockAndReset(childClock, childReset) {
     instantiate()
@@ -401,7 +463,7 @@ object LazyScope {
     * @param p       [[Parameters]] propagated to [[SimpleLazyModule]].
     */
   def apply[T](body: => T)(implicit valName: ValName, p: Parameters): T = {
-    apply(valName.toString, "SimpleLazyModule", None)(body)(p)
+    apply(valName.name, "SimpleLazyModule", None)(body)(p)
   }
 
   /** Create a [[LazyScope]] with an explicitly defined instance name.
@@ -474,9 +536,11 @@ case class HalfEdge(serial: Int, index: Int) extends Ordered[HalfEdge] {
   * @param source  the source [[HalfEdge]] of this [[Dangle]], which captures the source [[BaseNode]] and the port `index` within that [[BaseNode]].
   * @param sink    sink [[HalfEdge]] of this [[Dangle]], which captures the sink [[BaseNode]] and the port `index` within that [[BaseNode]].
   * @param flipped flip or not in [[AutoBundle.makeElements]]. If true this corresponds to `danglesOut`, if false it corresponds to `danglesIn`.
-  * @param data    actual [[Data]] for the hardware connection.
+  * @param dataOpt actual [[Data]] for the hardware connection. Can be empty if this belongs to a cloned module
   */
-case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, data: Data)
+case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: String, dataOpt: Option[Data]) {
+  def data = dataOpt.get
+}
 
 /** [[AutoBundle]] will construct the [[Bundle]]s for a [[LazyModule]] in [[LazyModuleImpLike.instantiate]],
   *
@@ -487,7 +551,7 @@ case class Dangle(source: HalfEdge, sink: HalfEdge, flipped: Boolean, name: Stri
   */
 final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
   // We need to preserve the order of elts, despite grouping by name to disambiguate things.
-  val elements: ListMap[String, Data] = ListMap() ++ elts.zipWithIndex.map(makeElements).groupBy(_._1).values.flatMap {
+  val elements: SeqMap[String, Data] = SeqMap() ++ elts.zipWithIndex.map(makeElements).groupBy(_._1).values.flatMap {
     // If name is unique, it will return a Seq[index -> (name -> data)].
     case Seq((key, element, i)) => Seq(i -> (key -> element))
     // If name is not unique, name will append with j, and return `Seq[index -> (s"${name}_${j}" -> data)]`.
@@ -500,11 +564,9 @@ final class AutoBundle(elts: (String, Data, Boolean)*) extends Record {
     val ((key, data, flip), i) = tuple
     // Trim trailing _0_1_2 stuff so that when we append _# we don't create collisions.
     val regex = new Regex("(_[0-9]+)*$")
-    val element = if (flip) data.cloneType.flip() else data.cloneType
+    val element = if (flip) Flipped(data.cloneType) else data.cloneType
     (regex.replaceAllIn(key, ""), element, i)
   }
-
-  override def cloneType: this.type = new AutoBundle(elts: _*).asInstanceOf[this.type]
 }
 
 trait ModuleValue[T] {

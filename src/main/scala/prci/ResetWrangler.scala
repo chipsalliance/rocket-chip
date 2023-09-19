@@ -3,7 +3,7 @@ package freechips.rocketchip.prci
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -11,7 +11,8 @@ class ResetWrangler(debounceNs: Double = 100000)(implicit p: Parameters) extends
 {
   val node = ClockAdapterNode()
 
-  lazy val module = new LazyRawModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyRawModuleImp(this) {
     val (in, _) = node.in.unzip
     val (out, _) = node.out.unzip
 

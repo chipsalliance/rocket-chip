@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.interrupts
 
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import chisel3.experimental.SourceInfo
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 // A potentially empty half-open range; [start, end)

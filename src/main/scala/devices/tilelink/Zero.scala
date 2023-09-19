@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.TLMessages
 
@@ -24,7 +25,8 @@ class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
     beatBytes = beatBytes,
     device = new SimpleDevice("rom", Seq("ucbbar,cacheable-zero0")))
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (in, edge) = node.in(0)
 
     val a = Queue(in.a, 2)
@@ -35,8 +37,8 @@ class TLZero(address: AddressSet, beatBytes: Int = 4)(implicit p: Parameters)
     in.d.bits.opcode := TLMessages.adResponse(edge.opcode(a.bits))
 
     // Tie off unused channels
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(true)
-    in.e.ready := Bool(true)
+    in.b.valid := false.B
+    in.c.ready := true.B
+    in.e.ready := true.B
   }
 }

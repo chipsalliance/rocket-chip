@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCustomNode
@@ -54,7 +54,8 @@ class BankBinder(mask: BigInt)(implicit p: Parameters) extends LazyModule
 {
   val node = BankBinderNode(mask)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
     }

@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.{Parameters, Field}
+import chisel3._
+import chisel3.experimental.SourceInfo
+import org.chipsalliance.cde.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
 
 case object AHBSlaveMonitorBuilder extends Field[AHBSlaveMonitorArgs => AHBSlaveMonitorBase]

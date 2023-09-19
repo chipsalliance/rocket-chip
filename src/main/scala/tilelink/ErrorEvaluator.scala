@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -20,8 +20,8 @@ object RequestPattern
     val amask = UIntToOH1(a.size, a.params.addressBits)
     val abase = a.address
     pattern.map { case p =>
-      val pbase = UInt(p.base)
-      val pmask = UInt(p.mask & ((BigInt(1) << a.params.addressBits) - 1))
+      val pbase = p.base.U
+      val pmask = (p.mask & ((BigInt(1) << a.params.addressBits) - 1)).U
       (amask | pmask | ~(abase ^ pbase)).andR
     }.reduce(_ || _)
   }
@@ -39,7 +39,8 @@ class TLErrorEvaluator(test: RequestPattern, testOn: Boolean, testOff: Boolean, 
   val node = TLAdapterNode(managerFn = { mp => mp.v1copy(managers =
     mp.managers.map { m => m.v1copy(mayDenyPut = true, mayDenyGet = deny || m.mayDenyGet) }) })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
@@ -50,20 +51,20 @@ class TLErrorEvaluator(test: RequestPattern, testOn: Boolean, testOff: Boolean, 
       val (d_first, d_last, _) = edgeOut.firstlast(out.d)
       val d_hasData = edgeOut.hasData(out.d.bits)
 
-      when (in.a.fire()) { inject_map.write(in.a.bits.source, inject_now) }
+      when (in.a.fire) { inject_map.write(in.a.bits.source, inject_now) }
 
-      val bypass = Bool(edgeOut.manager.minLatency == 0) && in.a.fire() && in.a.bits.source === in.d.bits.source
+      val bypass = (edgeOut.manager.minLatency == 0).B && in.a.fire && in.a.bits.source === in.d.bits.source
       val d_inject = Mux(bypass, inject_now, inject_map.read(in.d.bits.source)) holdUnless d_first
       in.d.bits.corrupt := out.d.bits.corrupt || (d_inject &&   d_hasData)
-      in.d.bits.denied  := out.d.bits.denied  || (d_inject && (!d_hasData || Bool(deny)))
+      in.d.bits.denied  := out.d.bits.denied  || (d_inject && (!d_hasData || deny.B))
 
       val r_detect = Reg(Bool())
-      val d_detect = (!d_first && r_detect) || (Bool(!deny) && out.d.bits.corrupt) || out.d.bits.denied
-      when (out.d.fire()) { r_detect := d_detect }
+      val d_detect = (!d_first && r_detect) || ((!deny).B && out.d.bits.corrupt) || out.d.bits.denied
+      when (out.d.fire) { r_detect := d_detect }
 
       val d_hint = out.d.bits.opcode === TLMessages.HintAck // even illegal hints can succeed
-      assert (Bool(!testOn)  || !out.d.fire() || !d_last || !d_inject ||  d_detect || d_hint, "Denied/Corrupt flag was not set!")
-      assert (Bool(!testOff) || !out.d.fire() || !d_last ||  d_inject || !d_detect, "Denied/Corrupt flag was set!")
+      assert ((!testOn).B  || !out.d.fire || !d_last || !d_inject ||  d_detect || d_hint, "Denied/Corrupt flag was not set!")
+      assert ((!testOff).B || !out.d.fire || !d_last ||  d_inject || !d_detect, "Denied/Corrupt flag was set!")
     }
   }
 }

@@ -2,7 +2,8 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
+import chisel3._
+import chisel3.util.isPow2
 
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
@@ -46,6 +47,7 @@ object TLBPageLookup
       .groupBy(_._2) // group by permission type
       .mapValues(seq =>
         AddressSet.unify(seq.flatMap(_._1))) // coalesce same-permission regions
+      .toMap
   }
 
   // Unmapped memory is considered to be inhomogeneous

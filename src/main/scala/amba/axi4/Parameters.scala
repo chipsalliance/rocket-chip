@@ -2,12 +2,12 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import chisel3.experimental.SourceInfo
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.max
+import chisel3.util.{isPow2, log2Up}
 
 /**
   * Parameters for AXI4 slave

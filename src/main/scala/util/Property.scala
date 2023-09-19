@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.util.property
 
-import Chisel._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3._
+import chisel3.experimental.SourceInfo
 import chisel3.util.{ReadyValidIO}
 
 sealed abstract class PropertyType(name: String) {
@@ -37,7 +37,7 @@ abstract class BasePropertyLibrary {
 class DefaultPropertyLibrary extends BasePropertyLibrary {
   def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo): Unit = {
     // default is to do nothing
-    Unit
+    ()
   }
 }
 

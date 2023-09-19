@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
@@ -68,7 +69,8 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4ToTLNode(wcorrupt)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val numIds = edgeIn.master.endId
       val beatBytes = edgeOut.manager.beatBytes
@@ -91,16 +93,16 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       require (errorDev.supportsGet.contains(edgeOut.manager.maxTransfer),
         s"Error device supports ${errorDev.supportsGet} Get but must support ${edgeOut.manager.maxTransfer}")
 
-      val r_out = Wire(out.a)
+      val r_out = WireDefault(out.a)
       val r_size1 = in.ar.bits.bytes1()
       val r_size = OH1ToUInt(r_size1)
       val r_ok = edgeOut.manager.supportsGetSafe(in.ar.bits.addr, r_size)
-      val r_addr = Mux(r_ok, in.ar.bits.addr, UInt(error) | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
-      val r_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
+      val r_addr = Mux(r_ok, in.ar.bits.addr, error.U | in.ar.bits.addr(log2Up(beatBytes)-1, 0))
+      val r_count = RegInit(VecInit.fill(numIds) { 0.U(txnCountBits.W) })
       val r_id = if (maxFlight == 1) {
-        Cat(in.ar.bits.id, UInt(0, width=1))
+        Cat(in.ar.bits.id, 0.U(1.W))
       } else {
-        Cat(in.ar.bits.id, r_count(in.ar.bits.id)(logFlight-1,0), UInt(0, width=1))
+        Cat(in.ar.bits.id, r_count(in.ar.bits.id)(logFlight-1,0), 0.U(1.W))
       }
 
       assert (!in.ar.valid || r_size1 === UIntToOH1(r_size, beatCountBits)) // because aligned
@@ -108,7 +110,10 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       r_out.valid := in.ar.valid
       r_out.bits :<= edgeOut.Get(r_id, r_addr, r_size)._2
 
-      r_out.bits.user :<= in.ar.bits.user
+      Connectable.waiveUnmatched(r_out.bits.user, in.ar.bits.user) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+
       r_out.bits.user.lift(AMBAProt).foreach { rprot =>
         rprot.privileged :=  in.ar.bits.prot(0)
         rprot.secure     := !in.ar.bits.prot(1)
@@ -121,30 +126,33 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 
       val r_sel = UIntToOH(in.ar.bits.id, numIds)
       (r_sel.asBools zip r_count) foreach { case (s, r) =>
-        when (in.ar.fire() && s) { r := r + UInt(1) }
+        when (in.ar.fire && s) { r := r + 1.U }
       }
 
-      val w_out = Wire(out.a)
+      val w_out = WireDefault(out.a)
       val w_size1 = in.aw.bits.bytes1()
       val w_size = OH1ToUInt(w_size1)
       val w_ok = edgeOut.manager.supportsPutPartialSafe(in.aw.bits.addr, w_size)
-      val w_addr = Mux(w_ok, in.aw.bits.addr, UInt(error) | in.aw.bits.addr(log2Up(beatBytes)-1, 0))
-      val w_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
+      val w_addr = Mux(w_ok, in.aw.bits.addr, error.U | in.aw.bits.addr(log2Up(beatBytes)-1, 0))
+      val w_count = RegInit(VecInit.fill(numIds) { 0.U(txnCountBits.W) })
       val w_id = if (maxFlight == 1) {
-        Cat(in.aw.bits.id, UInt(1, width=1))
+        Cat(in.aw.bits.id, 1.U(1.W))
       } else {
-        Cat(in.aw.bits.id, w_count(in.aw.bits.id)(logFlight-1,0), UInt(1, width=1))
+        Cat(in.aw.bits.id, w_count(in.aw.bits.id)(logFlight-1,0), 1.U(1.W))
       }
 
       assert (!in.aw.valid || w_size1 === UIntToOH1(w_size, beatCountBits)) // because aligned
-      assert (!in.aw.valid || in.aw.bits.len === UInt(0) || in.aw.bits.size === UInt(log2Ceil(beatBytes))) // because aligned
+      assert (!in.aw.valid || in.aw.bits.len === 0.U || in.aw.bits.size === log2Ceil(beatBytes).U) // because aligned
       in.aw.ready := w_out.ready && in.w.valid && in.w.bits.last
       in.w.ready  := w_out.ready && in.aw.valid
       w_out.valid := in.aw.valid && in.w.valid
       w_out.bits :<= edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
       in.w.bits.user.lift(AMBACorrupt).foreach { w_out.bits.corrupt := _ }
 
-      w_out.bits.user :<= in.aw.bits.user
+      Connectable.waiveUnmatched(w_out.bits.user, in.aw.bits.user) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+
       w_out.bits.user.lift(AMBAProt).foreach { wprot =>
         wprot.privileged :=  in.aw.bits.prot(0)
         wprot.secure     := !in.aw.bits.prot(1)
@@ -157,13 +165,13 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 
       val w_sel = UIntToOH(in.aw.bits.id, numIds)
       (w_sel.asBools zip w_count) foreach { case (s, r) =>
-        when (in.aw.fire() && s) { r := r + UInt(1) }
+        when (in.aw.fire && s) { r := r + 1.U }
       }
 
-      TLArbiter(TLArbiter.roundRobin)(out.a, (UInt(0), r_out), (in.aw.bits.len, w_out))
+      TLArbiter(TLArbiter.roundRobin)(out.a, (0.U, r_out), (in.aw.bits.len, w_out))
 
-      val ok_b  = Wire(in.b)
-      val ok_r  = Wire(in.r)
+      val ok_b  = WireDefault(in.b)
+      val ok_r  = WireDefault(in.r)
 
       val d_resp = Mux(out.d.bits.denied || out.d.bits.corrupt, AXI4Parameters.RESP_SLVERR, AXI4Parameters.RESP_OKAY)
       val d_hasData = edgeOut.hasData(out.d.bits)
@@ -180,7 +188,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       ok_r.bits.user :<= out.d.bits.user
 
       // AXI4 needs irrevocable behaviour
-      in.r :<> Queue.irrevocable(ok_r, 1, flow=true)
+      in.r :<>= Queue.irrevocable(ok_r, 1, flow=true)
 
       ok_b.bits.id   := out.d.bits.source >> addedBits
       ok_b.bits.resp := d_resp
@@ -191,12 +199,12 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
 
       // We need to prevent sending B valid before the last W beat is accepted
       // TileLink allows early acknowledgement of a write burst, but AXI does not.
-      val b_count = RegInit(Vec.fill(numIds) { UInt(0, width = txnCountBits) })
+      val b_count = RegInit(VecInit.fill(numIds) { 0.U(txnCountBits.W) })
       val b_allow = b_count(in.b.bits.id) =/= w_count(in.b.bits.id)
       val b_sel = UIntToOH(in.b.bits.id, numIds)
 
       (b_sel.asBools zip b_count) foreach { case (s, r) =>
-        when (in.b.fire() && s) { r := r + UInt(1) }
+        when (in.b.fire && s) { r := r + 1.U }
       }
 
       in.b.bits :<= q_b.bits
@@ -204,16 +212,16 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       q_b.ready := in.b.ready && b_allow
 
       // Unused channels
-      out.b.ready := Bool(true)
-      out.c.valid := Bool(false)
-      out.e.valid := Bool(false)
+      out.b.ready := true.B
+      out.c.valid := false.B
+      out.e.valid := false.B
     }
   }
 }
 
 class AXI4BundleRError(params: AXI4BundleParameters) extends AXI4BundleBase(params)
 {
-  val id   = UInt(width = params.idBits)
+  val id   = UInt(params.idBits.W)
   val last = Bool()
 }
 

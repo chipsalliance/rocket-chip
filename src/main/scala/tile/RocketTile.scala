@@ -3,8 +3,8 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
-import freechips.rocketchip.config._
+import chisel3._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -14,6 +14,7 @@ import freechips.rocketchip.subsystem.TileCrossingParamsLike
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters}
 
+case class RocketTileBoundaryBufferParams(force: Boolean = false)
 
 case class RocketTileParams(
     core: RocketCoreParams = RocketCoreParams(),
@@ -26,7 +27,7 @@ case class RocketTileParams(
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
-    boundaryBuffers: Boolean = false // if synthesized with hierarchical PnR, cut feed-throughs?
+    boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
@@ -104,17 +105,15 @@ class RocketTile private(
 
   override lazy val module = new RocketTileModuleImp(this)
 
-  override def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = crossing match {
-    case _: RationalCrossing =>
-      if (!rocketParams.boundaryBuffers) TLBuffer(BufferParams.none)
-      else TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
+  override def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = (rocketParams.boundaryBuffers, crossing) match {
+    case (Some(RocketTileBoundaryBufferParams(true )), _)                   => TLBuffer()
+    case (Some(RocketTileBoundaryBufferParams(false)), _: RationalCrossing) => TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
     case _ => TLBuffer(BufferParams.none)
   }
 
-  override def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = crossing match {
-    case _: RationalCrossing =>
-      if (!rocketParams.boundaryBuffers) TLBuffer(BufferParams.none)
-      else TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
+  override def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = (rocketParams.boundaryBuffers, crossing) match {
+    case (Some(RocketTileBoundaryBufferParams(true )), _)                   => TLBuffer()
+    case (Some(RocketTileBoundaryBufferParams(false)), _: RationalCrossing) => TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
     case _ => TLBuffer(BufferParams.none)
   }
 }
@@ -126,6 +125,9 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   Annotated.params(this, outer.rocketParams)
 
   val core = Module(new Rocket(outer)(outer.p))
+
+  // reset vector is connected in the Frontend to s2_pc
+  core.io.reset_vector := DontCare
 
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
   outer.reportHalt(List(outer.dcache.module.io.errors))
@@ -160,17 +162,40 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // Connect the core pipeline to other intra-tile modules
   outer.frontend.module.io.cpu <> core.io.imem
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
-  fpuOpt foreach { fpu => core.io.fpu <> fpu.io }
+  fpuOpt foreach { fpu =>
+    core.io.fpu :<>= fpu.io.waiveAs[FPUCoreIO](_.cp_req, _.cp_resp)
+    fpu.io.cp_req := DontCare
+    fpu.io.cp_resp := DontCare
+  }
+  if (fpuOpt.isEmpty) {
+    core.io.fpu := DontCare
+  }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
   if (outer.roccs.size > 0) {
     cmdRouter.get.io.in <> core.io.rocc.cmd
-    outer.roccs.foreach(_.module.io.exception := core.io.rocc.exception)
+    outer.roccs.foreach{ lm =>
+      lm.module.io.exception := core.io.rocc.exception
+      lm.module.io.fpu_req.ready := DontCare
+      lm.module.io.fpu_resp.valid := DontCare
+      lm.module.io.fpu_resp.bits.data := DontCare
+      lm.module.io.fpu_resp.bits.exc := DontCare
+    }
     core.io.rocc.resp <> respArb.get.io.out
     core.io.rocc.busy <> (cmdRouter.get.io.busy || outer.roccs.map(_.module.io.busy).reduce(_ || _))
     core.io.rocc.interrupt := outer.roccs.map(_.module.io.interrupt).reduce(_ || _)
+    (core.io.rocc.csrs zip roccCSRIOs.flatten).foreach { t => t._2 := t._1 }
+  } else {
+    // tie off
+    core.io.rocc.cmd.ready := false.B
+    core.io.rocc.resp.valid := false.B
+    core.io.rocc.resp.bits := DontCare
+    core.io.rocc.busy := DontCare
+    core.io.rocc.interrupt := DontCare
   }
+  // Dont care mem since not all RoCC need accessing memory
+  core.io.rocc.mem := DontCare
 
   // Rocket has higher priority to DTIM than other TileLink clients
   outer.dtim_adapter.foreach { lm => dcachePorts += lm.module.io.dmem }
@@ -182,8 +207,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   require(h == c, s"port list size was $h, core expected $c")
   require(h == o, s"port list size was $h, outer counted $o")
   // TODO figure out how to move the below into their respective mix-ins
-  dcacheArb.io.requestor <> dcachePorts
-  ptw.io.requestor <> ptwPorts
+  dcacheArb.io.requestor <> dcachePorts.toSeq
+  ptw.io.requestor <> ptwPorts.toSeq
 }
 
 trait HasFpuOpt { this: RocketTileModuleImp =>

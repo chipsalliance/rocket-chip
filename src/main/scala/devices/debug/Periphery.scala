@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.experimental.{IntParam, noPrefix}
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
-import freechips.rocketchip.config.{Field, Parameters}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.diplomacy._
@@ -14,6 +14,7 @@ import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters, ClockSinkNode}
 import freechips.rocketchip.tilelink._
+import freechips.rocketchip.interrupts.{NullIntSyncSource, IntSyncXbar}
 
 /** Protocols used for communicating with external debugging tools */
 sealed trait DebugExportProtocol
@@ -41,6 +42,7 @@ class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) {
   val clock = Clock()
   val reset = Reset()
 }
+
 
 class DebugIO(implicit val p: Parameters) extends Bundle {
   val clock = Input(Clock())
@@ -70,88 +72,91 @@ class ResetCtrlIO(val nComponents: Int)(implicit val p: Parameters) extends Bund
   */
 
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  private val tlbus = locateTLBusWrapper(p(ExportDebug).slaveWhere)
+  private lazy val tlbus = locateTLBusWrapper(p(ExportDebug).slaveWhere)
 
-  val debugCustomXbarOpt = p(DebugModuleKey).map(params => LazyModule( new DebugCustomXbar(outputRequiresInput = false)))
-  val apbDebugNodeOpt = p(ExportDebug).apb.option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
+  lazy val debugCustomXbarOpt = p(DebugModuleKey).map(params => LazyModule( new DebugCustomXbar(outputRequiresInput = false)))
+  lazy val apbDebugNodeOpt = p(ExportDebug).apb.option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
   val debugTLDomainOpt = p(DebugModuleKey).map { _ =>
     val domain = ClockSinkNode(Seq(ClockSinkParameters()))
     domain := tlbus.fixedClockNode
     domain
   }
-  val debugOpt = p(DebugModuleKey).map { params =>
-    val debug = LazyModule(new TLDebugModule(tlbus.beatBytes))
+  lazy val debugOpt = p(DebugModuleKey).map { params =>
+    val tlDM = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
-    debug.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
-    debug.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
+    tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
+    tlDM.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
 
-    (apbDebugNodeOpt zip debug.apbNodeOpt) foreach { case (master, slave) =>
+    (apbDebugNodeOpt zip tlDM.apbNodeOpt) foreach { case (master, slave) =>
       slave := master
     }
 
-    debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
+    tlDM.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
       locateTLBusWrapper(p(ExportDebug).masterWhere).coupleFrom("debug_sb") {
         _ := TLWidthWidget(1) := sb2tl.node
       }
     }
-    debug
+    tlDM
   }
-}
 
-trait HasPeripheryDebugModuleImp extends LazyModuleImp {
-  val outer: HasPeripheryDebug
+  lazy val debugNode = debugOpt.map(_.intnode).getOrElse(IntSyncXbar() := NullIntSyncSource())
 
-  val psd = IO(new PSDIO)
+  val psd = InModuleBody {
+    val psd = IO(new PSDIO)
+    psd
+  }
 
-  val resetctrl = outer.debugOpt.map { outerdebug =>
-    outerdebug.module.io.tl_reset := outer.debugTLDomainOpt.get.in.head._1.reset
-    outerdebug.module.io.tl_clock := outer.debugTLDomainOpt.get.in.head._1.clock
-    val resetctrl = IO(new ResetCtrlIO(outerdebug.dmOuter.dmOuter.intnode.edges.out.size))
-    outerdebug.module.io.hartIsInReset := resetctrl.hartIsInReset
-    resetctrl.hartResetReq.foreach { rcio => outerdebug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
-    resetctrl
+  val resetctrl = InModuleBody {
+    debugOpt.map { debug =>
+      debug.module.io.tl_reset := debugTLDomainOpt.get.in.head._1.reset
+      debug.module.io.tl_clock := debugTLDomainOpt.get.in.head._1.clock
+      val resetctrl = IO(new ResetCtrlIO(debug.dmOuter.dmOuter.intnode.edges.out.size))
+      debug.module.io.hartIsInReset := resetctrl.hartIsInReset
+      resetctrl.hartResetReq.foreach { rcio => debug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
+      resetctrl
+    }
   }
 
   // noPrefix is workaround https://github.com/freechipsproject/chisel3/issues/1603
-  val debug = noPrefix(outer.debugOpt.map { outerdebug =>
+  val debug = InModuleBody { noPrefix(debugOpt.map { debugmod =>
     val debug = IO(new DebugIO)
 
     require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
-      "You cannot have both DMI and JTAG interface in HasPeripheryDebugModuleImp")
+      "You cannot have both DMI and JTAG interface in HasPeripheryDebug")
 
     require(!(debug.clockeddmi.isDefined && debug.apb.isDefined),
-      "You cannot have both DMI and APB interface in HasPeripheryDebugModuleImp")
+      "You cannot have both DMI and APB interface in HasPeripheryDebug")
 
     require(!(debug.systemjtag.isDefined && debug.apb.isDefined),
-      "You cannot have both APB and JTAG interface in HasPeripheryDebugModuleImp")
+      "You cannot have both APB and JTAG interface in HasPeripheryDebug")
 
-    debug.clockeddmi.foreach { dbg => outerdebug.module.io.dmi.get <> dbg }
+    debug.clockeddmi.foreach { dbg => debugmod.module.io.dmi.get <> dbg }
 
     (debug.apb
-      zip outer.apbDebugNodeOpt
-      zip outerdebug.module.io.apb_clock
-      zip outerdebug.module.io.apb_reset).foreach {
+      zip apbDebugNodeOpt
+      zip debugmod.module.io.apb_clock
+      zip debugmod.module.io.apb_reset).foreach {
       case (((io, apb), c ), r) =>
         apb.out(0)._1 <> io
         c:= io.clock
         r:= io.reset
     }
 
-    outerdebug.module.io.debug_reset := debug.reset
-    outerdebug.module.io.debug_clock := debug.clock
+    debugmod.module.io.debug_reset := debug.reset
+    debugmod.module.io.debug_clock := debug.clock
 
-    debug.ndreset := outerdebug.module.io.ctrl.ndreset
-    debug.dmactive := outerdebug.module.io.ctrl.dmactive
-    outerdebug.module.io.ctrl.dmactiveAck := debug.dmactiveAck
-    debug.extTrigger.foreach { x => outerdebug.module.io.extTrigger.foreach {y => x <> y}}
+    debug.ndreset := debugmod.module.io.ctrl.ndreset
+    debug.dmactive := debugmod.module.io.ctrl.dmactive
+    debugmod.module.io.ctrl.dmactiveAck := debug.dmactiveAck
+    debug.extTrigger.foreach { x => debugmod.module.io.extTrigger.foreach {y => x <> y}}
 
     // TODO in inheriting traits: Set this to something meaningful, e.g. "component is in reset or powered down"
-    outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
+    debugmod.module.io.ctrl.debugUnavail.foreach { _ := false.B }
 
     debug
-  })
+  })}
 
-  val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
+  val dtm = InModuleBody { debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_))) }
 
   def instantiateJtagDTM(sj: SystemJTAGIO): DebugTransportModuleJTAG = {
 
@@ -167,7 +172,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm.io.jtag_version := sj.version
     dtm.rf_reset := sj.reset
 
-    outer.debugOpt.map { outerdebug => 
+    debugOpt.map { outerdebug =>
       outerdebug.module.io.dmi.get.dmi <> dtm.io.dmi
       outerdebug.module.io.dmi.get.dmiClock := sj.jtag.TCK
       outerdebug.module.io.dmi.get.dmiReset := sj.reset
@@ -175,7 +180,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm
   }
 }
-
+/** BlackBox to export DMI interface */
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk = Input(Clock())
@@ -192,16 +197,13 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
     dutio.dmiReset := tbreset
 
     tbsuccess := io.exit === 1.U
-    when (io.exit >= 2.U) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
-    }
+    assert(io.exit < 2.U, "*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
   }
 
   addResource("/vsrc/SimDTM.v")
   addResource("/csrc/SimDTM.cc")
 }
-
+/** BlackBox to export JTAG interface */
 class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
   with HasBlackBoxResource {
   val io = IO(new Bundle {
@@ -228,10 +230,7 @@ class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam
     // Success is determined by the gdbserver
     // which is controlling this simulation.
     tbsuccess := io.exit === 1.U
-    when (io.exit >= 2.U) {
-      printf("*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
-      stop(1)
-    }
+    assert(io.exit < 2.U, "*** FAILED *** (exit code = %d)\n", io.exit >> 1.U)
   }
 
   addResource("/vsrc/SimJTAG.v")
@@ -330,9 +329,12 @@ object Debug {
       }
 
       debug.apb.foreach { apb =>
-        apb.tieoff()
         apb.clock := false.B.asClock
         apb.reset := true.B.asAsyncReset
+        apb.pready := false.B
+        apb.pslverr := false.B
+        apb.prdata := 0.U
+        apb.pduser := 0.U.asTypeOf(chiselTypeOf(apb.pduser))
         apb.psel := false.B
         apb.penable := false.B
       }

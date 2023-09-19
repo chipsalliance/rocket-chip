@@ -2,15 +2,15 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import chisel3.util._
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util._
 
 case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
-case object AsyncClockGroupsKey extends Field[ClockGroupEphemeralNode](ClockGroupEphemeralNode()(ValName("clock_sources")))
+case object AsyncClockGroupsKey extends Field[() => ClockGroupEphemeralNode](() => ClockGroupEphemeralNode()(ValName("clock_sources")))
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
 case class TLManagerViewpointLocated(where: HierarchicalLocation) extends Field[Location[TLBusWrapper]](SBUS)
 
@@ -31,7 +31,7 @@ abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends La
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)
   ElaborationArtefacts.add("json", outer.json)
-  ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
+  ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader())
   println(outer.dts)
 }
 
@@ -47,7 +47,7 @@ case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSyn
   */
 trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val ibus = LazyModule(new InterruptBusWrapper)
-  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)
+  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)()
   val clock_sources: ModuleValue[RecordMap[ClockBundle]] =
     p(SubsystemDriveAsyncClockGroupsKey)
       .map(_.drive(asyncClockGroupsNode))

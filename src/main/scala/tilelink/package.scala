@@ -10,8 +10,6 @@ package object tilelink
   type TLInwardNode = InwardNodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle]
   type TLOutwardNode = OutwardNodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
   type TLNode = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
-  type TLMixedNodeCancel = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle_ACancel, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
-  type TLNode_ACancel    = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle_ACancel, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle_ACancel]
   type TLManagerParameters = TLSlaveParameters
   type TLManagerPortParameters = TLSlavePortParameters
   type TLClientParameters = TLMasterParameters

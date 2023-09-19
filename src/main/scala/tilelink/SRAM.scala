@@ -4,7 +4,7 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
@@ -23,8 +23,9 @@ class TLRAM(
     ecc: ECCParams = ECCParams(),
     sramReg: Boolean = false, // drive SRAM data output directly into a register => 1 cycle longer response
     val devName: Option[String] = None,
-    val dtsCompat: Option[Seq[String]] = None
-  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, dtsCompat)
+    val dtsCompat: Option[Seq[String]] = None,
+    val devOverride: Option[Device with DeviceRegName] = None
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, dtsCompat, devOverride)
 {
   val eccBytes = ecc.bytes
   val code = ecc.code
@@ -35,7 +36,7 @@ class TLRAM(
   val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
     Seq(TLSlaveParameters.v1(
       address            = List(address),
-      resources          = device.reg("mem"),
+      resources          = resources,
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),
@@ -51,7 +52,8 @@ class TLRAM(
 
   private val outer = this
 
-  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, edge) = node.in(0)
 
     val indexBits = (outer.address.mask & ~(beatBytes-1)).bitCount
@@ -256,7 +258,7 @@ class TLRAM(
 
     // Forward pipeline stage from A to R
     when (r_ready) { r_full := false.B }
-    when (in.a.fire()) {
+    when (in.a.fire) {
       r_full     := true.B
       r_sublane  := a_sublane
       r_opcode   := in.a.bits.opcode
@@ -288,7 +290,7 @@ class TLRAM(
     val a_lanes = Cat(Seq.tabulate(lanes) { i => in.a.bits.mask(eccBytes*(i+1)-1, eccBytes*i).orR }.reverse)
 
     // SRAM arbitration
-    val a_fire = in.a.fire()
+    val a_fire = in.a.fire
     val a_ren = a_read || a_atomic || a_sublane
     val r_ren = r_read || r_atomic || r_sublane
     val wen = d_wb || Mux(r_replay, !r_ren, a_fire && !a_ren)
@@ -341,7 +343,8 @@ class TLRAMSimple(ramBeatBytes: Int, sramReg: Boolean, txns: Int)(implicit p: Pa
 
   ram.node := TLDelayer(0.25) := model.node := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }
@@ -364,7 +367,8 @@ class TLRAMECC(ramBeatBytes: Int, eccBytes: Int, sramReg: Boolean, txns: Int)(im
 
   ram.node := TLDelayer(0.25) := model.node := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
   }
 }

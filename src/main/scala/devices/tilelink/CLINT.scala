@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.{Field, Parameters}
+import chisel3._
+import chisel3.util.ShiftRegister
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.regmapper._
@@ -56,20 +57,21 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     Annotated.params(this, params)
     require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
 
     val io = IO(new Bundle {
-      val rtcTick = Bool(INPUT)
+      val rtcTick = Input(Bool())
     })
 
-    val time = RegInit(UInt(0, width = timeWidth))
-    when (io.rtcTick) { time := time + UInt(1) }
+    val time = RegInit(0.U(timeWidth.W))
+    when (io.rtcTick) { time := time + 1.U }
 
     val nTiles = intnode.out.size
-    val timecmp = Seq.fill(nTiles) { Reg(UInt(width = timeWidth)) }
-    val ipi = Seq.fill(nTiles) { RegInit(UInt(0, width = 1)) }
+    val timecmp = Seq.fill(nTiles) { Reg(UInt(timeWidth.W)) }
+    val ipi = Seq.fill(nTiles) { RegInit(0.U(1.W)) }
 
     val (intnode_out, _) = intnode.out.unzip
     intnode_out.zipWithIndex.foreach { case (int, i) =>

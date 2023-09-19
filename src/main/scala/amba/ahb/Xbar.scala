@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -19,7 +20,8 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
     override def circuitIdentity = outputs == 1 && inputs == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
       require (node.edges.in.size == 1, "AHBFanout does not support multiple masters")
       require (node.edges.out.size > 0, "AHBFanout requires at least one slave")
@@ -39,14 +41,14 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
       val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 
       val (in, _) = node.in(0)
-      val a_sel = Vec(route_addrs.map(seq => seq.map(_.contains(in.haddr)).reduce(_ || _)))
-      val d_sel = Reg(a_sel)
+      val a_sel = VecInit(route_addrs.map(seq => seq.map(_.contains(in.haddr)).reduce(_ || _)))
+      val d_sel = RegInit(a_sel)
 
       when (in.hready) { d_sel := a_sel }
       (a_sel zip io_out) foreach { case (sel, out) =>
-        out :<> in
+        out.squeezeAll :<>= in.squeezeAll
         out.hsel := in.hsel && sel
-        out.hmaster.map { _ := UInt(0) }
+        out.hmaster.map { _ := 0.U }
       }
 
       in.hreadyout := !Mux1H(d_sel, io_out.map(!_.hreadyout))
@@ -61,7 +63,8 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
     masterFn = { case seq => seq(0).copy(masters = seq.flatMap(_.masters)) },
     slaveFn  = { case Seq(s) => s })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
       require (node.edges.out.size == 1, "AHBArbiter requires exactly one slave")
       require (node.edges.in.size == 1, "TODO: support more than one master")
@@ -82,8 +85,8 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
       out.hwdata    := in.hwdata
       in.hrdata     := out.hrdata
       in.hresp      := out.hresp // zero-extended
-      in.hgrant.foreach { _ := Bool(true) }
-      out.hmaster.foreach { _ := UInt(0) }
+      in.hgrant.foreach { _ := true.B }
+      out.hmaster.foreach { _ := 0.U }
       out.hauser :<= in.hauser
       in.hduser :<= out.hduser
     }

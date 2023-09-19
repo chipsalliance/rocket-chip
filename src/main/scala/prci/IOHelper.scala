@@ -2,8 +2,7 @@
 // See LICENSE.Berkeley for license details.
 package freechips.rocketchip.prci
 
-import Chisel._
-import chisel3.experimental.IO
+import chisel3._
 import freechips.rocketchip.diplomacy._
 
 object IOHelper {
@@ -15,7 +14,7 @@ object IOHelper {
   def forNonSynchronous[T <: Data](gen: => T, x: ClockCrossingType, name: String): Option[ModuleValue[T]] = {
     x match {
       case SynchronousCrossing(_) => None
-      case _ => Some(InModuleBody(IO(gen.asInput).suggestName(name)))
+      case _ => Some(InModuleBody(IO(Input(gen)).suggestName(name)))
     }
   }
 }
