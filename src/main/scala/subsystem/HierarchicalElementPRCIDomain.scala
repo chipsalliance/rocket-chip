@@ -19,7 +19,7 @@ import freechips.rocketchip.util.{TraceCoreInterface}
   *
   * This does not add a layer of the module hierarchy.
   */
-class ElementResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: ResetCrossingType)
+class HierarchicalElementResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType: ResetCrossingType)
                         (implicit p: Parameters)
     extends ResetDomain
     with CrossesToOnlyOneResetDomain
@@ -38,14 +38,14 @@ class ElementResetDomain(clockSinkParams: ClockSinkParameters, resetCrossingType
   * hierarchical P&R boundary buffers, core-local interrupt handling,
   * and any other IOs related to PRCI control.
   */
-abstract class ElementPRCIDomain[T <: BaseElement](
+abstract class HierarchicalElementPRCIDomain[T <: BaseHierarchicalElement](
   clockSinkParams: ClockSinkParameters,
-  crossingParams: ElementCrossingParamsLike)
+  crossingParams: HierarchicalElementCrossingParamsLike)
   (implicit p: Parameters)
     extends ClockDomain
 {
   val element: T
-  val element_reset_domain = LazyModule(new ElementResetDomain(clockSinkParams, crossingParams.resetCrossingType))
+  val element_reset_domain = LazyModule(new HierarchicalElementResetDomain(clockSinkParams, crossingParams.resetCrossingType))
   val tapClockNode = ClockIdentityNode()
   val clockNode = FixedClockBroadcast() :=* tapClockNode
   lazy val clockBundle = tapClockNode.in.head._1

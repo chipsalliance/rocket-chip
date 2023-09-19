@@ -66,7 +66,7 @@ object BootROM {
     *    at a configurable location, but also drives the tiles' reset vectors to point
     *    at its 'hang' address parameter value.
     */
-  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasElements with HasTileInputConstants, where: TLBusWrapperLocation)
+  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasHierarchicalElements with HasTileInputConstants, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val tlbus = subsystem.locateTLBusWrapper(where)
     val bootROMDomainWrapper = LazyModule(new ClockSinkDomain(take = None))

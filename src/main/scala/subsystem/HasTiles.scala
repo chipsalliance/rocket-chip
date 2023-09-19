@@ -51,7 +51,7 @@ case object HasTilesExternalResetVectorKey extends Field[Boolean](true)
   * they may be either tied to a contant value or programmed during boot or reset.
   * They need to be instantiated before tiles are attached within the subsystem containing them.
   */
-trait HasTileInputConstants { this: LazyModule with Attachable with InstantiatesElements =>
+trait HasTileInputConstants { this: LazyModule with Attachable with InstantiatesHierarchicalElements =>
   /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
   val tileHartIdNodes: ListMap[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
     (i, BundleBridgeEphemeralNode[UInt]())
@@ -150,9 +150,9 @@ trait HasTileNotificationSinks { this: LazyModule =>
   */
 trait CanAttachTile {
   type TileType <: BaseTile
-  type TileContextType <: DefaultElementContextType
+  type TileContextType <: DefaultHierarchicalElementContextType
   def tileParams: InstantiableTileParams[TileType]
-  def crossingParams: ElementCrossingParamsLike
+  def crossingParams: HierarchicalElementCrossingParamsLike
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
   def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: ListMap[Int, TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {

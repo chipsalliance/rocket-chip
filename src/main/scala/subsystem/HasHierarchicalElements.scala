@@ -19,11 +19,11 @@ import scala.collection.immutable.ListMap
 /** A default implementation of parameterizing the connectivity of the port where the tile is the master.
   *   Optional timing buffers and/or an optional CacheCork can be inserted in the interconnect's clock domain.
   */
-case class ElementMasterPortParams(
+case class HierarchicalElementMasterPortParams(
   buffers: Int = 0,
   cork: Option[Boolean] = None,
   where: TLBusWrapperLocation = SBUS
-) extends ElementPortParamsLike {
+) extends HierarchicalElementPortParamsLike {
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
     (TLBuffer.chainNode(buffers) :=* cork.map { u => TLCacheCork(unsafe = u) } .getOrElse { TLTempNode() })
   }
@@ -32,12 +32,12 @@ case class ElementMasterPortParams(
 /** A default implementation of parameterizing the connectivity of the port giving access to slaves inside the tile.
   *   Optional timing buffers and/or an optional BusBlocker adapter can be inserted in the interconnect's clock domain.
   */
-case class ElementSlavePortParams(
+case class HierarchicalElementSlavePortParams(
   buffers: Int = 0,
   blockerCtrlAddr: Option[BigInt] = None,
   blockerCtrlWhere: TLBusWrapperLocation = CBUS,
   where: TLBusWrapperLocation = CBUS
-) extends ElementPortParamsLike {
+) extends HierarchicalElementPortParamsLike {
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode = {
     val controlBus = context.locateTLBusWrapper(where)
     val blockerBus = context.locateTLBusWrapper(blockerCtrlWhere)
@@ -51,10 +51,10 @@ case class ElementSlavePortParams(
   }
 }
 
-/** InstantiatesTiles adds a Config-urable sequence of Elements of any type
+/** InstantiatesTiles adds a Config-urable sequence of HierarchicalElements of any type
   *   to the subsystem class into which it is mixed.
   */
-trait InstantiatesElements { this: LazyModule with Attachable =>
+trait InstantiatesHierarchicalElements { this: LazyModule with Attachable =>
   val location: HierarchicalLocation
 
   /** Record the order in which to instantiate all tiles, based on statically-assigned ids.
@@ -78,7 +78,7 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
     case (instantiated, params) => instantiated + (params.clusterParams.clusterId -> params.instantiate(clusterParams, instantiated)(p))
   }
 
-  val element_prci_domains: Seq[ElementPRCIDomain[_]] = tile_prci_domains.values.toSeq ++ cluster_prci_domains.values.toSeq
+  val element_prci_domains: Seq[HierarchicalElementPRCIDomain[_]] = tile_prci_domains.values.toSeq ++ cluster_prci_domains.values.toSeq
 
   val leafTiles: ListMap[Int, BaseTile] = tile_prci_domains.mapValues(_.element.asInstanceOf[BaseTile]).to(ListMap)
   val totalTiles: ListMap[Int, BaseTile] = (leafTiles ++ cluster_prci_domains.values.map(_.element.totalTiles).flatten)
@@ -94,8 +94,8 @@ trait InstantiatesElements { this: LazyModule with Attachable =>
 }
 
 /** HasTiles instantiates and also connects a Config-urable sequence of tiles of any type to subsystem interconnect resources. */
-trait HasElements extends DefaultElementContextType
-{ this: LazyModule with Attachable with InstantiatesElements =>
+trait HasHierarchicalElements extends DefaultHierarchicalElementContextType
+{ this: LazyModule with Attachable with InstantiatesHierarchicalElements =>
   implicit val p: Parameters
 
   // connect all the tiles to interconnect attachment points made available in this subsystem context
@@ -110,8 +110,8 @@ trait HasElements extends DefaultElementContextType
 /** Provides some Chisel connectivity to certain tile IOs
   * This trait is intended for the root subsystem
   */
-trait HasElementsRootContextModuleImp extends LazyRawModuleImp {
-  val outer: InstantiatesElements with HasElements with HasElementsRootContext with HasTileInputConstants
+trait HasHierarchicalElementsRootContextModuleImp extends LazyRawModuleImp {
+  val outer: InstantiatesHierarchicalElements with HasHierarchicalElements with HasHierarchicalElementsRootContext with HasTileInputConstants
 
   val reset_vector = outer.tileResetVectorIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"reset_vector_$i") }
   val tile_hartids = outer.tileHartIdIONodes.zipWithIndex.map { case (n, i) => n.makeIO(s"tile_hartids_$i") }
@@ -138,7 +138,7 @@ trait HasElementsRootContextModuleImp extends LazyRawModuleImp {
   *    BaseTiles subtypes with different needs can extend this trait to provide themselves with
   *    additional external connection points.
   */
-trait DefaultElementContextType
+trait DefaultHierarchicalElementContextType
     extends Attachable
     with HasTileNotificationSinks
 { this: LazyModule with Attachable =>
@@ -155,10 +155,10 @@ trait DefaultElementContextType
 }
 
 /** This trait provides the tile attachment context for the root (outermost) subsystem */
-trait HasElementsRootContext
-{ this: HasElements
+trait HasHierarchicalElementsRootContext
+{ this: HasHierarchicalElements
     with HasTileNotificationSinks
-    with InstantiatesElements =>
+    with InstantiatesHierarchicalElements =>
 
   val clintOpt: Option[CLINT]
   val plicOpt: Option[TLPLIC]

@@ -14,9 +14,9 @@ import freechips.rocketchip.interrupts.{NullIntSyncSource}
 
 class GroundTestSubsystem(implicit p: Parameters)
   extends BaseSubsystem
-  with InstantiatesElements
-  with HasElementsRootContext
-  with HasElements
+  with InstantiatesHierarchicalElements
+  with HasHierarchicalElementsRootContext
+  with HasHierarchicalElements
   with HasTileNotificationSinks
   with HasTileInputConstants
   with CanHaveMasterAXI4MemPort

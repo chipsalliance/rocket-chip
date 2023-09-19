@@ -26,7 +26,7 @@ import freechips.rocketchip.diplomacy.{ClockCrossingType}
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.subsystem.{ElementCrossingParamsLike, CanAttachTile}
+import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, CanAttachTile}
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters}
 
@@ -71,7 +71,7 @@ case class TraceGenParams(
     tileId: Int = 0
 ) extends InstantiableTileParams[TraceGenTile] with GroundTestTileParams
 {
-  def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
+  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
     new TraceGenTile(this, crossing, lookup)
   }
   val blockerCtrlAddr = None
@@ -105,7 +105,7 @@ trait HasTraceGenParams {
 
 case class TraceGenTileAttachParams(
   tileParams: TraceGenParams,
-  crossingParams: ElementCrossingParamsLike
+  crossingParams: HierarchicalElementCrossingParamsLike
 ) extends CanAttachTile {
   type TileType = TraceGenTile
   val lookup: LookupByHartIdImpl = HartsWontDeduplicate(tileParams)
@@ -617,7 +617,7 @@ class TraceGenTile private(
   q: Parameters
 ) extends GroundTestTile(params, crossing, lookup, q)
 {
-  def this(params: TraceGenParams, crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+  def this(params: TraceGenParams, crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
   val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := dcacheOpt.map(_.node).getOrElse(TLTempNode())

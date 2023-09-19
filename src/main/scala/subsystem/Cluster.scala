@@ -20,10 +20,10 @@ case class ClustersLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttac
 case class ClusterParams(
   val clusterId: Int,
   val clockSinkParams: ClockSinkParameters = ClockSinkParameters()
-) extends ElementParams {
+) extends HierarchicalElementParams {
   val baseName = "cluster"
   val uniqueName = s"${baseName}_$clusterId"
-  def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByClusterIdImpl)(implicit p: Parameters): Cluster = {
+  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByClusterIdImpl)(implicit p: Parameters): Cluster = {
     new Cluster(this, crossing.crossingType, lookup)
   }
 }
@@ -31,11 +31,11 @@ case class ClusterParams(
 class Cluster(
   val thisClusterParams: ClusterParams,
   crossing: ClockCrossingType,
-  lookup: LookupByClusterIdImpl)(implicit p: Parameters) extends BaseElement(crossing)(p)
+  lookup: LookupByClusterIdImpl)(implicit p: Parameters) extends BaseHierarchicalElement(crossing)(p)
     with Attachable
     with HasConfigurableTLNetworkTopology
-    with InstantiatesElements
-    with HasElements
+    with InstantiatesHierarchicalElements
+    with HasHierarchicalElements
 {
   val busContextName = thisClusterParams.baseName
   lazy val clusterId = thisClusterParams.clusterId
@@ -78,16 +78,16 @@ class Cluster(
   override lazy val module = new ClusterModuleImp(this)
 }
 
-class ClusterModuleImp(outer: Cluster) extends BaseElementModuleImp[Cluster](outer)
+class ClusterModuleImp(outer: Cluster) extends BaseHierarchicalElementModuleImp[Cluster](outer)
 
 case class InCluster(id: Int) extends HierarchicalLocation(s"Cluster$id")
 
 class ClusterPRCIDomain(
   clockSinkParams: ClockSinkParameters,
-  crossingParams: ElementCrossingParamsLike,
+  crossingParams: HierarchicalElementCrossingParamsLike,
   clusterParams: ClusterParams,
   lookup: LookupByClusterIdImpl)
-  (implicit p: Parameters) extends ElementPRCIDomain[Cluster](clockSinkParams, crossingParams)
+  (implicit p: Parameters) extends HierarchicalElementPRCIDomain[Cluster](clockSinkParams, crossingParams)
 {
   val element = element_reset_domain {
     LazyModule(clusterParams.instantiate(crossingParams, lookup))
@@ -98,10 +98,10 @@ class ClusterPRCIDomain(
 
 
 trait CanAttachCluster {
-  type ClusterContextType <: DefaultElementContextType
+  type ClusterContextType <: DefaultHierarchicalElementContextType
 
   def clusterParams: ClusterParams
-  def crossingParams: ElementCrossingParamsLike
+  def crossingParams: HierarchicalElementCrossingParamsLike
 
   def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: ListMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
     val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
@@ -208,7 +208,7 @@ trait CanAttachCluster {
 
 case class ClusterAttachParams(
   clusterParams: ClusterParams,
-  crossingParams: ElementCrossingParamsLike
+  crossingParams: HierarchicalElementCrossingParamsLike
 ) extends CanAttachCluster
 
 case class CloneClusterAttachParams(

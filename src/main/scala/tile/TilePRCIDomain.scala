@@ -23,8 +23,8 @@ import freechips.rocketchip.util.{TraceCoreInterface}
   */
 abstract class TilePRCIDomain[T <: BaseTile](
   clockSinkParams: ClockSinkParameters,
-  crossingParams: ElementCrossingParamsLike)
+  crossingParams: HierarchicalElementCrossingParamsLike)
   (implicit p: Parameters)
-    extends ElementPRCIDomain[T](clockSinkParams, crossingParams)
+    extends HierarchicalElementPRCIDomain[T](clockSinkParams, crossingParams)
 {
 }

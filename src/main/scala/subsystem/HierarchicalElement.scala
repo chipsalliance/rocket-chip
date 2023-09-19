@@ -14,22 +14,22 @@ import freechips.rocketchip.util._
 import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
 
-trait ElementParams {
+trait HierarchicalElementParams {
   val baseName: String // duplicated instances shouuld share a base name
   val uniqueName: String
   val clockSinkParams: ClockSinkParameters
 }
 
-abstract class InstantiableElementParams[ElementType <: BaseElement] extends ElementParams
+abstract class InstantiableHierarchicalElementParams[ElementType <: BaseHierarchicalElement] extends HierarchicalElementParams
 
-/** An interface for describing the parameteization of how Elements are connected to interconnects */
-trait ElementCrossingParamsLike {
+/** An interface for describing the parameteization of how HierarchicalElements are connected to interconnects */
+trait HierarchicalElementCrossingParamsLike {
   /** The type of clock crossing that should be inserted at the element boundary. */
   def crossingType: ClockCrossingType
   /** Parameters describing the contents and behavior of the point where the element is attached as an interconnect master. */
-  def master: ElementPortParamsLike
+  def master: HierarchicalElementPortParamsLike
   /** Parameters describing the contents and behavior of the point where the element is attached as an interconnect slave. */
-  def slave: ElementPortParamsLike
+  def slave: HierarchicalElementPortParamsLike
   /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the element */
   def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
   /** Inject a reset management subgraph that effects the element child reset only */
@@ -39,18 +39,18 @@ trait ElementCrossingParamsLike {
 }
 
 /** An interface for describing the parameterization of how a particular element port is connected to an interconnect */
-trait ElementPortParamsLike {
+trait HierarchicalElementPortParamsLike {
   /** The subnetwork location of the interconnect to which this element port should be connected. */
   def where: TLBusWrapperLocation
   /** Allows port-specific adapters to be injected into the interconnect side of the attachment point. */
   def injectNode(context: Attachable)(implicit p: Parameters): TLNode
 }
 
-abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Parameters)
+abstract class BaseHierarchicalElement (val crossing: ClockCrossingType)(implicit p: Parameters)
     extends LazyModule()(p)
     with CrossesToOnlyOneClockDomain
 {
-  def module: BaseElementModuleImp[BaseElement]
+  def module: BaseHierarchicalElementModuleImp[BaseHierarchicalElement]
 
   protected val tlOtherMastersNode = TLIdentityNode()
   protected val tlMasterXbar = LazyModule(new TLXbar)
@@ -79,5 +79,5 @@ abstract class BaseElement (val crossing: ClockCrossingType)(implicit p: Paramet
 
 }
 
-abstract class BaseElementModuleImp[+L <: BaseElement](val outer: L) extends LazyModuleImp(outer)
+abstract class BaseHierarchicalElementModuleImp[+L <: BaseHierarchicalElement](val outer: L) extends LazyModuleImp(outer)
 

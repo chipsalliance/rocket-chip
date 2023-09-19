@@ -18,7 +18,7 @@ case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
 case object LookupByHartId extends Field[LookupByHartIdImpl]
 
-trait TileParams extends ElementParams {
+trait TileParams extends HierarchicalElementParams {
   val core: CoreParams
   val icache: Option[ICacheParams]
   val dcache: Option[DCacheParams]
@@ -28,9 +28,9 @@ trait TileParams extends ElementParams {
 }
 
 abstract class InstantiableTileParams[TileType <: BaseTile]
-    extends InstantiableElementParams[TileType]
+    extends InstantiableHierarchicalElementParams[TileType]
     with TileParams {
-  def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)
+  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)
                  (implicit p: Parameters): TileType
 }
 
@@ -188,7 +188,7 @@ trait HasTileParameters extends HasNonDiplomaticTileParameters {
 
 /** Base class for all Tiles that use TileLink */
 abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
-    extends BaseElement(crossing)(q)
+    extends BaseHierarchicalElement(crossing)(q)
     with HasNonDiplomaticTileParameters
 {
   // Public constructor alters Parameters to supply some legacy compatibility keys
@@ -347,4 +347,4 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   this.suggestName(tileParams.baseName)
 }
 
-abstract class BaseTileModuleImp[+L <: BaseTile](outer: L) extends BaseElementModuleImp[L](outer)
+abstract class BaseTileModuleImp[+L <: BaseTile](outer: L) extends BaseHierarchicalElementModuleImp[L](outer)

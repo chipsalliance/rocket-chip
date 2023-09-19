@@ -214,7 +214,7 @@ class With1TinyCore extends Config((site, here, up) => {
       tiny,
       RocketCrossingParams(
         crossingType = SynchronousCrossing(),
-        master = ElementMasterPortParams())
+        master = HierarchicalElementMasterPortParams())
     ))
   }
   case NumTiles => 1
@@ -320,7 +320,7 @@ class WithIncoherentTiles extends Config((site, here, up) => {
   case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       master = tp.crossingParams.master match {
-        case x: ElementMasterPortParams => x.copy(cork = Some(true))
+        case x: HierarchicalElementMasterPortParams => x.copy(cork = Some(true))
         case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
       }))
     case t => t

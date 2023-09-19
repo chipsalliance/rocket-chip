@@ -12,12 +12,12 @@ import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CanHavePeri
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
-  master: ElementPortParamsLike = ElementMasterPortParams(),
-  slave: ElementSlavePortParams = ElementSlavePortParams(),
+  master: HierarchicalElementPortParamsLike = HierarchicalElementMasterPortParams(),
+  slave: HierarchicalElementSlavePortParams = HierarchicalElementSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
   resetCrossingType: ResetCrossingType = NoResetCrossing(),
   forceSeparateClockReset: Boolean = false
-) extends ElementCrossingParamsLike
+) extends HierarchicalElementCrossingParamsLike
 
 case class RocketTileAttachParams(
   tileParams: RocketTileParams,
@@ -25,7 +25,7 @@ case class RocketTileAttachParams(
 ) extends CanAttachTile { type TileType = RocketTile }
 
 trait HasRocketTiles {
-  this: BaseSubsystem with InstantiatesElements =>
+  this: BaseSubsystem with InstantiatesHierarchicalElements =>
   val rocketTiles = totalTiles.values.collect { case r: RocketTile => r }
 
   def coreMonitorBundles = (rocketTiles map { t =>
@@ -34,14 +34,14 @@ trait HasRocketTiles {
 }
 
 class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
-    with InstantiatesElements
+    with InstantiatesHierarchicalElements
     with HasTileNotificationSinks
     with HasTileInputConstants
     with CanHavePeripheryCLINT
     with CanHavePeripheryPLIC
     with HasPeripheryDebug
-    with HasElementsRootContext
-    with HasElements
+    with HasHierarchicalElementsRootContext
+    with HasHierarchicalElements
     with HasCoreMonitorBundles
     with HasRocketTiles
 {
@@ -49,5 +49,5 @@ class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem
 }
 
 class RocketSubsystemModuleImp[+L <: RocketSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer)
-    with HasElementsRootContextModuleImp
+    with HasHierarchicalElementsRootContextModuleImp
 

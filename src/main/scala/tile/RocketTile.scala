@@ -10,7 +10,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.rocket._
-import freechips.rocketchip.subsystem.ElementCrossingParamsLike
+import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters}
 
@@ -32,7 +32,7 @@ case class RocketTileParams(
   require(dcache.isDefined)
   val baseName = "rockettile"
   val uniqueName = s"${baseName}_$tileId"
-  def instantiate(crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): RocketTile = {
+  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): RocketTile = {
     new RocketTile(this, crossing, lookup)
   }
 }
@@ -50,7 +50,7 @@ class RocketTile private(
     with HasICacheFrontend
 {
   // Private constructor ensures altered LazyModule.p is used implicitly
-  def this(params: RocketTileParams, crossing: ElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+  def this(params: RocketTileParams, crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
   val intOutwardNode = rocketParams.beuAddr map { _ => IntIdentityNode() }
