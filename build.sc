@@ -2,8 +2,8 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
-import $file.hardfloat.common
-import $file.cde.common
+import $file.dependencies.hardfloat.common
+import $file.dependencies.cde.common
 import $file.common
 
 object v {
@@ -35,13 +35,13 @@ trait Macros
 object hardfloat extends mill.define.Cross[Hardfloat](v.chiselCrossVersions.keys.toSeq)
 
 trait Hardfloat
-  extends millbuild.hardfloat.common.HardfloatModule
+  extends millbuild.dependencies.hardfloat.common.HardfloatModule
     with RocketChipPublishModule
     with Cross.Module[String] {
 
   def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "hardfloat" / "hardfloat"
+  override def millSourcePath = os.pwd / "dependencies" / "hardfloat" / "hardfloat"
 
   def chiselModule = None
 
@@ -57,13 +57,13 @@ trait Hardfloat
 object cde extends CDE
 
 trait CDE
-  extends millbuild.cde.common.CDEModule
+  extends millbuild.dependencies.cde.common.CDEModule
     with RocketChipPublishModule
     with ScalaModule {
 
   def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "cde" / "cde"
+  override def millSourcePath = os.pwd / "dependencies" / "cde" / "cde"
 }
 
 object rocketchip extends Cross[RocketChip](v.chiselCrossVersions.keys.toSeq)
