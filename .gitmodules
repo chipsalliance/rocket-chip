@@ -1,9 +1,6 @@
 [submodule "hardfloat"]
 	path = hardfloat
 	url = https://github.com/ucb-bar/berkeley-hardfloat.git
-[submodule "torture"]
-	path = torture
-	url = https://github.com/ucb-bar/riscv-torture.git
 [submodule "cde"]
 	path = cde
 	url = https://github.com/chipsalliance/cde.git
