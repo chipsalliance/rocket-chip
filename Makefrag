@@ -3,6 +3,8 @@ ifndef RISCV
 $(error Please set environment variable RISCV. Please take a look at README)
 endif
 
+CHISEL_VERSION=3.6.0
+
 MODEL ?= TestHarness
 PROJECT ?= freechips.rocketchip.system
 CFG_PROJECT ?= $(PROJECT)
@@ -44,7 +46,7 @@ all_srcs := $(scala_srcs) $(resources)
 
 ROCKET_CHIP_JAR := $(base_dir)/out/rocketchip/assembly.dest/out.jar
 $(ROCKET_CHIP_JAR): $(all_srcs)
-	cd $(base_dir) && $(MILL) rocketchip.assembly
+	cd $(base_dir) && $(MILL) rocketchip[$(CHISEL_VERSION)].assembly
 
 rc_resource_dir := $(base_dir)/src/main/resources
 csrc := $(rc_resource_dir)/csrc
