@@ -186,7 +186,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
     require(!usingRoCC || !rocketParams.useSCIE)
-    (if (usingMulDiv) new MDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new M64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
+    (if (usingMulDiv) new MMulDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new MMul64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
+    (if (usingMulDiv && mulDivParams.divEnabled) new MDivDecode(aluFn) +: (xLen > 32).option(new MDiv64Decode(aluFn)).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode(aluFn) +: (xLen > 32).option(new A64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 32)    new FDecode(aluFn) +: (xLen > 32).option(new F64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
@@ -328,7 +329,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
   val id_illegal_rnum = if (usingCryptoNIST) (id_ctrl.zkn && aluFn.isKs1(id_ctrl.alu_fn) && id_inst(0)(23,20) > 0xA.U(4.W)) else false.B
   val id_illegal_insn = !id_ctrl.legal ||
-    (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
+    id_ctrl.div && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||

@@ -623,7 +623,7 @@ class CSRFile(
   io.pmp := reg_pmp.map(PMP(_))
 
   val isaMaskString =
-    (if (usingMulDiv) "M" else "") +
+    (if (usingMulDiv && coreParams.mulDiv.get.divEnabled) "M" else "") +
     (if (usingAtomics) "A" else "") +
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +

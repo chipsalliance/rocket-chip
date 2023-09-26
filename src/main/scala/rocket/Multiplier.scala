@@ -29,6 +29,7 @@ class MultiplierIO(val dataBits: Int, val tagBits: Int, aluFn: ALUFN = new ALUFN
 case class MulDivParams(
   mulUnroll: Int = 1,
   divUnroll: Int = 1,
+  divEnabled: Boolean = true,
   mulEarlyOut: Boolean = false,
   divEarlyOut: Boolean = false,
   divEarlyOutGranularity: Int = 1
@@ -49,7 +50,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
  
   val req = Reg(chiselTypeOf(io.req.bits))
   val count = Reg(UInt(log2Ceil(
-    ((cfg.divUnroll != 0).option(w/cfg.divUnroll + 1).toSeq ++
+    ((cfg.divEnabled && cfg.divUnroll != 0).option(w/cfg.divUnroll + 1).toSeq ++
      (cfg.mulUnroll != 0).option(mulw/cfg.mulUnroll)).reduce(_ max _)).W))
   val neg_out = Reg(Bool())
   val isHi = Reg(Bool())
@@ -69,7 +70,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
     aluFn.FN_REMU   -> List(N, Y, N, N))
   val cmdMul :: cmdHi :: lhsSigned :: rhsSigned :: Nil =
     DecodeLogic(io.req.bits.fn, List(X, X, X, X),
-      (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
+      (if (cfg.divEnabled && cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
 
   require(w == 32 || w == 64)
   def halfWidth(req: MultiplierReq) = (w > 32).B && req.dw === DW_32
@@ -86,7 +87,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
   val result = Mux(resHi, remainder(2*w, w+1), remainder(w-1, 0))
   val negated_remainder = -result
 
-  if (cfg.divUnroll != 0) when (state === s_neg_inputs) {
+  if (cfg.divEnabled && cfg.divUnroll != 0) when (state === s_neg_inputs) {
     when (remainder(w-1)) {
       remainder := negated_remainder
     }
@@ -95,7 +96,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
     }
     state := s_div
   }
-  if (cfg.divUnroll != 0) when (state === s_neg_output) {
+  if (cfg.divEnabled && cfg.divUnroll != 0) when (state === s_neg_output) {
     remainder := negated_remainder
     state := s_done_div
     resHi := false.B
@@ -123,7 +124,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
       resHi := isHi
     }
   }
-  if (cfg.divUnroll != 0) when (state === s_div) {
+  if (cfg.divEnabled && cfg.divUnroll != 0) when (state === s_div) {
     val unrolls = ((0 until cfg.divUnroll) scanLeft remainder) { case (rem, i) =>
       // the special case for iteration 0 is to save HW, not for correctness
       val difference = if (i == 0) subtractor else rem(2*w,w) - divisor(w-1,0)
