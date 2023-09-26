@@ -25,7 +25,6 @@ trait CoreParams {
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
   val useVector: Boolean = false
-  val useSCIE: Boolean
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
   val useRVE: Boolean
@@ -89,7 +88,6 @@ trait HasCoreParameters extends HasTileParameters {
   val usingBitManip = coreParams.useBitManip
   val usingBitManipCrypto = coreParams.hasBitManipCrypto
   val usingVector = coreParams.useVector
-  val usingSCIE = coreParams.useSCIE
   val usingCryptoNIST = coreParams.useCryptoNIST
   val usingCryptoSM = coreParams.useCryptoSM
   val usingNMI = coreParams.useNMI
