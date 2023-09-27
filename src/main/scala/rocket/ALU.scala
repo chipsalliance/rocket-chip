@@ -164,9 +164,9 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
 
   // CZEQZ, CZNEZ
   val in2_not_zero = io.in2.orR
-  val cond_out = Option.when(usingConditionalZero)(
+  val cond_out = if (usingConditionalZero) Some(
     Mux((io.fn === aluFn.FN_CZEQZ && in2_not_zero) || (io.fn === aluFn.FN_CZNEZ && !in2_not_zero), io.in1, 0.U)
-  )
+  ) else None
 
   // AND, OR, XOR
   val logic = Mux(io.fn === aluFn.FN_XOR || io.fn === aluFn.FN_OR, in1_xor_in2, 0.U) |
@@ -175,7 +175,7 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   val shift_logic = (aluFn.isCmp (io.fn) && slt) | logic | shout
   val shift_logic_cond = cond_out match {
     case Some(co) => shift_logic | co
-    case _ => shift_logic 
+    case _ => shift_logic
   }
   val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic_cond)
 

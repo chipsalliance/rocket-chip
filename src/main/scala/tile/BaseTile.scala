@@ -92,7 +92,7 @@ trait HasNonDiplomaticTileParameters {
   def masterPortBeatBytes = p(SystemBusKey).beatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
-  //                  Core   PTW                DTIM                    coprocessors           
+  //                  Core   PTW                DTIM                    coprocessors
   def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + tileParams.core.useVector.toInt
 
   // TODO merge with isaString in CSR.scala
@@ -110,14 +110,14 @@ trait HasNonDiplomaticTileParameters {
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
       //Some(Seq("zicntr")) ++
-      Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
+      (if (tileParams.core.useConditionalZero) Some(Seq("zicond")) else None) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
-      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
-      Option.when(tileParams.core.hasBitManipCrypto)(Seq("zbkb", "zbkc", "zbkx")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("zbs")) ++
-      Option.when(tileParams.core.useCryptoNIST)(Seq("zknd", "zkne", "zknh")) ++
-      Option.when(tileParams.core.useCryptoSM)(Seq("zksed", "zksh")) ++
+      (if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16) Some(Seq("zfh")) else None) ++
+      (if (tileParams.core.useBitManip) Some(Seq("zba", "zbb", "zbc")) else None) ++
+      (if (tileParams.core.hasBitManipCrypto) Some(Seq("zbkb", "zbkc", "zbkx")) else None) ++
+      (if (tileParams.core.useBitManip) Some(Seq("zbs")) else None) ++
+      (if (tileParams.core.useCryptoNIST) Some(Seq("zknd", "zkne", "zknh")) else None) ++
+      (if (tileParams.core.useCryptoSM) Some(Seq("zksed", "zksh")) else None) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
