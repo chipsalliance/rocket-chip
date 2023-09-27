@@ -882,6 +882,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (htval_dmem | htval_imem) >> hypervisorExtraAddrBits
   }
 
+  csr.io.vector.foreach { v =>
+    v.set_vconfig.valid := wb_reg_set_vconfig && wb_reg_valid
+    v.set_vconfig.bits := wb_reg_rs2.asTypeOf(new VConfig)
+    v.set_vs_dirty := wb_valid && wb_ctrl.vec
+    v.set_vstart.valid := wb_valid && wb_reg_set_vconfig
+    v.set_vstart.bits := 0.U
+  }
+
   io.vector.foreach { v =>
     when (v.wb.retire || v.wb.xcpt || wb_ctrl.vec) {
       csr.io.pc := v.wb.pc
@@ -893,10 +901,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       }
     }
     csr.io.vector.get.set_vxsat := v.set_vxsat
-    csr.io.vector.get.set_vstart := v.set_vstart
-    when (wb_valid && wb_reg_set_vconfig) {
-      csr.io.vector.get.set_vstart.valid := true.B
-      csr.io.vector.get.set_vstart.bits := 0.U
+    when (v.set_vconfig.valid) {
+      csr.io.vector.get.set_vconfig.valid := true.B
+      csr.io.vector.get.set_vconfig.bits := v.set_vconfig.bits
+    }
+    when (v.set_vstart.valid) {
+      csr.io.vector.get.set_vstart.bits := v.set_vstart.bits
     }
   }
 
@@ -911,12 +921,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-
-  csr.io.vector.foreach { v =>
-    v.set_vconfig.valid := wb_reg_set_vconfig && wb_reg_valid
-    v.set_vconfig.bits := wb_reg_rs2.asTypeOf(new VConfig)
-    v.set_vs_dirty := wb_valid && wb_ctrl.vec
-  }
 
 
   io.rocc.csrs <> csr.io.roccCSRs
