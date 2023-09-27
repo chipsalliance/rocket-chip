@@ -45,7 +45,7 @@ case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[
 }
 
 case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) extends ChiselAnnotation {
-  private val paramMap = params.getClass.getDeclaredFields.map(_.getName).zip(params.productIterator).toMap
+  private val paramMap = params.getClass.getDeclaredFields.map(_.getName).zip(params.productIterator.to).toMap
   def toFirrtl = ParamsAnnotation(target.toNamed, params.getClass.getName, paramMap)
 }
 
@@ -274,7 +274,7 @@ object GenRegDescsAnno {
       baseAddress = baseAddress,
       regFields = regFieldSers // Seq[RegFieldSer]()
     )
-    
+
     /* annotate the module with the registers */
     annotate(new ChiselAnnotation { def toFirrtl = RegFieldDescMappingAnnotation(rawModule.toNamed, registersSer) })
 
@@ -299,4 +299,3 @@ object GenRegDescsAnno {
           ("regfields" -> regDescs)))))
   }
 }
-
