@@ -37,7 +37,7 @@ abstract class BasePropertyLibrary {
 class DefaultPropertyLibrary extends BasePropertyLibrary {
   def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo): Unit = {
     // default is to do nothing
-    Unit
+    ()
   }
 }
 

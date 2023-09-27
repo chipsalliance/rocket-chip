@@ -8,7 +8,6 @@ import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
 import Chisel.ImplicitConversions._
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
@@ -309,7 +308,7 @@ trait HasFPUParameters {
   def xLen: Int
   val minXLen = 32
   val nIntTypes = log2Ceil(xLen/minXLen) + 1
-  val floatTypes = FType.all.filter(t => minFLen <= t.ieeeWidth && t.ieeeWidth <= fLen)
+  def floatTypes = FType.all.filter(t => minFLen <= t.ieeeWidth && t.ieeeWidth <= fLen)
   def minType = floatTypes.head
   def maxType = floatTypes.last
   def prevType(t: FType) = floatTypes(typeTag(t) - 1)
@@ -724,7 +723,6 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   io.out := Pipe(fma.io.validout, res, (latency-3) max 0)
 }
 
-@chiselName
 class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val io = new FPUIO
 
@@ -753,7 +751,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val load_wb_data = RegEnable(io.dmem_resp_data, io.dmem_resp_val)
   val load_wb_tag = RegEnable(io.dmem_resp_tag, io.dmem_resp_val)
 
-  @chiselName class FPUImpl extends NoChiselNamePrefix { // entering gated-clock domain
+  class FPUImpl { // entering gated-clock domain
 
   val req_valid = ex_reg_valid || io.cp_req.valid
   val ex_cp_valid = io.cp_req.fire()

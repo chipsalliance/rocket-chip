@@ -42,6 +42,7 @@ class ClockedAPBBundle(params: APBBundleParameters) extends APBBundle(params) {
   val reset = Reset()
 }
 
+
 class DebugIO(implicit val p: Parameters) extends Bundle {
   val clock = Input(Clock())
   val reset = Input(Reset())
@@ -80,21 +81,21 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     domain
   }
   val debugOpt = p(DebugModuleKey).map { params =>
-    val debug = LazyModule(new TLDebugModule(tlbus.beatBytes))
+    val tlDM = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
-    debug.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
-    debug.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
+    tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
+    tlDM.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
 
-    (apbDebugNodeOpt zip debug.apbNodeOpt) foreach { case (master, slave) =>
+    (apbDebugNodeOpt zip tlDM.apbNodeOpt) foreach { case (master, slave) =>
       slave := master
     }
 
-    debug.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
+    tlDM.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
       locateTLBusWrapper(p(ExportDebug).masterWhere).coupleFrom("debug_sb") {
         _ := TLWidthWidget(1) := sb2tl.node
       }
     }
-    debug
+    tlDM
   }
 }
 
@@ -175,7 +176,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     dtm
   }
 }
-
+/** BlackBox to export DMI interface */
 class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk = Input(Clock())
@@ -201,7 +202,7 @@ class SimDTM(implicit p: Parameters) extends BlackBox with HasBlackBoxResource {
   addResource("/vsrc/SimDTM.v")
   addResource("/csrc/SimDTM.cc")
 }
-
+/** BlackBox to export JTAG interface */
 class SimJTAG(tickDelay: Int = 50) extends BlackBox(Map("TICK_DELAY" -> IntParam(tickDelay)))
   with HasBlackBoxResource {
   val io = IO(new Bundle {

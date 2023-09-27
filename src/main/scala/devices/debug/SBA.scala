@@ -266,7 +266,8 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     clients = Seq(TLMasterParameters.v1("debug")),
     requestFields = Seq(AMBAProtField()))))
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val rdEn         = Input(Bool())
       val wrEn         = Input(Bool())

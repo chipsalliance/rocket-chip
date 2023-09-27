@@ -16,7 +16,8 @@ class TLAsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends L
 
   val node = TLAsyncSourceNode(sync)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
       val psync = sync.getOrElse(edgeOut.manager.async.sync)
@@ -50,7 +51,8 @@ class TLAsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implici
 {
   val node = TLAsyncSinkNode(params)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
 
@@ -107,7 +109,8 @@ class TLAsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit p:
 
   sink.node := source.node
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val in_clock  = Clock(INPUT)
       val in_reset  = Bool(INPUT)
@@ -133,7 +136,8 @@ class TLRAMAsyncCrossing(txns: Int, params: AsynchronousCrossing = AsynchronousC
 
   island.crossTLIn(ram.node) := TLFragmenter(4, 256) := TLDelayer(0.1) := model.node := fuzz.node
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := fuzz.module.io.finished
 
     // Shove the RAM into another clock domain

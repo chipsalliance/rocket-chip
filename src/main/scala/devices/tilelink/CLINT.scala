@@ -56,7 +56,8 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
     outputRequiresInput = false)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     Annotated.params(this, params)
     require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
 

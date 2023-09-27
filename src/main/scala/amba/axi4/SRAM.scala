@@ -48,7 +48,8 @@ class AXI4RAM(
 
   private val outer = this
 
-  lazy val module = new LazyModuleImp(this) with HasJustOneSeqMem {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with HasJustOneSeqMem {
     val (in, edgeIn) = node.in(0)
     val laneDataBits = 8
     val mem = makeSinglePortedByteWriteSeqMem(

@@ -3,10 +3,9 @@
 
 package freechips.rocketchip.rocket
 
-import Chisel._
-import Chisel.ImplicitConversions._
+import chisel3._
+import chisel3.util._
 import chisel3.internal.InstanceId
-import chisel3.WireInit
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters
@@ -42,18 +41,18 @@ abstract class BtbBundle(implicit val p: Parameters) extends Bundle with HasBtbP
 
 class RAS(nras: Int) {
   def push(addr: UInt): Unit = {
-    when (count < nras) { count := count + 1 }
-    val nextPos = Mux(Bool(isPow2(nras)) || pos < nras-1, pos+1, UInt(0))
+    when (count < nras.U) { count := count + 1.U }
+    val nextPos = Mux((isPow2(nras)).B || pos < (nras-1).U, pos+1.U, 0.U)
     stack(nextPos) := addr
     pos := nextPos
   }
   def peek: UInt = stack(pos)
   def pop(): Unit = when (!isEmpty) {
-    count := count - 1
-    pos := Mux(Bool(isPow2(nras)) || pos > 0, pos-1, UInt(nras-1))
+    count := count - 1.U
+    pos := Mux((isPow2(nras)).B || pos > 0.U, pos-1.U, (nras-1).U)
   }
-  def clear(): Unit = count := UInt(0)
-  def isEmpty: Bool = count === UInt(0)
+  def clear(): Unit = count := 0.U
+  def isEmpty: Bool = count === 0.U
 
   private val count = RegInit(0.U(log2Up(nras+1).W))
   private val pos = RegInit(0.U(log2Up(nras).W))
@@ -61,10 +60,10 @@ class RAS(nras: Int) {
 }
 
 class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {
-  val history = UInt(width = btbParams.bhtParams.map(_.historyLength).getOrElse(1))
-  val value = UInt(width = btbParams.bhtParams.map(_.counterLength).getOrElse(1))
+  val history = UInt(btbParams.bhtParams.map(_.historyLength).getOrElse(1).W)
+  val value = UInt(btbParams.bhtParams.map(_.counterLength).getOrElse(1).W)
   def taken = value(0)
-  def strongly_taken = value === 1
+  def strongly_taken = value === 1.U
 }
 
 // BHT contains table of 2-bit counters and a global history register.
@@ -96,12 +95,12 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
     res
   }
   def updateTable(addr: UInt, d: BHTResp, taken: Bool): Unit = {
-    wen := true
+    wen := true.B
     when (!resetting) {
       waddr := index(addr, d.history)
       wdata := (params.counterLength match {
         case 1 => taken
-        case 2 => Cat(taken ^ d.value(0), d.value === 1 || d.value(1) && taken)
+        case 2 => Cat(taken ^ d.value(0), d.value === 1.U || d.value(1) && taken)
       })
     }
   }
@@ -115,7 +114,7 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
     history := Cat(taken, history >> 1)
   }
 
-  private val table = Mem(params.nEntries, UInt(width = params.counterLength))
+  private val table = Mem(params.nEntries, UInt(params.counterLength.W))
   val history = RegInit(0.U(params.historyLength.W))
 
   private val reset_waddr = RegInit(0.U((params.nEntries.log2+1).W))
@@ -123,13 +122,13 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
   private val wen = WireInit(resetting)
   private val waddr = WireInit(reset_waddr)
   private val wdata = WireInit(0.U)
-  when (resetting) { reset_waddr := reset_waddr + 1 }
+  when (resetting) { reset_waddr := reset_waddr + 1.U }
   when (wen) { table(waddr) := wdata }
 }
 
 object CFIType {
   def SZ = 2
-  def apply() = UInt(width = SZ)
+  def apply() = UInt(SZ.W)
   def branch = 0.U
   def jump = 1.U
   def call = 2.U
@@ -141,11 +140,11 @@ object CFIType {
 //  - "br_pc" is the PC of the branch instruction.
 class BTBUpdate(implicit p: Parameters) extends BtbBundle()(p) {
   val prediction = new BTBResp
-  val pc = UInt(width = vaddrBits)
-  val target = UInt(width = vaddrBits)
+  val pc = UInt(vaddrBits.W)
+  val target = UInt(vaddrBits.W)
   val taken = Bool()
   val isValid = Bool()
-  val br_pc = UInt(width = vaddrBits)
+  val br_pc = UInt(vaddrBits.W)
   val cfiType = CFIType()
 }
 
@@ -153,7 +152,7 @@ class BTBUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 //  - "pc" is what future fetch PCs will tag match against.
 class BHTUpdate(implicit p: Parameters) extends BtbBundle()(p) {
   val prediction = new BHTResp
-  val pc = UInt(width = vaddrBits)
+  val pc = UInt(vaddrBits.W)
   val branch = Bool()
   val taken = Bool()
   val mispredict = Bool()
@@ -161,7 +160,7 @@ class BHTUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 
 class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
   val cfiType = CFIType()
-  val returnAddr = UInt(width = vaddrBits)
+  val returnAddr = UInt(vaddrBits.W)
 }
 
 //  - "bridx" is the low-order PC bits of the predicted branch (after
@@ -171,15 +170,15 @@ class RASUpdate(implicit p: Parameters) extends BtbBundle()(p) {
 class BTBResp(implicit p: Parameters) extends BtbBundle()(p) {
   val cfiType = CFIType()
   val taken = Bool()
-  val mask = Bits(width = fetchWidth)
-  val bridx = Bits(width = log2Up(fetchWidth))
-  val target = UInt(width = vaddrBits)
-  val entry = UInt(width = log2Up(entries + 1))
+  val mask = Bits(fetchWidth.W)
+  val bridx = Bits(log2Up(fetchWidth).W)
+  val target = UInt(vaddrBits.W)
+  val entry = UInt(log2Up(entries + 1).W)
   val bht = new BHTResp
 }
 
 class BTBReq(implicit p: Parameters) extends BtbBundle()(p) {
-   val addr = UInt(width = vaddrBits)
+   val addr = UInt(vaddrBits.W)
 }
 
 // fully-associative branch target buffer
@@ -187,28 +186,28 @@ class BTBReq(implicit p: Parameters) extends BtbBundle()(p) {
 // which requires an extra CAM port for updates (to ensure no duplicates get
 // placed in BTB).
 class BTB(implicit p: Parameters) extends BtbModule {
-  val io = new Bundle {
-    val req = Valid(new BTBReq).flip
+  val io = IO(new Bundle {
+    val req = Flipped(Valid(new BTBReq))
     val resp = Valid(new BTBResp)
-    val btb_update = Valid(new BTBUpdate).flip
-    val bht_update = Valid(new BHTUpdate).flip
-    val bht_advance = Valid(new BTBResp).flip
-    val ras_update = Valid(new RASUpdate).flip
-    val ras_head = Valid(UInt(width = vaddrBits))
-    val flush = Bool().asInput
-  }
+    val btb_update = Flipped(Valid(new BTBUpdate))
+    val bht_update = Flipped(Valid(new BHTUpdate))
+    val bht_advance = Flipped(Valid(new BTBResp))
+    val ras_update = Flipped(Valid(new RASUpdate))
+    val ras_head = Valid(UInt(vaddrBits.W))
+    val flush = Input(Bool())
+  })
 
-  val idxs = Reg(Vec(entries, UInt(width=matchBits - log2Up(coreInstBytes))))
-  val idxPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
-  val tgts = Reg(Vec(entries, UInt(width=matchBits - log2Up(coreInstBytes))))
-  val tgtPages = Reg(Vec(entries, UInt(width=log2Up(nPages))))
-  val pages = Reg(Vec(nPages, UInt(width=vaddrBits - matchBits)))
-  val pageValid = Reg(init = UInt(0, nPages))
+  val idxs = Reg(Vec(entries, UInt((matchBits - log2Up(coreInstBytes)).W)))
+  val idxPages = Reg(Vec(entries, UInt(log2Up(nPages).W)))
+  val tgts = Reg(Vec(entries, UInt((matchBits - log2Up(coreInstBytes)).W)))
+  val tgtPages = Reg(Vec(entries, UInt(log2Up(nPages).W)))
+  val pages = Reg(Vec(nPages, UInt((vaddrBits - matchBits).W)))
+  val pageValid = RegInit(init = 0.U(nPages.W))
   val pagesMasked = (pageValid.asBools zip pages).map { case (v, p) => Mux(v, p, 0.U) }
 
-  val isValid = Reg(init = UInt(0, entries))
+  val isValid = RegInit(0.U(entries.W))
   val cfiType = Reg(Vec(entries, CFIType()))
-  val brIdx = Reg(Vec(entries, UInt(width=log2Up(fetchWidth))))
+  val brIdx = Reg(Vec(entries, UInt(log2Up(fetchWidth).W)))
 
   private def page(addr: UInt) = addr >> matchBits
   private def pageMatch(addr: UInt) = {
@@ -231,27 +230,27 @@ class BTB(implicit p: Parameters) extends BtbModule {
     if (updatesOutOfOrder) {
       val updateHits = (pageHit << 1)(Mux1H(idxMatch(r_btb_update.bits.pc), idxPages))
       (updateHits.orR, OHToUInt(updateHits))
-    } else (r_btb_update.bits.prediction.entry < entries, r_btb_update.bits.prediction.entry)
+    } else (r_btb_update.bits.prediction.entry < entries.U, r_btb_update.bits.prediction.entry)
 
   val useUpdatePageHit = updatePageHit.orR
   val usePageHit = pageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
   val nextPageRepl = RegInit(0.U(log2Ceil(nPages).W))
-  val idxPageRepl = Cat(pageHit(nPages-2,0), pageHit(nPages-1)) | Mux(usePageHit, UInt(0), UIntToOH(nextPageRepl))
+  val idxPageRepl = Cat(pageHit(nPages-2,0), pageHit(nPages-1)) | Mux(usePageHit, 0.U, UIntToOH(nextPageRepl))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
-  val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, UInt(0))
+  val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, 0.U)
 
   val samePage = page(r_btb_update.bits.pc) === page(update_target)
   val doTgtPageRepl = !samePage && !usePageHit
   val tgtPageRepl = Mux(samePage, idxPageUpdateOH, Cat(idxPageUpdateOH(nPages-2,0), idxPageUpdateOH(nPages-1)))
-  val tgtPageUpdate = OHToUInt(pageHit | Mux(usePageHit, UInt(0), tgtPageRepl))
-  val tgtPageReplEn = Mux(doTgtPageRepl, tgtPageRepl, UInt(0))
+  val tgtPageUpdate = OHToUInt(pageHit | Mux(usePageHit, 0.U, tgtPageRepl))
+  val tgtPageReplEn = Mux(doTgtPageRepl, tgtPageRepl, 0.U)
 
   when (r_btb_update.valid && (doIdxPageRepl || doTgtPageRepl)) {
     val both = doIdxPageRepl && doTgtPageRepl
-    val next = nextPageRepl + Mux[UInt](both, 2, 1)
-    nextPageRepl := Mux(next >= nPages, next(0), next)
+    val next = nextPageRepl + Mux[UInt](both, 2.U, 1.U)
+    nextPageRepl := Mux(next >= nPages.U, next(0), next)
   }
 
   val repl = new PseudoLRU(entries)
@@ -265,7 +264,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
     val mask = UIntToOH(waddr)
     idxs(waddr) := r_btb_update.bits.pc(matchBits-1, log2Up(coreInstBytes))
     tgts(waddr) := update_target(matchBits-1, log2Up(coreInstBytes))
-    idxPages(waddr) := idxPageUpdate +& 1 // the +1 corresponds to the <<1 on io.resp.valid
+    idxPages(waddr) := idxPageUpdate +& 1.U // the +1 corresponds to the <<1 on io.resp.valid
     tgtPages(waddr) := tgtPageUpdate
     cfiType(waddr) := r_btb_update.bits.cfiType
     isValid := Mux(r_btb_update.bits.isValid, isValid | mask, isValid & ~mask)
@@ -287,11 +286,11 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   io.resp.valid := (pageHit << 1)(Mux1H(idxHit, idxPages))
-  io.resp.bits.taken := true
+  io.resp.bits.taken := true.B
   io.resp.bits.target := Cat(pagesMasked(Mux1H(idxHit, tgtPages)), Mux1H(idxHit, tgts) << log2Up(coreInstBytes))
   io.resp.bits.entry := OHToUInt(idxHit)
-  io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(idxHit, brIdx) else UInt(0))
-  io.resp.bits.mask := Cat((UInt(1) << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, UInt(0)))-1, UInt(1))
+  io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(idxHit, brIdx) else 0.U)
+  io.resp.bits.mask := Cat((1.U << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, 0.U))-1.U, 1.U)
   io.resp.bits.cfiType := Mux1H(idxHit, cfiType)
 
   // if multiple entries for same PC land in BTB, zap them
@@ -299,7 +298,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
     isValid := isValid & ~idxHit
   }
   when (io.flush) {
-    isValid := 0
+    isValid := 0.U
   }
 
   if (btbParams.bhtParams.nonEmpty) {
@@ -319,7 +318,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
         bht.resetHistory(io.bht_update.bits.prediction)
       }
     }
-    when (!res.taken && isBranch) { io.resp.bits.taken := false }
+    when (!res.taken && isBranch) { io.resp.bits.taken := false.B }
     io.resp.bits.bht := res
   }
 

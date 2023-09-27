@@ -124,7 +124,8 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
     } }
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     Annotated.params(this, params)
 
     val (io_devices, edgesIn) = intnode.in.unzip

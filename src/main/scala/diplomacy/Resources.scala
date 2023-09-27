@@ -378,7 +378,7 @@ trait BindingScope
   def getResourceBindingsMap: ResourceBindingsMap = {
     eval
     ResourceBindingsMap(map = resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
-        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct))))
+        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct).toMap)).toMap)
   }
 
   /** Collect resource addresses from tree. */

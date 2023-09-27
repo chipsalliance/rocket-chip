@@ -6,7 +6,6 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.withClock
-import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -73,6 +72,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
   require(!fastLoadByte || fastLoadWord)
+  require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
 }
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
@@ -106,7 +106,6 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   override def decls = super.decls :+ marchid :+ mvendorid :+ mimpid
 }
 
-@chiselName
 class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
@@ -120,7 +119,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     if (!rocketParams.clockGate) clock
     else ClockGate(clock, clock_en, "rocket_clock_gate")
 
-  @chiselName class RocketImpl extends NoChiselNamePrefix { // entering gated-clock domain
+  class RocketImpl { // entering gated-clock domain
 
   // performance counters
   def pipelineIDToWB[T <: Data](x: T): T =
@@ -838,6 +837,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     imem_might_request_reg := ex_pc_valid || mem_pc_valid || io.ptw.customCSRs.disableICacheClockGate
     imem_might_request_reg
   }
+  io.imem.progress := RegNext(wb_reg_valid && !replay_wb_common)
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
   io.imem.sfence.bits.rs1 := wb_reg_mem_size(0)
   io.imem.sfence.bits.rs2 := wb_reg_mem_size(1)

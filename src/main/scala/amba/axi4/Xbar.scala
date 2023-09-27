@@ -52,7 +52,8 @@ class AXI4Xbar(
     override def circuitIdentity = outputs == 1 && inputs == 1
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val (io_in, edgesIn) = node.in.unzip
     val (io_out, edgesOut) = node.out.unzip
 
@@ -319,7 +320,8 @@ class AXI4XbarFuzzTest(name: String, txns: Int, nMasters: Int, nSlaves: Int)(imp
     := TLRAMModel(s"${name} Master $i")
     := m.node) }
 
-  lazy val module = new LazyModuleImp(this) with UnitTestModule {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) with UnitTestModule {
     io.finished := masters.map(_.module.io.finished).reduce(_ || _)
   }
 }

@@ -5,19 +5,18 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
-val chiselVersion = "3.5.2"
+val chiselVersion = "3.5.5"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   version      := "1.2-SNAPSHOT",
-  scalaVersion := "2.12.15",
+  scalaVersion := "2.13.10",
   parallelExecution in Global := false,
   traceLevel   := 15,
-  scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
+  scalacOptions ++= Seq("-deprecation","-unchecked"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
-  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
+  libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.6"),
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.2.0" % "test"),
-  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -81,7 +80,7 @@ lazy val rocketchip = (project in file("."))
   .settings( // Settings for scalafix
     semanticdbEnabled := true,
     semanticdbVersion := scalafixSemanticdb.revision,
-    scalacOptions += "-Ywarn-unused-import"
+    scalacOptions += "-Ywarn-unused"
   )
 
 lazy val addons = settingKey[Seq[String]]("list of addons used for this build")

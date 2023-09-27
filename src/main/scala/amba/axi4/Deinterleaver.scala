@@ -40,7 +40,8 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
     override def circuitIdentity = edges.out.map(_.slave).forall(nothingToDeinterleave)
   }
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val endId = edgeOut.master.endId
       val beats = maxBeats(edgeOut.slave)

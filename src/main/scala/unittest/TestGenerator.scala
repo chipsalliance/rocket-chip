@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.unittest
 
-import Chisel._
+import chisel3._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 
@@ -10,8 +10,9 @@ abstract class LazyUnitTest(implicit p: Parameters) extends LazyModule
 { self =>
   protected def finished: Bool
 
-  lazy val module = new LazyModuleImp(this) {
-    val finished = IO(Bool(OUTPUT))
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    val finished = IO(Output(Bool()))
     finished := self.finished
   }
 }

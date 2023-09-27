@@ -37,7 +37,8 @@ abstract class TLBusBypassBase(beatBytes: Int, deadlock: Boolean = false, buffer
 class TLBusBypass(beatBytes: Int, bufferError: Boolean = false, maxAtomic: Int = 16, maxTransfer: Int = 4096)(implicit p: Parameters)
     extends TLBusBypassBase(beatBytes, deadlock = false, bufferError = bufferError, maxAtomic = maxAtomic, maxTransfer = maxTransfer)
 {
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val bypass = Bool(INPUT)
     })
@@ -61,7 +62,8 @@ class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implic
 {
   val node = new TLBypassNode(dFn)
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
       val bypass = Bool(INPUT)
       val pending = Bool(OUTPUT)

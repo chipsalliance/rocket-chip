@@ -7,7 +7,6 @@ import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.{withClock,withReset}
 import chisel3.internal.sourceinfo.SourceInfo
-import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
@@ -58,6 +57,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val flush_icache = Bool(OUTPUT)
   val npc = UInt(INPUT, width = vaddrBitsExtended)
   val perf = new FrontendPerfEvents().asInput
+  val progress = Bool(OUTPUT)
 }
 
 class Frontend(val icacheParams: ICacheParams, staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
@@ -74,7 +74,6 @@ class FrontendBundle(val outer: Frontend) extends CoreBundle()(outer.p) {
   val errors = new ICacheErrors
 }
 
-@chiselName
 class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasRocketCoreParameters
     with HasL1ICacheParameters {
@@ -147,6 +146,14 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     s2_tlb_resp := tlb.io.resp
   }
 
+  val recent_progress_counter_init = 3.U
+  val recent_progress_counter = RegInit(recent_progress_counter_init)
+  val recent_progress = recent_progress_counter > 0
+  when(io.ptw.req.fire && recent_progress) { recent_progress_counter := recent_progress_counter - 1 }
+  when(io.cpu.progress) { recent_progress_counter := recent_progress_counter_init }
+
+  val s2_kill_speculative_tlb_refill = s2_speculative && !recent_progress
+
   io.ptw <> tlb.io.ptw
   tlb.io.req.valid := s1_valid && !s2_replay
   tlb.io.req.bits.vaddr := s1_pc
@@ -155,7 +162,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.req.bits.prv := io.ptw.status.prv
   tlb.io.req.bits.v := io.ptw.status.v
   tlb.io.sfence := io.cpu.sfence
-  tlb.io.kill := !s2_valid
+  tlb.io.kill := !s2_valid || s2_kill_speculative_tlb_refill
 
   icache.io.req.valid := s0_valid
   icache.io.req.bits.addr := io.cpu.npc
@@ -168,13 +175,13 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   icache.io.s2_cacheable := s2_tlb_resp.cacheable
   icache.io.s2_prefetch := s2_tlb_resp.prefetchable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableICachePrefetch
 
-  fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || !s2_tlb_resp.miss && icache.io.s2_kill)
+  fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || (s2_kill_speculative_tlb_refill && s2_tlb_resp.miss) || (!s2_tlb_resp.miss && icache.io.s2_kill))
   fq.io.enq.bits.pc := s2_pc
   io.cpu.npc := alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
 
   fq.io.enq.bits.data := icache.io.resp.bits.data
   fq.io.enq.bits.mask := UInt((1 << fetchWidth)-1) << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
-  fq.io.enq.bits.replay := icache.io.resp.bits.replay || icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt
+  fq.io.enq.bits.replay := (icache.io.resp.bits.replay || icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt) || (s2_kill_speculative_tlb_refill && s2_tlb_resp.miss)
   fq.io.enq.bits.btb := s2_btb_resp_bits
   fq.io.enq.bits.btb.taken := s2_btb_taken
   fq.io.enq.bits.xcpt := s2_tlb_resp

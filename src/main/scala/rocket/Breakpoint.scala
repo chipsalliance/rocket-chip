@@ -4,7 +4,6 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{Cat}
-import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile.{CoreBundle, HasCoreParameters}
 import freechips.rocketchip.util._
@@ -94,12 +93,12 @@ class BreakpointUnit(n: Int)(implicit val p: Parameters) extends Module with Has
     val bpwatch  = Output(Vec(n, new BPWatch(1)))
   })
 
-  io.xcpt_if := false
-  io.xcpt_ld := false
-  io.xcpt_st := false
-  io.debug_if := false
-  io.debug_ld := false
-  io.debug_st := false
+  io.xcpt_if := false.B
+  io.xcpt_ld := false.B
+  io.xcpt_st := false.B
+  io.debug_if := false.B
+  io.debug_ld := false.B
+  io.debug_st := false.B
 
   (io.bpwatch zip io.bp).foldLeft((true.B, true.B, true.B)) { case ((ri, wi, xi), (bpw, bp)) =>
     val en = bp.control.enabled(io.status)

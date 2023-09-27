@@ -54,7 +54,8 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
     slaveFn = { sp => sp
     })
 
-  lazy val module = new LazyModuleImp(this) {
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
 
       // Leave everything mostly untouched
