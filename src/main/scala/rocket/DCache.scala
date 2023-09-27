@@ -86,7 +86,7 @@ class DCache(staticIdForMetadataUseOnly: Int, val crossing: ClockCrossingType)(i
 
 class DCacheTLBPort(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Flipped(Decoupled(new TLBReq(coreDataBytes.log2)))
-  val s1_resp = Output(new TLBResp)
+  val s1_resp = Output(new TLBResp(coreDataBytes.log2))
   val s2_kill = Input(Bool())
 }
 
