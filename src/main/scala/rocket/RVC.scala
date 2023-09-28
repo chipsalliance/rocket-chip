@@ -16,7 +16,7 @@ class ExpandedInstruction extends Bundle {
   val rs3 = UInt(5.W)
 }
 
-class RVCDecoder(x: UInt, xLen: Int) {
+class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
   def inst(bits: UInt, rd: UInt = x(11,7), rs1: UInt = x(19,15), rs2: UInt = x(24,20), rs3: UInt = x(31,27)) = {
     val res = Wire(new ExpandedInstruction)
     res.bits := bits
@@ -108,7 +108,7 @@ class RVCDecoder(x: UInt, xLen: Int) {
     }
     Seq(addi, jal, li, lui, arith, j, beqz, bnez)
   }
-  
+
   def q2 = {
     val load_opc = Mux(rd.orR, 0x03.U(7.W), 0x1F.U(7.W))
     def slli = inst(Cat(shamt, rd, 1.U(3.W), rd, 0x13.U(7.W)), rd, rd, rs2)
@@ -127,7 +127,10 @@ class RVCDecoder(x: UInt, xLen: Int) {
       else sdsp
     }
     def jalr = {
-      val mv = inst(Cat(rs2, 0.U(3.W), rd, 0x13.U(7.W)), rd, rs2, x0)
+      val mv = {
+        if (useAddiForMv) inst(Cat(rs2, 0.U(3.W), rd, 0x13.U(7.W)), rd, rs2, x0)
+        else inst(Cat(rs2, x0, 0.U(3.W), rd, 0x33.U(7.W)), rd, x0, rs2)
+      }
       val add = inst(Cat(rs2, rd, 0.U(3.W), rd, 0x33.U(7.W)), rd, rd, rs2)
       val jr = Cat(rs2, rd, 0.U(3.W), x0, 0x67.U(7.W))
       val reserved = Cat(jr >> 7, 0x1F.U(7.W))
@@ -152,7 +155,7 @@ class RVCDecoder(x: UInt, xLen: Int) {
   }
 }
 
-class RVCExpander(implicit val p: Parameters) extends Module with HasCoreParameters {
+class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) extends Module with HasCoreParameters {
   val io = IO(new Bundle {
     val in = Input(UInt(32.W))
     val out = Output(new ExpandedInstruction)
@@ -161,9 +164,9 @@ class RVCExpander(implicit val p: Parameters) extends Module with HasCoreParamet
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= 3.U
-    io.out := new RVCDecoder(io.in, p(XLen)).decode
+    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv).decode
   } else {
     io.rvc := false.B
-    io.out := new RVCDecoder(io.in, p(XLen)).passthrough
+    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv).passthrough
   }
 }
