@@ -12,7 +12,7 @@ object v {
   val scala = "2.13.12"
   // the first version in this Map is the mainly supported version which will be used to run tests
   val chiselCrossVersions = Map(
-    "5.0.0" -> (ivy"org.chipsalliance::chisel:5.0.0", ivy"org.chipsalliance:::chisel-plugin:5.0.0"),
+    // "5.0.0" -> (ivy"org.chipsalliance::chisel:5.0.0", ivy"org.chipsalliance:::chisel-plugin:5.0.0"),
     // build from project from source
     "source" -> (ivy"org.chipsalliance::chisel:99", ivy"org.chipsalliance:::chisel-plugin:99"),
   )
@@ -153,7 +153,7 @@ trait Emulator extends Cross.Module2[String, String] {
       os.proc(
         mill.util.Jvm.javaExe,
         "-jar",
-        rocketchip(v.chiselCrossVersions.keys.head).assembly().path,
+        rocketchip(v.chiselCrossVersions.keys.last).assembly().path,
         "--dir", T.dest.toString,
         "--top", top,
         config.split('_').flatMap(c => Seq("--config", c)),
