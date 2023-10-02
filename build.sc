@@ -4,13 +4,16 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 import $file.dependencies.hardfloat.common
 import $file.dependencies.cde.common
+import $file.dependencies.chisel.build
 import $file.common
 
 object v {
-  val scala = "2.13.10"
+  val scala = "2.13.12"
   // the first version in this Map is the mainly supported version which will be used to run tests
   val chiselCrossVersions = Map(
     "5.0.0" -> (ivy"org.chipsalliance::chisel:5.0.0", ivy"org.chipsalliance:::chisel-plugin:5.0.0"),
+    // build from project from source
+    "source" -> (ivy"org.chipsalliance::chisel:99", ivy"org.chipsalliance:::chisel-plugin:99"),
   )
   val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
   val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
@@ -18,6 +21,16 @@ object v {
   val sonatypesSnapshots = Seq(
     MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
   )
+}
+
+// Build form source only for dev
+object chisel extends Chisel
+
+trait Chisel
+  extends millbuild.dependencies.chisel.build.Chisel {
+  def crossValue = v.scala
+  override def millSourcePath = os.pwd / "dependencies" / "chisel"
+  def scalaVersion = T(v.scala)
 }
 
 object macros extends Macros
@@ -43,13 +56,13 @@ trait Hardfloat
 
   override def millSourcePath = os.pwd / "dependencies" / "hardfloat" / "hardfloat"
 
-  def chiselModule = None
+  def chiselModule = Option.when(crossValue == "source")(chisel)
 
-  def chiselPluginJar = None
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
 
-  def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
 
-  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
 
   def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
 }
@@ -77,13 +90,13 @@ trait RocketChip
 
   override def millSourcePath = super.millSourcePath / os.up
 
-  def chiselModule = None
+  def chiselModule = Option.when(crossValue == "source")(chisel)
 
-  def chiselPluginJar = None
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
 
-  def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
 
-  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
 
   def macrosModule = macros
 
