@@ -2,12 +2,14 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.amba._
 import APBParameters._
+import chisel3.util._
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { cp =>
@@ -52,9 +54,9 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       val lgBytes = log2Ceil(beatBytes)
 
       // APB has no cache coherence
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
+      in.b.valid := false.B
+      in.c.ready := true.B
+      in.e.ready := true.B
 
       // We need a skidpad to capture D output:
       // We cannot know if the D response will be accepted until we have
@@ -62,13 +64,13 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       // data phase.  Therefore, we must have enough space to save the data
       // phase result.  Whenever we have a queued response, we can not allow
       // APB to present new responses, so we must quash the address phase.
-      val d = Wire(in.d)
+      val d = Wire(Decoupled(new TLBundleD(edgeIn.bundle)))
       in.d :<> Queue(d, 1, flow = true)
 
       // We need an irrevocable input for APB to stall
       val a = Queue(in.a, 1, flow = aFlow, pipe = !aFlow)
 
-      val a_enable = RegInit(Bool(false))
+      val a_enable = RegInit(false.B)
       val a_sel    = a.valid && RegNext(!in.d.valid || in.d.ready)
       val a_write  = edgeIn.hasData(a.bits)
 
@@ -78,8 +80,8 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       val d_size   = RegEnable(a.bits.size,   enable_d)
       val d_echo   = RegEnable(a.bits.echo,   enable_d)
 
-      when (a_sel)    { a_enable := Bool(true) }
-      when (d.fire()) { a_enable := Bool(false) }
+      when (a_sel)    { a_enable := true.B }
+      when (d.fire()) { a_enable := false.B }
 
       out.psel    := a_sel
       out.penable := a_enable
@@ -87,7 +89,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       out.paddr   := a.bits.address
       out.pprot   := PROT_DEFAULT
       out.pwdata  := a.bits.data
-      out.pstrb   := Mux(a_write, a.bits.mask, UInt(0))
+      out.pstrb   := Mux(a_write, a.bits.mask, 0.U)
       out.pauser :<= a.bits.user
       a.bits.user.lift(AMBAProt).foreach { x =>
         val pprot = Wire(Vec(3, Bool()))
@@ -102,10 +104,10 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       assert (!d.valid || d.ready)
 
       d.bits.opcode  := Mux(d_write, TLMessages.AccessAck, TLMessages.AccessAckData)
-      d.bits.param   := UInt(0)
+      d.bits.param   := 0.U
       d.bits.size    := d_size
       d.bits.source  := d_source
-      d.bits.sink    := UInt(0)
+      d.bits.sink    := 0.U
       d.bits.denied  :=  d_write && out.pslverr
       d.bits.data    := out.prdata
       d.bits.corrupt := !d_write && out.pslverr

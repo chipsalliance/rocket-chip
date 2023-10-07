@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util.{isPow2,log2Ceil,log2Up,Decoupled,Valid}
 import chisel3.dontTouch
 import freechips.rocketchip.amba._
-import freechips.rocketchip.config.{Parameters, Field}
+import org.chipsalliance.cde.config.{Parameters, Field}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -325,7 +325,7 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   val tag_array = SyncReadMem(nSets, Vec(nWays, UInt(metabits.W)))
   val wen = rst || io.write.valid
   when (wen) {
-    tag_array.write(waddr, Vec(nWays, wdata), wmask)
+    tag_array.write(waddr, VecInit.fill(nWays)(wdata), wmask)
   }
   io.resp := tag_array.read(io.read.bits.idx, io.read.fire()).map(_.asTypeOf(chiselTypeOf(rstVal)))
 

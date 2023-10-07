@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 
@@ -40,7 +40,7 @@ class TLBusBypass(beatBytes: Int, bufferError: Boolean = false, maxAtomic: Int =
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val bypass = Bool(INPUT)
+      val bypass = Input(Bool())
     })
     bar.module.io.bypass := io.bypass
   }
@@ -65,8 +65,8 @@ class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implic
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val bypass = Bool(INPUT)
-      val pending = Bool(OUTPUT)
+      val bypass = Input(Bool())
+      val pending = Output(Bool())
     })
 
     val (in, edgeIn) = node.in(0)
@@ -82,7 +82,7 @@ class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implic
     val (flight, next_flight) = edgeIn.inFlight(in)
 
     io.pending := (flight > 0.U)
-    when (in_reset || (next_flight === UInt(0))) { bypass_reg := io.bypass }
+    when (in_reset || (next_flight === 0.U)) { bypass_reg := io.bypass }
     val stall = (bypass =/= io.bypass) && edgeIn.first(in.a)
 
     out0.a.valid := !stall && in.a.valid &&  bypass
@@ -94,7 +94,7 @@ class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implic
     out0.d.ready := in.d.ready &&  bypass
     out1.d.ready := in.d.ready && !bypass
     in.d.valid   := Mux(bypass, out0.d.valid, out1.d.valid)
-    def cast(x: TLBundleD) = { val out = Wire(in.d.bits); out <> x; out }
+    def cast(x: TLBundleD) = { val out = WireDefault(in.d.bits); out <> x; out }
     in.d.bits := Mux(bypass, cast(out0.d.bits), cast(out1.d.bits))
 
     if (edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe) {
@@ -116,17 +116,17 @@ class TLBusBypassBar(dFn: TLSlavePortParameters => TLSlavePortParameters)(implic
       out0.e.bits  := in.e.bits
       out1.e.bits  := in.e.bits
     } else {
-      in.b.valid := Bool(false)
-      in.c.ready := Bool(true)
-      in.e.ready := Bool(true)
+      in.b.valid := false.B
+      in.c.ready := true.B
+      in.e.ready := true.B
 
-      out0.b.ready := Bool(true)
-      out0.c.valid := Bool(false)
-      out0.e.valid := Bool(false)
+      out0.b.ready := true.B
+      out0.c.valid := false.B
+      out0.e.valid := false.B
 
-      out1.b.ready := Bool(true)
-      out1.c.valid := Bool(false)
-      out1.e.valid := Bool(false)
+      out1.b.ready := true.B
+      out1.c.valid := false.B
+      out1.e.valid := false.B
     }
   }
 }

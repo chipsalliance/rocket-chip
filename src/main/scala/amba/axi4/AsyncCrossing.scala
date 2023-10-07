@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.CrossingWrapper
@@ -86,10 +86,10 @@ class AXI4AsyncCrossing(params: AsyncQueueParams = AsyncQueueParams())(implicit 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val in_clock  = Clock(INPUT)
-      val in_reset  = Bool(INPUT)
-      val out_clock = Clock(INPUT)
-      val out_reset = Bool(INPUT)
+      val in_clock  = Input(Clock())
+      val in_reset  = Input(Bool())
+      val out_clock = Input(Clock())
+      val out_reset = Input(Bool())
     })
 
     source.module.clock := io.in_clock
@@ -132,4 +132,5 @@ class AXI4RAMAsyncCrossing(txns: Int)(implicit p: Parameters) extends LazyModule
 class AXI4RAMAsyncCrossingTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4RAMAsyncCrossing(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }

@@ -4,7 +4,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{Cat}
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile.{CoreBundle, HasCoreParameters}
 import freechips.rocketchip.util._
 

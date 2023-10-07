@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util.{Arbiter, Cat, Decoupled, Enum, Mux1H, OHToUInt, PopCount, PriorityEncoder, PriorityEncoderOH, RegEnable, UIntToOH, Valid, is, isPow2, log2Ceil, switch}
 import chisel3.withClock
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -444,7 +444,13 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     // refill with r_pte(leaf pte)
     when (l2_refill && !invalidated) {
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
-      entry := r_pte
+      entry.ppn := r_pte.ppn
+      entry.d := r_pte.d
+      entry.a := r_pte.a
+      entry.u := r_pte.u
+      entry.x := r_pte.x
+      entry.w := r_pte.w
+      entry.r := r_pte.r
       entry.tag := r_tag
       // if all the way are valid, use plru to select one way to be replaced,
       // otherwise use PriorityEncoderOH to select one
@@ -470,7 +476,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       }
     }
 
-    val s0_valid = !l2_refill && arb.io.out.fire()
+    val s0_valid = !l2_refill && arb.io.out.fire
     val s0_suitable = arb.io.out.bits.bits.vstage1 === arb.io.out.bits.bits.stage2 && !arb.io.out.bits.bits.need_gpa
     val s1_valid = RegNext(s0_valid && s0_suitable && arb.io.out.bits.valid)
     val s2_valid = RegNext(s1_valid)
@@ -493,9 +499,18 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
 
     val s2_pte = Wire(new PTE)
-    s2_pte   := Mux1H(s2_hit_vec, s2_entry_vec)
+    val s2_hit_entry = Mux1H(s2_hit_vec, s2_entry_vec)
+    s2_pte.ppn := s2_hit_entry.ppn
+    s2_pte.d := s2_hit_entry.d
+    s2_pte.a := s2_hit_entry.a
     s2_pte.g := Mux1H(s2_hit_vec, s2_g_vec)
+    s2_pte.u := s2_hit_entry.u
+    s2_pte.x := s2_hit_entry.x
+    s2_pte.w := s2_hit_entry.w
+    s2_pte.r := s2_hit_entry.r
     s2_pte.v := true.B
+    s2_pte.reserved_for_future := 0.U
+    s2_pte.reserved_for_software := 0.U
 
     for (way <- 0 until coreParams.nL2TLBWays) {
       ccover(s2_hit && s2_hit_vec(way), s"L2_TLB_HIT_WAY$way", s"L2 TLB hit way$way")
@@ -569,7 +584,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   switch (state) {
     is (s_ready) {
-      when (arb.io.out.fire()) {
+      when (arb.io.out.fire) {
         val satp_initial_count = pgLevels.U - minPgLevels.U - satp.additionalPgLevels
         val vsatp_initial_count = pgLevels.U - minPgLevels.U - io.dpath.vsatp.additionalPgLevels
         val hgatp_initial_count = pgLevels.U - minPgLevels.U - io.dpath.hgatp.additionalPgLevels
@@ -660,9 +675,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     // when mem respond, store mem.resp.pte
     Mux(mem_resp_valid, Mux(!traverse && r_req.vstage1 && stage2, merged_pte, pte),
     // fragment_superpage
-    Mux(state === s_fragment_superpage && !homogeneous, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn)(count), r_pte),
+    Mux(state === s_fragment_superpage && !homogeneous && count =/= (pgLevels - 1).U, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn)(count), r_pte),
     // when tlb request come->request mem, use root address in satp(or vsatp,hgatp)
-    Mux(arb.io.out.fire(), Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
+    Mux(arb.io.out.fire, Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte)))))))
 
   when (l2_hit && !l2_error) {
@@ -758,7 +773,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   private def makeHypervisorRootPTE(hgatp: PTBR, vpn: UInt, default: PTE) = {
     val count = pgLevels.U - minPgLevels.U - hgatp.additionalPgLevels
     val idxs = (0 to pgLevels-minPgLevels).map(i => (vpn >> (pgLevels-i)*pgLevelBits))
-    val lsbs = WireDefault(t = UInt(maxHypervisorExtraAddrBits.W), init = idxs(count))
+    val lsbs = WireDefault(UInt(maxHypervisorExtraAddrBits.W), idxs(count))
     val pte = WireDefault(default)
     pte.ppn := Cat(hgatp.ppn >> maxHypervisorExtraAddrBits, lsbs)
     pte

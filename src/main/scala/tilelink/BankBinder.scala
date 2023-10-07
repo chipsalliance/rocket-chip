@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.tilelink
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCustomNode

@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
@@ -18,17 +19,17 @@ trait Pattern {
 case class WritePattern(address: BigInt, size: Int, data: BigInt) extends Pattern
 {
   require (0 <= data && data < (BigInt(1) << (8 << size)))
-  def bits(edge: TLEdgeOut) = edge.Put(UInt(0), UInt(address), UInt(size), UInt(data << (8*(address % edge.manager.beatBytes).toInt)))
+  def bits(edge: TLEdgeOut) = edge.Put(0.U, address.U, size.U, (data << (8*(address % edge.manager.beatBytes).toInt)).U)
 }
 
 case class ReadPattern(address: BigInt, size: Int) extends Pattern
 {
-  def bits(edge: TLEdgeOut) = edge.Get(UInt(0), UInt(address), UInt(size))
+  def bits(edge: TLEdgeOut) = edge.Get(0.U, address.U, size.U)
 }
 
 case class ReadExpectPattern(address: BigInt, size: Int, data: BigInt) extends Pattern
 {
-  def bits(edge: TLEdgeOut) = edge.Get(UInt(0), UInt(address), UInt(size))
+  def bits(edge: TLEdgeOut) = edge.Get(0.U, address.U, size.U)
   override def dataIn = Some(data)
 }
 
@@ -39,8 +40,8 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val run = Bool(INPUT)
-      val done = Bool(OUTPUT)
+      val run = Input(Bool())
+      val done = Output(Bool())
     })
 
     val (tl_out, edgeOut) = node.out(0)
@@ -48,40 +49,40 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
       require (p.size <= log2Ceil(edgeOut.manager.beatBytes), "Patterns must fit in a single beat")
     }
 
-    val step   = RegInit(UInt(0, width = log2Ceil(pattern.size+1)))
-    val flight = RegInit(Bool(false))
-    val ready  = RegNext(Bool(true), Bool(false))
+    val step   = RegInit(0.U(log2Ceil(pattern.size+1).W))
+    val flight = RegInit(false.B)
+    val ready  = RegNext(true.B, false.B)
 
-    val end = step === UInt(pattern.size)
+    val end = step === pattern.size.U
     io.done := end && !flight
 
     val a = tl_out.a
     val d = tl_out.d
 
     // Expected response?
-    val check  = Vec(pattern.map(p => Bool(p.dataIn.isDefined)))(step) holdUnless a.fire()
-    val expect = Vec(pattern.map(p => UInt(p.dataIn.getOrElse(BigInt(0)))))(step) holdUnless a.fire()
-    assert (!check || !d.fire() || expect === d.bits.data)
+    val check  = VecInit(pattern.map(p => p.dataIn.isDefined.B))(step) holdUnless a.fire
+    val expect = VecInit(pattern.map(p => p.dataIn.getOrElse(BigInt(0)).U))(step) holdUnless a.fire
+    assert (!check || !d.fire || expect === d.bits.data)
 
-    when (a.fire()) {
-      flight := Bool(true)
-      step := step + UInt(1)
+    when (a.fire) {
+      flight := true.B
+      step := step + 1.U
     }
-    when (d.fire()) {
-      flight := Bool(false)
+    when (d.fire) {
+      flight := false.B
     }
 
     val (plegal, pbits) = pattern.map(_.bits(edgeOut)).unzip
-    assert (end || Vec(plegal)(step), s"Pattern pusher ${name} tried to push an illegal request")
+    assert (end || VecInit(plegal)(step), s"Pattern pusher ${name} tried to push an illegal request")
 
     a.valid := io.run && ready && !end && !flight
-    a.bits  := Vec(pbits)(step)
-    d.ready := Bool(true)
+    a.bits  := VecInit(pbits)(step)
+    d.ready := true.B
 
     // Tie off unused channels
-    tl_out.b.ready := Bool(true)
-    tl_out.c.valid := Bool(false)
-    tl_out.e.valid := Bool(false)
+    tl_out.b.ready := true.B
+    tl_out.c.valid := false.B
+    tl_out.e.valid := false.B
   }
 }
 

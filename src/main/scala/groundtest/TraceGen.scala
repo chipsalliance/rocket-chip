@@ -21,7 +21,7 @@ package freechips.rocketchip.groundtest
  
 import chisel3._
 import chisel3.util.{log2Up, MuxLookup, Cat, log2Ceil, Enum}
-import freechips.rocketchip.config.{Parameters}
+import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.diplomacy.{ClockCrossingType}
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
@@ -531,6 +531,19 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.bits.signed := false.B
   io.mem.req.bits.cmd  := reqCmd
   io.mem.req.bits.tag  := reqTag
+  io.mem.req.bits.no_alloc := false.B
+  io.mem.req.bits.no_xcpt := false.B
+  io.mem.req.bits.mask := ~(0.U((numBitsInWord / 8).W))
+  io.mem.req.bits.phys := false.B
+  io.mem.req.bits.dprv := PRV.M.U
+  io.mem.req.bits.dv := false.B
+  io.mem.keep_clock_enabled := true.B
+
+  // The below signals don't matter because this uses the SimpleHellaIF
+  io.mem.s1_data.data := RegNext(io.mem.req.bits.data)
+  io.mem.s1_data.mask := RegNext(io.mem.req.bits.mask)
+  io.mem.s1_kill := false.B
+  io.mem.s2_kill := false.B
 
   // On cycle when request is actually sent, print it
   when (io.mem.req.fire) {

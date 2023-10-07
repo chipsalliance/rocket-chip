@@ -50,7 +50,7 @@ object GrayCounter {
   def apply(bits: Int, increment: Bool = true.B, clear: Bool = false.B, name: String = "binary"): UInt = {
     val incremented = Wire(UInt(bits.W))
     val binary = RegNext(next=incremented, init=0.U).suggestName(name)
-    incremented := Mux(clear, 0.U, binary + increment.asUInt())
+    incremented := Mux(clear, 0.U, binary + increment.asUInt)
     incremented ^ (incremented >> 1)
   }
 }
@@ -221,13 +221,8 @@ object ToAsyncBundle
 
 class AsyncQueue[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Crossing[T] {
   val io = IO(new CrossingIO(gen))
-  val source = Module(new AsyncQueueSource(gen, params))
-  val sink   = Module(new AsyncQueueSink  (gen, params))
-
-  source.clock := io.enq_clock
-  source.reset := io.enq_reset
-  sink.clock := io.deq_clock
-  sink.reset := io.deq_reset
+  val source = withClockAndReset(io.enq_clock, io.enq_reset) { Module(new AsyncQueueSource(gen, params)) }
+  val sink   = withClockAndReset(io.deq_clock, io.deq_reset) { Module(new AsyncQueueSink  (gen, params)) }
 
   source.io.enq <> io.enq
   io.deq <> sink.io.deq

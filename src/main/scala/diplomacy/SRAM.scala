@@ -4,18 +4,20 @@ package freechips.rocketchip.diplomacy
 
 import Chisel._
 import chisel3.SyncReadMem
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.{DescribedSRAM, Code}
 
 abstract class DiplomaticSRAM(
     val address: AddressSet,
     beatBytes: Int,
     devName: Option[String],
-    dtsCompat: Option[Seq[String]] = None)(implicit p: Parameters) extends LazyModule
+    dtsCompat: Option[Seq[String]] = None,
+    devOverride: Option[Device with DeviceRegName] = None)(implicit p: Parameters) extends LazyModule
 {
-  val device = devName
+  val device = devOverride.getOrElse(devName
     .map(new SimpleDevice(_, dtsCompat.getOrElse(Seq("sifive,sram0"))))
     .getOrElse(new MemoryDevice())
+  )
 
   val resources = device.reg("mem")
 

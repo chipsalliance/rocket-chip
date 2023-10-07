@@ -7,7 +7,7 @@ import chisel3.stage.ChiselGeneratorAnnotation
 import firrtl.AnnotationSeq
 import firrtl.options.Viewer.view
 import firrtl.options.{Dependency, Phase, PreservesAll, StageOptions}
-import freechips.rocketchip.config.{Field, Parameters}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.stage.RocketChipOptions
 import freechips.rocketchip.util.HasRocketChipStageUtils

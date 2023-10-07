@@ -5,11 +5,11 @@ import scala.sys.process._
 
 enablePlugins(PackPlugin)
 
-val chiselVersion = "3.5.5"
+val chiselVersion = "3.5.6"
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  version      := "1.2-SNAPSHOT",
+  version      := "1.6.0",
   scalaVersion := "2.13.10",
   parallelExecution in Global := false,
   traceLevel   := 15,
@@ -59,9 +59,10 @@ lazy val chiselSettings = Seq(
   addCompilerPlugin("edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full)
 )
 
-lazy val `api-config-chipsalliance` = (project in file("api-config-chipsalliance/build-rules/sbt"))
+lazy val cde = (project in file("cde"))
   .settings(commonSettings)
   .settings(publishArtifact := false)
+  .settings(Compile / scalaSource := baseDirectory.value / "cde/src/chipsalliance/rocketchip")
 lazy val hardfloat  = (project in file("hardfloat"))
   .settings(commonSettings, chiselSettings)
   .settings(publishArtifact := false)
@@ -69,7 +70,7 @@ lazy val `rocket-macros` = (project in file("macros")).settings(commonSettings)
   .settings(publishArtifact := false)
 lazy val rocketchip = (project in file("."))
   .settings(commonSettings, chipSettings, chiselSettings)
-  .dependsOn(`api-config-chipsalliance`)
+  .dependsOn(cde)
   .dependsOn(hardfloat)
   .dependsOn(`rocket-macros`)
   .settings( // Assembly settings

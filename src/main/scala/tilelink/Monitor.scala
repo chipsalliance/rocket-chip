@@ -5,7 +5,7 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceLine
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util.PlusArg
 import freechips.rocketchip.formal._
@@ -766,6 +766,8 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       monAssert(!inflight(bundle.c.bits.source), "'C' channel re-used a source ID" + extra)
     }
 
+    val c_probe_ack    = bundle.c.bits.opcode === TLMessages.ProbeAck || bundle.c.bits.opcode === TLMessages.ProbeAckData
+
     val d_clr          = WireInit(0.U(edge.client.endSourceId.W))
     val d_clr_wo_ready = WireInit(0.U(edge.client.endSourceId.W))
     val d_opcodes_clr  = WireInit(0.U((edge.client.endSourceId << log_c_opcode_bus_size).W))
@@ -796,8 +798,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
       }
     }
 
-    val c_release = bundle.c.bits.opcode === TLMessages.Release || bundle.c.bits.opcode === TLMessages.ReleaseData
-    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack && c_release) {
+    when(bundle.d.valid && d_first && c_first && bundle.c.valid && (bundle.c.bits.source === bundle.d.bits.source) && d_release_ack && !c_probe_ack) {
       assume((!bundle.d.ready) || bundle.c.ready, "ready check")
     }
 

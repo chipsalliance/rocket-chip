@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import chisel3.util.IrrevocableIO
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util.{Queue, IrrevocableIO}
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import scala.math.min
 

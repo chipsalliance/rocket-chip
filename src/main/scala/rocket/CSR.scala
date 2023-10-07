@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{BitPat, Cat, Fill, Mux1H, PopCount, PriorityMux, RegEnable, UIntToOH, Valid, log2Ceil, log2Up}
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -124,6 +124,21 @@ class MIP(implicit p: Parameters) extends CoreBundle()(p)
   val usip = Bool()
 }
 
+class Envcfg extends Bundle {
+  val stce = Bool() // only for menvcfg/henvcfg
+  val pbmte = Bool() // only for menvcfg/henvcfg
+  val zero54 = UInt(54.W)
+  val cbze = Bool()
+  val cbcfe = Bool()
+  val cbie = UInt(2.W)
+  val zero3 = UInt(3.W)
+  val fiom = Bool()
+  def write(wdata: UInt) {
+    val new_envcfg = wdata.asTypeOf(new Envcfg)
+    fiom := new_envcfg.fiom // only FIOM is writable currently
+  }
+}
+
 class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
   def additionalPgLevels = mode.extract(log2Ceil(pgLevels-minPgLevels+1)-1, 0)
   def pgLevelsToMode(i: Int) = (xLen, i) match {
@@ -214,6 +229,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val interrupt = Bool()
   val cause = UInt(xLen.W)
   val tval = UInt((coreMaxAddrBits max iLen).W)
+  val wdata = Option.when(traceHasWdata)(UInt((vLen max xLen).W))
 }
 
 class TraceAux extends Bundle {
@@ -286,6 +302,7 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val trace = Output(Vec(retireWidth, new TracedInstruction))
   val mcontext = Output(UInt(coreParams.mcontextWidth.W))
   val scontext = Output(UInt(coreParams.scontextWidth.W))
+  val fiom = Output(Bool())
 
   val vector = usingVector.option(new Bundle {
     val vconfig = Output(new VConfig())
@@ -356,11 +373,13 @@ class VType(implicit p: Parameters) extends CoreBundle {
 
 class CSRFile(
   perfEventSets: EventSets = new EventSets(Seq()),
-  customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
+  customCSRs: Seq[CustomCSR] = Nil,
+  roccCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
     extends CoreModule()(p)
     with HasCoreParameters {
   val io = IO(new CSRFileIO {
     val customCSRs = Output(Vec(CSRFile.this.customCSRs.size, new CustomCSRIO))
+    val roccCSRs = Output(Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO))
   })
 
   val reset_mstatus = WireDefault(0.U.asTypeOf(new MStatus()))
@@ -490,6 +509,10 @@ class CSRFile(
   val reg_rnmie = RegInit(true.B)
   val nmie = reg_rnmie
 
+  val reg_menvcfg = RegInit(0.U.asTypeOf(new Envcfg))
+  val reg_senvcfg = RegInit(0.U.asTypeOf(new Envcfg))
+  val reg_henvcfg = RegInit(0.U.asTypeOf(new Envcfg))
+
   val delegable_counters = ((BigInt(1) << (nPerfCounters + CSR.firstHPM)) - 1).U
   val (reg_mcounteren, read_mcounteren) = {
     val reg = Reg(UInt(32.W))
@@ -586,6 +609,7 @@ class CSRFile(
   io.bp := reg_bp take nBreakpoints
   io.mcontext := reg_mcontext.getOrElse(0.U)
   io.scontext := reg_scontext.getOrElse(0.U)
+  io.fiom := (reg_mstatus.prv < PRV.M.U && reg_menvcfg.fiom) || (reg_mstatus.prv < PRV.S.U && reg_senvcfg.fiom) || (reg_mstatus.v && reg_henvcfg.fiom)
   io.pmp := reg_pmp.map(PMP(_))
 
   val isaMaskString =
@@ -594,17 +618,18 @@ class CSRFile(
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +
     (if (usingVector) "V" else "") +
-    (if (usingBitManip) "B" else "") +
+    // The current spec does not define what sub-extensions constitute the 'B' misa bit
+    // (if (usingBitManip) "B" else "") +
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
-    "X" + // Custom extensions always present (e.g. CEASE instruction)
+    (if (customIsaExt.isDefined) "X" else "") +
     (if (usingSupervisor) "S" else "") +
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
   val isaMax = (BigInt(log2Ceil(xLen) - 4) << (xLen-2)) | isaStringToMask(isaString)
   val reg_misa = RegInit(isaMax.U)
-  val read_mstatus = io.status.asUInt()(xLen-1,0)
+  val read_mstatus = io.status.asUInt.extract(xLen-1,0)
   val read_mtvec = formTVec(reg_mtvec).padTo(xLen)
   val read_stvec = formTVec(reg_stvec).sextTo(xLen)
 
@@ -675,27 +700,31 @@ class CSRFile(
                          zip reg_hpmcounter.map(x => x: UInt).padTo(CSR.nHPM, 0.U)).zipWithIndex) {
       read_mapping += (i + CSR.firstHPE) -> e // mhpmeventN
       read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
-      if (usingUser) read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
+      read_mapping += (i + CSR.firstHPC) -> c // hpmcounterN
       if (xLen == 32) {
         read_mapping += (i + CSR.firstMHPCH) -> (c >> 32) // mhpmcounterNh
-        if (usingUser) read_mapping += (i + CSR.firstHPCH) -> (c >> 32) // hpmcounterNh
+        read_mapping += (i + CSR.firstHPCH) -> (c >> 32) // hpmcounterNh
       }
     }
 
     if (usingUser) {
       read_mapping += CSRs.mcounteren -> read_mcounteren
-      read_mapping += CSRs.cycle -> reg_cycle
-      read_mapping += CSRs.instret -> reg_instret
     }
+    read_mapping += CSRs.cycle -> reg_cycle
+    read_mapping += CSRs.instret -> reg_instret
 
     if (xLen == 32) {
       read_mapping += CSRs.mcycleh -> (reg_cycle >> 32)
       read_mapping += CSRs.minstreth -> (reg_instret >> 32)
-      if (usingUser) {
-        read_mapping += CSRs.cycleh -> (reg_cycle >> 32)
-        read_mapping += CSRs.instreth -> (reg_instret >> 32)
-      }
+      read_mapping += CSRs.cycleh -> (reg_cycle >> 32)
+      read_mapping += CSRs.instreth -> (reg_instret >> 32)
     }
+  }
+
+  if (usingUser) {
+    read_mapping += CSRs.menvcfg -> reg_menvcfg.asUInt
+    if (xLen == 32)
+      read_mapping += CSRs.menvcfgh -> (reg_menvcfg.asUInt >> 32)
   }
 
   val sie_mask = {
@@ -719,7 +748,7 @@ class CSRFile(
     read_sstatus.spie := io.status.spie
     read_sstatus.sie := io.status.sie
 
-    read_mapping += CSRs.sstatus -> (read_sstatus.asUInt())(xLen-1,0)
+    read_mapping += CSRs.sstatus -> (read_sstatus.asUInt)(xLen-1,0)
     read_mapping += CSRs.sip -> read_sip.asUInt
     read_mapping += CSRs.sie -> read_sie.asUInt
     read_mapping += CSRs.sscratch -> reg_sscratch
@@ -731,6 +760,7 @@ class CSRFile(
     read_mapping += CSRs.scounteren -> read_scounteren
     read_mapping += CSRs.mideleg -> read_mideleg
     read_mapping += CSRs.medeleg -> read_medeleg
+    read_mapping += CSRs.senvcfg -> reg_senvcfg.asUInt
   }
 
   val pmpCfgPerCSR = xLen / new PMPConfig().getWidth
@@ -745,19 +775,21 @@ class CSRFile(
   }
 
   // implementation-defined CSRs
-  val reg_custom = customCSRs.map { csr =>
+  def generateCustomCSR(csr: CustomCSR) = {
     require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
     require(!read_mapping.contains(csr.id))
     val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
     read_mapping += csr.id -> reg
     reg
   }
+  val reg_custom = customCSRs.map(generateCustomCSR(_))
+  val reg_rocc = roccCSRs.map(generateCustomCSR(_))
 
   if (usingHypervisor) {
     read_mapping += CSRs.mtinst -> 0.U
     read_mapping += CSRs.mtval2 -> reg_mtval2
 
-    val read_hstatus = io.hstatus.asUInt()(xLen-1,0)
+    val read_hstatus = io.hstatus.asUInt.extract(xLen-1,0)
 
     read_mapping += CSRs.hstatus -> read_hstatus
     read_mapping += CSRs.hedeleg -> read_hedeleg
@@ -771,12 +803,15 @@ class CSRFile(
     read_mapping += CSRs.hgeip -> 0.U
     read_mapping += CSRs.htval -> reg_htval
     read_mapping += CSRs.htinst -> 0.U
+    read_mapping += CSRs.henvcfg -> reg_henvcfg.asUInt
+    if (xLen == 32)
+      read_mapping += CSRs.henvcfgh -> (reg_henvcfg.asUInt >> 32)
 
     val read_vsie = (read_hie & read_hideleg) >> 1
     val read_vsip = (read_hip & read_hideleg) >> 1
     val read_vsepc = readEPC(reg_vsepc).sextTo(xLen)
     val read_vstval = reg_vstval.sextTo(xLen)
-    val read_vsstatus = io.gstatus.asUInt()(xLen-1,0)
+    val read_vsstatus = io.gstatus.asUInt.extract(xLen-1,0)
 
     read_mapping += CSRs.vsstatus -> read_vsstatus
     read_mapping += CSRs.vsip -> read_vsip
@@ -966,6 +1001,7 @@ class CSRFile(
   assert(!reg_singleStepped || io.retire === 0.U)
 
   val epc = formEPC(io.pc)
+  val tval = Mux(insn_break, epc, io.tval)
 
   when (exception) {
     when (trapToDebug) {
@@ -993,7 +1029,7 @@ class CSRFile(
       reg_vsstatus.spp := reg_mstatus.prv
       reg_vsepc := epc
       reg_vscause := Mux(cause(xLen-1), Cat(cause(xLen-1, 2), 1.U(2.W)), cause)
-      reg_vstval := io.tval
+      reg_vstval := tval
       reg_vsstatus.spie := reg_vsstatus.sie
       reg_vsstatus.sie := false.B
       new_prv := PRV.S.U
@@ -1004,7 +1040,7 @@ class CSRFile(
       reg_hstatus.spv := reg_mstatus.v
       reg_sepc := epc
       reg_scause := cause
-      reg_stval := io.tval
+      reg_stval := tval
       reg_htval := io.htval
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
@@ -1016,7 +1052,7 @@ class CSRFile(
       reg_mstatus.gva := io.gva
       reg_mepc := epc
       reg_mcause := cause
-      reg_mtval := io.tval
+      reg_mtval := tval
       reg_mtval2 := io.htval
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
@@ -1096,6 +1132,12 @@ class CSRFile(
   io.status.wfi := reg_wfi
 
   for ((io, reg) <- io.customCSRs zip reg_custom) {
+    io.wen := false.B
+    io.wdata := wdata
+    io.value := reg
+  }
+
+  for ((io, reg) <- io.roccCSRs zip reg_rocc) {
     io.wen := false.B
     io.wdata := wdata
     io.value := reg
@@ -1296,6 +1338,7 @@ class CSRFile(
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata }
       when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata }
+      when (decoded_addr(CSRs.senvcfg))    { reg_senvcfg.write(wdata) }
     }
 
     if (usingHypervisor) {
@@ -1358,8 +1401,8 @@ class CSRFile(
         }
         when (mode_ok || !reg_mstatus.v) {
           reg_vsatp.ppn := new_vsatp.ppn(vpnBits.min(new_vsatp.ppn.getWidth)-1,0)
+          if (asIdBits > 0) reg_vsatp.asid := new_vsatp.asid(asIdBits-1,0)
         }
-        if (asIdBits > 0) reg_vsatp.asid := new_vsatp.asid(asIdBits-1,0)
       }
       when (decoded_addr(CSRs.vsie))      { reg_mie := (reg_mie & ~read_hideleg) | ((wdata << 1) & read_hideleg) }
       when (decoded_addr(CSRs.vsscratch)) { reg_vsscratch := wdata }
@@ -1367,9 +1410,11 @@ class CSRFile(
       when (decoded_addr(CSRs.vstvec))    { reg_vstvec := wdata }
       when (decoded_addr(CSRs.vscause))   { reg_vscause := wdata & scause_mask }
       when (decoded_addr(CSRs.vstval))    { reg_vstval := wdata }
+      when (decoded_addr(CSRs.henvcfg))   { reg_henvcfg.write(wdata) }
     }
     if (usingUser) {
       when (decoded_addr(CSRs.mcounteren)) { reg_mcounteren := wdata }
+      when (decoded_addr(CSRs.menvcfg))    { reg_menvcfg.write(wdata) }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }
@@ -1420,12 +1465,18 @@ class CSRFile(
         pmp.addr := wdata
       }
     }
-    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+    def writeCustomCSR(io: CustomCSRIO, csr: CustomCSR, reg: UInt) = {
       val mask = csr.mask.U(xLen.W)
       when (decoded_addr(csr.id)) {
         reg := (wdata & mask) | (reg & ~mask)
         io.wen := true.B
       }
+    }
+    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+      writeCustomCSR(io, csr, reg)
+    }
+    for ((io, csr, reg) <- (io.roccCSRs, roccCSRs, reg_rocc).zipped) {
+      writeCustomCSR(io, csr, reg)
     }
     if (usingVector) {
       when (decoded_addr(CSRs.vstart)) { set_vs_dirty := true.B; reg_vstart.get := wdata }
@@ -1526,6 +1577,7 @@ class CSRFile(
     t.cause := cause
     t.interrupt := cause(xLen-1)
     t.tval := io.tval
+    t.wdata.foreach(_ := DontCare)
   }
 
   def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {

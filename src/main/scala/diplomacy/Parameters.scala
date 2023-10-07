@@ -134,7 +134,7 @@ case class AddressSet(base: BigInt, mask: BigInt) extends Ordered[AddressSet]
   // We do allow negative mask (=> ignore all high bits)
 
   def contains(x: BigInt) = ((x ^ base) & ~mask) == 0
-  def contains(x: UInt) = ((x ^ UInt(base)).zext() & SInt(~mask)) === SInt(0)
+  def contains(x: UInt) = ((x ^ UInt(base)).zext & SInt(~mask)) === SInt(0)
 
   // turn x into an address contained in this set
   def legalize(x: UInt): UInt = base.U | (mask.U & x)

@@ -3,7 +3,7 @@
 
 package freechips.rocketchip.system
 
-import freechips.rocketchip.config.Config
+import org.chipsalliance.cde.config.Config
 import freechips.rocketchip.subsystem._
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
@@ -25,6 +25,10 @@ class DefaultConfig extends Config(new WithNBigCores(1) ++ new WithCoherentBusTo
 class DefaultBufferlessConfig extends Config(new WithBufferlessBroadcastHub ++ new DefaultConfig)
 class DefaultSmallConfig extends Config(new WithNSmallCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)
 class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
+class DefaultFP16Config extends Config(new WithFP16 ++ new DefaultConfig)
+
+class BitManipCryptoConfig extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultConfig)
+class BitManipCrypto32Config extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultRV32Config)
 
 class DualBankConfig extends Config(new WithNBanks(2) ++ new DefaultConfig)
 class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusTopology ++ new BaseConfig)
@@ -86,3 +90,5 @@ class MMIOPortOnlyConfig extends Config(
 
 class BaseFPGAConfig extends Config(new BaseConfig ++ new WithCoherentBusTopology)
 class DefaultFPGAConfig extends Config(new WithNSmallCores(1) ++ new BaseFPGAConfig)
+
+class CloneTileConfig extends Config(new WithCloneRocketTiles(7) ++ new WithNBigCores(1) ++ new WithCoherentBusTopology ++ new BaseConfig)

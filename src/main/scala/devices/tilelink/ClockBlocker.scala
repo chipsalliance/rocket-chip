@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.regmapper._

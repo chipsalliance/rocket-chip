@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.devices.tilelink.TLTestRAM
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
@@ -40,6 +40,7 @@ class AHBFuzzNative(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
 class AHBNativeTest(aFlow: Boolean, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AHBFuzzNative(aFlow, txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }
 
 trait HasFuzzTarget {
@@ -68,7 +69,7 @@ class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val finished = Bool(OUTPUT)
+      val finished = Output(Bool())
     })
 
     io.finished := fuzz.module.io.finished
@@ -106,4 +107,5 @@ class AHBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
 class AHBBridgeTest(aFlow: Boolean, txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AHBFuzzBridge(aFlow, txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }

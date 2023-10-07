@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
@@ -39,6 +39,7 @@ class AXI4LiteFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 class AXI4LiteFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4LiteFuzzRAM(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }
 
 class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
@@ -62,6 +63,7 @@ class AXI4LiteUserBitsFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyMod
 class AXI4LiteUserBitsFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4LiteUserBitsFuzzRAM(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }
 
 class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
@@ -85,6 +87,7 @@ class AXI4FullFuzzRAM(txns: Int)(implicit p: Parameters) extends LazyModule
 class AXI4FullFuzzRAMTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4FullFuzzRAM(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }
 
 trait HasFuzzTarget {
@@ -113,7 +116,7 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
-      val finished = Bool(OUTPUT)
+      val finished = Output(Bool())
     })
 
     io.finished := fuzz.module.io.finished
@@ -158,4 +161,5 @@ class AXI4FuzzBridge(txns: Int)(implicit p: Parameters) extends LazyModule
 class AXI4BridgeTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
   val dut = Module(LazyModule(new AXI4FuzzBridge(txns)).module)
   io.finished := dut.io.finished
+  dut.io.start := io.start
 }

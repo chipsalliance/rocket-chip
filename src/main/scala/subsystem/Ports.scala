@@ -4,7 +4,7 @@ package freechips.rocketchip.subsystem
 
 import chisel3._
 
-import freechips.rocketchip.config.Field
+import org.chipsalliance.cde.config.Field
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.amba.axi4._

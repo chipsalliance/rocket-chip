@@ -3,11 +3,12 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
-import freechips.rocketchip.config.{Parameters}
+import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
 import freechips.rocketchip.subsystem.{BaseSubsystem, BaseSubsystemModuleImp, HasTiles, CanHaveMasterAXI4MemPort}
 import freechips.rocketchip.tilelink.{TLRAM, TLFragmenter}
+import freechips.rocketchip.interrupts.{NullIntSyncSource}
 
 class GroundTestSubsystem(implicit p: Parameters)
   extends BaseSubsystem
@@ -24,6 +25,9 @@ class GroundTestSubsystem(implicit p: Parameters)
   IntSinkNode(IntSinkPortSimple()) :=* ibus.toPLIC
 
   val tileStatusNodes = tiles.collect { case t: GroundTestTile => t.statusNode.makeSink() }
+
+  // no debug module
+  val debugNode = NullIntSyncSource()
 
   override lazy val module = new GroundTestSubsystemModuleImp(this)
 }

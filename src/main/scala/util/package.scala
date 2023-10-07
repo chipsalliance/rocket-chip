@@ -34,7 +34,7 @@ package object util {
       }
     }
 
-    def asUInt(): UInt = Cat(x.map(_.asUInt).reverse)
+    def asUInt: UInt = Cat(x.map(_.asUInt).reverse)
 
     def rotate(n: Int): Seq[T] = x.drop(n) ++ x.take(n)
 

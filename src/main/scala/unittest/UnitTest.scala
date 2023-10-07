@@ -4,7 +4,8 @@ package freechips.rocketchip.unittest
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config._
+import chisel3.experimental.{IO}
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.util._
 
 trait UnitTestIO {
@@ -17,10 +18,10 @@ trait HasUnitTestIO {
 }
 
 trait UnitTestLegacyModule extends HasUnitTestIO {
-  val io = new Bundle with UnitTestIO
+  val io = IO(new Bundle with UnitTestIO)
 }
 
-trait UnitTestModule extends MultiIOModule with HasUnitTestIO {
+trait UnitTestModule extends Module with HasUnitTestIO {
   val io = IO(new Bundle with UnitTestIO)
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader)
 }

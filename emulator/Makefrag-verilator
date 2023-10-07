@@ -44,17 +44,18 @@ $(VERILATOR_SRCDIR)/bin/verilator: $(VERILATOR_SRCDIR)/Makefile
 
 $(VERILATOR_SRCDIR)/Makefile: $(VERILATOR_SRCDIR)/configure
 	mkdir -p $(dir $@)
-	cd $(dir $@) && ./configure --prefix=$(abspath verilator/install)
+	cd $(dir $@) && ./configure CFG_CXXFLAGS_STD_NEWEST=-std=c++17 --prefix=$(abspath verilator/install)
 
 $(VERILATOR_SRCDIR)/configure: verilator/verilator-$(VERILATOR_VERSION).tar.gz
 	rm -rf $(dir $@)
 	mkdir -p $(dir $@)
 	cat $^ | tar -xz --strip-components=1 -C $(dir $@)
+	cd $(dir $@) && autoconf
 	touch $@
 
 verilator/verilator-$(VERILATOR_VERSION).tar.gz:
 	mkdir -p $(dir $@)
-	wget http://www.veripool.org/ftp/verilator-$(VERILATOR_VERSION).tgz -O $@
+	wget https://github.com/verilator/verilator/archive/refs/tags/v$(VERILATOR_VERSION).tar.gz -O $@
 
 verilator: $(INSTALLED_VERILATOR)
 
@@ -72,7 +73,7 @@ VERILATOR_FLAGS := --top-module $(MODEL) \
   --output-split 20000 \
   --output-split-cfuncs 20000 \
   --threads $(VERILATOR_THREADS) -Wno-UNOPTTHREADS \
-	-Wno-STMTDLY --x-assign unique \
+	-Wno-STMTDLY -Wno-LATCH -Wno-WIDTH --x-assign unique \
   -I$(vsrc) \
   -O3 -CFLAGS "$(CXXFLAGS) -DVERILATOR -DTEST_HARNESS=V$(MODEL) -include $(csrc)/verilator.h -include $(generated_dir)/$(PROJECT).$(CONFIG_STR).plusArgs" \
   --max-num-width 1048576

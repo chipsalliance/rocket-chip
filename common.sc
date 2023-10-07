@@ -4,8 +4,8 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 
 val defaultVersions = Map(
-  "chisel3" -> "3.5.5",
-  "chisel3-plugin" -> "3.5.5"
+  "chisel3" -> "3.5.6",
+  "chisel3-plugin" -> "3.5.6"
 )
 
 def getVersion(dep: String, org: String = "edu.berkeley.cs", cross: Boolean = false) = {
@@ -20,7 +20,7 @@ def getVersion(dep: String, org: String = "edu.berkeley.cs", cross: Boolean = fa
   * [[CommonRocketChip]] doesn't need to import `$file.chisel3` and `$file.firrtl`.
   *
   * You can extends from [[CommonRocketChip]] to use rocket-chip as build-from-source dependency.
-  * When doing this, you may like to override `chisel3Module`, `hardfloatModule`, `configModule`,
+  * When doing this, you may like to override `chisel3Module`, `hardfloatModule`, `cdeModule`,
   * setting them to your favorite commit of those packages.
   *
   * If you don't override `chisel3Module`, which will default to be `None`,
@@ -61,7 +61,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
 
   def hardfloatModule: PublishModule
 
-  def configModule: PublishModule
+  def cdeModule: PublishModule
 
   def chisel3IvyDeps = if (chisel3Module.isEmpty) Agg(
     getVersion("chisel3")
@@ -71,7 +71,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
     Some("freechips.rocketchip.system.Generator")
   }
 
-  override def moduleDeps = Seq(macros) ++ chisel3Module :+ hardfloatModule :+ configModule
+  override def moduleDeps = Seq(macros) ++ chisel3Module :+ hardfloatModule :+ cdeModule
 
   override def scalacOptions = T {
     Seq("-deprecation", "-unchecked")
@@ -97,7 +97,7 @@ trait CommonRocketChip extends SbtModule with PublishModule {
   override def scalacPluginIvyDeps = if(chisel3Module.isEmpty) Agg(chisel3Plugin) else Agg.empty[Dep]
 
   def publishVersion = T {
-    "1.2-SNAPSHOT"
+    "1.6.0"
   }
 
   def pomSettings = T {

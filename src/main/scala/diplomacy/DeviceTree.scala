@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.diplomacy
 
-import freechips.rocketchip.config.Field
+import org.chipsalliance.cde.config.Field
 import sys.process._
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 

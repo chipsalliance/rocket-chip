@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 // Moves the AddressSets of slave devices around
@@ -23,9 +23,9 @@ class TLMap(fn: AddressSet => BigInt)(implicit p: Parameters) extends LazyModule
       out <> in
       val convert = edgeIn.manager.managers.flatMap(_.address) zip edgeOut.manager.managers.flatMap(_.address)
       def forward(x: UInt) =
-        convert.map { case (i, o) => Mux(i.contains(x), UInt(o.base) | (x & UInt(o.mask)), UInt(0)) }.reduce(_ | _)
+        convert.map { case (i, o) => Mux(i.contains(x), o.base.U | (x & o.mask.U), 0.U) }.reduce(_ | _)
       def backward(x: UInt) =
-        convert.map { case (i, o) => Mux(o.contains(x), UInt(i.base) | (x & UInt(i.mask)), UInt(0)) }.reduce(_ | _)
+        convert.map { case (i, o) => Mux(o.contains(x), i.base.U | (x & i.mask.U), 0.U) }.reduce(_ | _)
 
       out.a.bits.address := forward(in.a.bits.address)
       if (edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe) {

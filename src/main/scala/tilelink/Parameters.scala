@@ -2,9 +2,10 @@
 
 package freechips.rocketchip.tilelink
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import scala.math.max
@@ -595,11 +596,11 @@ class TLSlavePortParameters private(
   def find(address: BigInt) = slaves.find(_.address.exists(_.contains(address)))
 
   // The safe version will check the entire address
-  def findSafe(address: UInt) = Vec(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  def findSafe(address: UInt) = VecInit(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
   // The fast version assumes the address is valid (you probably want fastProperty instead of this function)
   def findFast(address: UInt) = {
     val routingMask = AddressDecoder(slaves.map(_.address))
-    Vec(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+    VecInit(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
   }
 
   // Compute the simplest AddressSets that decide a key
@@ -615,8 +616,8 @@ class TLSlavePortParameters private(
     Mux1H(fastPropertyGroup(p).map { case (v, a) => (a.map(_.contains(address)).reduce(_||_), d(v)) })
 
   // Note: returns the actual fifoId + 1 or 0 if None
-  def findFifoIdFast(address: UInt) = fastProperty(address, _.fifoId.map(_+1).getOrElse(0), (i:Int) => UInt(i))
-  def hasFifoIdFast(address: UInt) = fastProperty(address, _.fifoId.isDefined, (b:Boolean) => Bool(b))
+  def findFifoIdFast(address: UInt) = fastProperty(address, _.fifoId.map(_+1).getOrElse(0), (i:Int) => i.U)
+  def hasFifoIdFast(address: UInt) = fastProperty(address, _.fifoId.isDefined, (b:Boolean) => b.B)
 
   // Does this Port manage this ID/address?
   def containsSafe(address: UInt) = findSafe(address).reduce(_ || _)
@@ -667,9 +668,9 @@ class TLSlavePortParameters private(
     simplified.map { case (s, a) =>
     // s is a size, you are checking for this size either the size of the operation is in s
     // We return an or-reduction of all the cases, checking whether any contains both the dynamic size and dynamic address on the wire.
-      (Bool(Some(s) == range) || s.containsLg(lgSize)) &&
+      ((Some(s) == range).B || s.containsLg(lgSize)) &&
       a.map(_.contains(address)).reduce(_||_)
-    }.foldLeft(Bool(false))(_||_)
+    }.foldLeft(false.B)(_||_)
   }
 
   def supportsAcquireTSafe   (address: UInt, lgSize: UInt, range: Option[TransferSizes] = None) = addressHelper(true, _.supports.acquireT,   address, lgSize, range)
@@ -1121,10 +1122,10 @@ class TLMasterPortParameters private(
   def find(id: Int) = masters.find(_.sourceId.contains(id))
 
   // Synthesizable lookup methods
-  def find(id: UInt) = Vec(masters.map(_.sourceId.contains(id)))
+  def find(id: UInt) = VecInit(masters.map(_.sourceId.contains(id)))
   def contains(id: UInt) = find(id).reduce(_ || _)
 
-  def requestFifo(id: UInt) = Mux1H(find(id), masters.map(c => Bool(c.requestFifo)))
+  def requestFifo(id: UInt) = Mux1H(find(id), masters.map(c => c.requestFifo.B))
 
   // Available during RTL runtime, checks to see if (id, size) is supported by the master's (client's) diplomatic parameters
   private def sourceIdHelper(member: TLMasterParameters => TransferSizes)(id: UInt, lgSize: UInt) = {
@@ -1159,7 +1160,7 @@ class TLMasterPortParameters private(
     emitCases.map { case (s, a) =>
       (s.containsLg(lgSize)) &&
       a.map(_.contains(sourceId)).reduce(_||_)
-    }.foldLeft(Bool(false))(_||_)
+    }.foldLeft(false.B)(_||_)
   }
 
   // Check for emit of a given operation at a specific id

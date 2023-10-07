@@ -2,10 +2,12 @@
 
 package freechips.rocketchip.amba.ahb
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AHBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new AHBFanoutNode(
@@ -40,14 +42,14 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
       val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 
       val (in, _) = node.in(0)
-      val a_sel = Vec(route_addrs.map(seq => seq.map(_.contains(in.haddr)).reduce(_ || _)))
-      val d_sel = Reg(a_sel)
+      val a_sel = VecInit(route_addrs.map(seq => seq.map(_.contains(in.haddr)).reduce(_ || _)))
+      val d_sel = RegInit(a_sel)
 
       when (in.hready) { d_sel := a_sel }
       (a_sel zip io_out) foreach { case (sel, out) =>
         out :<> in
         out.hsel := in.hsel && sel
-        out.hmaster.map { _ := UInt(0) }
+        out.hmaster.map { _ := 0.U }
       }
 
       in.hreadyout := !Mux1H(d_sel, io_out.map(!_.hreadyout))
@@ -84,8 +86,8 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
       out.hwdata    := in.hwdata
       in.hrdata     := out.hrdata
       in.hresp      := out.hresp // zero-extended
-      in.hgrant.foreach { _ := Bool(true) }
-      out.hmaster.foreach { _ := UInt(0) }
+      in.hgrant.foreach { _ := true.B }
+      out.hmaster.foreach { _ := 0.U }
       out.hauser :<= in.hauser
       in.hduser :<= out.hduser
     }

@@ -1,7 +1,7 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainCrossing {

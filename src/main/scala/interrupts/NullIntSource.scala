@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 /** Useful for stubbing out parts of an interrupt interface where certain devices might be missing */
@@ -18,8 +18,14 @@ class NullIntSource(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: 
 }
 
 object NullIntSource {
-  def apply(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: Parameters): IntNode = {
+  def apply(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: Parameters): IntOutwardNode = {
     val null_int_source = LazyModule(new NullIntSource(num, ports, sources))
     null_int_source.intnode
+  }
+}
+
+object NullIntSyncSource {
+  def apply(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: Parameters): IntSyncOutwardNode = {
+    IntSyncCrossingSource() := NullIntSource(num, ports, sources)
   }
 }

@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import Chisel._
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 /** Adds a /dev/null slave that does not raise ready for any incoming traffic.
@@ -17,10 +17,10 @@ class TLDeadlock(params: DevNullParams, beatBytes: Int = 4)(implicit p: Paramete
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    in.a.ready := Bool(false)
-    in.b.valid := Bool(false)
-    in.c.ready := Bool(false)
-    in.d.valid := Bool(false)
-    in.e.ready := Bool(false)
+    in.a.ready := false.B
+    in.b.valid := false.B
+    in.c.ready := false.B
+    in.d.valid := false.B
+    in.e.ready := false.B
   }
 }

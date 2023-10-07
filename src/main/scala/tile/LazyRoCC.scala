@@ -7,7 +7,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import chisel3.experimental.IntParam
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tilelink._
@@ -38,16 +38,17 @@ class RoCCResponse(implicit p: Parameters) extends CoreBundle()(p) {
   val data = Bits(xLen.W)
 }
 
-class RoCCCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
+class RoCCCoreIO(val nRoCCCSRs: Int = 0)(implicit p: Parameters) extends CoreBundle()(p) {
   val cmd = Flipped(Decoupled(new RoCCCommand))
   val resp = Decoupled(new RoCCResponse)
   val mem = new HellaCacheIO
   val busy = Output(Bool())
   val interrupt = Output(Bool())
   val exception = Input(Bool())
+  val csrs = Input(Vec(nRoCCCSRs, new CustomCSRIO))
 }
 
-class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p) {
+class RoCCIO(val nPTWPorts: Int, nRoCCCSRs: Int)(implicit p: Parameters) extends RoCCCoreIO(nRoCCCSRs)(p) {
   val ptw = Vec(nPTWPorts, new TLBPTWIO)
   val fpu_req = Decoupled(new FPInput)
   val fpu_resp = Flipped(Decoupled(new FPResult))
@@ -55,24 +56,28 @@ class RoCCIO(val nPTWPorts: Int)(implicit p: Parameters) extends RoCCCoreIO()(p)
 
 /** Base classes for Diplomatic TL2 RoCC units **/
 abstract class LazyRoCC(
-      val opcodes: OpcodeSet,
-      val nPTWPorts: Int = 0,
-      val usesFPU: Boolean = false
-    )(implicit p: Parameters) extends LazyModule {
+  val opcodes: OpcodeSet,
+  val nPTWPorts: Int = 0,
+  val usesFPU: Boolean = false,
+  val roccCSRs: Seq[CustomCSR] = Nil
+)(implicit p: Parameters) extends LazyModule {
   val module: LazyRoCCModuleImp
+  require(roccCSRs.map(_.id).toSet.size == roccCSRs.size)
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
-  val io = IO(new RoCCIO(outer.nPTWPorts))
+  val io = IO(new RoCCIO(outer.nPTWPorts, outer.roccCSRs.size))
 }
 
 /** Mixins for including RoCC **/
 
 trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
   val roccs = p(BuildRoCC).map(_(p))
-
+  val roccCSRs = roccs.map(_.roccCSRs) // the set of custom CSRs requested by all roccs
+  require(roccCSRs.flatten.map(_.id).toSet.size == roccCSRs.flatten.size,
+    "LazyRoCC instantiations require overlapping CSRs")
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
 
@@ -115,6 +120,7 @@ trait HasLazyRoCCModule extends CanHavePTWModule
   } else {
     (None, None)
   }
+  val roccCSRIOs = outer.roccs.map(_.module.io.csrs)
 }
 
 class AccumulatorExample(opcodes: OpcodeSet, val n: Int = 4)(implicit p: Parameters) extends LazyRoCC(opcodes) {
@@ -243,7 +249,7 @@ class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
   with HasCoreParameters
   with HasL1CacheParameters {
-  val cacheParams = tileParams.icache.get
+  val cacheParams = tileParams.dcache.get
 
   private val blockOffset = blockOffBits
   private val beatOffset = log2Up(cacheDataBits/8)
@@ -314,6 +320,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
     when (recv_beat === cacheDataBeats.U) {
       addr := next_addr
       state := Mux(zero_found || finished, s_resp, s_acq)
+      recv_beat := 0.U
     } .otherwise {
       state := s_gnt
     }

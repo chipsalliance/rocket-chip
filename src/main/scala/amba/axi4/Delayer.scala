@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.amba.axi4
 
-import Chisel._
-import chisel3.util.IrrevocableIO
-import freechips.rocketchip.config.Parameters
+import chisel3._
+import chisel3.util._
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 
@@ -22,11 +22,11 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
   class Impl extends LazyModuleImp(this) {
     def feed[T <: Data](sink: IrrevocableIO[T], source: IrrevocableIO[T], noise: T): Unit = {
       // irrevocable requires that we not lower valid
-      val hold = RegInit(Bool(false))
-      when (sink.valid)  { hold := Bool(true) }
-      when (sink.fire()) { hold := Bool(false) }
+      val hold = RegInit(false.B)
+      when (sink.valid)  { hold := true.B }
+      when (sink.fire) { hold := false.B }
 
-      val allow = hold || UInt((q * 65535.0).toInt) <= LFSRNoiseMaker(16, source.valid)
+      val allow = hold || ((q * 65535.0).toInt).U <= LFSRNoiseMaker(16, source.valid)
       sink.valid := source.valid && allow
       source.ready := sink.ready && allow
       sink.bits := source.bits
@@ -45,12 +45,18 @@ class AXI4Delayer(q: Double)(implicit p: Parameters) extends LazyModule
       bits.qos   := LFSRNoiseMaker(bits.params.qosBits)
     }
 
-    (node.in zip node.out) foreach { case ((in, _), (out, _)) =>
-      val arnoise = Wire(in.ar.bits)
-      val awnoise = Wire(in.aw.bits)
-      val wnoise  = Wire(in.w .bits)
-      val rnoise  = Wire(in.r .bits)
-      val bnoise  = Wire(in.b .bits)
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      val arnoise = Wire(new AXI4BundleAR(edgeIn.bundle))
+      val awnoise = Wire(new AXI4BundleAW(edgeIn.bundle))
+      val wnoise  = Wire(new  AXI4BundleW(edgeIn.bundle))
+      val rnoise  = Wire(new  AXI4BundleR(edgeIn.bundle))
+      val bnoise  = Wire(new  AXI4BundleB(edgeIn.bundle))
+
+      arnoise := DontCare
+      awnoise := DontCare
+      wnoise := DontCare
+      rnoise := DontCare
+      bnoise := DontCare
 
       anoise(arnoise)
       anoise(awnoise)

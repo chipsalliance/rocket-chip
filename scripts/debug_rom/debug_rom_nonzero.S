@@ -3,7 +3,7 @@
 #include "riscv-pk/encoding.h"
 
 #ifndef CSR_DSCRATCH1
-#define CSR_DSCRATCH1 (CSR_DSCRATCH + 1)
+#define CSR_DSCRATCH1 (CSR_DSCRATCH0 + 1)
 #endif
   
 // These are implementation-specific addresses in the Debug Module, relative to entry
@@ -39,7 +39,7 @@ _entry:
         // This fence is required because the execution may have written something
         // into the Abstract Data or Program Buffer registers.
         fence
-        csrw  CSR_DSCRATCH, s0         // Save s0 to allow signaling MHARTID
+        csrw  CSR_DSCRATCH0, s0        // Save s0 to allow signaling MHARTID
         la    s1, entry                // s1 = base (0x800 into debug region)
 
         // We continue to let the hart know that we are halted in order that
@@ -57,7 +57,7 @@ entry_loop:
         andi  s0, s0, (1 << FLAG_GO)
         beqz  s0, _resume              // If GO is clear at this point, RESUME must be set.
 
-        csrr  s0, CSR_DSCRATCH         // Restore s0 here
+        csrr  s0, CSR_DSCRATCH0        // Restore s0 here
 
 //TODO: 0x48 is a hack for (icache-entry) constant
         jalr  zero, 0x48(s1)           // Rocket-Chip has a specific hack which is that jalr in
@@ -72,7 +72,7 @@ icache:
 _resume:
         csrr  s0, CSR_MHARTID
         sw    s0, RESUMING(s1)         // When Debug Module sees this write, the RESUME flag is reset.
-        csrr  s0, CSR_DSCRATCH         // Restore s0
+        csrr  s0, CSR_DSCRATCH0        // Restore s0
         csrr  s1, CSR_DSCRATCH1        // Restore s1
         dret
 

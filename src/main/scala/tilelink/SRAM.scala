@@ -4,7 +4,7 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
@@ -23,8 +23,9 @@ class TLRAM(
     ecc: ECCParams = ECCParams(),
     sramReg: Boolean = false, // drive SRAM data output directly into a register => 1 cycle longer response
     val devName: Option[String] = None,
-    val dtsCompat: Option[Seq[String]] = None
-  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, dtsCompat)
+    val dtsCompat: Option[Seq[String]] = None,
+    val devOverride: Option[Device with DeviceRegName] = None
+  )(implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName, dtsCompat, devOverride)
 {
   val eccBytes = ecc.bytes
   val code = ecc.code
@@ -35,7 +36,7 @@ class TLRAM(
   val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
     Seq(TLSlaveParameters.v1(
       address            = List(address),
-      resources          = device.reg("mem"),
+      resources          = resources,
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
       executable         = executable,
       supportsGet        = TransferSizes(1, beatBytes),

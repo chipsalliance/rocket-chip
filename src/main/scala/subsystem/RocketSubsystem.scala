@@ -2,10 +2,11 @@
 
 package freechips.rocketchip.subsystem
 
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing}
 import freechips.rocketchip.tile._
+import freechips.rocketchip.devices.debug.{HasPeripheryDebug}
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
@@ -29,7 +30,7 @@ trait HasRocketTiles extends HasTiles { this: BaseSubsystem =>
   }).toList
 }
 
-class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem with HasRocketTiles {
+class RocketSubsystem(implicit p: Parameters) extends BaseSubsystem with HasRocketTiles with HasPeripheryDebug {
   override lazy val module = new RocketSubsystemModuleImp(this)
 }
 

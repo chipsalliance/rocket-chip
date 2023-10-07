@@ -5,7 +5,7 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util.CompileOptions.NotStrictInferReset
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper._
 import freechips.rocketchip.interrupts._
@@ -135,7 +135,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       }
       val d_mshr = OHToUInt(d_trackerOH)
       d_normal.bits.sink := d_mshr
-      assert (!d_normal.valid || (d_trackerOH.orR() || d_normal.bits.opcode === TLMessages.ReleaseAck))
+      assert (!d_normal.valid || (d_trackerOH.orR || d_normal.bits.opcode === TLMessages.ReleaseAck))
 
       // A tracker response is anything neither dropped nor a ReleaseAck
       val d_response = d_hasData || !d_what(1)
@@ -217,7 +217,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
       val probe_line = Reg(UInt())
       val probe_perms = Reg(UInt(2.W))
       val probe_next = probe_todo & ~(leftOR(probe_todo) << 1)
-      val probe_busy = probe_todo.orR()
+      val probe_busy = probe_todo.orR
       val probe_target = if (caches.size == 0) 0.U else Mux1H(probe_next, cache_targets)
 
       // Probe whatever the FSM wants to do next
@@ -233,13 +233,13 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
       // To accept a request from A, the probe FSM must be idle and there must be a matching tracker
       val freeTrackers = VecInit(trackers.map { t => t.idle }).asUInt
-      val freeTracker = freeTrackers.orR()
+      val freeTracker = freeTrackers.orR
       val matchTrackers = VecInit(trackers.map { t => t.line === in.a.bits.address >> lineShift }).asUInt
-      val matchTracker = matchTrackers.orR()
+      val matchTracker = matchTrackers.orR
       val allocTracker = freeTrackers & ~(leftOR(freeTrackers) << 1)
       val selectTracker = Mux(matchTracker, matchTrackers, allocTracker)
       val trackerReadys = VecInit(trackers.map(_.in_a.ready)).asUInt
-      val trackerReady = (selectTracker & trackerReadys).orR()
+      val trackerReady = (selectTracker & trackerReadys).orR
 
       in.a.ready := (!a_first || filter.io.request.ready) && trackerReady
       (trackers zip selectTracker.asBools) foreach { case (t, select) =>
@@ -351,7 +351,7 @@ class ProbeFilterIO(val params: ProbeFilterParams) extends Bundle {
   val release = Flipped(Decoupled(new ProbeFilterRelease(params)))
 }
 
-abstract class ProbeFilter(val params: ProbeFilterParams) extends MultiIOModule {
+abstract class ProbeFilter(val params: ProbeFilterParams) extends Module {
   def useRegFields(bankIndex: Int): Seq[RegField.Map] = Nil
   def tieRegFields(bankIndex: Int): Unit = ()
   val io = IO(new ProbeFilterIO(params))
@@ -481,7 +481,7 @@ class TLBroadcastTracker(id: Int, lineBytes: Int, caches: Int, bufferless: Boole
   io.cacheOH := cacheOH
 
   val i_data = Wire(Decoupled(new TLBroadcastData(edgeIn.bundle)))
-  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes), pipe=bufferless)
+  val o_data = Queue(i_data, if (bufferless) 1 else (lineBytes / edgeIn.manager.beatBytes), bufferless)
 
   io.in_a.ready := (idle || !io.in_a_first) && i_data.ready
   i_data.valid := (idle || !io.in_a_first) && io.in_a.valid

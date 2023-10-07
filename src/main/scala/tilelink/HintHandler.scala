@@ -3,10 +3,11 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import freechips.rocketchip.devices.tilelink.TLROM
+import freechips.rocketchip.util.EnhancedChisel3Assign
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough
 class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends LazyModule

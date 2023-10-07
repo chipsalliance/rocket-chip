@@ -4,7 +4,7 @@ package freechips.rocketchip.tile
 
 import Chisel._
 
-import freechips.rocketchip.config._
+import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
@@ -22,10 +22,14 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
-  val useBitManip: Boolean = false
+  val useBitManip: Boolean
+  val useBitManipCrypto: Boolean
   val useVector: Boolean = false
   val useSCIE: Boolean
+  val useCryptoNIST: Boolean
+  val useCryptoSM: Boolean
   val useRVE: Boolean
+  val useConditionalZero: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
@@ -50,9 +54,13 @@ trait CoreParams {
   val nPTECacheEntries: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
+  val traceHasWdata: Boolean
+  def traceCustom: Option[Data] = None
+  def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def hasSupervisorMode: Boolean = useSupervisor || useVM
+  def hasBitManipCrypto: Boolean = useBitManipCrypto || useCryptoNIST || useCryptoSM
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
@@ -79,9 +87,13 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
   val usingBitManip = coreParams.useBitManip
+  val usingBitManipCrypto = coreParams.hasBitManipCrypto
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
+  val usingCryptoNIST = coreParams.useCryptoNIST
+  val usingCryptoSM = coreParams.useCryptoSM
   val usingNMI = coreParams.useNMI
+  val usingConditionalZero = coreParams.useConditionalZero
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth
@@ -100,6 +112,8 @@ trait HasCoreParameters extends HasTileParameters {
   val nPerfCounters = coreParams.nPerfCounters
   val mtvecInit = coreParams.mtvecInit
   val mtvecWritable = coreParams.mtvecWritable
+  val customIsaExt = coreParams.customIsaExt
+  val traceHasWdata = coreParams.traceHasWdata
 
   def vLen = coreParams.vLen
   def sLen = coreParams.sLen
@@ -137,8 +151,16 @@ class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
   val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
+// This is a raw commit trace from the core, not the TraceCoreInterface
+class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
+  val insns = Vec(coreParams.retireWidth, new TracedInstruction)
+  val time = UInt(64.W)
+  val custom = coreParams.traceCustom
+}
+
 trait HasCoreIO extends HasTileParameters {
   implicit val p: Parameters
+  def nTotalRoCCCSRs: Int
   val io = new CoreBundle()(p) {
     val hartid = UInt(hartIdLen.W).asInput
     val reset_vector = UInt(resetVectorLen.W).asInput
@@ -147,8 +169,8 @@ trait HasCoreIO extends HasTileParameters {
     val dmem = new HellaCacheIO
     val ptw = new DatapathPTWIO().flip
     val fpu = new FPUCoreIO().flip
-    val rocc = new RoCCCoreIO().flip
-    val trace = Vec(coreParams.retireWidth, new TracedInstruction).asOutput
+    val rocc = new RoCCCoreIO(nTotalRoCCCSRs).flip
+    val trace = Output(new TraceBundle)
     val bpwatch = Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)).asOutput
     val cease = Bool().asOutput
     val wfi = Bool().asOutput

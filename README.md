@@ -4,6 +4,15 @@ Rocket Chip Generator :rocket: ![Build Status](https://github.com/chipsalliance/
 This repository contains the Rocket chip generator necessary to instantiate
 the RISC-V Rocket Core. For more information on Rocket Chip, please consult our [technical report](http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html).
 
+## RocketChip Dev Meeting
+
+RocketChip development meetings happen every 2 weeks on Wednesday 17:00 – 18:00am CST (Pacific Time - Los Angeles) with meeting notes [here](https://docs.google.com/document/d/1NjDnf-i10QE0y-qI94A67uCspDRdCIS_IRTm4jc0Ycc):
+- Click [here](https://calendar.google.com/calendar/ical/c_699527d804418f900468a49b413d1f9c08e13c0f3f872ce551fc0470d4cdf983%40group.calendar.google.com/public/basic.ics) to subscribe Meeting Schedule(iCal format)
+- Click [here](https://calendar.google.com/calendar/embed?src=c_699527d804418f900468a49b413d1f9c08e13c0f3f872ce551fc0470d4cdf983%40group.calendar.google.com) to view Meeting Schedule via Google Calendar
+- Click [here](https://sifive.zoom.us/j/93899365000?pwd=UG1HSFJ4ODFzR2dhMHU2bUNqbXc3Zz09) to join Zoom meeting (ID: 93899365000, passcode: 754340)
+
+For possible time adjustments, they will be negotiated in Slack and published in the calendar.
+
 ## Table of Contents
 
 + [Quick instructions](#quick) for those who want to dive directly into the details without knowing exactly what's in the repository.

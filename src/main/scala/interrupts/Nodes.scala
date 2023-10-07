@@ -2,9 +2,9 @@
 
 package freechips.rocketchip.interrupts
 
-import Chisel._
+import chisel3._
 import chisel3.internal.sourceinfo.SourceInfo
-import freechips.rocketchip.config.Parameters
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
 object IntImp extends SimpleNodeImp[IntSourcePortParameters, IntSinkPortParameters, IntEdge, Vec[Bool]]
@@ -87,3 +87,11 @@ case class IntSyncSinkNode(sync: Int)(implicit valName: ValName)
 {
   override lazy val nodedebugstring = s"sync:${sync}"
 }
+
+case class IntSyncNexusNode(
+  sourceFn:       Seq[IntSourcePortParameters] => IntSourcePortParameters,
+  sinkFn:         Seq[IntSinkPortParameters]   => IntSinkPortParameters,
+  inputRequiresOutput: Boolean = true,
+  outputRequiresInput: Boolean = true)(
+  implicit valName: ValName)
+  extends NexusNode(IntSyncImp)(sourceFn, sinkFn, inputRequiresOutput, outputRequiresInput) with IntFormatNode
