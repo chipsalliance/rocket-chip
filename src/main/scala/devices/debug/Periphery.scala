@@ -323,6 +323,9 @@ object Debug {
 
       debug.clockeddmi.foreach { d =>
         d.dmi.req.valid := false.B
+        d.dmi.req.bits.addr := 0.U
+        d.dmi.req.bits.data := 0.U
+        d.dmi.req.bits.op := 0.U
         d.dmi.resp.ready := true.B
         d.dmiClock := false.B.asClock
         d.dmiReset := true.B.asAsyncReset
@@ -344,6 +347,7 @@ object Debug {
         t.out.ack := t.out.req
       }
       debug.disableDebug.foreach { x => x := false.B }
+      debug.dmactiveAck := false.B
       debug.ndreset
     }.getOrElse(false.B)
   }
