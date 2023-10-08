@@ -229,7 +229,7 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val interrupt = Bool()
   val cause = UInt(xLen.W)
   val tval = UInt((coreMaxAddrBits max iLen).W)
-  val wdata = if (traceHasWdata) Some(UInt((vLen max xLen).W)) else None
+  val wdata = Option.when(traceHasWdata)(UInt((vLen max xLen).W))
 }
 
 class TraceAux extends Bundle {

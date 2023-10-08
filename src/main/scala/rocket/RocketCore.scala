@@ -66,7 +66,7 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = false // ooo wb, so no wdata in trace
-  override val customIsaExt = if (haveCease) Some("xrocket") else None // CEASE instruction
+  override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
 }
