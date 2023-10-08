@@ -175,7 +175,7 @@ class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
   val shift_logic = (aluFn.isCmp (io.fn) && slt) | logic | shout
   val shift_logic_cond = cond_out match {
     case Some(co) => shift_logic | co
-    case _ => shift_logic 
+    case _ => shift_logic
   }
   val out = Mux(io.fn === aluFn.FN_ADD || io.fn === aluFn.FN_SUB, io.adder_out, shift_logic_cond)
 
