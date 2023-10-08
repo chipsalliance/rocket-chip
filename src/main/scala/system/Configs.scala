@@ -30,6 +30,8 @@ class DefaultFP16Config extends Config(new WithFP16 ++ new DefaultConfig)
 class BitManipCryptoConfig extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultConfig)
 class BitManipCrypto32Config extends Config(new WithBitManip ++ new WithCryptoNIST ++ new WithCryptoSM ++ new DefaultRV32Config)
 
+class HypervisorConfig extends Config(new WithHypervisor ++ new DefaultConfig)
+
 class DualBankConfig extends Config(new WithNBanks(2) ++ new DefaultConfig)
 class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusTopology ++ new BaseConfig)
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new DefaultConfig)

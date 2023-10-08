@@ -27,14 +27,14 @@ class ShiftQueue[T <: Data](gen: T,
     val wdata = if (i == entries-1) io.enq.bits else Mux(valid(i+1), elts(i+1), io.enq.bits)
     val wen =
       Mux(io.deq.ready,
-          paddedValid(i+1) || io.enq.fire() && ((i == 0 && !flow).B || valid(i)),
-          io.enq.fire() && paddedValid(i-1) && !valid(i))
+          paddedValid(i+1) || io.enq.fire && ((i == 0 && !flow).B || valid(i)),
+          io.enq.fire && paddedValid(i-1) && !valid(i))
     when (wen) { elts(i) := wdata }
 
     valid(i) :=
       Mux(io.deq.ready,
-          paddedValid(i+1) || io.enq.fire() && ((i == 0 && !flow).B || valid(i)),
-          io.enq.fire() && paddedValid(i-1) || valid(i))
+          paddedValid(i+1) || io.enq.fire && ((i == 0 && !flow).B || valid(i)),
+          io.enq.fire && paddedValid(i-1) || valid(i))
   }
 
   io.enq.ready := !valid(entries-1)

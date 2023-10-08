@@ -7,7 +7,6 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new APBNexusNode(
@@ -44,7 +43,7 @@ class APBFanout()(implicit p: Parameters) extends LazyModule {
 
       val sel = VecInit(route_addrs.map(seq => seq.map(_.contains(in.paddr)).reduce(_ || _)))
       (sel zip io_out) foreach { case (sel, out) =>
-        out :<> in
+        out.squeezeAll :<>= in.squeezeAll
         out.psel    := sel && in.psel
         out.penable := sel && in.penable
       }

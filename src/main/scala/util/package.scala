@@ -68,7 +68,7 @@ package object util {
     def ^ (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a ^ b }
     def << (n: Int): Seq[Bool] = Seq.fill(n)(false.B) ++ x
     def >> (n: Int): Seq[Bool] = x drop n
-    def unary_~(): Seq[Bool] = x.map(!_)
+    def unary_~ : Seq[Bool] = x.map(!_)
     def andR: Bool = if (x.isEmpty) true.B else x.reduce(_&&_)
     def orR: Bool = if (x.isEmpty) false.B else x.reduce(_||_)
     def xorR: Bool = if (x.isEmpty) false.B else x.reduce(_^_)
@@ -285,60 +285,5 @@ package object util {
     case 1 => List.fill(n)(in.head)
     case x if x == n => in
     case _ => throw new Exception(s"must provide exactly 1 or $n of some field, but got:\n$in")
-  }
-
-/** provides operators useful for working with bidirectional [[Bundle]]s
-  * 
-  * In terms of [[Flipped]] with a producer 'p' and 'consumer' c:
-  * c :<= p // means drive all unflipped fields of 'c' from 'p' (e.g.: c.valid := p.valid)
-  * c :=> p // means drive all flipped fields of 'p' from 'c' (e.g.: `p.ready := c.ready`)
-  * c :<> p // do both of the above
-  * p :<> c // do both of the above, but you'll probably get a Flow error later.
-  * 
-  * This utility class is needed because in [[chisel3]]:
-  * c := p // only works if there are no directions on fields.  
-  * c <> p // only works if one of those is an [[IO]] (not a [[Wire]]).
-  * 
-  * Compared with [[chisel3]] operators:
-  * c <> p   is an 'actual-direction'-inferred 'c :<> p' or 'p :<> c'
-  * c := p is equivalent to 'c :<= p' + 'p :=> c'. In other words, drive ALL fields of 'c' from 'p' regardless of their direction.
-  * 
-  * Contrast this with 'c :<> p' which will connect a ready-valid producer
-  * 'p' to a consumer 'c'.
-  * If you flip this to 'p :<> c', it works the way you would expect (flipping the role of producer/consumer).
-  * This is how Chisel._ (compatability mode) and firrtl work.
-  * Some find that  ':<>' has superior readability (even if the direction can be inferred from an IO),
-  * because it clearly states the intended producer/consumer relationship. 
-  * You will get an appropriate error if you connected it the wrong way
-  * (usually because you got the IO direction wrong) instead of silently succeeding.
-  * 
-  * What if you want to connect all of the signals (e.g. ready/valid/bits)
-  * from producer 'p' to a monitor 'm'?
-  * For example in order to tap the connection to monitor traffic on an existing connection.
-  * In that case you can do 'm :<= p' and 'p :=> m'.
-  */
-  implicit class EnhancedChisel3Assign[T <: Data](private val x: T) extends AnyVal {
-    /** Assign all output fields of x from y; note that the actual direction of x is irrelevant */
-    def :<= (y: T): Unit = FixChisel3.assignL(x, y)
-    /** Assign all input fields of y from x; note that the actual direction of y is irrelevant */
-    def :=> (y: T): Unit = FixChisel3.assignR(x, y)
-    /** Bulk connect which will work between two [[Wire]]s (in addition to between [[IO]]s) */
-    def :<> (y: T): Unit = {
-      FixChisel3.assignL(x, y)
-      FixChisel3.assignR(x, y)
-    }
-
-
-    // Versions of the operators that use the type from the RHS
-    // y :<=: x  ->  x.:<=:(y)  ->  y :<= x  ->  FixChisel3.assignL(y, x)
-    /** version of the :<= operator that uses the type from the RHS */
-    def :<=: (y: T): Unit = { FixChisel3.assignL(y, x) }
-    /** version of the :=> operator that uses the type from the RHS */
-    def :>=: (y: T): Unit = { FixChisel3.assignR(y, x) }
-    /** version of the :<> operator that uses the type from the RHS */
-    def :<>: (y: T): Unit = {
-      FixChisel3.assignL(y, x)
-      FixChisel3.assignR(y, x)
-    }
   }
 }

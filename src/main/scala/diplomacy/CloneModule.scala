@@ -5,17 +5,12 @@
 
 package chisel3.shim
 
-import Chisel._
-import chisel3.experimental.BaseModule
-import chisel3.{RawModule, Module}
-import chisel3.internal.Builder
-import chisel3.internal.firrtl.{Command, DefInstance}
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ArrayBuffer
+import chisel3._
+
+import scala.collection.immutable.SeqMap
 
 class ClonePorts protected[shim](elts: Data*) extends Record
 {
-  val elements = ListMap(elts.map(d => d.instanceName -> d.chiselCloneType): _*)
+  val elements = SeqMap(elts.map(d => d.instanceName -> chiselTypeOf(d)): _*)
   def apply(field: String) = elements(field)
-  override def cloneType = (new ClonePorts(elts: _*)).asInstanceOf[this.type]
 }

@@ -268,7 +268,8 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
 
   val decode = Vec(decodeWidth, new CSRDecodeIO)
 
-  val csr_stall = Output(Bool())
+  val csr_stall = Output(Bool()) // stall retire for wfi
+  val rw_stall = Output(Bool()) // stall rw, rw will have no effect while rw_stall
   val eret = Output(Bool())
   val singleStep = Output(Bool())
 
@@ -378,9 +379,11 @@ class CSRFile(
     extends CoreModule()(p)
     with HasCoreParameters {
   val io = IO(new CSRFileIO {
-    val customCSRs = Output(Vec(CSRFile.this.customCSRs.size, new CustomCSRIO))
-    val roccCSRs = Output(Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO))
+    val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO)
+    val roccCSRs = Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO)
   })
+
+  io.rw_stall := false.B
 
   val reset_mstatus = WireDefault(0.U.asTypeOf(new MStatus()))
   reset_mstatus.mpp := PRV.M.U
@@ -424,7 +427,7 @@ class CSRFile(
 
     (sup.asUInt | supported_high_interrupts, del.asUInt)
   }
-  val delegable_exceptions = Seq(
+  val delegable_base_exceptions = Seq(
     Causes.misaligned_fetch,
     Causes.fetch_page_fault,
     Causes.breakpoint,
@@ -434,11 +437,18 @@ class CSRFile(
     Causes.misaligned_store,
     Causes.illegal_instruction,
     Causes.user_ecall,
+  )
+  val delegable_hypervisor_exceptions = Seq(
     Causes.virtual_supervisor_ecall,
     Causes.fetch_guest_page_fault,
     Causes.load_guest_page_fault,
     Causes.virtual_instruction,
-    Causes.store_guest_page_fault).map(1 << _).sum.U
+    Causes.store_guest_page_fault,
+  )
+  val delegable_exceptions = (
+    delegable_base_exceptions
+    ++ (if (usingHypervisor) delegable_hypervisor_exceptions else Seq())
+  ).map(1 << _).sum.U
 
   val hs_delegable_exceptions = Seq(
     Causes.misaligned_fetch,
@@ -623,7 +633,7 @@ class CSRFile(
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
-    (if (customIsaExt.isDefined) "X" else "") +
+    (if (customIsaExt.isDefined || usingRoCC) "X" else "") +
     (if (usingSupervisor) "S" else "") +
     (if (usingHypervisor) "H" else "") +
     (if (usingUser) "U" else "")
@@ -775,15 +785,18 @@ class CSRFile(
   }
 
   // implementation-defined CSRs
-  def generateCustomCSR(csr: CustomCSR) = {
+  def generateCustomCSR(csr: CustomCSR, csr_io: CustomCSRIO) = {
     require(csr.mask >= 0 && csr.mask.bitLength <= xLen)
     require(!read_mapping.contains(csr.id))
     val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
+    val read = io.rw.cmd =/= CSR.N && io.rw.addr === csr.id.U
+    csr_io.ren := read
+    when (read && csr_io.stall) { io.rw_stall := true.B }
     read_mapping += csr.id -> reg
     reg
   }
-  val reg_custom = customCSRs.map(generateCustomCSR(_))
-  val reg_rocc = roccCSRs.map(generateCustomCSR(_))
+  val reg_custom = customCSRs.zip(io.customCSRs).map(t => generateCustomCSR(t._1, t._2))
+  val reg_rocc = roccCSRs.zip(io.roccCSRs).map(t => generateCustomCSR(t._1, t._2))
 
   if (usingHypervisor) {
     read_mapping += CSRs.mtinst -> 0.U
@@ -824,8 +837,8 @@ class CSRFile(
     read_mapping += CSRs.vstvec -> read_vstvec
   }
 
-  // mimpid, marchid, and mvendorid are 0 unless overridden by customCSRs
-  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
+  // mimpid, marchid, mvendorid, and mconfigptr are 0 unless overridden by customCSRs
+  Seq(CSRs.mimpid, CSRs.marchid, CSRs.mvendorid, CSRs.mconfigptr).foreach(id => read_mapping.getOrElseUpdate(id, 0.U))
 
   val decoded_addr = {
     val addr = Cat(io.status.v, io.rw.addr)
@@ -1188,7 +1201,7 @@ class CSRFile(
     }
   }
 
-  val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
+  val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W) && !io.rw_stall
   io.csrw_counter := Mux(coreParams.haveBasicCounters.B && csr_wen && (io.rw.addr.inRange(CSRs.mcycle.U, (CSRs.mcycle + CSR.nCtr).U) || io.rw.addr.inRange(CSRs.mcycleh.U, (CSRs.mcycleh + CSR.nCtr).U)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
   when (csr_wen) {
     val scause_mask = ((BigInt(1) << (xLen-1)) + 31).U /* only implement 5 LSBs and MSB */
@@ -1488,6 +1501,19 @@ class CSRFile(
         reg_vxrm.get := wdata >> 1
       }
     }
+  }
+
+  def setCustomCSR(io: CustomCSRIO, csr: CustomCSR, reg: UInt) = {
+    val mask = csr.mask.U(xLen.W)
+    when (io.set) {
+      reg := (io.sdata & mask) | (reg & ~mask)
+    }
+  }
+  for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+    setCustomCSR(io, csr, reg)
+  }
+  for ((io, csr, reg) <- (io.roccCSRs, roccCSRs, reg_rocc).zipped) {
+    setCustomCSR(io, csr, reg)
   }
 
   io.vector.map { vio =>

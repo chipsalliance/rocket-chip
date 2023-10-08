@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy.{BundleBridgeEphemeralNode, ValName}
 
@@ -19,5 +19,5 @@ class PSDTestMode extends Bundle {
 
 trait CanHavePSDTestModeIO {
   implicit val p: Parameters
-  val psd = p(IncludePSDTest).option(new PSDTestMode().asInput)
+  val psd = p(IncludePSDTest).option(Input(new PSDTestMode()))
 }

@@ -8,7 +8,6 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) extends LazyModule
 {
@@ -19,11 +18,11 @@ class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) exten
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      out.aw :<> in.aw.pipeline(delay.aw)
-      out.w :<> in.w.pipeline(delay.w)
-      in.b :<> out.b.pipeline(delay.b)
-      out.ar :<> in.ar.pipeline(delay.ar)
-      in.r :<> out.r.pipeline(delay.r)
+      out.aw :<>= in.aw.pipeline(delay.aw)
+      out.w :<>= in.w.pipeline(delay.w)
+      in.b :<>= out.b.pipeline(delay.b)
+      out.ar :<>= in.ar.pipeline(delay.ar)
+      in.r :<>= out.r.pipeline(delay.r)
     }
   }
 }
@@ -44,11 +43,11 @@ class AXI4CreditedSource(delay: AXI4CreditedDelay)(implicit p: Parameters) exten
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val tld = edgeOut.delay
-      out.aw :<> CreditedIO.fromSender(in.aw, tld.aw.total).pipeline(delay.aw)
-      out.w :<> CreditedIO.fromSender(in.w, tld.w.total).pipeline(delay.w)
-      in.b :<> out.b.pipeline(delay.b).toReceiver(tld.b.total)
-      out.ar :<> CreditedIO.fromSender(in.ar, tld.ar.total).pipeline(delay.ar)
-      in.r :<> out.r.pipeline(delay.r).toReceiver(tld.r.total)
+      out.aw :<>= CreditedIO.fromSender(in.aw, tld.aw.total).pipeline(delay.aw)
+      out.w :<>= CreditedIO.fromSender(in.w, tld.w.total).pipeline(delay.w)
+      in.b :<>= out.b.pipeline(delay.b).toReceiver(tld.b.total)
+      out.ar :<>= CreditedIO.fromSender(in.ar, tld.ar.total).pipeline(delay.ar)
+      in.r :<>= out.r.pipeline(delay.r).toReceiver(tld.r.total)
     }
   }
 }
@@ -69,11 +68,11 @@ class AXI4CreditedSink(delay: AXI4CreditedDelay)(implicit p: Parameters) extends
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val tld = edgeIn.delay
-      out.aw :<> in.aw.pipeline(delay.aw).toReceiver(tld.aw.total)
-      out.w :<> in.w.pipeline(delay.w).toReceiver(tld.w.total)
-      in.b :<> CreditedIO.fromSender(out.b, tld.b.total).pipeline(delay.b)
-      out.ar :<> in.ar.pipeline(delay.ar).toReceiver(tld.ar.total)
-      in.r :<> CreditedIO.fromSender(out.r, tld.r.total).pipeline(delay.r)
+      out.aw :<>= in.aw.pipeline(delay.aw).toReceiver(tld.aw.total)
+      out.w :<>= in.w.pipeline(delay.w).toReceiver(tld.w.total)
+      in.b :<>= CreditedIO.fromSender(out.b, tld.b.total).pipeline(delay.b)
+      out.ar :<>= in.ar.pipeline(delay.ar).toReceiver(tld.ar.total)
+      in.r :<>= CreditedIO.fromSender(out.r, tld.r.total).pipeline(delay.r)
     }
   }
 }

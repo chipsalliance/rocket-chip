@@ -9,7 +9,6 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
   extends IdMapEntry
@@ -111,7 +110,10 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       r_out.valid := in.ar.valid
       r_out.bits :<= edgeOut.Get(r_id, r_addr, r_size)._2
 
-      r_out.bits.user :<= in.ar.bits.user
+      Connectable.waiveUnmatched(r_out.bits.user, in.ar.bits.user) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+
       r_out.bits.user.lift(AMBAProt).foreach { rprot =>
         rprot.privileged :=  in.ar.bits.prot(0)
         rprot.secure     := !in.ar.bits.prot(1)
@@ -147,7 +149,10 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       w_out.bits :<= edgeOut.Put(w_id, w_addr, w_size, in.w.bits.data, in.w.bits.strb)._2
       in.w.bits.user.lift(AMBACorrupt).foreach { w_out.bits.corrupt := _ }
 
-      w_out.bits.user :<= in.aw.bits.user
+      Connectable.waiveUnmatched(w_out.bits.user, in.aw.bits.user) match {
+        case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+      }
+
       w_out.bits.user.lift(AMBAProt).foreach { wprot =>
         wprot.privileged :=  in.aw.bits.prot(0)
         wprot.secure     := !in.aw.bits.prot(1)
@@ -183,7 +188,7 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
       ok_r.bits.user :<= out.d.bits.user
 
       // AXI4 needs irrevocable behaviour
-      in.r :<> Queue.irrevocable(ok_r, 1, flow=true)
+      in.r :<>= Queue.irrevocable(ok_r, 1, flow=true)
 
       ok_b.bits.id   := out.d.bits.source >> addedBits
       ok_b.bits.resp := d_resp

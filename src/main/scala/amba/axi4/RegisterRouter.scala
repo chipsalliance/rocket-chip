@@ -48,8 +48,8 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     aw.ready := in.ready && !ar.valid && w .valid
     w .ready := in.ready && !ar.valid && aw.valid
 
-    ar_extra.partialAssignL(ar.bits.echo)
-    aw_extra.partialAssignL(aw.bits.echo)
+    ar_extra.waiveAll :<= ar.bits.echo
+    aw_extra.waiveAll :<= aw.bits.echo
     ar_extra(AXI4RRId) := ar.bits.id
     aw_extra(AXI4RRId) := aw.bits.id
     val addr = Mux(ar.valid, ar.bits.addr, aw.bits.addr)
@@ -75,11 +75,11 @@ case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes
     r.bits.data := out.bits.data
     r.bits.last := true.B
     r.bits.resp := AXI4Parameters.RESP_OKAY
-    r.bits.echo :<= out.bits.extra
+    r.bits.echo :<= out.bits.extra.waiveAll
 
     b.bits.id   := out.bits.extra(AXI4RRId)
     b.bits.resp := AXI4Parameters.RESP_OKAY
-    b.bits.echo :<= out.bits.extra
+    b.bits.echo :<= out.bits.extra.waiveAll
   }
 }
 

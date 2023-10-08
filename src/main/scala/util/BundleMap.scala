@@ -2,9 +2,10 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import chisel3.experimental.DataMirror
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.HashMap
+import chisel3.reflect.DataMirror
+
+import scala.collection.immutable.SeqMap
+import scala.collection.immutable.HashMap
 
 /* BundleMaps include IOs for every BundleField they are constructed with.
  * A given BundleField in a BundleMap is accessed by a BundleKey.
@@ -35,21 +36,14 @@ sealed trait BundleFieldBase {
   }
 }
 
-/* Always extends BundleField with a case class.
- * This will ensure that there is an appropriate equals() operator to detect name conflicts.
- */
-abstract class BundleField[T <: Data](val key: BundleKey[T]) extends BundleFieldBase
-{
-  def data: T
-  def default(x: T): Unit
+abstract class BundleField[T <: Data](val key: BundleKey[T], typeT: => T, val default: T => Unit) extends BundleFieldBase {
+  def data: T = typeT
+  def defaultFlip(x: T): Unit = {}
   def setDataDefault(x: Data): Unit = default(x.asInstanceOf[T])
+  def setDataDefaultFlip(x: Data): Unit = defaultFlip(x.asInstanceOf[T])
 }
 
-abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(typeT: => T, defaultT: => T) extends BundleField(key)
-{
-  def data = typeT
-  def default(x: T): Unit = { x := defaultT }
-}
+abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(typeT: => T, defaultT: => T) extends BundleField(key, typeT, { x: T => x := defaultT })
 
 object BundleField {
   /* Consider an arbiter that receives two request streams A and B and combines them to C.
@@ -100,23 +94,11 @@ abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) wi
  * Generally, this categorization belongs in different BundleMaps
  */
 
-// If you extend this class, you must either redefine cloneType or have a fields constructor
-class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulkAssignable {
+class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
   // All fields must have distinct key.names
   require(fields.map(_.key.name).distinct.size == fields.size)
 
-  val elements: ListMap[String, Data] = ListMap(fields.map { bf => bf.key.name -> chisel3.experimental.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
-  override def cloneType: this.type = {
-    try {
-      this.getClass.getConstructors.head.newInstance(fields).asInstanceOf[this.type]
-    } catch {
-      case e: java.lang.IllegalArgumentException =>
-        throw new Exception("Unable to use BundleMap.cloneType on " +
-                       this.getClass + ", probably because " + this.getClass +
-                       " does not have a constructor accepting BundleFields.  Consider overriding " +
-                       "cloneType() on " + this.getClass, e)
-    }
-  }
+  val elements: SeqMap[String, Data] = SeqMap(fields.map { bf => bf.key.name -> chisel3.reflect.DataMirror.internal.chiselTypeClone(bf.data) } :_*)
 
   // A BundleMap is best viewed as a map from BundleKey to Data
   def keydata: Seq[(BundleKeyBase, Data)] = (fields zip elements) map { case (field, (_, data)) => (field.key, data) }
@@ -130,145 +112,48 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record with CustomBulk
   // Create a new BundleMap with only the selected Keys retained
   def subset(fn: BundleKeyBase => Boolean): BundleMap = {
     val out = Wire(BundleMap(fields.filter(x => fn(x.key))))
-    out :<= this
+    out :<= this.waiveAll
     out
-  }
-
-  // Assign all outputs of this from either:
-  //   outputs of that (if they exist)
-  //   or the default value for the BundleField
-  def assignL(that: CustomBulkAssignable): Unit = { // this/bx :<= that/by
-    require(that.isInstanceOf[BundleMap], s"Illegal attempt to drive BundleMap ${this} :<= non-BundleMap ${that}")
-    val bx = this
-    val by = that.asInstanceOf[BundleMap]
-    val hy = HashMap(by.elements.toList:_*)
-    (bx.fields zip bx.elements) foreach { case (field, (_, vx)) =>
-      hy.lift(field.key.name) match {
-        case Some(vy) => FixChisel3.descendL(vx, vy)
-        case None => DataMirror.specifiedDirectionOf(vx) match {
-          case SpecifiedDirection.Output => field.setDataDefault(vx)
-          case SpecifiedDirection.Input => ()
-          case _ => require(false, s"Attempt to assign ${bx} :<= ${by}, where RHS is missing directional field ${field}")
-        }
-      }
-    }
-    // it's ok to have excess elements in 'hy'
-  }
-
-  // Assign all inputs of that from either:
-  //   inputs of this (if they exist)
-  //   or the default value for the BundleField
-  def assignR(that: CustomBulkAssignable): Unit = { // this/bx :=> that/by
-    require(that.isInstanceOf[BundleMap], s"Illegal attempt to drive BundleMap ${this} :=> non-BundleMap ${that}")
-    def bx = this
-    def by = that.asInstanceOf[BundleMap]
-    val hx = HashMap(bx.elements.toList:_*)
-    (by.fields zip by.elements) foreach { case (field, (_, vy)) =>
-      hx.lift(field.key.name) match {
-        case Some(vx) => FixChisel3.descendR(vx, vy)
-        case None => DataMirror.specifiedDirectionOf(vy) match {
-          case SpecifiedDirection.Output => ()
-          case SpecifiedDirection.Input => field.setDataDefault(vy)
-          case _ => require (false, s"Attempt to assign ${bx} :=> ${by}, where LHS is missing directional field ${field}")
-        }
-      }
-    }
-    // it's ok to have excess elements in 'hx'
-  }
-
-  // Assign only those outputs of this which exist as outputs in that
-  def partialAssignL(that: BundleMap): Unit = {
-    val h = HashMap(that.keydata:_*)
-    keydata foreach { case (key, vx) =>
-      h.lift(key).foreach { vy => FixChisel3.descendL(vx, vy) }
-    }
-  }
-
-  // Assign only those inputs of that which exist as inputs in this
-  def partialAssignR(that: BundleMap): Unit = {
-    val h = HashMap(keydata:_*)
-    that.keydata foreach { case (key, vy) =>
-      h.lift(key).foreach { vx => FixChisel3.descendL(vx, vy) }
-    }
   }
 }
 
 object BundleMap {
   def apply(fields: Seq[BundleFieldBase] = Nil) = new BundleMap(fields)
-}
-
-trait CustomBulkAssignable {
-  def assignL(that: CustomBulkAssignable): Unit // Custom implementation of :<=
-  def assignR(that: CustomBulkAssignable): Unit // Custom implementaiton of :=>
-}
-
-// Implement the primitives of bulk assignment, :<= and :=>
-object FixChisel3 {
-  // Used by :<= for child elements to switch directionality
-  def descendL(x: Data, y: Data): Unit = {
-    DataMirror.specifiedDirectionOf(x) match {
-      case SpecifiedDirection.Unspecified => assignL(x, y)
-      case SpecifiedDirection.Output      => assignL(x, y); assignR(y, x)
-      case SpecifiedDirection.Input       => ()
-      case SpecifiedDirection.Flip        => assignR(y, x)
+  /** Sets the default values of all bundle map elements that are aligned w.r.t. d */
+  def setAlignedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
+    DataMirror.collectAlignedDeep(c.base) { case member: BundleMap =>
+      member.fields.foreach { f =>
+        f.setDataDefault(member.elements(f.key.name))
+      }
     }
+    c
   }
-
-  // Used by :=> for child elements to switch directionality
-  def descendR(x: Data, y: Data): Unit = {
-    DataMirror.specifiedDirectionOf(y) match {
-      case SpecifiedDirection.Unspecified => assignR(x, y)
-      case SpecifiedDirection.Output      => ()
-      case SpecifiedDirection.Input       => assignL(y, x); assignR(x, y)
-      case SpecifiedDirection.Flip        => assignL(y, x)
+  /** Sets the default values of all bundle map elements that are flipped w.r.t. d */
+  def setFlippedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
+    DataMirror.collectFlippedDeep(c.base) { case member: BundleMap =>
+      member.fields.foreach { f =>
+        f.setDataDefault(member.elements(f.key.name))
+      }
     }
+    c
   }
-
-  // The default implementation of 'x :<= y'
-  // Assign all output fields of x from y
-  def assignL(x: Data, y: Data): Unit = {
-    (x, y) match {
-      case (cx: CustomBulkAssignable, cy: CustomBulkAssignable) => cx.assignL(cy)
-      case (vx: Vec[_], vy: Vec[_]) => {
-        require (vx.size == vy.size, s"Assignment between vectors of unequal length (${vx.size} != ${vy.size})")
-        (vx zip vy) foreach { case (ex, ey) => descendL(ex, ey) }
+  /** Waives all bundle map elements */
+  def waive[T <: Data](c: Connectable[T]): Connectable[T] = {
+    val bundleFields = DataMirror
+      .collectMembers(c.base) { case member: BundleMap =>
+        member.getElements
       }
-      case (rx: Record, ry: Record) => {
-        val hy = HashMap(ry.elements.toList:_*)
-        rx.elements.foreach { case (key, vx) =>
-          require (hy.contains(key), s"Attempt to assign ${x} :<= ${y}, where RHS is missing field ${key}")
-          descendL(vx, hy(key))
-        }
-        hy --= rx.elements.keys
-        require (hy.isEmpty, s"Attempt to assign ${x} :<= ${y}, where RHS has excess field ${hy.last._1}")
-      }
-      case (vx: Vec[_], DontCare) => vx.foreach { case ex => descendL(ex, DontCare) }
-      case (rx: Record, DontCare) => rx.elements.foreach { case (_, dx) => descendL(dx, DontCare) }
-      case _ => x := y // assign leaf fields (UInt/etc)
-    }
+      .flatten
+    Connectable(c.base, bundleFields.toSet)
   }
-
-  // The default implementation of 'x :=> y'
-  // Assign all input fields of y from x
-  def assignR(x: Data, y: Data) = {
-    (x, y) match {
-      case (cx: CustomBulkAssignable, cy: CustomBulkAssignable) => cx.assignR(cy)
-      case (vx: Vec[_], vy: Vec[_]) => {
-        require (vx.size == vy.size, s"Assignment between vectors of unequal length (${vx.size} != ${vy.size})")
-        (vx zip vy) foreach { case (ex, ey) => descendR(ex, ey) }
-      }
-      case (rx: Record, ry: Record) => {
-        val hx = HashMap(rx.elements.toList:_*)
-        ry.elements.foreach { case (key, vy) =>
-          require (hx.contains(key), s"Attempt to assign ${x} :=> ${y}, where RHS has excess field ${key}")
-          descendR(hx(key), vy)
-        }
-        hx --= ry.elements.keys
-        require (hx.isEmpty, s"Attempt to assign ${x} :=> ${y}, where RHS is missing field ${hx.last._1}")
-      }
-      case (DontCare, vy: Vec[_]) => vy.foreach { case ey => descendR(DontCare, ey) }
-      case (DontCare, ry: Record) => ry.elements.foreach { case (_, dy) => descendR(DontCare, dy) }
-      case _ =>  // no-op for leaf fields
-    }
+  /** Waives all bundle map elements and sets the default values of all bundle map elements that are aligned w.r.t. d */
+  def waiveAndSetAlignedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
+    setAlignedDefaults(c)
+    waive(c)
+  }
+  /** Waives all bundle map elements and sets the default values of all bundle map elements that are flipped w.r.t. d */
+  def waiveAndSetFlippedDefaults[T <: Data](c: Connectable[T]): Connectable[T] = {
+    setFlippedDefaults(c)
+    waive(c)
   }
 }

@@ -12,7 +12,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{DescribedSRAM, _}
 import freechips.rocketchip.util.property
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.dontTouch
 import chisel3.util.random.LFSR
 
@@ -319,13 +319,13 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   def scratchpadLine(addr: UInt) = addr(untagBits+log2Ceil(nWays)-1, blockOffBits)
 
   /** scratchpad access valid in stage N*/
-  val s0_slaveValid = tl_in.map(_.a.fire()).getOrElse(false.B)
+  val s0_slaveValid = tl_in.map(_.a.fire).getOrElse(false.B)
   val s1_slaveValid = RegNext(s0_slaveValid, false.B)
   val s2_slaveValid = RegNext(s1_slaveValid, false.B)
   val s3_slaveValid = RegNext(false.B)
 
   /** valid signal for CPU accessing cache in stage 0. */
-  val s0_valid = io.req.fire()
+  val s0_valid = io.req.fire
   /** virtual address from CPU in stage 0. */
   val s0_vaddr = io.req.bits.addr
 
@@ -363,7 +363,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
    * */
   val send_hint = RegInit(false.B)
   /** indicate [[tl_out]] is performing a refill. */
-  val refill_fire = tl_out.a.fire() && !send_hint
+  val refill_fire = tl_out.a.fire && !send_hint
   /** register to indicate there is a outstanding hint. */
   val hint_outstanding = RegInit(false.B)
   /** [[io]] access L1 I$ miss. */
@@ -380,14 +380,14 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val refill_tag = refill_paddr >> pgUntagBits
   val refill_idx = index(refill_vaddr, refill_paddr)
   /** AccessAckData, is refilling I$, it will block request from CPU. */
-  val refill_one_beat = tl_out.d.fire() && edge_out.hasData(tl_out.d.bits)
+  val refill_one_beat = tl_out.d.fire && edge_out.hasData(tl_out.d.bits)
 
   /** block request from CPU when refill or scratch pad access. */
   io.req.ready := !(refill_one_beat || s0_slaveValid || s3_slaveValid)
   s1_valid := s0_valid
 
   val (_, _, d_done, refill_cnt) = edge_out.count(tl_out.d)
-  /** at last beat of `tl_out.d.fire()`, finish refill. */
+  /** at last beat of `tl_out.d.fire`, finish refill. */
   val refill_done = refill_one_beat && d_done
   /** scratchpad is writing data. block refill. */
   tl_out.d.ready := !s3_slaveValid
@@ -430,7 +430,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     ccover(refillError, "D_CORRUPT", "I$ D-channel corrupt")
   }
   // notify CPU, I$ has corrupt.
-  io.errors.bus.valid := tl_out.d.fire() && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
+  io.errors.bus.valid := tl_out.d.fire && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
   io.errors.bus.bits  := (refill_paddr >> blockOffBits) << blockOffBits
 
   /** true indicate this cacheline is valid,
@@ -636,6 +636,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       io.resp.bits.data := Mux1H(s1_tag_hit, s1_dout)
       io.resp.bits.ae := s1_tl_error.asUInt.orR
       io.resp.valid := s1_valid && s1_hit
+      io.resp.bits.replay := false.B
 
     // if I$ latency is 2, can have ITIM and ECC.
     case 2 =>
@@ -714,7 +715,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         }
 
         // back pressure is allowed on the [[tl]]
-        // pull up [[respValid]] when [[s2_slaveValid]] until [[tl.d.fire()]]
+        // pull up [[respValid]] when [[s2_slaveValid]] until [[tl.d.fire]]
         respValid := s2_slaveValid || (respValid && !tl.d.ready)
         // if [[s2_full_word_write]] will overwrite data, and [[s2_data_decoded.uncorrectable]] can be ignored.
         val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable && !s1s2_full_word_write, s2_slaveValid)
@@ -767,7 +768,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       */
     val (crosses_page, next_block) = Split(refill_paddr(pgIdxBits-1, blockOffBits) +& 1.U, pgIdxBits-blockOffBits)
 
-    when (tl_out.a.fire()) {
+    when (tl_out.a.fire) {
       send_hint := !hint_outstanding && io.s2_prefetch && !crosses_page
       when (send_hint) {
         send_hint := false.B
@@ -781,7 +782,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     }
 
     // D channel reply with HintAck.
-    when (tl_out.d.fire() && !refill_one_beat) {
+    when (tl_out.d.fire && !refill_one_beat) {
       hint_outstanding := false.B
     }
 
@@ -795,9 +796,9 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     }
 
     ccover(send_hint && !tl_out.a.ready, "PREFETCH_A_STALL", "I$ prefetch blocked by A-channel")
-    ccover(refill_valid && (tl_out.d.fire() && !refill_one_beat), "PREFETCH_D_BEFORE_MISS_D", "I$ prefetch resolves before miss")
-    ccover(!refill_valid && (tl_out.d.fire() && !refill_one_beat), "PREFETCH_D_AFTER_MISS_D", "I$ prefetch resolves after miss")
-    ccover(tl_out.a.fire() && hint_outstanding, "PREFETCH_D_AFTER_MISS_A", "I$ prefetch resolves after second miss")
+    ccover(refill_valid && (tl_out.d.fire && !refill_one_beat), "PREFETCH_D_BEFORE_MISS_D", "I$ prefetch resolves before miss")
+    ccover(!refill_valid && (tl_out.d.fire && !refill_one_beat), "PREFETCH_D_AFTER_MISS_D", "I$ prefetch resolves after miss")
+    ccover(tl_out.a.fire && hint_outstanding, "PREFETCH_D_AFTER_MISS_A", "I$ prefetch resolves after second miss")
   }
   // Drive APROT information
   tl_out.a.bits.user.lift(AMBAProt).foreach { x =>

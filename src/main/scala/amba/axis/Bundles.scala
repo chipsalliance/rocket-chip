@@ -18,13 +18,9 @@ case class AXISIdField  (width: Int) extends SimpleBundleField(AXISId)  (Output(
 case class AXISDestField(width: Int) extends SimpleBundleField(AXISDest)(Output(UInt(width.W)), 0.U)
 case class AXISKeepField(width: Int) extends SimpleBundleField(AXISKeep)(Output(UInt(width.W)), ~0.U(width.W))
 case class AXISStrbField(width: Int) extends SimpleBundleField(AXISStrb)(Output(UInt(width.W)), ~0.U(width.W))
-case class AXISDataField(width: Int) extends BundleField(AXISData) {
-  def data = Output(UInt(width.W))
-  def default(x: UInt): Unit = { x := DontCare }
-}
+case class AXISDataField(width: Int) extends BundleField[UInt](AXISData, Output(UInt(width.W)), _ := DontCare)
 
 class AXISBundleBits(val params: AXISBundleParameters) extends BundleMap(AXISBundle.keys(params)) {
-  override def cloneType: this.type = (new AXISBundleBits(params)).asInstanceOf[this.type]
   def last = if (params.hasLast) apply(AXISLast) else true.B
   def id   = if (params.hasId)   apply(AXISId)   else 0.U
   def dest = if (params.hasDest) apply(AXISDest) else 0.U

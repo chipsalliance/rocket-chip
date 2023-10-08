@@ -3,7 +3,7 @@ package freechips.rocketchip.formal
 
 import chisel3._
 import chisel3.util._
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.experimental.{SourceInfo, SourceLine}
 import org.chipsalliance.cde.config.Field
 
 sealed abstract class MonitorDirection(name: String) {

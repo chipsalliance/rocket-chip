@@ -14,7 +14,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import freechips.rocketchip.devices.debug.DebugModuleKey
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)
@@ -100,6 +100,7 @@ class TLBEntryData(implicit p: Parameters) extends CoreBundle()(p) {
     */
   val ae_ptw = Bool()
   val ae_final = Bool()
+  val ae_stage2 = Bool()
   /** page fault */
   val pf = Bool()
   /** guest page fault */
@@ -317,6 +318,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     /** suppress a TLB refill, one cycle after a miss */
     val kill = Input(Bool())
   })
+  io.ptw.customCSRs := DontCare
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
@@ -443,6 +445,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.g := pte.g && pte.v
     newEntry.ae_ptw := io.ptw.resp.bits.ae_ptw
     newEntry.ae_final := io.ptw.resp.bits.ae_final
+    newEntry.ae_stage2 := io.ptw.resp.bits.ae_final && io.ptw.resp.bits.gpa_is_pte && r_stage2_en
     newEntry.pf := io.ptw.resp.bits.pf
     newEntry.gf := io.ptw.resp.bits.gf
     newEntry.hr := io.ptw.resp.bits.hr
@@ -503,7 +506,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   // if in hypervisor/machine mode, other than user pages, all pages are executable.
   // if in superviosr/user mode, only user page can execute.
   val priv_x_ok = Mux(priv_s, ~entries.map(_.u).asUInt, entries.map(_.u).asUInt)
-  val stage1_bypass = Fill(entries.size, usingHypervisor.B && !stage1_en)
+  val stage1_bypass = Fill(entries.size, usingHypervisor.B) & (Fill(entries.size, !stage1_en) | entries.map(_.ae_stage2).asUInt)
   val mxr = io.ptw.status.mxr | Mux(priv_v, io.ptw.gstatus.mxr, false.B)
   // "The vsstatus field MXR, which makes execute-only pages readable, only overrides VS-stage page protection.(from spec)"
   val r_array = Cat(true.B, (priv_rw_ok & (entries.map(_.sr).asUInt | Mux(mxr, entries.map(_.sx).asUInt, 0.U))) | stage1_bypass)
@@ -580,8 +583,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_amo_arithmetic, ~paa_array_if_cached, 0.U)
   val must_alloc_array =
     Mux(cmd_put_partial, ~ppp_array, 0.U) |
-    Mux(cmd_amo_logical, ~paa_array, 0.U) |
-    Mux(cmd_amo_arithmetic, ~pal_array, 0.U) |
+    Mux(cmd_amo_logical, ~pal_array, 0.U) |
+    Mux(cmd_amo_arithmetic, ~paa_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
   val pf_ld_array = Mux(cmd_read, ((~Mux(cmd_readx, x_array, r_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_st_array = Mux(cmd_write_perms, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)

@@ -45,7 +45,7 @@ class RoCCCoreIO(val nRoCCCSRs: Int = 0)(implicit p: Parameters) extends CoreBun
   val busy = Output(Bool())
   val interrupt = Output(Bool())
   val exception = Input(Bool())
-  val csrs = Input(Vec(nRoCCCSRs, new CustomCSRIO))
+  val csrs = Flipped(Vec(nRoCCCSRs, new CustomCSRIO))
 }
 
 class RoCCIO(val nPTWPorts: Int, nRoCCCSRs: Int)(implicit p: Parameters) extends RoCCCoreIO(nRoCCCSRs)(p) {
@@ -69,6 +69,7 @@ abstract class LazyRoCC(
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
   val io = IO(new RoCCIO(outer.nPTWPorts, outer.roccCSRs.size))
+  io := DontCare
 }
 
 /** Mixins for including RoCC **/
@@ -146,7 +147,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   val accum = regfile(addr)
   val wdata = Mux(doWrite, addend, accum + addend)
 
-  when (cmd.fire() && (doWrite || doAccum)) {
+  when (cmd.fire && (doWrite || doAccum)) {
     regfile(addr) := wdata
   }
 
@@ -156,7 +157,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   }
 
   // control
-  when (io.mem.req.fire()) {
+  when (io.mem.req.fire) {
     busy(addr) := true.B
   }
 
@@ -211,7 +212,7 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
 
   io.cmd.ready := (state === s_idle)
 
-  when (io.cmd.fire()) {
+  when (io.cmd.fire) {
     req_rd := io.cmd.bits.inst.rd
     req_addr := io.cmd.bits.rs1
     state := s_ptw_req
@@ -219,14 +220,14 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
 
   private val ptw = io.ptw(0)
 
-  when (ptw.req.fire()) { state := s_ptw_resp }
+  when (ptw.req.fire) { state := s_ptw_resp }
 
   when (state === s_ptw_resp && ptw.resp.valid) {
     pte := ptw.resp.bits.pte
     state := s_resp
   }
 
-  when (io.resp.fire()) { state := s_idle }
+  when (io.resp.fire) { state := s_idle }
 
   ptw.req.valid := (state === s_ptw_req)
   ptw.req.bits.valid := true.B
@@ -295,7 +296,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
                        lgSize = lgCacheBlockBytes.U)._2
   tl_out.d.ready := (state === s_gnt)
 
-  when (io.cmd.fire()) {
+  when (io.cmd.fire) {
     addr := io.cmd.bits.rs1
     needle := io.cmd.bits.rs2
     resp_rd := io.cmd.bits.inst.rd
@@ -304,9 +305,9 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
     state := s_acq
   }
 
-  when (tl_out.a.fire()) { state := s_gnt }
+  when (tl_out.a.fire) { state := s_gnt }
 
-  when (tl_out.d.fire()) {
+  when (tl_out.d.fire) {
     recv_beat := recv_beat + 1.U
     recv_data := gnt.data
     state := s_check
@@ -326,7 +327,7 @@ class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: P
     }
   }
 
-  when (io.resp.fire()) { state := s_idle }
+  when (io.resp.fire) { state := s_idle }
 
   io.busy := (state =/= s_idle)
   io.interrupt := false.B
@@ -406,11 +407,11 @@ object OpcodeSet {
 
 class RoccCommandRouter(opcodes: Seq[OpcodeSet])(implicit p: Parameters)
     extends CoreModule()(p) {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val in = Flipped(Decoupled(new RoCCCommand))
     val out = Vec(opcodes.size, Decoupled(new RoCCCommand))
     val busy = Output(Bool())
-  }
+  })
 
   val cmd = Queue(io.in)
   val cmdReadys = io.out.zip(opcodes).map { case (out, opcode) =>

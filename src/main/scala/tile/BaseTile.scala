@@ -2,8 +2,8 @@
 
 package freechips.rocketchip.tile
 
-import Chisel._
-
+import chisel3._
+import chisel3.util.{log2Ceil, log2Up}
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._

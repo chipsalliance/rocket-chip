@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.util.random.LFSR
 import org.chipsalliance.cde.config.Parameters
 import scala.math._
@@ -77,15 +78,15 @@ object Str
     require(s.forall(validChar _))
     for (c <- s)
       i = (i << 8) | c
-    UInt(i, s.length*8)
+    i.U((s.length*8).W)
   }
   def apply(x: Char): UInt = {
     require(validChar(x))
-    UInt(x.toInt, 8)
+    x.U(8.W)
   }
   def apply(x: UInt): UInt = apply(x, 10)
   def apply(x: UInt, radix: Int): UInt = {
-    val rad = UInt(radix)
+    val rad = radix.U
     val w = x.getWidth
     require(w > 0)
 
@@ -93,18 +94,18 @@ object Str
     var s = digit(q % rad)
     for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
       q = q / rad
-      s = Cat(Mux(Bool(radix == 10) && q === UInt(0), Str(' '), digit(q % rad)), s)
+      s = Cat(Mux((radix == 10).B && q === 0.U, Str(' '), digit(q % rad)), s)
     }
     s
   }
   def apply(x: SInt): UInt = apply(x, 10)
   def apply(x: SInt, radix: Int): UInt = {
-    val neg = x < SInt(0)
+    val neg = x < 0.S
     val abs = x.abs.asUInt
     if (radix != 10) {
       Cat(Mux(neg, Str('-'), Str(' ')), Str(abs, radix))
     } else {
-      val rad = UInt(radix)
+      val rad = radix.U
       val w = abs.getWidth
       require(w > 0)
 
@@ -113,7 +114,7 @@ object Str
       var needSign = neg
       for (i <- 1 until ceil(log(2)/log(radix)*w).toInt) {
         q = q / rad
-        val placeSpace = q === UInt(0)
+        val placeSpace = q === 0.U
         val space = Mux(needSign, Str('-'), Str(' '))
         needSign = needSign && !placeSpace
         s = Cat(Mux(placeSpace, space, digit(q % rad)), s)
@@ -122,7 +123,7 @@ object Str
     }
   }
 
-  private def digit(d: UInt): UInt = Mux(d < UInt(10), Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
+  private def digit(d: UInt): UInt = Mux(d < 10.U, Str('0')+d, Str(('a'-10).toChar)+d)(7,0)
   private def validChar(x: Char) = x == (x & 0xFF)
 }
 
@@ -157,7 +158,7 @@ object Random
 
   private def randomizer = LFSR(16)
   private def partition(value: UInt, slices: Int) =
-    Seq.tabulate(slices)(i => value < UInt(((i + 1) << value.getWidth) / slices))
+    Seq.tabulate(slices)(i => value < (((i + 1) << value.getWidth) / slices).U)
 }
 
 object Majority {
@@ -174,7 +175,7 @@ object Majority {
 
 object PopCountAtLeast {
   private def two(x: UInt): (Bool, Bool) = x.getWidth match {
-    case 1 => (x.asBool, Bool(false))
+    case 1 => (x.asBool, false.B)
     case n =>
       val half = x.getWidth / 2
       val (leftOne, leftTwo) = two(x(half - 1, 0))
@@ -182,10 +183,10 @@ object PopCountAtLeast {
       (leftOne || rightOne, leftTwo || rightTwo || (leftOne && rightOne))
   }
   def apply(x: UInt, n: Int): Bool = n match {
-    case 0 => Bool(true)
+    case 0 => true.B
     case 1 => x.orR
     case 2 => two(x)._2
-    case 3 => PopCount(x) >= UInt(n)
+    case 3 => PopCount(x) >= n.U
   }
 }
 
@@ -198,11 +199,11 @@ object MaskGen {
     require (groupBy >= 1 && beatBytes >= groupBy)
     require (isPow2(beatBytes) && isPow2(groupBy))
     val lgBytes = log2Ceil(beatBytes)
-    val sizeOH = UIntToOH(lgSize | 0.U(log2Up(beatBytes).W), log2Up(beatBytes)) | UInt(groupBy*2 - 1)
+    val sizeOH = UIntToOH(lgSize | 0.U(log2Up(beatBytes).W), log2Up(beatBytes)) | (groupBy*2 - 1).U
 
     def helper(i: Int): Seq[(Bool, Bool)] = {
       if (i == 0) {
-        Seq((lgSize >= UInt(lgBytes), Bool(true)))
+        Seq((lgSize >= lgBytes.asUInt, true.B))
       } else {
         val sub = helper(i-1)
         val size = sizeOH(lgBytes - i)
@@ -217,7 +218,7 @@ object MaskGen {
       }
     }
 
-    if (groupBy == beatBytes) UInt(1) else
+    if (groupBy == beatBytes) 1.U else
       Cat(helper(lgBytes-log2Ceil(groupBy)).map(_._1).reverse)
   }
 }

@@ -11,7 +11,6 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 import AHBParameters._
 import chisel3.util.{RegEnable, Queue, Cat, log2Ceil}
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { cp =>
@@ -46,7 +45,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
       requestKeys    = AMBAProt +: sp.requestKeys)
   })
 
-class AHBControlBundle(params: TLEdge) extends GenericParameterizedBundle(params)
+class AHBControlBundle(val params: TLEdge) extends Bundle
 {
   val full   = Bool()
   val send   = Bool() // => full+data
@@ -208,7 +207,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       // a_ready and htrans, we add another entry for aFlow=false.
       val depth = if (aFlow) 2 else 3
       val d = Wire(new DecoupledIO(new TLBundleD(edgeIn.bundle)))
-      in.d :<> Queue(d, depth, flow=true)
+      in.d :<>= Queue(d, depth, flow=true)
       assert (!d.valid || d.ready)
 
       val d_flight = RegInit(0.U(2.W))

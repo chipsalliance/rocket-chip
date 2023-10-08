@@ -74,7 +74,7 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
   val enq_in = BlockDuringReset(io.enq)
   val deq = io.deq
   val enq = direction match {
-    case Symmetric  => ShiftQueue(enq_in, 1, flow=true)
+    case Symmetric  => ShiftQueue(enq_in, 1, true)
     case Flexible => ShiftQueue(enq_in, 2)
     case FastToSlow => enq_in
     case SlowToFast => ShiftQueue(enq_in, 2)
@@ -89,7 +89,7 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
   deq.bits1  := RegEnable(enq.bits, equal)
   enq.ready  := Mux(equal, deq.ready, count(1) =/= deq.sink(0))
 
-  when (enq.fire()) { count := Cat(count(0), !count(1)) }
+  when (enq.fire) { count := Cat(count(0), !count(1)) }
 
   // Ensure the clocking is setup correctly
   direction match {
@@ -110,7 +110,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   val enq = io.enq
   val deq = Wire(chiselTypeOf(io.deq))
   direction match {
-    case Symmetric  => io.deq <> ShiftQueue(deq, 1, pipe=true)
+    case Symmetric  => io.deq <> ShiftQueue(deq, 1, true)
     case Flexible   => io.deq <> ShiftQueue(deq, 2)
     case FastToSlow => io.deq <> ShiftQueue(deq, 2)
     case SlowToFast => io.deq <> deq
@@ -124,7 +124,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   deq.bits  := Mux(equal, enq.bits0, enq.bits1)
   deq.valid := Mux(equal, enq.valid, count(1) =/= enq.source(0))
 
-  when (deq.fire()) { count := Cat(count(0), !count(1)) }
+  when (deq.fire) { count := Cat(count(0), !count(1)) }
 
   // Ensure the clocking is setup correctly
   direction match {

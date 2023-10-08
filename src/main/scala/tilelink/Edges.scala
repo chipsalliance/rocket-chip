@@ -5,6 +5,7 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
 
@@ -371,6 +372,8 @@ class TLEdgeOut(
     a.mask    := mask(toAddress, lgSize)
     a.data    := DontCare
     a.corrupt := false.B
+    a.user    := DontCare
+    a.echo    := DontCare
     (legal, a)
   }
 
@@ -653,6 +656,8 @@ class TLEdgeIn(
     d.echo    := DontCare
     d.data    := DontCare
     d.corrupt := false.B
+    d.echo    := DontCare
+    d.user    := DontCare
     d
   }
 
@@ -685,6 +690,8 @@ class TLEdgeIn(
     d.echo    := DontCare
     d.data    := DontCare
     d.corrupt := false.B
+    d.echo    := DontCare
+    d.user    := DontCare
     d
   }
 

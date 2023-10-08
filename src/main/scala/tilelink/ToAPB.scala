@@ -9,7 +9,6 @@ import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.amba._
 import APBParameters._
 import chisel3.util._
-import freechips.rocketchip.util.EnhancedChisel3Assign
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { cp =>
@@ -65,7 +64,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       // phase result.  Whenever we have a queued response, we can not allow
       // APB to present new responses, so we must quash the address phase.
       val d = Wire(Decoupled(new TLBundleD(edgeIn.bundle)))
-      in.d :<> Queue(d, 1, flow = true)
+      in.d :<>= Queue(d, 1, flow = true)
 
       // We need an irrevocable input for APB to stall
       val a = Queue(in.a, 1, flow = aFlow, pipe = !aFlow)
@@ -81,7 +80,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       val d_echo   = RegEnable(a.bits.echo,   enable_d)
 
       when (a_sel)    { a_enable := true.B }
-      when (d.fire()) { a_enable := false.B }
+      when (d.fire) { a_enable := false.B }
 
       out.psel    := a_sel
       out.penable := a_enable
@@ -90,7 +89,9 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       out.pprot   := PROT_DEFAULT
       out.pwdata  := a.bits.data
       out.pstrb   := Mux(a_write, a.bits.mask, 0.U)
-      out.pauser :<= a.bits.user
+      Connectable.waiveUnmatched(out.pauser, a.bits.user) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
       a.bits.user.lift(AMBAProt).foreach { x =>
         val pprot = Wire(Vec(3, Bool()))
         pprot(0) :=  x.privileged
@@ -111,8 +112,12 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
       d.bits.denied  :=  d_write && out.pslverr
       d.bits.data    := out.prdata
       d.bits.corrupt := !d_write && out.pslverr
-      d.bits.user    :<= out.pduser
-      d.bits.echo    :<= d_echo
+      Connectable.waiveUnmatched(d.bits.user, out.pduser) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
+      Connectable.waiveUnmatched(d.bits.echo, d_echo) match {
+        case (lhs, rhs) => lhs :<= rhs
+      }
     }
   }
 }

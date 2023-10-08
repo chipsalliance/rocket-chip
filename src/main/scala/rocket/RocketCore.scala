@@ -54,8 +54,9 @@ case class RocketCoreParams(
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
+  debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
   haveCease: Boolean = true, // non-standard CEASE instruction
-  debugROB: Boolean = false // if enabled, uses a C++ debug ROB to generate trace-with-wdata
+  haveSimTimeout: Boolean = true // add plusarg for simulation timeout
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -729,7 +730,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wb_set_sboard = wb_ctrl.div || wb_dcache_miss || wb_ctrl.rocc
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = wb_reg_valid && wb_ctrl.rocc && !io.rocc.cmd.ready
-  val replay_wb = replay_wb_common || replay_wb_rocc
+  val replay_wb_csr: Bool = wb_reg_valid && csr.io.rw_stall
+  val replay_wb = replay_wb_common || replay_wb_rocc || replay_wb_csr
   take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
 
   // writeback arbitration
@@ -751,7 +753,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ll_waddr := io.rocc.resp.bits.rd
       ll_wen := true.B
     }
+  } else {
+    // tie off RoCC
+    io.rocc.resp.ready := false.B
+    io.rocc.mem.req.ready := false.B
   }
+  // Dont care mem since not all RoCC need accessing memory
+  io.rocc.mem := DontCare
+
   when (dmem_resp_replay && dmem_resp_xpu) {
     div.io.resp.ready := false.B
     if (usingRoCC)
@@ -806,7 +815,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.hgatp := csr.io.hgatp
   io.ptw.vsatp := csr.io.vsatp
-  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs := rhs }
+  (io.ptw.customCSRs.csrs zip csr.io.customCSRs).map { case (lhs, rhs) => lhs <> rhs }
   io.ptw.status := csr.io.status
   io.ptw.hstatus := csr.io.hstatus
   io.ptw.gstatus := csr.io.gstatus
@@ -814,9 +823,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   csr.io.rw.addr := wb_reg_inst(31,20)
   csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl.csr)
   csr.io.rw.wdata := wb_reg_wdata
-  io.trace.insns := csr.io.trace
+  io.rocc.csrs <> csr.io.roccCSRs
   io.trace.time := csr.io.time
-  io.rocc.csrs := csr.io.roccCSRs
+  io.trace.insns := csr.io.trace
   if (rocketParams.debugROB) {
     val csr_trace_with_wdata = WireInit(csr.io.trace(0))
     csr_trace_with_wdata.wdata.get := rf_wdata
@@ -829,11 +838,16 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
 
     DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
+  } else {
+    io.trace.insns := csr.io.trace
   }
-
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
     iobpw.valid(0) := wphit
     iobpw.action := bp.control.action
+    // tie off bpwatch valids
+    iobpw.rvalid.foreach(_ := false.B)
+    iobpw.wvalid.foreach(_ := false.B)
+    iobpw.ivalid.foreach(_ := false.B)
   }
 
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= 0.U, id_raddr1),
@@ -942,6 +956,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.imem.btb_update.bits.br_pc := (if (usingCompressed) mem_reg_pc + Mux(mem_reg_rvc, 0.U, 2.U) else mem_reg_pc)
   io.imem.btb_update.bits.pc := ~(~io.imem.btb_update.bits.br_pc | (coreInstBytes*fetchWidth-1).U)
   io.imem.btb_update.bits.prediction := mem_reg_btb_resp
+  io.imem.btb_update.bits.taken := DontCare
 
   io.imem.bht_update.valid := mem_reg_valid && !take_pc_wb
   io.imem.bht_update.bits.pc := io.imem.btb_update.bits.pc
@@ -949,6 +964,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.imem.bht_update.bits.mispredict := mem_wrong_npc
   io.imem.bht_update.bits.branch := mem_ctrl.branch
   io.imem.bht_update.bits.prediction := mem_reg_btb_resp.bht
+
+  // Connect RAS in Frontend
+  io.imem.ras_update := DontCare
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
@@ -973,7 +991,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
   io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv
+  io.dmem.req.bits.no_alloc := DontCare
+  io.dmem.req.bits.no_xcpt := DontCare
+  io.dmem.req.bits.data := DontCare
+  io.dmem.req.bits.mask := DontCare
+
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
+  io.dmem.s1_data.mask := DontCare
+
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
   io.dmem.s2_kill := false.B
   // don't let D$ go to sleep if we're probably going to use it soon
@@ -1092,7 +1117,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   xrfWriteBundle.excpt := false.B
   xrfWriteBundle.priv_mode := csr.io.trace(0).priv
 
-  PlusArg.timeout(
+  if (rocketParams.haveSimTimeout) PlusArg.timeout(
     name = "max_core_cycles",
     docstring = "Kill the emulation after INT rdtime cycles. Off if 0."
   )(csr.io.time)

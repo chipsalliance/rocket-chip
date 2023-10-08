@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.util
 
-import Chisel._
-import chisel3.internal.InstanceId
+import chisel3._
 import chisel3.experimental.{annotate, ChiselAnnotation}
 import chisel3.RawModule
 import firrtl.annotations._

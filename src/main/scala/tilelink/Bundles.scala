@@ -7,9 +7,9 @@ import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
 import chisel3.util.Decoupled
 import chisel3.util.DecoupledIO
-import chisel3.experimental.DataMirror
+import chisel3.reflect.DataMirror
 
-abstract class TLBundleBase(params: TLBundleParameters) extends GenericParameterizedBundle(params)
+abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
 
 // common combos in lazy policy:
 //   Put + Acquire
@@ -261,7 +261,6 @@ class TLBundle(val params: TLBundleParameters) extends Record
   def d: DecoupledIO[TLBundleD] = optD.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleD(params)))))
   def e: DecoupledIO[TLBundleE] = optE.getOrElse(WireDefault(0.U.asTypeOf(Decoupled(new TLBundleE(params)))))
 
-  override def cloneType: this.type = (new TLBundle(params)).asInstanceOf[this.type]
   val elements =
     if (params.hasBCE) ListMap("e" -> e, "d" -> d, "c" -> c, "b" -> b, "a" -> a)
     else ListMap("d" -> d, "a" -> a)
@@ -290,7 +289,7 @@ object TLBundle
   def apply(params: TLBundleParameters) = new TLBundle(params)
 }
 
-class TLAsyncBundleBase(params: TLAsyncBundleParameters) extends GenericParameterizedBundle(params)
+class TLAsyncBundleBase(val params: TLAsyncBundleParameters) extends Bundle
 
 class TLAsyncBundle(params: TLAsyncBundleParameters) extends TLAsyncBundleBase(params)
 {

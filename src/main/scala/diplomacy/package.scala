@@ -2,7 +2,7 @@
 
 package freechips.rocketchip
 
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine}
+import chisel3.experimental.{SourceInfo, SourceLine}
 import chisel3.Data
 import org.chipsalliance.cde.config.Parameters
 import scala.language.implicitConversions
@@ -178,7 +178,7 @@ import scala.language.implicitConversions
   */
 package object diplomacy
 {
-  type SimpleNodeHandle[D, U, E, B <: Chisel.Data] = NodeHandle[D, U, E, B, D, U, E, B]
+  type SimpleNodeHandle[D, U, E, B <: Data] = NodeHandle[D, U, E, B, D, U, E, B]
   type AnyMixedNode = MixedNode[_, _, _, _ <: Data, _, _, _, _ <: Data]
 
   def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
