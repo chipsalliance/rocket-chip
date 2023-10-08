@@ -35,10 +35,6 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       anoise.mask    := LFSRNoiseMaker(anoise.params.dataBits/8)
       anoise.data    := LFSRNoiseMaker(anoise.params.dataBits)
       anoise.corrupt := LFSRNoiseMaker(1)
-      if (anoise.echo.getWidth > 0)
-        anoise.echo := LFSRNoiseMaker(anoise.echo.getWidth).asTypeOf(anoise.echo)
-      if (anoise.user.getWidth > 0)
-        anoise.user := LFSRNoiseMaker(anoise.user.getWidth).asTypeOf(anoise.user)
 
       val bnoise = Wire(new TLBundleB(edgeOut.bundle))
       bnoise.opcode  := LFSRNoiseMaker(3)
@@ -60,10 +56,6 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       cnoise.echo    := DontCare
       cnoise.data    := LFSRNoiseMaker(cnoise.params.dataBits)
       cnoise.corrupt := LFSRNoiseMaker(1)(0)
-      if (cnoise.echo.getWidth > 0)
-        cnoise.echo := LFSRNoiseMaker(cnoise.echo.getWidth).asTypeOf(cnoise.echo)
-      if (cnoise.user.getWidth > 0)
-        cnoise.user := LFSRNoiseMaker(cnoise.user.getWidth).asTypeOf(cnoise.user)
 
       val dnoise = Wire(new TLBundleD(edgeOut.bundle))
       dnoise.opcode  := LFSRNoiseMaker(3)
@@ -76,10 +68,6 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       dnoise.echo    := DontCare
       dnoise.data    := LFSRNoiseMaker(dnoise.params.dataBits)
       dnoise.corrupt := LFSRNoiseMaker(1)(0)
-      if (dnoise.echo.getWidth > 0)
-        dnoise.echo := LFSRNoiseMaker(dnoise.echo.getWidth).asTypeOf(dnoise.echo)
-      if (dnoise.user.getWidth > 0)
-        dnoise.user := LFSRNoiseMaker(dnoise.user.getWidth).asTypeOf(dnoise.user)
 
       val enoise = Wire(new TLBundleE(edgeIn.bundle))
       enoise.sink := LFSRNoiseMaker(enoise.params.sinkBits)
