@@ -141,7 +141,6 @@ trait Emulator extends Cross.Module2[String, String] {
       os.proc("firtool",
         generator.chirrtl().path,
         s"--annotation-file=${generator.chiselAnno().path}",
-        "-disable-infer-rw",
         "--disable-annotation-unknown",
         "-dedup",
         "-O=debug",
