@@ -264,10 +264,11 @@ trait Emulator extends Cross.Module2[String, String] {
       Seq(
         // format: off
         "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH", "--no-timing",
-        "--x-assign unique",
+        "--x-assign 0",
+        "--x-initial 0",
         """+define+PRINTF_COND=\$c\(\"verbose\",\"&&\",\"done_reset\"\)""",
         """+define+STOP_COND=\$c\(\"done_reset\"\)""",
-        "+define+RANDOMIZE_GARBAGE_ASSIGN",
+        "+define+RANDOM=0",
         "--output-split 20000",
         "--output-split-cfuncs 20000",
         "--max-num-width 1048576",
