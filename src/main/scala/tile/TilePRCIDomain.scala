@@ -27,4 +27,5 @@ abstract class TilePRCIDomain[T <: BaseTile](
   (implicit p: Parameters)
     extends HierarchicalElementPRCIDomain[T](clockSinkParams, crossingParams)
 {
+  def tile_reset_domain = element_reset_domain
 }
