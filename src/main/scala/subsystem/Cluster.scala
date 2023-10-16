@@ -13,7 +13,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.devices.debug.{TLDebugModule}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.util._
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.SortedMap
 
 case class ClustersLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachCluster]](Nil)
 
@@ -58,17 +58,17 @@ class Cluster(
   lazy val ibus = LazyModule(new InterruptBusWrapper)
   ibus.clockNode := csbus.fixedClockNode
 
-  lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
-  lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
-  lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
-  lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(ListMap)
-  lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(ListMap)
+  lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
+  lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
+  lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
+  lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
+  lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(SortedMap)
   lazy val nmiNodes = totalTiles.filter { case (i,t) => t.tileParams.core.useNMI }
-    .mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(ListMap)
-  lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(ListMap)
-  lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(ListMap)
-  lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.to(ListMap)
-  lazy val traceNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceBundle]()) }.to(ListMap)
+    .mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(SortedMap)
+  lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(SortedMap)
+  lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(SortedMap)
+  lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.to(SortedMap)
+  lazy val traceNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceBundle]()) }.to(SortedMap)
 
   // TODO fix: shouldn't need to connect dummy notifications
   tileHaltXbarNode := NullIntSource()
@@ -103,7 +103,7 @@ trait CanAttachCluster {
   def clusterParams: ClusterParams
   def crossingParams: HierarchicalElementCrossingParamsLike
 
-  def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: ListMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
+  def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: SortedMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
     val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
     val cluster_prci_domain = LazyModule(new ClusterPRCIDomain(
       clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)))
@@ -218,7 +218,7 @@ case class CloneClusterAttachParams(
   def clusterParams = cloneParams.clusterParams
   def crossingParams = cloneParams.crossingParams
 
-  override def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: ListMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
+  override def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: SortedMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
     require(instantiatedClusters.contains(sourceClusterId))
     val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
     val cluster_prci_domain = CloneLazyModule(

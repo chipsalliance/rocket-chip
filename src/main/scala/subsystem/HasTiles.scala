@@ -14,7 +14,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.util._
 import freechips.rocketchip.rocket.{TracedInstruction}
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.SortedMap
 
 /** Entry point for Config-uring the presence of Tiles */
 case class TilesLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachTile]](Nil)
@@ -53,9 +53,9 @@ case object HasTilesExternalResetVectorKey extends Field[Boolean](true)
   */
 trait HasTileInputConstants { this: LazyModule with Attachable with InstantiatesHierarchicalElements =>
   /** tileHartIdNode is used to collect publishers and subscribers of hartids. */
-  val tileHartIdNodes: ListMap[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
+  val tileHartIdNodes: SortedMap[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
     (i, BundleBridgeEphemeralNode[UInt]())
-  }.to(ListMap)
+  }.to(SortedMap)
 
   /** tileHartIdNexusNode is a BundleBridgeNexus that collects dynamic hart prefixes.
     *
@@ -82,9 +82,9 @@ trait HasTileInputConstants { this: LazyModule with Attachable with Instantiates
   // TODO: Replace the DebugModuleHartSelFuncs config key with logic to consume the dynamic hart IDs
 
   /** tileResetVectorNode is used to collect publishers and subscribers of tile reset vector addresses. */
-  val tileResetVectorNodes: ListMap[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
+  val tileResetVectorNodes: SortedMap[Int, BundleBridgeEphemeralNode[UInt]] = (0 until nTotalTiles).map { i =>
     (i, BundleBridgeEphemeralNode[UInt]())
-  }.to(ListMap)
+  }.to(SortedMap)
 
   /** tileResetVectorNexusNode is a BundleBridgeNexus that accepts a single reset vector source, and broadcasts it to all tiles. */
   val tileResetVectorNexusNode = BundleBroadcast[UInt](
@@ -155,7 +155,7 @@ trait CanAttachTile {
   def crossingParams: HierarchicalElementCrossingParamsLike
 
   /** Narrow waist through which all tiles are intended to pass while being instantiated. */
-  def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: ListMap[Int, TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
+  def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: SortedMap[Int, TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.uniqueName))
     val tile_prci_domain = LazyModule(new TilePRCIDomain[TileType](clockSinkParams, crossingParams) { self =>
       val element = self.element_reset_domain { LazyModule(tileParams.instantiate(crossingParams, PriorityMuxHartIdFromSeq(allTileParams))) }
@@ -302,7 +302,7 @@ case class CloneTileAttachParams(
   def tileParams = cloneParams.tileParams
   def crossingParams = cloneParams.crossingParams
 
-  override def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: ListMap[Int, TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
+  override def instantiate(allTileParams: Seq[TileParams], instantiatedTiles: SortedMap[Int, TilePRCIDomain[_]])(implicit p: Parameters): TilePRCIDomain[TileType] = {
     require(instantiatedTiles.contains(sourceTileId))
     val clockSinkParams = tileParams.clockSinkParams.copy(name = Some(tileParams.uniqueName))
     val tile_prci_domain = CloneLazyModule(
