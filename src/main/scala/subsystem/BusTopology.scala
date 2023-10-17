@@ -29,6 +29,10 @@ case object FBUS extends TLBusWrapperLocation("fbus")
 case object MBUS extends TLBusWrapperLocation("mbus")
 case object CBUS extends TLBusWrapperLocation("cbus")
 case object COH  extends TLBusWrapperLocation("coh")
+case class CSBUS(clusterId: Int) extends TLBusWrapperLocation(s"csbus$clusterId")
+case class CMBUS(clusterId: Int) extends TLBusWrapperLocation(s"cmbus$clusterId")
+case class CCBUS(clusterId: Int) extends TLBusWrapperLocation(s"ccbus$clusterId")
+case class CCOH (clusterId: Int) extends TLBusWrapperLocation(s"ccoh$clusterId")
 
 /** Parameterizes the subsystem in terms of optional clock-crossings
   *   that are insertable between some of the five traditional tilelink bus wrappers.
@@ -113,13 +117,13 @@ case class ClusterBusTopologyParams(
   coherence: BankedCoherenceParams
 ) extends TLBusWrapperTopology(
   instantiations = List(
-    (SBUS, csbus),
-    (CBUS, ccbus)) ++ (if (coherence.nBanks == 0) Nil else List(
-    (MBUS, csbus),
-    (COH , CoherenceManagerWrapperParams(csbus.blockBytes, csbus.beatBytes, coherence.nBanks, COH.name)(coherence.coherenceManager)))),
+    (CSBUS(clusterId), csbus),
+    (CCBUS(clusterId), ccbus)) ++ (if (coherence.nBanks == 0) Nil else List(
+    (CMBUS(clusterId), csbus),
+    (CCOH (clusterId), CoherenceManagerWrapperParams(csbus.blockBytes, csbus.beatBytes, coherence.nBanks, CCOH(clusterId).name)(coherence.coherenceManager)))),
   connections = if (coherence.nBanks == 0) Nil else List(
-    (SBUS, COH , TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
-    (COH , MBUS, TLBusWrapperConnection.crossTo(
+    (CSBUS(clusterId), CCOH (clusterId), TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
+    (CCOH (clusterId), CMBUS(clusterId), TLBusWrapperConnection.crossTo(
       xType = NoCrossing,
       driveClockFromMaster = Some(true),
       nodeBinding = BIND_QUERY))

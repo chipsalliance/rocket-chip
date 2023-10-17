@@ -90,11 +90,10 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
 
 class WithNBigCores(
   n: Int,
-  crossing: RocketCrossingParams = RocketCrossingParams(),
-  location: HierarchicalLocation = InSubsystem
+  crossing: RocketCrossingParams = RocketCrossingParams()
 ) extends Config((site, here, up) => {
-  case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(location), site)
+  case TilesLocated(InSubsystem) => {
+    val prev = up(TilesLocated(InSubsystem), site)
     val idOffset = up(NumTiles)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
@@ -119,10 +118,9 @@ class WithNBigCores(
 class WithNMedCores(
   n: Int,
   crossing: RocketCrossingParams = RocketCrossingParams(),
-  location: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
-  case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(location), site)
+  case TilesLocated(InSubsystem) => {
+    val prev = up(TilesLocated(InSubsystem), site)
     val idOffset = up(NumTiles)
     val med = RocketTileParams(
       core = RocketCoreParams(fpu = None),
@@ -152,11 +150,10 @@ class WithNMedCores(
 
 class WithNSmallCores(
   n: Int,
-  crossing: RocketCrossingParams = RocketCrossingParams(),
-  location: HierarchicalLocation = InSubsystem
+  crossing: RocketCrossingParams = RocketCrossingParams()
 ) extends Config((site, here, up) => {
-  case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(location), site)
+  case TilesLocated(InSubsystem) => {
+    val prev = up(TilesLocated(InSubsystem), site)
     val idOffset = up(NumTiles)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
@@ -220,6 +217,38 @@ class With1TinyCore extends Config((site, here, up) => {
   case NumTiles => 1
   case ClustersLocated(_) => Nil
 })
+
+class WithNClusterCores(
+  n: Int,
+  clusterId: Int
+) extends Config((site, here, up) => {
+  case TilesLocated(InCluster(`clusterId`)) => {
+    val prev = up(TilesLocated(InCluster(clusterId)), site)
+    val idOffset = up(NumTiles)
+    val big = RocketTileParams(
+      core   = RocketCoreParams(mulDiv = Some(MulDivParams(
+        mulUnroll = 8,
+        mulEarlyOut = true,
+        divEarlyOut = true))),
+      dcache = Some(DCacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        nMSHRs = 0,
+        blockBytes = site(CacheBlockBytes))),
+      icache = Some(ICacheParams(
+        rowBits = site(SystemBusKey).beatBits,
+        blockBytes = site(CacheBlockBytes))))
+    List.tabulate(n)(i => RocketTileAttachParams(
+      big.copy(tileId = i + idOffset),
+      RocketCrossingParams(
+        master = HierarchicalElementMasterPortParams(where=CSBUS(clusterId)),
+        slave = HierarchicalElementSlavePortParams(where=CCBUS(clusterId), blockerCtrlWhere=CCBUS(clusterId)),
+        mmioBaseAddressPrefixWhere = CCBUS(clusterId)
+      )
+    )) ++ prev
+  }
+  case NumTiles => up(NumTiles) + n
+})
+
 
 class WithCluster(
   clusterId: Int,
