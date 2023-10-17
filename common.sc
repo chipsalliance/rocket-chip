@@ -45,11 +45,14 @@ trait RocketChipModule
   // should be cde/common.sc#CDEModule
   def cdeModule: ScalaModule
 
+  // should be dependencies/rvdecoderdb/common.sc#RVDecoderDB
+  def rvdecoderdbModule: ScalaModule
+
   def mainargsIvy: Dep
 
   def json4sJacksonIvy: Dep
 
-  override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, cdeModule)
+  override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, cdeModule, rvdecoderdbModule)
 
   override def ivyDeps = T(
     super.ivyDeps() ++ Agg(
