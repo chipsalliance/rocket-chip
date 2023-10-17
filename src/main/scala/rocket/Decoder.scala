@@ -123,6 +123,7 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
   private val useABLU: Boolean = usingBitManip || usingBitManipCrypto || usingCryptoNIST || usingCryptoSM
   private val useFPU = !fLen0
   private val useRoCC = hasAnySetIn("rv_rocc")
+  private val useVector = hasAnySetIn("rv_v")
   private val useMulDiv = hasAnySetIn("rv_m", "rv64_m")
 
   private val instructionDecodePatterns: Seq[RocketDecodePattern] = instructions.map(RocketDecodePattern.apply)
@@ -978,5 +979,30 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
     override def name: String = "rocc"
 
     override def genTable(op: RocketDecodePattern): BitPat = if (op.isRoCC) y else n
+  }
+
+  // instructions need to be take care by scalar for vector
+  object isVector extends BoolDecodeField[RocketDecodePattern] {
+    override def name: String = "isVector"
+
+    override def genTable(op: RocketDecodePattern): BitPat = n
+  }
+
+  object vload extends BoolDecodeField[RocketDecodePattern] {
+    override def name: String = "isVectorStore"
+
+    override def genTable(op: RocketDecodePattern): BitPat = n
+  }
+
+  object vstore extends BoolDecodeField[RocketDecodePattern] {
+    override def name: String = "isVectorLoad"
+
+    override def genTable(op: RocketDecodePattern): BitPat = n
+  }
+
+  object vcsr extends BoolDecodeField[RocketDecodePattern] {
+    override def name: String = "isVectorCSR"
+
+    override def genTable(op: RocketDecodePattern): BitPat = n
   }
 }

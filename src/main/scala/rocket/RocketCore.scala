@@ -270,6 +270,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
           // NIST && SM
           case s if s.contains("rv32_zk") => (xLen == 32) && usingCryptoSM && usingCryptoNIST
           case s if s.contains("rv64_zk") => (xLen == 64) && usingCryptoSM && usingCryptoNIST
+          // Vector
+          case s if s.contains("rv_v") => usingVector
           // unratified but supported.
           case s if s.contains("rv_zicond") => usingConditionalZero
           // custom
