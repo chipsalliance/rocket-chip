@@ -29,6 +29,13 @@ case class HierarchicalElementMasterPortParams(
   }
 }
 
+object HierarchicalElementMasterPortParams {
+  def locationDefault(loc: HierarchicalLocation) = loc match {
+    case InSubsystem => HierarchicalElementMasterPortParams()
+    case InCluster(clusterId) => HierarchicalElementMasterPortParams(where=CSBUS(clusterId))
+  }
+}
+
 /** A default implementation of parameterizing the connectivity of the port giving access to slaves inside the tile.
   *   Optional timing buffers and/or an optional BusBlocker adapter can be inserted in the interconnect's clock domain.
   */
@@ -48,6 +55,13 @@ case class HierarchicalElementSlavePortParams(
         blockerBus.coupleTo("tile_slave_port_bus_blocker") { blocker.controlNode := TLFragmenter(blockerBus) := _ }
         blocker.node :*= TLBuffer.chainNode(buffers)
       } .getOrElse { TLBuffer.chainNode(buffers) }
+  }
+}
+
+object HierarchicalElementSlavePortParams {
+  def locationDefault(loc: HierarchicalLocation) = loc match {
+    case InSubsystem => HierarchicalElementSlavePortParams()
+    case InCluster(clusterId) => HierarchicalElementSlavePortParams(where=CCBUS(clusterId), blockerCtrlWhere=CCBUS(clusterId))
   }
 }
 

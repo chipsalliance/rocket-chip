@@ -90,10 +90,11 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
 
 class WithNBigCores(
   n: Int,
-  crossing: RocketCrossingParams = RocketCrossingParams()
+  location: HierarchicalLocation,
+  crossing: RocketCrossingParams,
 ) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
+  case TilesLocated(`location`) => {
+    val prev = up(TilesLocated(`location`), site)
     val idOffset = up(NumTiles)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
@@ -113,7 +114,18 @@ class WithNBigCores(
     )) ++ prev
   }
   case NumTiles => up(NumTiles) + n
-})
+}) {
+  def this(n: Int, location: HierarchicalLocation = InSubsystem) = this(n, location, RocketCrossingParams(
+    master = HierarchicalElementMasterPortParams.locationDefault(location),
+    slave = HierarchicalElementSlavePortParams.locationDefault(location),
+    mmioBaseAddressPrefixWhere = location match {
+      case InSubsystem => CBUS
+      case InCluster(clusterId) => CCBUS(clusterId)
+    }
+  ))
+}
+
+
 
 class WithNMedCores(
   n: Int,
@@ -217,38 +229,6 @@ class With1TinyCore extends Config((site, here, up) => {
   case NumTiles => 1
   case ClustersLocated(_) => Nil
 })
-
-class WithNClusterCores(
-  n: Int,
-  clusterId: Int
-) extends Config((site, here, up) => {
-  case TilesLocated(InCluster(`clusterId`)) => {
-    val prev = up(TilesLocated(InCluster(clusterId)), site)
-    val idOffset = up(NumTiles)
-    val big = RocketTileParams(
-      core   = RocketCoreParams(mulDiv = Some(MulDivParams(
-        mulUnroll = 8,
-        mulEarlyOut = true,
-        divEarlyOut = true))),
-      dcache = Some(DCacheParams(
-        rowBits = site(SystemBusKey).beatBits,
-        nMSHRs = 0,
-        blockBytes = site(CacheBlockBytes))),
-      icache = Some(ICacheParams(
-        rowBits = site(SystemBusKey).beatBits,
-        blockBytes = site(CacheBlockBytes))))
-    List.tabulate(n)(i => RocketTileAttachParams(
-      big.copy(tileId = i + idOffset),
-      RocketCrossingParams(
-        master = HierarchicalElementMasterPortParams(where=CSBUS(clusterId)),
-        slave = HierarchicalElementSlavePortParams(where=CCBUS(clusterId), blockerCtrlWhere=CCBUS(clusterId)),
-        mmioBaseAddressPrefixWhere = CCBUS(clusterId)
-      )
-    )) ++ prev
-  }
-  case NumTiles => up(NumTiles) + n
-})
-
 
 class WithCluster(
   clusterId: Int,
