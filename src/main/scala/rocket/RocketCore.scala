@@ -53,6 +53,8 @@ case class RocketCoreParams(
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
+  vLen: Int = 0,
+  vMemDataBits: Int = 0,
   debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
   haveCease: Boolean = true, // non-standard CEASE instruction
   haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
@@ -70,6 +72,10 @@ case class RocketCoreParams(
   override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
+
+  // TODO: make me configurable
+  override val useVector: Boolean = false
+  override val useVectorT1: Boolean = true
 }
 
 trait HasRocketCoreParameters extends HasCoreParameters {
@@ -122,6 +128,18 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
 class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
     with HasCoreIO {
+  // Interface for T1.
+  val t1Request = Option.when(usingVectorT1)(IO(Valid(new VectorRequest(xLen))))
+  val t1Response = Option.when(usingVectorT1)(IO(Flipped(Valid(new VectorResponse(xLen)))))
+  // logic for T1
+  val t1IssueQueueFull = Option.when(usingVectorT1)(IO(Output(Bool())))
+  val t1IssueQueueEmpty = Option.when(usingVectorT1)(IO(Output(Bool())))
+
+  t1Request.foreach(_ <> DontCare)
+  t1Response.foreach(_ <> DontCare)
+  t1IssueQueueFull.foreach(_ <> DontCare)
+  t1IssueQueueEmpty.foreach(_ <> DontCare)
+
   def nTotalRoCCCSRs = tile.roccCSRs.flatten.size
 
   val clock_en_reg = RegInit(true.B)
@@ -271,7 +289,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
           case s if s.contains("rv32_zk") => (xLen == 32) && usingCryptoSM && usingCryptoNIST
           case s if s.contains("rv64_zk") => (xLen == 64) && usingCryptoSM && usingCryptoNIST
           // Vector
-          case s if s.contains("rv_v") => usingVector
+          case s if s.contains("rv_v") => usingVectorT1
           // unratified but supported.
           case s if s.contains("rv_zicond") => usingConditionalZero
           // custom
@@ -793,7 +811,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val wb_pc_valid = wb_reg_valid || wb_reg_replay || wb_reg_xcpt
   val wb_wxd = wb_reg_valid && wb_ctrl(decoder.wxd)
-  val wb_set_sboard = Option.when(usingMulDiv)(wb_ctrl(decoder.div)).getOrElse(false.B) || wb_dcache_miss || Option.when(usingRoCC)(wb_ctrl(decoder.rocc)).getOrElse(false.B)
+  val wb_set_sboard = Option.when(usingMulDiv)(wb_ctrl(decoder.div)).getOrElse(false.B) || wb_dcache_miss || Option.when(usingRoCC)(wb_ctrl(decoder.rocc)).getOrElse(false.B) || Option.when(usingVectorT1)(wb_ctrl(decoder.isVector)).getOrElse(false.B)
   val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
   val replay_wb_rocc = Option.when(usingRoCC)(wb_reg_valid && wb_ctrl(decoder.rocc) && !io.rocc.cmd.ready)
   val replay_wb_csr: Bool = wb_reg_valid && csr.io.rw_stall

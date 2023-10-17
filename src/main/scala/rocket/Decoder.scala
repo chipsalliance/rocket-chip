@@ -133,7 +133,8 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
     (if (useABLU) Seq(abluFn, zbk, zkn, zks) else Some(aluFn)) ++
     (if (useFPU) Seq(fp, rfs1, rfs2, rfs3, wfd, dp) else None) ++
     (if (useMulDiv) if (p.pipelinedMul) Seq(mul, div) else Seq(div) else None) ++
-    (if (useRoCC) Some(rocc) else None)
+    (if (useRoCC) Some(rocc) else None) ++
+    (if (useVector) Seq(isVector, vload, vstore, vcsr) else None)
 
   val table: DecodeTable[RocketDecodePattern] = new DecodeTable[RocketDecodePattern](
     instructionDecodePatterns,

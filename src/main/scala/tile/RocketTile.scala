@@ -45,6 +45,7 @@ class RocketTile private(
     with SinksExternalInterrupts
     with SourcesExternalNotifications
     with HasLazyRoCC  // implies CanHaveSharedFPU with CanHavePTW with HasHellaCache
+    with HasLazyT1
     with HasHellaCache
     with HasICacheFrontend
 {
@@ -120,11 +121,12 @@ class RocketTile private(
 
 class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasFpuOpt
+    with HasLazyT1Module
     with HasLazyRoCCModule
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
-  val core = Module(new Rocket(outer)(outer.p))
+  lazy val core = Module(new Rocket(outer)(outer.p))
 
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
