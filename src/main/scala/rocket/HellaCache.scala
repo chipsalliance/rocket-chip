@@ -225,6 +225,8 @@ class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends Co
   val cpu = Flipped((new HellaCacheIO))
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
+  /** indicate store buffer is cleared, so that other LSU(vector or RoCC) can execute load store instructions */
+  val storeBufferClear = Bool()
 }
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)

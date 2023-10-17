@@ -717,6 +717,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val mshrs = Module(new MSHRFile)
 
   io.cpu.req.ready := true.B
+  io.storeBufferClear := mshrs.io.req.ready
   val s1_valid = RegNext(io.cpu.req.fire, false.B)
   val s1_req = Reg(new HellaCacheReq)
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill
