@@ -58,6 +58,9 @@ class Cluster(
   lazy val ibus = LazyModule(new InterruptBusWrapper)
   ibus.clockNode := csbus.fixedClockNode
 
+  def msipDomain = this
+  def meipDomain = this
+  def seipDomain = this
   lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
@@ -141,17 +144,17 @@ trait CanAttachCluster {
       node := context.debugNodes(hartid)
     }
 
-    domain.element.msipNodes.foreach { case (hartid, node) =>
+    domain.element.msipNodes.foreach { case (hartid, node) => context.msipDomain {
       domain.crossIntIn(crossingParams.crossingType, node) := context.msipNodes(hartid)
-    }
+    }}
 
-    domain.element.meipNodes.foreach { case (hartid, node) =>
+    domain.element.meipNodes.foreach { case (hartid, node) => context.meipDomain {
       domain.crossIntIn(crossingParams.crossingType, node) := context.meipNodes(hartid)
-    }
+    }}
 
-    domain.element.seipNodes.foreach { case (hartid, node) =>
+    domain.element.seipNodes.foreach { case (hartid, node) => context.seipDomain {
       domain.crossIntIn(crossingParams.crossingType, node) := context.seipNodes(hartid)
-    }
+    }}
 
     domain.element.tileToPlicNodes.foreach { case (hartid, node) =>
       FlipRendering { implicit p =>

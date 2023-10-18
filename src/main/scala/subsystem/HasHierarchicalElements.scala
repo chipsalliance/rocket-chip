@@ -156,8 +156,11 @@ trait DefaultHierarchicalElementContextType
     extends Attachable
     with HasTileNotificationSinks
 { this: LazyModule with Attachable =>
+  def msipDomain: LazyScope
   val msipNodes: SortedMap[Int, IntNode]
+  def meipDomain: LazyScope
   val meipNodes: SortedMap[Int, IntNode]
+  def seipDomain: LazyScope
   val seipNodes: SortedMap[Int, IntNode]
   val tileToPlicNodes: SortedMap[Int, IntNode]
   val debugNodes: SortedMap[Int, IntSyncNode]
@@ -177,6 +180,10 @@ trait HasHierarchicalElementsRootContext
   val clintOpt: Option[CLINT]
   val plicOpt: Option[TLPLIC]
   val debugOpt: Option[TLDebugModule]
+
+  def msipDomain = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
+  def meipDomain = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
+  def seipDomain = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
 
   val msipNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode())

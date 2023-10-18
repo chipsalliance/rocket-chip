@@ -366,5 +366,4 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
 
     plic
   }
-  val plicNode = plicOpt.map(_.intnode)
 }

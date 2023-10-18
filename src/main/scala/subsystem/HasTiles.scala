@@ -205,21 +205,27 @@ trait CanAttachTile {
     domain.element.intInwardNode := domain { IntSyncAsyncCrossingSink(3) } :=
       context.debugNodes(domain.element.tileId)
 
-    // 2. The CLINT and PLIC output interrupts are synchronous to the TileLink bus clock,
+    // 2. The CLINT and PLIC output interrupts are synchronous to the CLINT/PLIC respectively,
     //    so might need to be synchronized depending on the Tile's crossing type.
 
     //    From CLINT: "msip" and "mtip"
-    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-      context.msipNodes(domain.element.tileId)
+    context.msipDomain {
+      domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
+        context.msipNodes(domain.element.tileId)
+    }
 
     //    From PLIC: "meip"
-    domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-      context.meipNodes(domain.element.tileId)
+    context.meipDomain {
+      domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
+        context.meipNodes(domain.element.tileId)
+    }
 
     //    From PLIC: "seip" (only if supervisor mode is enabled)
     if (domain.element.tileParams.core.hasSupervisorMode) {
-      domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
-        context.seipNodes(domain.element.tileId)
+      context.seipDomain {
+        domain.crossIntIn(crossingParams.crossingType, domain.element.intInwardNode) :=
+          context.seipNodes(domain.element.tileId)
+      }
     }
 
     // 3. Local Interrupts ("lip") are required to already be synchronous to the Tile's clock.
