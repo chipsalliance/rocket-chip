@@ -81,11 +81,54 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
   }
 }
 
+class TLFixedDelayer(cycle: Int, maxLatency: Int = 4096)(implicit p: Parameters) extends LazyModule
+{
+  val node = TLAdapterNode()
+
+  lazy val module = new Impl
+  class Impl extends LazyModuleImp(this) {
+    val timerWidth = log2Ceil(cycle.max(1)) + log2Ceil(maxLatency)
+    val timer = RegInit(0.U(timerWidth.W))
+    timer := timer + 1.U
+    def feed[T <: Data](sink: DecoupledIO[T], source: DecoupledIO[T]): Unit = {
+        val q = Module(new Queue(new Bundle {
+          val data = source.bits.cloneType
+          val time = UInt(timerWidth.W)
+        }, cycle.max(1), flow=true))
+
+        q.io.enq.bits.data := source.bits
+        q.io.enq.bits.time := timer
+        q.io.enq.valid := source.fire
+        source.ready := q.io.enq.ready
+
+        sink.bits := q.io.deq.bits.data
+        sink.valid := q.io.deq.valid && ( (timer - q.io.deq.bits.time) >= cycle.U)
+        q.io.deq.ready := sink.fire
+    }
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      feed(out.a, in.a)
+      feed(out.c, in.c)
+      feed(out.e, in.e)
+      feed(in.b, out.b)
+      feed(in.d, out.d)
+    }
+  }
+}
+
 object TLDelayer
 {
   def apply(q: Double)(implicit p: Parameters): TLNode =
   {
     val delayer = LazyModule(new TLDelayer(q))
+    delayer.node
+  }
+}
+
+object TLFixedDelayer
+{
+  def apply(cycle: Int)(implicit p: Parameters): TLNode =
+  {
+    val delayer = LazyModule(new TLFixedDelayer(cycle))
     delayer.node
   }
 }
