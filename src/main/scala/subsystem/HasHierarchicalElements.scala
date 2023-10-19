@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode}
+import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode, ClockDomain}
 import freechips.rocketchip.util._
 import freechips.rocketchip.rocket.{TracedInstruction}
 import scala.collection.immutable.SortedMap
@@ -178,12 +178,14 @@ trait HasHierarchicalElementsRootContext
     with InstantiatesHierarchicalElements =>
 
   val clintOpt: Option[CLINT]
+  val clintDomainOpt: Option[ClockDomain]
   val plicOpt: Option[TLPLIC]
+  val plicDomainOpt: Option[ClockDomain]
   val debugOpt: Option[TLDebugModule]
 
-  def msipDomain = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
-  def meipDomain = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
-  def seipDomain = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
+  def msipDomain = clintDomainOpt.get
+  def meipDomain = plicDomainOpt.get
+  def seipDomain = plicDomainOpt.get
 
   val msipNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode())

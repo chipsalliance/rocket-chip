@@ -45,7 +45,7 @@ abstract trait HasExtInterrupts { this: BaseSubsystem =>
   */
 trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
-    ibus.fromAsync := extInterrupts
+    ibus { ibus.fromAsync := extInterrupts }
   }
 }
 

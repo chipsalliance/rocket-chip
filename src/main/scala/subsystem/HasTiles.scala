@@ -246,9 +246,11 @@ trait CanAttachTile {
   /** Notifications of tile status are connected to be broadcast without needing to be clock-crossed. */
   def connectOutputNotifications(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode)
-    context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode)
-    context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode)
+    domain {
+      context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.haltNode)
+      context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.wfiNode)
+      context.tileCeaseXbarNode :=* domain.crossIntOut(NoCrossing, domain.element.ceaseNode)
+    }
     // TODO should context be forced to have a trace sink connected here?
     //      for now this just ensures domain.trace[Core]Node has been crossed without connecting it externally
   }

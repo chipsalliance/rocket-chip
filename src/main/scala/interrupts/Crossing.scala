@@ -85,7 +85,7 @@ class IntSyncSyncCrossingSink()(implicit p: Parameters) extends LazyModule
   val node = IntSyncSinkNode(0)
 
   lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
+  class Impl extends LazyRawModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := in.sync
     }

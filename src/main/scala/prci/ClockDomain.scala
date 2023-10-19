@@ -12,6 +12,7 @@ abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainC
   class Impl extends LazyRawModuleImp(this) {
     childClock := clockBundle.clock
     childReset := clockBundle.reset
+    override def provideImplicitClockToLazyChildren = true
 
     // these are just for backwards compatibility with external devices
     // that were manually wiring themselves to the domain's clock/reset input:

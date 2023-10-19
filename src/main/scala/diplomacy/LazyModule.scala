@@ -415,7 +415,11 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   // the default is that these are disabled
   childClock := false.B.asClock
   childReset := chisel3.DontCare
-  val (auto, dangles) = withClockAndReset(childClock, childReset) {
+
+  def provideImplicitClockToLazyChildren: Boolean = false
+  val (auto, dangles) = if (provideImplicitClockToLazyChildren) {
+    withClockAndReset(childClock, childReset) { instantiate() }
+  } else {
     instantiate()
   }
 }

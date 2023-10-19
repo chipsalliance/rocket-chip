@@ -102,18 +102,17 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 
 /** Trait that will connect a CLINT to a subsystem */
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
-  val clintOpt = p(CLINTKey).map { params =>
+  val (clintOpt, clintDomainOpt, clintTickOpt) = p(CLINTKey).map { params =>
     val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
-    val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
+    val clintDomainWrapper = tlbus.generateSynchronousDomain.suggestName("clint_domain")
+    val clint = clintDomainWrapper { LazyModule(new CLINT(params, cbus.beatBytes)) }
+    clintDomainWrapper { clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ } }
+    val clintTick = clintDomainWrapper { InModuleBody {
+      val tick = IO(Input(Bool()))
+      clint.module.io.rtcTick := tick
+      tick
+    }}
 
-    // Override the implicit clock and reset -- could instead include a clockNode in the clint, and make it a RawModuleImp?
-    InModuleBody {
-      clint.module.clock := tlbus.module.clock
-      clint.module.reset := tlbus.module.reset
-    }
-
-    clint
-
-  }
+    (clint, clintDomainWrapper, clintTick)
+  }.unzip3
 }

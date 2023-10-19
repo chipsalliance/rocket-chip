@@ -728,6 +728,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
 
     childClock := io.dmi_clock
     childReset := io.dmi_reset
+    override def provideImplicitClockToLazyChildren = true
 
     withClockAndReset(childClock, childReset) {
       dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
@@ -1899,6 +1900,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
     childClock := io.debug_clock
     childReset := io.debug_reset
+    override def provideImplicitClockToLazyChildren = true
 
     val dmactive_synced = withClockAndReset(childClock, childReset) {
       val dmactive_synced = AsyncResetSynchronizerShiftReg(in=io.dmactive, sync=3, name=Some("dmactiveSync"))
@@ -1987,6 +1989,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     childClock := io.tl_clock
     childReset := io.tl_reset
+    override def provideImplicitClockToLazyChildren = true
 
     dmOuter.module.io.dmi.foreach { dmOuterDMI =>
       dmOuterDMI <> io.dmi.get.dmi

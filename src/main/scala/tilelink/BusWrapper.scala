@@ -72,6 +72,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
+  def generateSynchronousDomain = {
+    val domain = LazyModule(new ClockSinkDomain(take = fixedClockOpt))
+    domain.clockNode := fixedClockNode
+    domain
+  }
 
   protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
