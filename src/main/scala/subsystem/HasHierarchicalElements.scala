@@ -183,9 +183,9 @@ trait HasHierarchicalElementsRootContext
   val plicDomainOpt: Option[ClockDomain]
   val debugOpt: Option[TLDebugModule]
 
-  def msipDomain = clintDomainOpt.get
-  def meipDomain = plicDomainOpt.get
-  def seipDomain = plicDomainOpt.get
+  def msipDomain = clintDomainOpt.getOrElse(this)
+  def meipDomain = plicDomainOpt.getOrElse(this)
+  def seipDomain = plicDomainOpt.getOrElse(this)
 
   val msipNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode())
@@ -220,7 +220,7 @@ trait HasHierarchicalElementsRootContext
   }.to(SortedMap)
 
   debugNodes.foreach { case (hartid, node) =>
-    node := debugOpt.map(_.intnode).getOrElse(IntSyncCrossingSource() := NullIntSource())
+    node := debugOpt.map(_.intnode).getOrElse(NullIntSyncSource())
   }
 
   val nmiHarts = totalTiles.filter { case (_, t) => t.tileParams.core.useNMI }.keys

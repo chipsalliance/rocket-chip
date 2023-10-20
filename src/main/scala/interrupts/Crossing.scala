@@ -35,14 +35,16 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 {
   val node = IntSyncSourceNode(alreadyRegistered)
 
-  lazy val module = new Impl
+  lazy val module = if (alreadyRegistered) (new ImplRegistered) else (new Impl)
+
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      if (alreadyRegistered) {
-        out.sync := in
-      } else {
-        out.sync := AsyncResetReg(Cat(in.reverse)).asBools
-      }
+      out.sync := AsyncResetReg(Cat(in.reverse)).asBools
+    }
+  }
+  class ImplRegistered extends LazyRawModuleImp(this) {
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out.sync := in
     }
   }
 }
