@@ -54,7 +54,7 @@ trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   */
 trait HasSyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
-    ibus.fromSync := extInterrupts
+    ibus { ibus.fromSync := extInterrupts }
   }
 }
 
