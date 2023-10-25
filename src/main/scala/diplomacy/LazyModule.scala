@@ -431,6 +431,10 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
 class SimpleLazyModule(implicit p: Parameters) extends LazyModule {
   lazy val module = new LazyModuleImp(this)
 }
+class SimpleLazyRawModule(implicit p: Parameters) extends LazyModule {
+  lazy val module = new LazyRawModuleImp(this)
+}
+
 
 /** Allows dynamic creation of [[Module]] hierarchy and "shoving" logic into a [[LazyModule]]. */
 trait LazyScope {
