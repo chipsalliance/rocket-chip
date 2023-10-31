@@ -986,7 +986,7 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
   object isVector extends BoolDecodeField[RocketDecodePattern] {
     override def name: String = "isVector"
 
-    override def genTable(op: RocketDecodePattern): BitPat = n
+    override def genTable(op: RocketDecodePattern): BitPat = if(op.instruction.instructionSet.name == "rv_v") y else n
   }
 
   object vload extends BoolDecodeField[RocketDecodePattern] {

@@ -135,11 +135,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val t1IssueQueueFull = Option.when(usingVectorT1)(IO(Output(Bool())))
   val t1IssueQueueEmpty = Option.when(usingVectorT1)(IO(Output(Bool())))
 
-  t1Request.foreach(_ <> DontCare)
-  t1Response.foreach(_ <> DontCare)
-  t1IssueQueueFull.foreach(_ <> DontCare)
-  t1IssueQueueEmpty.foreach(_ <> DontCare)
-
   def nTotalRoCCCSRs = tile.roccCSRs.flatten.size
 
   val clock_en_reg = RegInit(true.B)
@@ -288,7 +283,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
           // NIST && SM
           case s if s.contains("rv32_zk") => (xLen == 32) && usingCryptoSM && usingCryptoNIST
           case s if s.contains("rv64_zk") => (xLen == 64) && usingCryptoSM && usingCryptoNIST
-          // Vector
+          // T1 Vector
           case s if s.contains("rv_v") => usingVectorT1
           // unratified but supported.
           case s if s.contains("rv_zicond") => usingConditionalZero
@@ -1115,6 +1110,17 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     io.rocc.cmd.bits.inst := DontCare
     io.rocc.cmd.bits.rs1 := DontCare
     io.rocc.cmd.bits.rs2 := DontCare
+  }
+  if (usingVectorT1) {
+    t1Request.foreach { t1 =>
+      t1.valid := wb_reg_valid && wb_ctrl(decoder.isVector) && !replay_wb_common
+      t1.bits.instruction := wb_reg_inst
+      t1.bits.rs1Data := wb_reg_wdata
+      t1.bits.rs2Data := wb_reg_rs2
+    }
+    t1Response.foreach(_ <> DontCare)
+    t1IssueQueueFull.foreach(_ <> DontCare)
+    t1IssueQueueEmpty.foreach(_ <> DontCare)
   }
 
   // gate the clock
