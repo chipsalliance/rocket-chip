@@ -32,7 +32,6 @@ trait MacrosModule
   override def ivyDeps = T(super.ivyDeps() ++ Some(scalaReflectIvy))
 }
 
-
 trait RocketChipModule
   extends HasChisel {
   override def mainClass = T(Some("freechips.rocketchip.diplomacy.Main"))
@@ -60,4 +59,18 @@ trait RocketChipModule
       json4sJacksonIvy
     )
   )
+}
+
+// Stores some non-public test only staffs
+trait TestsModule
+  extends HasChisel {
+  def rocketchipModule: RocketChipModule
+
+  def chiselModule: Option[ScalaModule] = rocketchipModule.chiselModule
+  def chiselPluginJar: T[Option[PathRef]] = T(rocketchipModule.chiselPluginJar())
+  def chiselIvy: Option[Dep] = rocketchipModule.chiselIvy
+  def chiselPluginIvy: Option[Dep] = rocketchipModule.chiselPluginIvy
+
+  override def mainClass = T(Some("org.chipsalliance.rocketchip.internal.tests.Main"))
+  override def moduleDeps = super.moduleDeps ++ Seq(rocketchipModule)
 }
