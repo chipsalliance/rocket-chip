@@ -1,4 +1,4 @@
-#include "VTestHarness__Dpi.h"
+#include "VTestbench__Dpi.h"
 #include "axi4_mem.hpp"
 #include "svdpi.h"
 #include <cassert>
@@ -15,7 +15,7 @@
 DPI const char *plus_arg_val(IN char *param);
 
 std::string plusarg_read_str(std::string param) {
-  svSetScope(svGetScopeFromName("TOP.TestHarness.dpiPlusArg"));
+  svSetScope(svGetScopeFromName("TOP.Testbench.dpiPlusArg"));
   param += "=%s";
   std::string res = std::string(plus_arg_val(param.c_str()));
   std::cout << "plusarg got [" << param << "]=[" << res << "]\n";
@@ -34,12 +34,12 @@ DPI void init_cosim() {
   std::string init_file = plusarg_read_str("init_file");
   // init dumpwave
   if (trace_file != "") {
-    svSetScope(svGetScopeFromName("TOP.TestHarness.dpiDumpWave"));
+    svSetScope(svGetScopeFromName("TOP.Testbench.dpiDumpWave"));
     dump_wave(trace_file.c_str());
   }
   // sigint signal
   std::signal(SIGINT, [](int) {
-    svSetScope(svGetScopeFromName("TOP.TestHarness.dpiFinish"));
+    svSetScope(svGetScopeFromName("TOP.Testbench.dpiFinish"));
     finish();
   });
   // init memory file
