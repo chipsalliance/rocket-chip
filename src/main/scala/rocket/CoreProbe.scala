@@ -32,9 +32,11 @@ class CoreProbe(rocket: Rocket) {
     //       - replay
     //       - flush or branch misprediction
   }
-  val ifRequestEvent = IO(Output(Probe(Valid(new IFRequestEvent))))
-  define(ifRequestEvent.valid, ProbeValue(rocket.io.imem.req.valid))
-  define(ifRequestEvent.bits.pc, ProbeValue(rocket.io.imem.req.bits.pc))
+  val ifRequestEventProbe = IO(Output(Probe(Valid(new IFRequestEvent))))
+  val ifRequestEvent = Wire(ifRequestEventProbe.cloneType)
+  define(ifRequestEventProbe, ProbeValue(ifRequestEvent))
+  ifRequestEvent.valid := rocket.io.imem.req.valid
+  ifRequestEvent.bits.pc := rocket.io.imem.req.bits.pc
 
   // ID Stage:
   //   - Got IF response(latched);
@@ -52,48 +54,47 @@ class CoreProbe(rocket: Rocket) {
     //       - replay
     //       - flush or branch misprediction
   }
-  val ifResponseEvent: Valid[IFResponseEvent] = IO(Output(Probe(Valid(new IFResponseEvent))))
-  define(ifResponseEvent.valid,
-    ProbeValue(
-      rocket.io.imem.resp.valid &&
-        !rocket.io.imem.resp.bits.replay &&
-        !rocket.io.imem.resp.bits.xcpt.ae.inst &&
-        !rocket.io.imem.resp.bits.xcpt.pf.inst &&
-        !rocket.io.imem.resp.bits.xcpt.gf.inst
-    )
-  )
-  define(ifResponseEvent.bits.data, ProbeValue(rocket.io.imem.resp.bits.data))
-  define(ifResponseEvent.bits.mask, ProbeValue(rocket.io.imem.resp.bits.mask))
+  val ifResponseEventProbe: Valid[IFResponseEvent] = IO(Output(Probe(Valid(new IFResponseEvent))))
+  val ifResponseEvent: Valid[IFResponseEvent] = Wire(ifResponseEventProbe.cloneType)
+  define(ifResponseEventProbe, ProbeValue(ifResponseEvent))
+  ifResponseEvent.valid :=
+    rocket.io.imem.resp.valid &&
+      !rocket.io.imem.resp.bits.replay &&
+      !rocket.io.imem.resp.bits.xcpt.ae.inst &&
+      !rocket.io.imem.resp.bits.xcpt.pf.inst &&
+      !rocket.io.imem.resp.bits.xcpt.gf.inst
+  ifResponseEvent.bits.pc := rocket.io.imem.resp.bits.pc
+  ifResponseEvent.bits.data := rocket.io.imem.resp.bits.data
+  ifResponseEvent.bits.mask := rocket.io.imem.resp.bits.mask
 
   class IDEvent extends Bundle {
     val decode: ID = new ID
     val compressed: Bool = Bool()
     // TODO: add id_xcpt
   }
-  val idEvent = IO(Output(Probe(Valid(new IDEvent))))
-  define(idEvent.valid,
-    ProbeValue(
-      !rocket.rocketImpl.id_illegal_insn &&
-        !rocket.rocketImpl.ibuf.io.kill
-      // TODO: ctrl_killd?
-    )
-  )
-  define(idEvent.bits.decode.pc, ProbeValue(rocket.rocketImpl.ibuf.io.pc))
-  define(idEvent.bits.decode.instruction, ProbeValue(rocket.rocketImpl.id_inst(0)))
-  define(idEvent.bits.decode.result, ProbeValue(rocket.rocketImpl.id_ctrl))
-  define(idEvent.bits.compressed, ProbeValue(rocket.rocketImpl.ibuf.io.inst(0).bits.rvc))
+  val idEventProbe = IO(Output(Probe(Valid(new IDEvent))))
+  val idEvent = Wire(idEventProbe.cloneType)
+  define(idEventProbe, ProbeValue(idEvent))
+  // TODO: ctrl_killd?
+  idEvent.valid :=
+    !rocket.rocketImpl.id_illegal_insn &&
+      !rocket.rocketImpl.ibuf.io.kill
+  idEvent.bits.decode.pc := rocket.rocketImpl.ibuf.io.pc
+  idEvent.bits.decode.instruction := rocket.rocketImpl.id_inst(0)
+  idEvent.bits.decode.result := rocket.rocketImpl.id_ctrl
+  idEvent.bits.compressed := rocket.rocketImpl.ibuf.io.inst(0).bits.rvc
 
-  val rs1ReadEvent = IO(Output(Probe(Valid(new RFEvent))))
-  define(rs1ReadEvent.valid, ProbeValue(rocket.rocketImpl.id_ren(0)))
-  define(rs1ReadEvent.bits.address, ProbeValue(rocket.rocketImpl.id_raddr(0)))
-  define(rs1ReadEvent.bits.data, ProbeValue(rocket.rocketImpl.id_rs(0)))
-  define(rs1ReadEvent.bits.isWrite, ProbeValue(false.B))
+  // val rs1ReadEvent = IO(Output(Probe(Valid(new RFEvent))))
+  // define(rs1ReadEvent.valid, ProbeValue(rocket.rocketImpl.id_ren(0)))
+  // define(rs1ReadEvent.bits.address, ProbeValue(rocket.rocketImpl.id_raddr(0)))
+  // define(rs1ReadEvent.bits.data, ProbeValue(rocket.rocketImpl.id_rs(0)))
+  // define(rs1ReadEvent.bits.isWrite, ProbeValue(false.B))
 
-  val rs2ReadEvent = IO(Output(Probe(Valid(new RFEvent))))
-  define(rs2ReadEvent.valid, ProbeValue(rocket.rocketImpl.id_ren(1)))
-  define(rs2ReadEvent.bits.address, ProbeValue(rocket.rocketImpl.id_raddr(1)))
-  define(rs2ReadEvent.bits.data, ProbeValue(rocket.rocketImpl.id_rs(1)))
-  define(rs2ReadEvent.bits.isWrite, ProbeValue(false.B))
+  // val rs2ReadEvent = IO(Output(Probe(Valid(new RFEvent))))
+  // define(rs2ReadEvent.valid, ProbeValue(rocket.rocketImpl.id_ren(1)))
+  // define(rs2ReadEvent.bits.address, ProbeValue(rocket.rocketImpl.id_raddr(1)))
+  // define(rs2ReadEvent.bits.data, ProbeValue(rocket.rocketImpl.id_rs(1)))
+  // define(rs2ReadEvent.bits.isWrite, ProbeValue(false.B))
 
   // EXE Stage
 
