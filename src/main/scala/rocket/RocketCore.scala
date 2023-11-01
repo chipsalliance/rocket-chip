@@ -1250,6 +1250,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       when (ens) { _r := _next }
     }
   }
+
+  val probe = new CoreProbe(this)
 }
 
 class RegFile(n: Int, w: Int, zero: Boolean = false) {
