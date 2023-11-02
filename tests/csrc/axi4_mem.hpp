@@ -39,12 +39,8 @@ public:
 
     Elf32_Ehdr ehdr;
     fs.read(reinterpret_cast<char *>(&ehdr), sizeof(ehdr));
-    if (!(ehdr.e_machine == EM_RISCV && ehdr.e_type == ET_EXEC &&
-          ehdr.e_ident[EI_CLASS] == ELFCLASS32)) {
+    if (!(ehdr.e_machine == EM_RISCV && ehdr.e_type == ET_EXEC)) {
       std::cerr << "ehdr check failed when loading elf" << std::endl;
-    }
-    if (ehdr.e_phentsize != sizeof(elf32_phdr)) {
-      std::cerr << "ehdr.e_phentsize does not equal to elf32_phdr" << std::endl;
     }
 
     for (size_t i = 0; i < ehdr.e_phnum; i++) {
@@ -60,6 +56,7 @@ public:
             .read(reinterpret_cast<char *>(&mem[phdr.p_paddr]), phdr.p_filesz);
       }
     }
+    std::cerr << "elf entry at " << ehdr.e_entry << std::endl;
     entry_addr = ehdr.e_entry;
   }
   uint32_t get_entry_addr() { return entry_addr; }

@@ -5,7 +5,6 @@ import chisel3.probe._
 import freechips.rocketchip.devices.debug.Debug
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.subsystem.ExtMem
-import freechips.rocketchip.system.ExampleRocketSystem
 import freechips.rocketchip.util.AsyncResetReg
 import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.rocketchip.internal.tests.dpi._
@@ -18,9 +17,11 @@ class Testbench(lm: ExampleRocketSystem) extends RawModule {
   val dpiDumpWave = Module(new DumpWave)
   val dpiFinish = Module(new Finish)
   val dpiPlusArg = Module(new PlusArgVal)
+  val dpiResetVector = Module(new ResetVector)
 
   val ldut = LazyModule(lm)
   implicit val p: Parameters = lm.p
+  assert(p(ExtMem).get.master.base == 2147483648L, "sw and hw elf region should align")
 
   withClockAndReset(clock.asClock, reset) {
     val dut = Module(ldut.module)
@@ -28,6 +29,8 @@ class Testbench(lm: ExampleRocketSystem) extends RawModule {
     dut.reset := (reset.asBool | ldut.debug.map { debug => AsyncResetReg(debug.ndreset) }.getOrElse(false.B)).asBool
     Debug.tieoffDebug(ldut.debug, ldut.resetctrl, Some(ldut.psd))
     dut.dontTouchPorts()
+    dpiResetVector.reset.ref := dut.reset
+    ldut.resetVector := dpiResetVector.resetVector.ref
     ldut.mem_axi4
       .zip(ldut.memAXI4Node.in)
       .map {
@@ -39,9 +42,5 @@ class Testbench(lm: ExampleRocketSystem) extends RawModule {
           mem
       }
       .toSeq
-    // tieoff
-    ldut.mmio_axi4 <> DontCare
-    ldut.l2_frontend_bus_axi4 <> DontCare
-    ldut.module.tieOffInterrupts()
   }
 }

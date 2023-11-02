@@ -1,14 +1,11 @@
 package org.chipsalliance.rocketchip.internal.tests
 
-import chisel3.RawModule
 import chisel3.stage.ChiselGeneratorAnnotation
 import chisel3.stage.phases.{Convert, Elaborate}
 import firrtl.AnnotationSeq
 import firrtl.options.TargetDirAnnotation
-import freechips.rocketchip.diplomacy.LazyModule
-import freechips.rocketchip.system.ExampleRocketSystem
-import org.chipsalliance.cde.config.{Config, Parameters}
 import mainargs._
+import org.chipsalliance.cde.config.{Config, Parameters}
 
 object Main {
   @main def elaborate(

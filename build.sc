@@ -155,7 +155,7 @@ trait Tests
 }
 
 object testbench extends Cross[Testbench](
-  ("freechips.rocketchip.system.ExampleRocketSystem", "freechips.rocketchip.system.DefaultConfig")
+  ("org.chipsalliance.rocketchip.internal.tests.ExampleRocketSystem", "org.chipsalliance.rocketchip.internal.tests.DefaultConfig")
 )
 
 trait Testbench extends Cross.Module2[String, String] {
@@ -250,7 +250,7 @@ trait Testbench extends Cross.Module2[String, String] {
          |  ${mfccompiler.rtls().sortBy(pr => !pr.path.baseName.startsWith("ref_")).map(_.path.toString).mkString("\n")}
          |  TOP_MODULE Testbench
          |  PREFIX VTestbench
-         |  TRACE
+         |  TRACE_FST
          |  VERILATOR_ARGS ${verilatorArgs().mkString(" ")}
          |)
          |""".stripMargin
