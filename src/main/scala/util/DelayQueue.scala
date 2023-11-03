@@ -7,19 +7,25 @@ import chisel3.util._
 
 object DelayQueue {
   def apply[T <: Data](sink: DecoupledIO[T], source: DecoupledIO[T], timer: UInt, delay: UInt, depth: Int): Unit = {
-      val q = Module(new Queue(new Bundle {
-        val data = source.bits.cloneType
-        val time = UInt(timer.getWidth.W)
-      }, depth, flow=true))
+    val q = Module(new Queue(new Bundle {
+      val data = source.bits.cloneType
+      val time = UInt(timer.getWidth.W)
+    }, depth, flow=true))
 
-      q.io.enq.bits.data := source.bits
-      q.io.enq.bits.time := timer
-      q.io.enq.valid := source.fire
-      source.ready := q.io.enq.ready
+    val delay_r = RegInit((0.U)delay.getWidth.W)
+    when (delay_r =/= delay) {
+      delay_r := delay
+      assert(q.io.count == 0, "Cannot change delay while queue has elements.")
+    }
 
-      sink.bits := q.io.deq.bits.data
-      sink.valid := q.io.deq.valid && ( (timer - q.io.deq.bits.time) >= delay)
-      q.io.deq.ready := sink.fire
+    q.io.enq.bits.data := source.bits
+    q.io.enq.bits.time := timer
+    q.io.enq.valid := source.fire
+    source.ready := q.io.enq.ready
+
+    sink.bits := q.io.deq.bits.data
+    sink.valid := q.io.deq.valid && ((timer - q.io.deq.bits.time) >= delay_r)
+    q.io.deq.ready := sink.fire
   }
 }
 
