@@ -1111,17 +1111,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     io.rocc.cmd.bits.rs1 := DontCare
     io.rocc.cmd.bits.rs2 := DontCare
   }
-  if (usingVectorT1) {
-    t1Request.foreach { t1 =>
-      t1.valid := wb_reg_valid && wb_ctrl(decoder.isVector) && !replay_wb_common
-      t1.bits.instruction := wb_reg_inst
-      t1.bits.rs1Data := wb_reg_wdata
-      t1.bits.rs2Data := wb_reg_rs2
-    }
-    t1Response.foreach(_ <> DontCare)
-    t1IssueQueueFull.foreach(_ <> DontCare)
-    t1IssueQueueEmpty.foreach(_ <> DontCare)
+  t1Request.foreach { t1 =>
+    t1.valid := wb_reg_valid && !replay_wb_common && wb_ctrl(decoder.isVector)
+    t1.bits.instruction := wb_reg_inst
+    t1.bits.rs1Data := wb_reg_wdata
+    t1.bits.rs2Data := wb_reg_rs2
   }
+  t1Response.foreach(_ <> DontCare)
+  t1IssueQueueFull.foreach(_ <> DontCare)
+  t1IssueQueueEmpty.foreach(_ <> DontCare)
 
   // gate the clock
   val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0.U || csr.io.inhibit_cycle || io.dmem.perf.release || take_pc

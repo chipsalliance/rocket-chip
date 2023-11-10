@@ -134,7 +134,7 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
     (if (useFPU) Seq(fp, rfs1, rfs2, rfs3, wfd, dp) else None) ++
     (if (useMulDiv) if (p.pipelinedMul) Seq(mul, div) else Seq(div) else None) ++
     (if (useRoCC) Some(rocc) else None) ++
-    (if (useVector) Seq(isVector, vload, vstore, vcsr) else None)
+    (if (useVector) Seq(isVector, vload, vstore) else None)
 
   val table: DecodeTable[RocketDecodePattern] = new DecodeTable[RocketDecodePattern](
     instructionDecodePatterns,
@@ -997,12 +997,6 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
 
   object vstore extends BoolDecodeField[RocketDecodePattern] {
     override def name: String = "isVectorLoad"
-
-    override def genTable(op: RocketDecodePattern): BitPat = n
-  }
-
-  object vcsr extends BoolDecodeField[RocketDecodePattern] {
-    override def name: String = "isVectorCSR"
 
     override def genTable(op: RocketDecodePattern): BitPat = n
   }
