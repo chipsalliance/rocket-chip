@@ -127,8 +127,22 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
 
 class Rocket(tile: RocketTile)(implicit p: Parameters)
     extends CoreModule()(p)
-    with HasRocketCoreParameters
-    with HasCoreIO {
+    with HasRocketCoreParameters {
+  val io = IO(new CoreBundle()(p) {
+    val hartid = Input(UInt(hartIdLen.W))
+    val reset_vector = Input(UInt(resetVectorLen.W))
+    val interrupts = Input(new CoreInterrupts())
+    val imem = new FrontendIO
+    val dmem = new HellaCacheIO
+    val ptw = Flipped(new DatapathPTWIO())
+    val fpu = Flipped(new FPUCoreIO())
+    val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
+    val trace = Output(new TraceBundle)
+    val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
+    val cease = Output(Bool())
+    val wfi = Output(Bool())
+    val traceStall = Input(Bool())
+  })
   // Interface for T1.
   val t1Request = Option.when(usingVectorT1)(IO(Valid(new VectorRequest(xLen))))
   val t1Response = Option.when(usingVectorT1)(IO(Flipped(Valid(new VectorResponse(xLen)))))
