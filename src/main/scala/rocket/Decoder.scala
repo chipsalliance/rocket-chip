@@ -125,13 +125,15 @@ class InstructionDecoder(p: InstructionDecoderParameter) {
   private val useRoCC = hasAnySetIn("rv_rocc")
   private val useVector = hasAnySetIn("rv_v")
   private val useMulDiv = hasAnySetIn("rv_m", "rv64_m")
+  private val useAtomic = hasAnySetIn("rv_a")
 
   private val instructionDecodePatterns: Seq[RocketDecodePattern] = instructions.map(RocketDecodePattern.apply)
   private val instructionDecodeFields: Seq[DecodeField[RocketDecodePattern, _ <: Data]] = Seq(
-    isLegal, isBranch, isJal, isJalr, rxs2, rxs1, selAlu2, selAlu1, selImm, aluDoubleWords, mem, memCommand, wxd, csr, fenceI, fence, amo,
+    isLegal, isBranch, isJal, isJalr, rxs2, rxs1, selAlu2, selAlu1, selImm, aluDoubleWords, mem, memCommand, wxd, csr, fenceI, fence
   ) ++
     (if (useABLU) Seq(abluFn, zbk, zkn, zks) else Some(aluFn)) ++
     (if (useFPU) Seq(fp, rfs1, rfs2, rfs3, wfd, dp) else None) ++
+    (if (useAtomic) Seq(amo) else None) ++
     (if (useMulDiv) if (p.pipelinedMul) Seq(mul, div) else Seq(div) else None) ++
     (if (useRoCC) Some(rocc) else None) ++
     (if (useVector) Seq(isVector, vload, vstore) else None)

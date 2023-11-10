@@ -152,6 +152,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     // performance counters
     def pipelineIDToWB[T <: Data](x: T): T =
       RegEnable(RegEnable(RegEnable(x, !ctrl_killd), ex_pc_valid), mem_pc_valid)
+    // TODO: remove it and probe signal to verification modules
     val perfEvents = new EventSets(
       Seq(
         new EventSet(
@@ -161,39 +162,41 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
             (
               "load",
               () =>
-                id_ctrl(decoder.mem) && id_ctrl(decoder.memCommand) === M_XRD && !Option
-                  .when(usingFPU)(id_ctrl(decoder.fp))
+                idDecodeOutput(decoder.mem) && idDecodeOutput(decoder.memCommand) === M_XRD && !Option
+                  .when(usingFPU)(idDecodeOutput(decoder.fp))
                   .getOrElse(false.B)
             ),
             (
               "store",
               () =>
-                id_ctrl(decoder.mem) && id_ctrl(decoder.memCommand) === M_XWR && !Option
-                  .when(usingFPU)(id_ctrl(decoder.fp))
+                idDecodeOutput(decoder.mem) && idDecodeOutput(decoder.memCommand) === M_XWR && !Option
+                  .when(usingFPU)(idDecodeOutput(decoder.fp))
                   .getOrElse(false.B)
             ),
             (
               "amo",
               () =>
-                usingAtomics.B && id_ctrl(decoder.mem) && (isAMO(id_ctrl(decoder.memCommand)) || id_ctrl(
-                  decoder.memCommand
-                ).isOneOf(M_XLR, M_XSC))
+                usingAtomics.B && idDecodeOutput(decoder.mem) && (isAMO(
+                  idDecodeOutput(decoder.memCommand)
+                ) || idDecodeOutput(decoder.memCommand).isOneOf(M_XLR, M_XSC))
             ),
-            ("system", () => id_ctrl(decoder.csr) =/= CSR.N),
+            ("system", () => idDecodeOutput(decoder.csr) =/= CSR.N),
             (
               "arith",
               () =>
-                id_ctrl(decoder.wxd) && !(id_ctrl(decoder.isJal) || id_ctrl(decoder.isJalr) || id_ctrl(
-                  decoder.mem
-                ) || Option.when(usingFPU)(id_ctrl(decoder.fp)).getOrElse(false.B) || Option
-                  .when(usingMulDiv && pipelinedMul)(id_ctrl(decoder.mul))
-                  .getOrElse(false.B) || Option.when(usingMulDiv)(id_ctrl(decoder.div)).getOrElse(false.B) || id_ctrl(
-                  decoder.csr
-                ) =/= CSR.N)
+                idDecodeOutput(decoder.wxd) && !(idDecodeOutput(decoder.isJal) || idDecodeOutput(
+                  decoder.isJalr
+                ) || idDecodeOutput(decoder.mem) || Option
+                  .when(usingFPU)(idDecodeOutput(decoder.fp))
+                  .getOrElse(false.B) || Option
+                  .when(usingMulDiv && pipelinedMul)(idDecodeOutput(decoder.mul))
+                  .getOrElse(false.B) || Option
+                  .when(usingMulDiv)(idDecodeOutput(decoder.div))
+                  .getOrElse(false.B) || idDecodeOutput(decoder.csr) =/= CSR.N)
             ),
-            ("branch", () => id_ctrl(decoder.isBranch)),
-            ("jal", () => id_ctrl(decoder.isJal)),
-            ("jalr", () => id_ctrl(decoder.isJalr))
+            ("branch", () => idDecodeOutput(decoder.isBranch)),
+            ("jal", () => idDecodeOutput(decoder.isJal)),
+            ("jalr", () => idDecodeOutput(decoder.isJalr))
           )
             ++ (if (!usingMulDiv) Seq()
                 else
@@ -201,29 +204,36 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
                     (
                       "mul",
                       () =>
-                        if (pipelinedMul) id_ctrl(decoder.mul)
-                        else id_ctrl(decoder.div) && (id_ctrl(decoder.aluFn) & aluFn.FN_DIV) =/= aluFn.FN_DIV
+                        if (pipelinedMul) idDecodeOutput(decoder.mul)
+                        else
+                          idDecodeOutput(decoder.div) && (idDecodeOutput(decoder.aluFn) & aluFn.FN_DIV) =/= aluFn.FN_DIV
                     ),
                     (
                       "div",
                       () =>
-                        if (pipelinedMul) id_ctrl(decoder.div)
-                        else id_ctrl(decoder.div) && (id_ctrl(decoder.aluFn) & aluFn.FN_DIV) === aluFn.FN_DIV
+                        if (pipelinedMul) idDecodeOutput(decoder.div)
+                        else
+                          idDecodeOutput(decoder.div) && (idDecodeOutput(decoder.aluFn) & aluFn.FN_DIV) === aluFn.FN_DIV
                     )
                   ))
             ++ (if (!usingFPU) Seq()
                 else
                   Seq(
-                    ("fp load", () => id_ctrl(decoder.fp) && io.fpu.dec.ldst && io.fpu.dec.wen),
-                    ("fp store", () => id_ctrl(decoder.fp) && io.fpu.dec.ldst && !io.fpu.dec.wen),
-                    ("fp add", () => id_ctrl(decoder.fp) && io.fpu.dec.fma && io.fpu.dec.swap23),
-                    ("fp mul", () => id_ctrl(decoder.fp) && io.fpu.dec.fma && !io.fpu.dec.swap23 && !io.fpu.dec.ren3),
-                    ("fp mul-add", () => id_ctrl(decoder.fp) && io.fpu.dec.fma && io.fpu.dec.ren3),
-                    ("fp div/sqrt", () => id_ctrl(decoder.fp) && (io.fpu.dec.div || io.fpu.dec.sqrt)),
+                    ("fp load", () => idDecodeOutput(decoder.fp) && io.fpu.dec.ldst && io.fpu.dec.wen),
+                    ("fp store", () => idDecodeOutput(decoder.fp) && io.fpu.dec.ldst && !io.fpu.dec.wen),
+                    ("fp add", () => idDecodeOutput(decoder.fp) && io.fpu.dec.fma && io.fpu.dec.swap23),
+                    (
+                      "fp mul",
+                      () => idDecodeOutput(decoder.fp) && io.fpu.dec.fma && !io.fpu.dec.swap23 && !io.fpu.dec.ren3
+                    ),
+                    ("fp mul-add", () => idDecodeOutput(decoder.fp) && io.fpu.dec.fma && io.fpu.dec.ren3),
+                    ("fp div/sqrt", () => idDecodeOutput(decoder.fp) && (io.fpu.dec.div || io.fpu.dec.sqrt)),
                     (
                       "fp other",
                       () =>
-                        id_ctrl(decoder.fp) && !(io.fpu.dec.ldst || io.fpu.dec.fma || io.fpu.dec.div || io.fpu.dec.sqrt)
+                        idDecodeOutput(
+                          decoder.fp
+                        ) && !(io.fpu.dec.ldst || io.fpu.dec.fma || io.fpu.dec.div || io.fpu.dec.sqrt)
                     )
                   ))
         ),
@@ -233,20 +243,20 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
             (
               "load-use interlock",
               () =>
-                id_ex_hazard && ex_ctrl(decoder.mem) || id_mem_hazard && mem_ctrl(
+                id_ex_hazard && exDecodeOutput(decoder.mem) || id_mem_hazard && memDecodeOutput(
                   decoder.mem
-                ) || id_wb_hazard && wb_ctrl(decoder.mem)
+                ) || id_wb_hazard && wbDecodeOutput(decoder.mem)
             ),
             ("long-latency interlock", () => id_sboard_hazard),
             (
               "csr interlock",
               () =>
-                id_ex_hazard && ex_ctrl(decoder.csr) =/= CSR.N || id_mem_hazard && mem_ctrl(
+                id_ex_hazard && exDecodeOutput(decoder.csr) =/= CSR.N || id_mem_hazard && memDecodeOutput(
                   decoder.csr
-                ) =/= CSR.N || id_wb_hazard && wb_ctrl(decoder.csr) =/= CSR.N
+                ) =/= CSR.N || id_wb_hazard && wbDecodeOutput(decoder.csr) =/= CSR.N
             ),
             ("I$ blocked", () => icache_blocked),
-            ("D$ blocked", () => id_ctrl(decoder.mem) && dcache_blocked),
+            ("D$ blocked", () => idDecodeOutput(decoder.mem) && dcache_blocked),
             ("branch misprediction", () => take_pc_mem && mem_direction_misprediction),
             (
               "control-flow target misprediction",
@@ -261,11 +271,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
                     (
                       "mul/div interlock",
                       () =>
-                        id_ex_hazard && (Option.when(pipelinedMul)(ex_ctrl(decoder.mul)).getOrElse(false.B) || ex_ctrl(
+                        id_ex_hazard && (Option
+                          .when(pipelinedMul)(exDecodeOutput(decoder.mul))
+                          .getOrElse(false.B) || exDecodeOutput(decoder.div)) || id_mem_hazard && (Option
+                          .when(pipelinedMul)(memDecodeOutput(decoder.mul))
+                          .getOrElse(false.B) || memDecodeOutput(decoder.div)) || id_wb_hazard && wbDecodeOutput(
                           decoder.div
-                        )) || id_mem_hazard && (Option
-                          .when(pipelinedMul)(mem_ctrl(decoder.mul))
-                          .getOrElse(false.B) || mem_ctrl(decoder.div)) || id_wb_hazard && wb_ctrl(decoder.div)
+                        )
                     )
                   ))
             ++ (if (!usingFPU) Seq()
@@ -274,9 +286,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
                     (
                       "fp interlock",
                       () =>
-                        id_ex_hazard && ex_ctrl(decoder.fp) || id_mem_hazard && mem_ctrl(
+                        id_ex_hazard && exDecodeOutput(decoder.fp) || id_mem_hazard && memDecodeOutput(
                           decoder.fp
-                        ) || id_wb_hazard && wb_ctrl(decoder.fp) || id_ctrl(decoder.fp) && id_stall_fpu
+                        ) || id_wb_hazard && wbDecodeOutput(decoder.fp) || idDecodeOutput(decoder.fp) && id_stall_fpu
                     )
                   ))
         ),
@@ -296,116 +308,121 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
 
     val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
 
-    val decoderParameter = org.chipsalliance.rocketcore.decoder.InstructionDecoderParameter(
-      // TODO: configurable
-      (org.chipsalliance.rvdecoderdb.fromFile.instructions(os.pwd / "dependencies" / "riscv-opcodes") ++
-        // TODO: select rocc instructions via configuration.
-        org.chipsalliance.rocketcore.decoder.CustomInstructions.roccSet ++
-        org.chipsalliance.rocketcore.decoder.CustomInstructions.rocketSet).filter { i =>
-        i.instructionSets.map(_.name) match {
-          // I
-          case s if s.contains("rv_i")   => true
-          case s if s.contains("rv32_i") => xLen == 32
-          case s if s.contains("rv64_i") => xLen == 64
-          // M
-          case s if s.contains("rv_m")   => usingMulDiv
-          case s if s.contains("rv64_m") => (xLen == 64) && usingMulDiv
-          // A
-          case s if s.contains("rv_a")   => usingAtomics
-          case s if s.contains("rv64_a") => (xLen == 64) && usingAtomics
-          // ZICSR
-          case s if s.contains("rv_zicsr") => true
-          // ZIFENCEI
-          case s if s.contains("rv_zifencei") => true
-          // F
-          case s if s.contains("rv_f")   => !(fLen == 0)
-          case s if s.contains("rv64_f") => (xLen == 64) && !(fLen == 0)
-          // D
-          case s if s.contains("rv_d")   => (fLen == 64)
-          case s if s.contains("rv64_d") => (xLen == 64) && (fLen == 64)
-          // ZFH
-          case s if s.contains("rv_zfh")   => minFLen == 16
-          case s if s.contains("rv64_zfh") => (xLen == 64) && (minFLen == 16)
-          case s if s.contains("rv_d_zfh") => (fLen == 64) && (minFLen == 16)
+    // Start RTL Here
 
-          // Priv
-          case s if s.contains("rv_system") => true
-          // Supervisor
-          case s if s.contains("rv_s") =>
-            i.name match {
-              // if support superviosr but don't support virtual memory, raise illinstr.
-              case s if s.contains("sfence.vma") => usingVM
-              case s if s.contains("sret")       => usingSupervisor
-            }
-          case s if s.contains("rv_smrnmi") => usingNMI
-          // Hypervisor
-          case s if s.contains("rv_h")   => usingHypervisor
-          case s if s.contains("rv64_h") => (xLen == 64) && usingHypervisor
-          // Debug
-          case s if s.contains("rv_sdext") => usingDebug
+    // TODO: move to Parameter Level or LazyModule level.
+    val decoder = new org.chipsalliance.rocketcore.decoder.InstructionDecoder(
+      org.chipsalliance.rocketcore.decoder.InstructionDecoderParameter(
+        // TODO: configurable
+        (org.chipsalliance.rvdecoderdb.fromFile.instructions(os.pwd / "dependencies" / "riscv-opcodes") ++
+          // TODO: select rocc instructions via configuration.
+          org.chipsalliance.rocketcore.decoder.CustomInstructions.roccSet ++
+          org.chipsalliance.rocketcore.decoder.CustomInstructions.rocketSet).filter { i =>
+          i.instructionSets.map(_.name) match {
+            // I
+            case s if s.contains("rv_i")   => true
+            case s if s.contains("rv32_i") => xLen == 32
+            case s if s.contains("rv64_i") => xLen == 64
+            // M
+            case s if s.contains("rv_m")   => usingMulDiv
+            case s if s.contains("rv64_m") => (xLen == 64) && usingMulDiv
+            // A
+            case s if s.contains("rv_a")   => usingAtomics
+            case s if s.contains("rv64_a") => (xLen == 64) && usingAtomics
+            // ZICSR
+            case s if s.contains("rv_zicsr") => true
+            // ZIFENCEI
+            case s if s.contains("rv_zifencei") => true
+            // F
+            case s if s.contains("rv_f")   => !(fLen == 0)
+            case s if s.contains("rv64_f") => (xLen == 64) && !(fLen == 0)
+            // D
+            case s if s.contains("rv_d")   => (fLen == 64)
+            case s if s.contains("rv64_d") => (xLen == 64) && (fLen == 64)
+            // ZFH
+            case s if s.contains("rv_zfh")   => minFLen == 16
+            case s if s.contains("rv64_zfh") => (xLen == 64) && (minFLen == 16)
+            case s if s.contains("rv_d_zfh") => (fLen == 64) && (minFLen == 16)
 
-          // TODO:
-          //   Bit Manipulation, RocketChip doesn't provide a fine-grand Bit-Manipulation and Crypto support for now.
-          //   We will support it in the future.
-          case s if s.contains("rv_zba")   => usingBitManip
-          case s if s.contains("rv64_zba") => (xLen == 64) && usingBitManip
-          case s if s.contains("rv_zbb")   => usingBitManip
-          case s if s.contains("rv32_zbb") => (xLen == 32) && usingBitManip
-          case s if s.contains("rv64_zbb") => (xLen == 64) && usingBitManip
-          case s if s.contains("rv_zbc")   => usingBitManip
-          case s if s.contains("rv_zbs")   => usingBitManip
-          // Cryptography Extensions
-          case s if s.contains("rv_zbkb")   => usingBitManipCrypto
-          case s if s.contains("rv32_zbkb") => (xLen == 32) && usingBitManipCrypto
-          case s if s.contains("rv64_zbkb") => (xLen == 64) && usingBitManipCrypto
-          // These two are subset to zbkb
-          case s if s.contains("rv_zbkc") => usingBitManipCrypto
-          case s if s.contains("rv_zbkx") => usingBitManipCrypto
-          // NIST
-          case s if s.contains("rv32_zknd") => (xLen == 32) && usingCryptoNIST
-          case s if s.contains("rv64_zknd") => (xLen == 64) && usingCryptoNIST
-          case s if s.contains("rv32_zkne") => (xLen == 32) && usingCryptoNIST
-          case s if s.contains("rv64_zkne") => (xLen == 64) && usingCryptoNIST
-          case s if s.contains("rv_zknh")   => usingCryptoNIST
-          case s if s.contains("rv32_zknh") => (xLen == 32) && usingCryptoNIST
-          case s if s.contains("rv64_zknh") => (xLen == 64) && usingCryptoNIST
-          case s if s.contains("rv_zkn")    => usingCryptoNIST
-          case s if s.contains("rv32_zkn")  => (xLen == 32) && usingCryptoNIST
-          case s if s.contains("rv64_zkn")  => (xLen == 64) && usingCryptoNIST
-          // SM
-          case s if s.contains("rv_zksed") => usingCryptoSM
-          case s if s.contains("rv_zksh")  => usingCryptoSM
-          case s if s.contains("rv_zks")   => usingCryptoSM
-          case s if s.contains("rv32_zks") => (xLen == 32) && usingCryptoSM
-          case s if s.contains("rv64_zks") => (xLen == 64) && usingCryptoSM
-          case s if s.contains("rv_zk")    => usingCryptoSM && usingCryptoNIST
-          // NIST && SM
-          case s if s.contains("rv32_zk") => (xLen == 32) && usingCryptoSM && usingCryptoNIST
-          case s if s.contains("rv64_zk") => (xLen == 64) && usingCryptoSM && usingCryptoNIST
-          // T1 Vector
-          case s if s.contains("rv_v") => usingVectorT1
-          // unratified but supported.
-          case s if s.contains("rv_zicond") => usingConditionalZero
-          // custom
-          case s if s.contains("rv_rocket") =>
-            i.name match {
-              case "c.flush.d.l1"   => coreParams.haveCFlush
-              case "c.discard.d.l1" => coreParams.haveCFlush
-              case "cease"          => rocketParams.haveCease
-            }
-          case s if s.contains("rv_rocc") => usingRoCC
-          case _                          => false
-        }
-      }.filter {
-        // special case for rv32 pseudo from rv64
-        case i if i.pseudoFrom.isDefined && Seq("slli", "srli", "srai").contains(i.name) => true
-        case i if i.pseudoFrom.isDefined                                                 => false
-        case _                                                                           => true
-      }.toSeq.distinct,
-      pipelinedMul,
-      tile.dcache.flushOnFenceI
+            // Priv
+            case s if s.contains("rv_system") => true
+            // Supervisor
+            case s if s.contains("rv_s") =>
+              i.name match {
+                // if support superviosr but don't support virtual memory, raise illinstr.
+                case s if s.contains("sfence.vma") => usingVM
+                case s if s.contains("sret")       => usingSupervisor
+              }
+            case s if s.contains("rv_smrnmi") => usingNMI
+            // Hypervisor
+            case s if s.contains("rv_h")   => usingHypervisor
+            case s if s.contains("rv64_h") => (xLen == 64) && usingHypervisor
+            // Debug
+            case s if s.contains("rv_sdext") => usingDebug
+
+            // TODO:
+            //   Bit Manipulation, RocketChip doesn't provide a fine-grand Bit-Manipulation and Crypto support for now.
+            //   We will support it in the future.
+            case s if s.contains("rv_zba")   => usingBitManip
+            case s if s.contains("rv64_zba") => (xLen == 64) && usingBitManip
+            case s if s.contains("rv_zbb")   => usingBitManip
+            case s if s.contains("rv32_zbb") => (xLen == 32) && usingBitManip
+            case s if s.contains("rv64_zbb") => (xLen == 64) && usingBitManip
+            case s if s.contains("rv_zbc")   => usingBitManip
+            case s if s.contains("rv_zbs")   => usingBitManip
+            // Cryptography Extensions
+            case s if s.contains("rv_zbkb")   => usingBitManipCrypto
+            case s if s.contains("rv32_zbkb") => (xLen == 32) && usingBitManipCrypto
+            case s if s.contains("rv64_zbkb") => (xLen == 64) && usingBitManipCrypto
+            // These two are subset to zbkb
+            case s if s.contains("rv_zbkc") => usingBitManipCrypto
+            case s if s.contains("rv_zbkx") => usingBitManipCrypto
+            // NIST
+            case s if s.contains("rv32_zknd") => (xLen == 32) && usingCryptoNIST
+            case s if s.contains("rv64_zknd") => (xLen == 64) && usingCryptoNIST
+            case s if s.contains("rv32_zkne") => (xLen == 32) && usingCryptoNIST
+            case s if s.contains("rv64_zkne") => (xLen == 64) && usingCryptoNIST
+            case s if s.contains("rv_zknh")   => usingCryptoNIST
+            case s if s.contains("rv32_zknh") => (xLen == 32) && usingCryptoNIST
+            case s if s.contains("rv64_zknh") => (xLen == 64) && usingCryptoNIST
+            case s if s.contains("rv_zkn")    => usingCryptoNIST
+            case s if s.contains("rv32_zkn")  => (xLen == 32) && usingCryptoNIST
+            case s if s.contains("rv64_zkn")  => (xLen == 64) && usingCryptoNIST
+            // SM
+            case s if s.contains("rv_zksed") => usingCryptoSM
+            case s if s.contains("rv_zksh")  => usingCryptoSM
+            case s if s.contains("rv_zks")   => usingCryptoSM
+            case s if s.contains("rv32_zks") => (xLen == 32) && usingCryptoSM
+            case s if s.contains("rv64_zks") => (xLen == 64) && usingCryptoSM
+            case s if s.contains("rv_zk")    => usingCryptoSM && usingCryptoNIST
+            // NIST && SM
+            case s if s.contains("rv32_zk") => (xLen == 32) && usingCryptoSM && usingCryptoNIST
+            case s if s.contains("rv64_zk") => (xLen == 64) && usingCryptoSM && usingCryptoNIST
+            // T1 Vector
+            case s if s.contains("rv_v") => usingVectorT1
+            // unratified but supported.
+            case s if s.contains("rv_zicond") => usingConditionalZero
+            // custom
+            case s if s.contains("rv_rocket") =>
+              i.name match {
+                case "c.flush.d.l1"   => coreParams.haveCFlush
+                case "c.discard.d.l1" => coreParams.haveCFlush
+                case "cease"          => rocketParams.haveCease
+              }
+            case s if s.contains("rv_rocc") => usingRoCC
+            case _                          => false
+          }
+        }.filter {
+          // special case for rv32 pseudo from rv64
+          case i if i.pseudoFrom.isDefined && Seq("slli", "srli", "srai").contains(i.name) => true
+          case i if i.pseudoFrom.isDefined                                                 => false
+          case _                                                                           => true
+        }.toSeq.distinct,
+        pipelinedMul,
+        tile.dcache.flushOnFenceI
+      )
     )
-    val decoder = new org.chipsalliance.rocketcore.decoder.InstructionDecoder(decoderParameter)
+    /** Decoder instantiated, input from IF, output to ID. */
     val decoderModule = Module(new RawModule {
       override def desiredName: String = "RocketDecoder"
       val instruction = IO(Input(UInt(32.W)))
@@ -413,26 +430,28 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       output := decoder.table.decode(instruction)
     })
 
-    val id_ctrl:  DecodeBundle = WireDefault(decoderModule.output)
-    val ex_ctrl:  DecodeBundle = Reg(decoder.table.bundle)
-    val mem_ctrl: DecodeBundle = Reg(decoder.table.bundle)
-    val wb_ctrl:  DecodeBundle = Reg(decoder.table.bundle)
+    val idDecodeOutput:  DecodeBundle = WireDefault(decoderModule.output)
+    val exDecodeOutput:  DecodeBundle = Reg(decoder.table.bundle)
+    val memDecodeOutput: DecodeBundle = Reg(decoder.table.bundle)
+    val wbDecodeOutput:  DecodeBundle = Reg(decoder.table.bundle)
 
-    val ex_reg_xcpt_interrupt = Reg(Bool())
-    val ex_reg_valid = Reg(Bool())
-    val ex_reg_rvc = Reg(Bool())
-    val ex_reg_btb_resp = Reg(new BTBResp)
-    val ex_reg_xcpt = Reg(Bool())
-    val ex_reg_flush_pipe = Reg(Bool())
-    val ex_reg_load_use = Reg(Bool())
-    val ex_reg_cause = Reg(UInt())
-    val ex_reg_replay = Reg(Bool())
-    val ex_reg_pc = Reg(UInt())
-    val ex_reg_mem_size = Reg(UInt())
-    val ex_reg_hls = Reg(Bool())
-    val ex_reg_inst = Reg(Bits())
-    val ex_reg_raw_inst = Reg(UInt())
-    val ex_reg_wphit = Reg(Vec(nBreakpoints, Bool()))
+    val exRegExceptionInterrupt: Bool = Reg(Bool())
+    val exRegException: Bool = Reg(Bool())
+    val exRegValid: Bool = Reg(Bool())
+    val exRegRVC: Bool = Reg(Bool())
+    val exRegBTBResponse: BTBResp = Reg(new BTBResp)
+    val exRegFlushPipe: Bool = Reg(Bool())
+    val exRegLoadUse: Bool = Reg(Bool())
+    val exRegCause: UInt = Reg(UInt())
+    val exRegReplay: Bool = Reg(Bool())
+    val exRegPC: UInt = Reg(UInt())
+    // TODO: add real width here.
+    val exRegMemSize: UInt = Reg(UInt())
+    val exRegHLS: Bool = Reg(Bool())
+    val exRegInstruction: UInt = Reg(Bits())
+    val exRegRawInstruction: UInt = Reg(UInt())
+    // TODO: what's this?
+    val exRegWphit: Vec[Bool] = Reg(Vec(nBreakpoints, Bool()))
 
     val mem_reg_xcpt_interrupt = Reg(Bool())
     val mem_reg_valid = Reg(Bool())
@@ -501,7 +520,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
 
     val id_load_use = Wire(Bool())
     val id_reg_fence = RegInit(false.B)
-    val id_ren = IndexedSeq(id_ctrl(decoder.rxs1), id_ctrl(decoder.rxs2))
+    val id_ren = IndexedSeq(idDecodeOutput(decoder.rxs1), idDecodeOutput(decoder.rxs2))
     val id_raddr = IndexedSeq(id_raddr1, id_raddr2)
     val rf = new RegFile(regAddrMask, xLen)
     val id_rs = id_raddr.map(rf.read _)
@@ -510,38 +529,58 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
 
     val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls, tile.roccCSRs.flatten))
     // TODO: additional decode out?
-    val id_csr_en = id_ctrl(decoder.csr).isOneOf(CSR.S, CSR.C, CSR.W)
+    val id_csr_en = idDecodeOutput(decoder.csr).isOneOf(CSR.S, CSR.C, CSR.W)
 
-    val id_system_insn = id_ctrl(decoder.csr) === CSR.I
-    val id_csr_ren = id_ctrl(decoder.csr).isOneOf(CSR.S, CSR.C) && id_expanded_inst(0).rs1 === 0.U
-    val id_csr = Mux(id_system_insn && id_ctrl(decoder.mem), CSR.N, Mux(id_csr_ren, CSR.R, id_ctrl(decoder.csr)))
+    val id_system_insn = idDecodeOutput(decoder.csr) === CSR.I
+    val id_csr_ren = idDecodeOutput(decoder.csr).isOneOf(CSR.S, CSR.C) && id_expanded_inst(0).rs1 === 0.U
+    val id_csr =
+      Mux(id_system_insn && idDecodeOutput(decoder.mem), CSR.N, Mux(id_csr_ren, CSR.R, idDecodeOutput(decoder.csr)))
     val id_csr_flush = id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode(0).write_flush)
 
-    val id_illegal_rnum =
-      if (usingCryptoNIST)
-        id_ctrl(decoder.zkn) && aluFn.isKs1(id_ctrl(decoder.abluFn)) && id_inst(0)(23, 20) > 0xa.U(4.W)
-      else false.B
-    val id_illegal_insn = !id_ctrl(decoder.isLegal) ||
-      Option
-        .when(usingMulDiv)(
-          Option.when(pipelinedMul)(id_ctrl(decoder.mul)).getOrElse(false.B) || id_ctrl(decoder.div) && !csr.io.status
-            .isa('m' - 'a')
-        )
-        .getOrElse(false.B) ||
-      id_ctrl(decoder.amo) && !csr.io.status.isa('a' - 'a') ||
-      Option
-        .when(usingFPU)(id_ctrl(decoder.fp) && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm))
-        .getOrElse(false.B) ||
-      Option.when(usingFPU)(id_ctrl(decoder.dp) && !csr.io.status.isa('d' - 'a')).getOrElse(false.B) ||
-      ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c' - 'a') ||
-      id_raddr2_illegal && id_ctrl(decoder.rxs2) ||
-      id_raddr1_illegal && id_ctrl(decoder.rxs1) ||
-      id_waddr_illegal && id_ctrl(decoder.wxd) ||
-      Option.when(usingRoCC)(id_ctrl(decoder.rocc) && csr.io.decode(0).rocc_illegal).getOrElse(false.B) ||
-      id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
-      !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal) ||
-      id_illegal_rnum
-    val id_virtual_insn = id_ctrl(decoder.isLegal) &&
+    val idRfIllegal: Bool =
+      id_raddr2_illegal && idDecodeOutput(decoder.rxs2) ||
+        id_raddr1_illegal && idDecodeOutput(decoder.rxs1) ||
+        id_waddr_illegal && idDecodeOutput(decoder.wxd)
+    val idCsrIllegalRW: Bool =
+      id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal)
+    val idSystemIllegal: Bool = !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal)
+
+    val idAtomicIllegal: Option[Bool] =
+      Option.when(usingAtomics)(idDecodeOutput(decoder.amo) && !csr.io.status.isa('a' - 'a'))
+    val idMulDivIllegal: Option[Bool] =
+      Option.when(usingMulDiv)(
+        Option
+          .when(pipelinedMul)(
+            idDecodeOutput(decoder.mul)
+          )
+          .getOrElse(false.B) ||
+          idDecodeOutput(decoder.div)
+            && !csr.io.status.isa('m' - 'a')
+      )
+    val idCompressIllegal: Option[Bool] =
+      Option.when(usingCompressed)(ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c' - 'a'))
+    val idFpIllegal: Option[Bool] =
+      Option.when(usingFPU)(idDecodeOutput(decoder.fp) && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm))
+    val idDpIllegal: Option[Bool] = Option.when(usingFPU)(idDecodeOutput(decoder.dp) && !csr.io.status.isa('d' - 'a'))
+    val idRoCCIllegal: Option[Bool] =
+      Option.when(usingRoCC)(idDecodeOutput(decoder.rocc) && csr.io.decode(0).rocc_illegal)
+    val idRnumIllegal: Option[Bool] = Option.when(usingCryptoNIST)(
+      idDecodeOutput(decoder.zkn) && aluFn.isKs1(idDecodeOutput(decoder.abluFn)) && id_inst(0)(23, 20) > 0xa.U(4.W)
+    )
+
+    val id_illegal_insn =
+      !idDecodeOutput(decoder.isLegal) ||
+        idRfIllegal ||
+        idCsrIllegalRW ||
+        idSystemIllegal ||
+        idMulDivIllegal.getOrElse(false.B) ||
+        idAtomicIllegal.getOrElse(false.B) ||
+        idFpIllegal.getOrElse(false.B) ||
+        idDpIllegal.getOrElse(false.B) ||
+        idCompressIllegal.getOrElse(false.B) ||
+        idRoCCIllegal.getOrElse(false.B) ||
+        idRnumIllegal.getOrElse(false.B)
+    val id_virtual_insn = idDecodeOutput(decoder.isLegal) &&
       ((id_csr_en && !(!id_csr_ren && csr.io.decode(0).write_illegal) && csr.io.decode(0).virtual_access_illegal) ||
         (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal))
     // stall decode for fences (now, for AMO.rl; later, for AMO.aq and FENCE)
@@ -549,18 +588,20 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     val id_amo_rl = id_inst(0)(25)
     val id_fence_pred = id_inst(0)(27, 24)
     val id_fence_succ = id_inst(0)(23, 20)
-    val id_fence_next = id_ctrl(decoder.fence) || id_ctrl(decoder.amo) && id_amo_aq
+    val id_fence_next = idDecodeOutput(decoder.fence) || idDecodeOutput(decoder.amo) && id_amo_aq
     val id_mem_busy = !io.dmem.ordered || io.dmem.req.valid
     when(!id_mem_busy) { id_reg_fence := false.B }
     val id_rocc_busy = Option.when(usingRoCC)(
-      io.rocc.busy || ex_reg_valid && ex_ctrl(decoder.rocc) ||
-        mem_reg_valid && mem_ctrl(decoder.rocc) || wb_reg_valid && wb_ctrl(decoder.rocc)
+      io.rocc.busy || exRegValid && exDecodeOutput(decoder.rocc) ||
+        mem_reg_valid && memDecodeOutput(decoder.rocc) || wb_reg_valid && wbDecodeOutput(decoder.rocc)
     )
     val id_do_fence = WireDefault(
-      id_rocc_busy.getOrElse(false.B) && id_ctrl(decoder.fence) ||
-        id_mem_busy && (id_ctrl(decoder.amo) && id_amo_rl || id_ctrl(decoder.fenceI) || id_reg_fence && (id_ctrl(
-          decoder.mem
-        ) || Option.when(usingRoCC)(id_ctrl(decoder.rocc)).getOrElse(false.B)))
+      id_rocc_busy.getOrElse(false.B) && idDecodeOutput(decoder.fence) ||
+        id_mem_busy && (idDecodeOutput(decoder.amo) && id_amo_rl || idDecodeOutput(
+          decoder.fenceI
+        ) || id_reg_fence && (idDecodeOutput(decoder.mem) || Option
+          .when(usingRoCC)(idDecodeOutput(decoder.rocc))
+          .getOrElse(false.B)))
     )
 
     val bpu = Module(new BreakpointUnit(nBreakpoints))
@@ -607,14 +648,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       else wb_reg_wdata
 
     // detect bypass opportunities
-    val ex_waddr = ex_reg_inst(11, 7) & regAddrMask.U
+    val ex_waddr = exRegInstruction(11, 7) & regAddrMask.U
     val mem_waddr = mem_reg_inst(11, 7) & regAddrMask.U
     val wb_waddr = wb_reg_inst(11, 7) & regAddrMask.U
     val bypass_sources = IndexedSeq(
       (true.B, 0.U, 0.U), // treat reading x0 as a bypass
-      (ex_reg_valid && ex_ctrl(decoder.wxd), ex_waddr, mem_reg_wdata),
-      (mem_reg_valid && mem_ctrl(decoder.wxd) && !mem_ctrl(decoder.mem), mem_waddr, wb_reg_wdata),
-      (mem_reg_valid && mem_ctrl(decoder.wxd), mem_waddr, dcache_bypass_data)
+      (exRegValid && exDecodeOutput(decoder.wxd), ex_waddr, mem_reg_wdata),
+      (mem_reg_valid && memDecodeOutput(decoder.wxd) && !memDecodeOutput(decoder.mem), mem_waddr, wb_reg_wdata),
+      (mem_reg_valid && memDecodeOutput(decoder.wxd), mem_waddr, dcache_bypass_data)
     )
     val id_bypass_src = id_raddr.map(raddr => bypass_sources.map(s => s._1 && s._2 === raddr))
 
@@ -626,20 +667,21 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     val ex_rs =
       for (i <- 0 until id_raddr.size)
         yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
-    val ex_imm = ImmGen(ex_ctrl(decoder.selImm), ex_reg_inst)
-    val ex_op1 = MuxLookup(ex_ctrl(decoder.selAlu1), 0.S, Seq(A1_RS1 -> ex_rs(0).asSInt, A1_PC -> ex_reg_pc.asSInt))
+    val ex_imm = ImmGen(exDecodeOutput(decoder.selImm), exRegInstruction)
+    val ex_op1 =
+      MuxLookup(exDecodeOutput(decoder.selAlu1), 0.S, Seq(A1_RS1 -> ex_rs(0).asSInt, A1_PC -> exRegPC.asSInt))
     val ex_op2 = MuxLookup(
-      ex_ctrl(decoder.selAlu2),
+      exDecodeOutput(decoder.selAlu2),
       0.S,
-      Seq(A2_RS2 -> ex_rs(1).asSInt, A2_IMM -> ex_imm, A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S))
+      Seq(A2_RS2 -> ex_rs(1).asSInt, A2_IMM -> ex_imm, A2_SIZE -> Mux(exRegRVC, 2.S, 4.S))
     )
 
     val alu = Module(aluFn match {
       case _: ABLUFN => new ABLU
       case _: ALUFN  => new ALU
     })
-    alu.io.dw := ex_ctrl(decoder.aluDoubleWords)
-    alu.io.fn := ex_ctrl(decoder.aluFn)
+    alu.io.dw := exDecodeOutput(decoder.aluDoubleWords)
+    alu.io.fn := exDecodeOutput(decoder.aluFn)
     alu.io.in2 := ex_op2.asUInt
     alu.io.in1 := ex_op1.asUInt
 
@@ -647,8 +689,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       if (!usingBitManipCrypto && !usingBitManip) 0.U
       else {
         val zbk = Module(new BitManipCrypto(xLen))
-        zbk.io.fn := ex_ctrl(decoder.aluFn)
-        zbk.io.dw := ex_ctrl(decoder.aluDoubleWords)
+        zbk.io.fn := exDecodeOutput(decoder.aluFn)
+        zbk.io.dw := exDecodeOutput(decoder.aluDoubleWords)
         zbk.io.rs1 := ex_op1.asUInt
         zbk.io.rs2 := ex_op2.asUInt
         zbk.io.rd
@@ -658,9 +700,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       if (!usingCryptoNIST) 0.U
       else {
         val zkn = Module(new CryptoNIST(xLen))
-        zkn.io.fn := ex_ctrl(decoder.aluFn)
-        zkn.io.hl := ex_reg_inst(27)
-        zkn.io.bs := ex_reg_inst(31, 30)
+        zkn.io.fn := exDecodeOutput(decoder.aluFn)
+        zkn.io.hl := exRegInstruction(27)
+        zkn.io.bs := exRegInstruction(31, 30)
         zkn.io.rs1 := ex_op1.asUInt
         zkn.io.rs2 := ex_op2.asUInt
         zkn.io.rd
@@ -670,8 +712,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       if (!usingCryptoSM) 0.U
       else {
         val zks = Module(new CryptoSM(xLen))
-        zks.io.fn := ex_ctrl(decoder.aluFn)
-        zks.io.bs := ex_reg_inst(31, 30)
+        zks.io.fn := exDecodeOutput(decoder.aluFn)
+        zks.io.bs := exRegInstruction(31, 30)
         zks.io.rs1 := ex_op1.asUInt
         zks.io.rs2 := ex_op2.asUInt
         zks.io.rd
@@ -682,58 +724,62 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     val div = Module(
       new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen, aluFn = aluFn)
     )
-    div.io.req.valid := ex_reg_valid && Option.when(usingMulDiv)(ex_ctrl(decoder.div)).getOrElse(false.B)
-    div.io.req.bits.dw := ex_ctrl(decoder.aluDoubleWords)
-    div.io.req.bits.fn := ex_ctrl(decoder.aluFn)
+    div.io.req.valid := exRegValid && Option.when(usingMulDiv)(exDecodeOutput(decoder.div)).getOrElse(false.B)
+    div.io.req.bits.dw := exDecodeOutput(decoder.aluDoubleWords)
+    div.io.req.bits.fn := exDecodeOutput(decoder.aluFn)
     div.io.req.bits.in1 := ex_rs(0)
     div.io.req.bits.in2 := ex_rs(1)
     div.io.req.bits.tag := ex_waddr
     val mul = pipelinedMul.option {
       val m = Module(new PipelinedMultiplier(xLen, 2, aluFn = aluFn))
-      m.io.req.valid := ex_reg_valid && ex_ctrl(decoder.mul)
+      m.io.req.valid := exRegValid && exDecodeOutput(decoder.mul)
       m.io.req.bits := div.io.req.bits
       m
     }
 
-    ex_reg_valid := !ctrl_killd
-    ex_reg_replay := !take_pc && ibuf.io.inst(0).valid && ibuf.io.inst(0).bits.replay
-    ex_reg_xcpt := !ctrl_killd && id_xcpt
-    ex_reg_xcpt_interrupt := !take_pc && ibuf.io.inst(0).valid && csr.io.interrupt
+    exRegValid := !ctrl_killd
+    exRegReplay := !take_pc && ibuf.io.inst(0).valid && ibuf.io.inst(0).bits.replay
+    exRegException := !ctrl_killd && id_xcpt
+    exRegExceptionInterrupt := !take_pc && ibuf.io.inst(0).valid && csr.io.interrupt
 
     when(!ctrl_killd) {
-      ex_ctrl := id_ctrl
-      ex_reg_rvc := ibuf.io.inst(0).bits.rvc
-      ex_ctrl(decoder.csr) := id_csr
-      when(id_ctrl(decoder.fence) && id_fence_succ === 0.U) { id_reg_pause := true.B }
+      exDecodeOutput := idDecodeOutput
+      exRegRVC := ibuf.io.inst(0).bits.rvc
+      exDecodeOutput(decoder.csr) := id_csr
+      when(idDecodeOutput(decoder.fence) && id_fence_succ === 0.U) { id_reg_pause := true.B }
       when(id_fence_next) { id_reg_fence := true.B }
       when(id_xcpt) { // pass PC down ALU writeback pipeline for badaddr
-        ex_ctrl(decoder.aluFn) := aluFn.FN_ADD
-        ex_ctrl(decoder.aluDoubleWords) := DW_XPR
-        ex_ctrl(decoder.selAlu1) := A1_RS1 // badaddr := instruction
-        ex_ctrl(decoder.selAlu2) := A2_ZERO
+        exDecodeOutput(decoder.aluFn) := aluFn.FN_ADD
+        exDecodeOutput(decoder.aluDoubleWords) := DW_XPR
+        exDecodeOutput(decoder.selAlu1) := A1_RS1 // badaddr := instruction
+        exDecodeOutput(decoder.selAlu2) := A2_ZERO
         when(id_xcpt1.asUInt.orR) { // badaddr := PC+2
-          ex_ctrl(decoder.selAlu1) := A1_PC
-          ex_ctrl(decoder.selAlu2) := A2_SIZE
-          ex_reg_rvc := true.B
+          exDecodeOutput(decoder.selAlu1) := A1_PC
+          exDecodeOutput(decoder.selAlu2) := A2_SIZE
+          exRegRVC := true.B
         }
         when(bpu.io.xcpt_if || id_xcpt0.asUInt.orR) { // badaddr := PC
-          ex_ctrl(decoder.selAlu1) := A1_PC
-          ex_ctrl(decoder.selAlu2) := A2_ZERO
+          exDecodeOutput(decoder.selAlu1) := A1_PC
+          exDecodeOutput(decoder.selAlu2) := A2_ZERO
         }
       }
-      ex_reg_flush_pipe := id_ctrl(decoder.fenceI) || id_csr_flush
-      ex_reg_load_use := id_load_use
-      ex_reg_hls := usingHypervisor.B && id_system_insn && id_ctrl(decoder.memCommand).isOneOf(M_XRD, M_XWR, M_HLVX)
-      ex_reg_mem_size := Mux(usingHypervisor.B && id_system_insn, id_inst(0)(27, 26), id_inst(0)(13, 12))
-      when(id_ctrl(decoder.memCommand).isOneOf(M_SFENCE, M_HFENCEV, M_HFENCEG, M_FLUSH_ALL)) {
-        ex_reg_mem_size := Cat(id_raddr2 =/= 0.U, id_raddr1 =/= 0.U)
+      exRegFlushPipe := idDecodeOutput(decoder.fenceI) || id_csr_flush
+      exRegLoadUse := id_load_use
+      exRegHLS := usingHypervisor.B && id_system_insn && idDecodeOutput(decoder.memCommand).isOneOf(
+        M_XRD,
+        M_XWR,
+        M_HLVX
+      )
+      exRegMemSize := Mux(usingHypervisor.B && id_system_insn, id_inst(0)(27, 26), id_inst(0)(13, 12))
+      when(idDecodeOutput(decoder.memCommand).isOneOf(M_SFENCE, M_HFENCEV, M_HFENCEG, M_FLUSH_ALL)) {
+        exRegMemSize := Cat(id_raddr2 =/= 0.U, id_raddr1 =/= 0.U)
       }
-      when(id_ctrl(decoder.memCommand) === M_SFENCE && csr.io.status.v) {
-        ex_ctrl(decoder.memCommand) := M_HFENCEV
+      when(idDecodeOutput(decoder.memCommand) === M_SFENCE && csr.io.status.v) {
+        exDecodeOutput(decoder.memCommand) := M_HFENCEV
       }
       if (tile.dcache.flushOnFenceI) {
-        when(id_ctrl(decoder.fenceI)) {
-          ex_reg_mem_size := 0.U
+        when(idDecodeOutput(decoder.fenceI)) {
+          exRegMemSize := 0.U
         }
       }
 
@@ -755,29 +801,30 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       }
     }
     when(!ctrl_killd || csr.io.interrupt || ibuf.io.inst(0).bits.replay) {
-      ex_reg_cause := id_cause
-      ex_reg_inst := id_inst(0)
-      ex_reg_raw_inst := id_raw_inst(0)
-      ex_reg_pc := ibuf.io.pc
-      ex_reg_btb_resp := ibuf.io.btb_resp
-      ex_reg_wphit := bpu.io.bpwatch.map { bpw => bpw.ivalid(0) }
+      exRegCause := id_cause
+      exRegInstruction := id_inst(0)
+      exRegRawInstruction := id_raw_inst(0)
+      exRegPC := ibuf.io.pc
+      exRegBTBResponse := ibuf.io.btb_resp
+      exRegWphit := bpu.io.bpwatch.map { bpw => bpw.ivalid(0) }
     }
 
     // replay inst in ex stage?
-    val ex_pc_valid = ex_reg_valid || ex_reg_replay || ex_reg_xcpt_interrupt
-    val wb_dcache_miss = wb_ctrl(decoder.mem) && !io.dmem.resp.valid
-    val replay_ex_structural = ex_ctrl(decoder.mem) && !io.dmem.req.ready ||
-      Option.when(usingMulDiv)(ex_ctrl(decoder.div)).getOrElse(false.B) && !div.io.req.ready
-    val replay_ex_load_use = wb_dcache_miss && ex_reg_load_use
-    val replay_ex = ex_reg_replay || (ex_reg_valid && (replay_ex_structural || replay_ex_load_use))
-    val ctrl_killx = take_pc_mem_wb || replay_ex || !ex_reg_valid
+    val ex_pc_valid = exRegValid || exRegReplay || exRegExceptionInterrupt
+    val wb_dcache_miss = wbDecodeOutput(decoder.mem) && !io.dmem.resp.valid
+    val replay_ex_structural = exDecodeOutput(decoder.mem) && !io.dmem.req.ready ||
+      Option.when(usingMulDiv)(exDecodeOutput(decoder.div)).getOrElse(false.B) && !div.io.req.ready
+    val replay_ex_load_use = wb_dcache_miss && exRegLoadUse
+    val replay_ex = exRegReplay || (exRegValid && (replay_ex_structural || replay_ex_load_use))
+    val ctrl_killx = take_pc_mem_wb || replay_ex || !exRegValid
     // detect 2-cycle load-use delay for LB/LH/SC
-    val ex_slow_bypass = ex_ctrl(decoder.memCommand) === M_XSC || ex_reg_mem_size < 2.U
-    val ex_sfence = usingVM.B && ex_ctrl(decoder.mem) && (ex_ctrl(decoder.memCommand) === M_SFENCE || ex_ctrl(
-      decoder.memCommand
-    ) === M_HFENCEV || ex_ctrl(decoder.memCommand) === M_HFENCEG)
+    val ex_slow_bypass = exDecodeOutput(decoder.memCommand) === M_XSC || exRegMemSize < 2.U
+    val ex_sfence =
+      usingVM.B && exDecodeOutput(decoder.mem) && (exDecodeOutput(decoder.memCommand) === M_SFENCE || exDecodeOutput(
+        decoder.memCommand
+      ) === M_HFENCEV || exDecodeOutput(decoder.memCommand) === M_HFENCEG)
 
-    val (ex_xcpt, ex_cause) = checkExceptions(List((ex_reg_xcpt_interrupt || ex_reg_xcpt, ex_reg_cause)))
+    val (ex_xcpt, ex_cause) = checkExceptions(List((exRegExceptionInterrupt || exRegException, exRegCause)))
 
     val exCoverCauses = idCoverCauses
     coverExceptions(ex_xcpt, ex_cause, "EXECUTE", exCoverCauses)
@@ -786,67 +833,74 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     val mem_pc_valid = mem_reg_valid || mem_reg_replay || mem_reg_xcpt_interrupt
     val mem_br_target = mem_reg_pc.asSInt +
       Mux(
-        mem_ctrl(decoder.isBranch) && mem_br_taken,
+        memDecodeOutput(decoder.isBranch) && mem_br_taken,
         ImmGen(IMM_SB, mem_reg_inst),
-        Mux(mem_ctrl(decoder.isJal), ImmGen(IMM_UJ, mem_reg_inst), Mux(mem_reg_rvc, 2.S, 4.S))
+        Mux(memDecodeOutput(decoder.isJal), ImmGen(IMM_UJ, mem_reg_inst), Mux(mem_reg_rvc, 2.S, 4.S))
       )
     val mem_npc = (Mux(
-      mem_ctrl(decoder.isJalr) || mem_reg_sfence,
+      memDecodeOutput(decoder.isJalr) || mem_reg_sfence,
       encodeVirtualAddress(mem_reg_wdata, mem_reg_wdata).asSInt,
       mem_br_target
     ) & (-2).S).asUInt
     val mem_wrong_npc =
       Mux(
         ex_pc_valid,
-        mem_npc =/= ex_reg_pc,
+        mem_npc =/= exRegPC,
         Mux(ibuf.io.inst(0).valid || ibuf.io.imem.valid, mem_npc =/= ibuf.io.pc, true.B)
       )
     val mem_npc_misaligned = !csr.io.status.isa('c' - 'a') && mem_npc(1) && !mem_reg_sfence
-    val mem_int_wdata =
-      Mux(!mem_reg_xcpt && (mem_ctrl(decoder.isJalr) ^ mem_npc_misaligned), mem_br_target, mem_reg_wdata.asSInt).asUInt
-    val mem_cfi = mem_ctrl(decoder.isBranch) || mem_ctrl(decoder.isJalr) || mem_ctrl(decoder.isJal)
+    val mem_int_wdata = Mux(
+      !mem_reg_xcpt && (memDecodeOutput(decoder.isJalr) ^ mem_npc_misaligned),
+      mem_br_target,
+      mem_reg_wdata.asSInt
+    ).asUInt
+    val mem_cfi = memDecodeOutput(decoder.isBranch) || memDecodeOutput(decoder.isJalr) || memDecodeOutput(decoder.isJal)
     val mem_cfi_taken =
-      (mem_ctrl(decoder.isBranch) && mem_br_taken) || mem_ctrl(decoder.isJalr) || mem_ctrl(decoder.isJal)
+      (memDecodeOutput(decoder.isBranch) && mem_br_taken) || memDecodeOutput(decoder.isJalr) || memDecodeOutput(
+        decoder.isJal
+      )
     val mem_direction_misprediction =
-      mem_ctrl(decoder.isBranch) && mem_br_taken =/= (usingBTB.B && mem_reg_btb_resp.taken)
+      memDecodeOutput(decoder.isBranch) && mem_br_taken =/= (usingBTB.B && mem_reg_btb_resp.taken)
     val mem_misprediction = if (usingBTB) mem_wrong_npc else mem_cfi_taken
     take_pc_mem := mem_reg_valid && !mem_reg_xcpt && (mem_misprediction || mem_reg_sfence)
 
     mem_reg_valid := !ctrl_killx
     mem_reg_replay := !take_pc_mem_wb && replay_ex
     mem_reg_xcpt := !ctrl_killx && ex_xcpt
-    mem_reg_xcpt_interrupt := !take_pc_mem_wb && ex_reg_xcpt_interrupt
+    mem_reg_xcpt_interrupt := !take_pc_mem_wb && exRegExceptionInterrupt
 
     // on pipeline flushes, cause mem_npc to hold the sequential npc, which
     // will drive the W-stage npc mux
     when(mem_reg_valid && mem_reg_flush_pipe) {
       mem_reg_sfence := false.B
     }.elsewhen(ex_pc_valid) {
-      mem_ctrl := ex_ctrl
-      mem_reg_rvc := ex_reg_rvc
-      mem_reg_load := ex_ctrl(decoder.mem) && isRead(ex_ctrl(decoder.memCommand))
-      mem_reg_store := ex_ctrl(decoder.mem) && isWrite(ex_ctrl(decoder.memCommand))
+      memDecodeOutput := exDecodeOutput
+      mem_reg_rvc := exRegRVC
+      mem_reg_load := exDecodeOutput(decoder.mem) && isRead(exDecodeOutput(decoder.memCommand))
+      mem_reg_store := exDecodeOutput(decoder.mem) && isWrite(exDecodeOutput(decoder.memCommand))
       mem_reg_sfence := ex_sfence
-      mem_reg_btb_resp := ex_reg_btb_resp
-      mem_reg_flush_pipe := ex_reg_flush_pipe
+      mem_reg_btb_resp := exRegBTBResponse
+      mem_reg_flush_pipe := exRegFlushPipe
       mem_reg_slow_bypass := ex_slow_bypass
-      mem_reg_wphit := ex_reg_wphit
+      mem_reg_wphit := exRegWphit
 
       mem_reg_cause := ex_cause
-      mem_reg_inst := ex_reg_inst
-      mem_reg_raw_inst := ex_reg_raw_inst
-      mem_reg_mem_size := ex_reg_mem_size
+      mem_reg_inst := exRegInstruction
+      mem_reg_raw_inst := exRegRawInstruction
+      mem_reg_mem_size := exRegMemSize
       mem_reg_hls_or_dv := io.dmem.req.bits.dv
-      mem_reg_pc := ex_reg_pc
+      mem_reg_pc := exRegPC
       // IDecode ensured they are 1H
       mem_reg_wdata := {
         if (usingABLU)
           Mux1H(
             Seq(
-              ex_ctrl(decoder.zbk) -> ex_zbk_wdata,
-              ex_ctrl(decoder.zkn) -> ex_zkn_wdata,
-              ex_ctrl(decoder.zks) -> ex_zks_wdata,
-              (!ex_ctrl(decoder.zbk) && !ex_ctrl(decoder.zkn) && !ex_ctrl(decoder.zks)) -> alu.io.out
+              exDecodeOutput(decoder.zbk) -> ex_zbk_wdata,
+              exDecodeOutput(decoder.zkn) -> ex_zkn_wdata,
+              exDecodeOutput(decoder.zks) -> ex_zks_wdata,
+              (!exDecodeOutput(decoder.zbk) && !exDecodeOutput(decoder.zkn) && !exDecodeOutput(
+                decoder.zks
+              )) -> alu.io.out
             )
           )
         else alu.io.out
@@ -854,20 +908,20 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       mem_br_taken := alu.io.cmp_out
 
       when(
-        ex_ctrl(decoder.rxs2) && (ex_ctrl(decoder.mem) || Option
-          .when(usingRoCC)(ex_ctrl(decoder.rocc))
+        exDecodeOutput(decoder.rxs2) && (exDecodeOutput(decoder.mem) || Option
+          .when(usingRoCC)(exDecodeOutput(decoder.rocc))
           .getOrElse(false.B) || ex_sfence)
       ) {
         val size = if (usingRoCC) {
-          Mux(ex_ctrl(decoder.rocc), log2Ceil(xLen / 8).U, ex_reg_mem_size)
+          Mux(exDecodeOutput(decoder.rocc), log2Ceil(xLen / 8).U, exRegMemSize)
         } else {
-          ex_reg_mem_size
+          exRegMemSize
         }
         mem_reg_rs2 := new StoreGen(size, 0.U, ex_rs(1), coreDataBytes).data
       }
-      when(ex_ctrl(decoder.isJalr) && csr.io.status.debug) {
+      when(exDecodeOutput(decoder.isJalr) && csr.io.status.debug) {
         // flush I$ on D-mode JALR to effect uncached fetch without D$ flush
-        mem_ctrl(decoder.fenceI) := true.B
+        memDecodeOutput(decoder.fenceI) := true.B
         mem_reg_flush_pipe := true.B
       }
     }
@@ -894,8 +948,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     coverExceptions(mem_xcpt, mem_cause, "MEMORY", memCoverCauses)
 
     val dcache_kill_mem =
-      mem_reg_valid && mem_ctrl(decoder.wxd) && io.dmem.replay_next // structural hazard on writeback port
-    val fpu_kill_mem = Option.when(usingFPU)(mem_reg_valid && mem_ctrl(decoder.fp) && io.fpu.nack_mem)
+      mem_reg_valid && memDecodeOutput(decoder.wxd) && io.dmem.replay_next // structural hazard on writeback port
+    val fpu_kill_mem = Option.when(usingFPU)(mem_reg_valid && memDecodeOutput(decoder.fp) && io.fpu.nack_mem)
     val replay_mem = dcache_kill_mem || mem_reg_replay || fpu_kill_mem.getOrElse(false.B)
     val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
     div.io.kill := killm_common && RegNext(div.io.req.fire)
@@ -907,14 +961,18 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     wb_reg_xcpt := mem_xcpt && !take_pc_wb
     wb_reg_flush_pipe := !ctrl_killm && mem_reg_flush_pipe
     when(mem_pc_valid) {
-      wb_ctrl := mem_ctrl
+      wbDecodeOutput := memDecodeOutput
       wb_reg_sfence := mem_reg_sfence
       wb_reg_wdata := {
         if (usingFPU)
-          Mux(!mem_reg_xcpt && mem_ctrl(decoder.fp) && mem_ctrl(decoder.wxd), io.fpu.toint_data, mem_int_wdata)
+          Mux(
+            !mem_reg_xcpt && memDecodeOutput(decoder.fp) && memDecodeOutput(decoder.wxd),
+            io.fpu.toint_data,
+            mem_int_wdata
+          )
         else mem_int_wdata
       }
-      when(Option.when(usingRoCC)(mem_ctrl(decoder.rocc)).getOrElse(false.B) || mem_reg_sfence) {
+      when(Option.when(usingRoCC)(memDecodeOutput(decoder.rocc)).getOrElse(false.B) || mem_reg_sfence) {
         wb_reg_rs2 := mem_reg_rs2
       }
       wb_reg_cause := mem_cause
@@ -922,8 +980,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       wb_reg_raw_inst := mem_reg_raw_inst
       wb_reg_mem_size := mem_reg_mem_size
       wb_reg_hls_or_dv := mem_reg_hls_or_dv
-      wb_reg_hfence_v := mem_ctrl(decoder.memCommand) === M_HFENCEV
-      wb_reg_hfence_g := mem_ctrl(decoder.memCommand) === M_HFENCEG
+      wb_reg_hfence_v := memDecodeOutput(decoder.memCommand) === M_HFENCEV
+      wb_reg_hfence_g := memDecodeOutput(decoder.memCommand) === M_HFENCEG
       wb_reg_pc := mem_reg_pc
       wb_reg_wphit := mem_reg_wphit | bpu.io.bpwatch.map { bpw =>
         (bpw.rvalid(0) && mem_reg_load) || (bpw.wvalid(0) && mem_reg_store)
@@ -934,14 +992,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     val (wb_xcpt, wb_cause) = checkExceptions(
       List(
         (wb_reg_xcpt, wb_reg_cause),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.pf.st, Causes.store_page_fault.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.pf.ld, Causes.load_page_fault.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.gf.st, Causes.store_guest_page_fault.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.gf.ld, Causes.load_guest_page_fault.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.ae.st, Causes.store_access.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.ae.ld, Causes.load_access.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.ma.st, Causes.misaligned_store.U),
-        (wb_reg_valid && wb_ctrl(decoder.mem) && io.dmem.s2_xcpt.ma.ld, Causes.misaligned_load.U)
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.pf.st, Causes.store_page_fault.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.pf.ld, Causes.load_page_fault.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.gf.st, Causes.store_guest_page_fault.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.gf.ld, Causes.load_guest_page_fault.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.ae.st, Causes.store_access.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.ae.ld, Causes.load_access.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.ma.st, Causes.misaligned_store.U),
+        (wb_reg_valid && wbDecodeOutput(decoder.mem) && io.dmem.s2_xcpt.ma.ld, Causes.misaligned_load.U)
       )
     )
 
@@ -964,12 +1022,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     coverExceptions(wb_xcpt, wb_cause, "WRITEBACK", wbCoverCauses)
 
     val wb_pc_valid = wb_reg_valid || wb_reg_replay || wb_reg_xcpt
-    val wb_wxd = wb_reg_valid && wb_ctrl(decoder.wxd)
-    val wb_set_sboard = Option.when(usingMulDiv)(wb_ctrl(decoder.div)).getOrElse(false.B) || wb_dcache_miss || Option
-      .when(usingRoCC)(wb_ctrl(decoder.rocc))
-      .getOrElse(false.B) || Option.when(usingVectorT1)(wb_ctrl(decoder.isVector)).getOrElse(false.B)
+    val wb_wxd = wb_reg_valid && wbDecodeOutput(decoder.wxd)
+    val wb_set_sboard =
+      Option.when(usingMulDiv)(wbDecodeOutput(decoder.div)).getOrElse(false.B) || wb_dcache_miss || Option
+        .when(usingRoCC)(wbDecodeOutput(decoder.rocc))
+        .getOrElse(false.B) || Option.when(usingVectorT1)(wbDecodeOutput(decoder.isVector)).getOrElse(false.B)
     val replay_wb_common = io.dmem.s2_nack || wb_reg_replay
-    val replay_wb_rocc = Option.when(usingRoCC)(wb_reg_valid && wb_ctrl(decoder.rocc) && !io.rocc.cmd.ready)
+    val replay_wb_rocc = Option.when(usingRoCC)(wb_reg_valid && wbDecodeOutput(decoder.rocc) && !io.rocc.cmd.ready)
     val replay_wb_csr: Bool = wb_reg_valid && csr.io.rw_stall
     val replay_wb = replay_wb_common || replay_wb_rocc.getOrElse(false.B) || replay_wb_csr
     take_pc_wb := replay_wb || wb_xcpt || csr.io.eret || wb_reg_flush_pipe
@@ -1010,7 +1069,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     }
 
     val wb_valid = wb_reg_valid && !replay_wb && !wb_xcpt
-    val wb_wen = wb_valid && wb_ctrl(decoder.wxd)
+    val wb_wen = wb_valid && wbDecodeOutput(decoder.wxd)
     val rf_wen = wb_wen || ll_wen
     val rf_waddr = Mux(ll_wen, ll_waddr, wb_waddr)
     val rf_wdata = Mux(
@@ -1020,10 +1079,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
         ll_wen,
         ll_wdata,
         Mux(
-          wb_ctrl(decoder.csr) =/= CSR.N,
+          wbDecodeOutput(decoder.csr) =/= CSR.N,
           csr.io.rw.rdata,
           Mux(
-            Option.when(usingMulDiv && pipelinedMul)(wb_ctrl(decoder.mul)).getOrElse(false.B),
+            Option.when(usingMulDiv && pipelinedMul)(wbDecodeOutput(decoder.mul)).getOrElse(false.B),
             mul.map(_.io.resp.bits.data).getOrElse(wb_reg_wdata),
             wb_reg_wdata
           )
@@ -1081,7 +1140,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     io.ptw.gstatus := csr.io.gstatus
     io.ptw.pmp := csr.io.pmp
     csr.io.rw.addr := wb_reg_inst(31, 20)
-    csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wb_ctrl(decoder.csr))
+    csr.io.rw.cmd := CSR.maskCmd(wb_reg_valid, wbDecodeOutput(decoder.csr))
     csr.io.rw.wdata := wb_reg_wdata
     io.rocc.csrs <> csr.io.roccCSRs
     io.trace.time := csr.io.time
@@ -1095,10 +1154,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
         io.hartid,
         csr_trace_with_wdata,
         Option
-          .when(usingFPU)(wb_ctrl(decoder.wfd) || (wb_ctrl(decoder.wxd) && wb_waddr =/= 0.U))
+          .when(usingFPU)(wbDecodeOutput(decoder.wfd) || (wbDecodeOutput(decoder.wxd) && wb_waddr =/= 0.U))
           .getOrElse(false.B) && !csr.io.trace(0).exception,
-        wb_ctrl(decoder.wxd) && wb_wen && !wb_set_sboard,
-        wb_waddr + Mux(Option.when(usingFPU)(wb_ctrl(decoder.wfd)).getOrElse(false.B), 32.U, 0.U)
+        wbDecodeOutput(decoder.wxd) && wb_wen && !wb_set_sboard,
+        wb_waddr + Mux(Option.when(usingFPU)(wbDecodeOutput(decoder.wfd)).getOrElse(false.B), 32.U, 0.U)
       )
 
       io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
@@ -1117,9 +1176,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     }
 
     val hazard_targets = Seq(
-      (id_ctrl(decoder.rxs1) && id_raddr1 =/= 0.U, id_raddr1),
-      (id_ctrl(decoder.rxs2) && id_raddr2 =/= 0.U, id_raddr2),
-      (id_ctrl(decoder.wxd) && id_waddr =/= 0.U, id_waddr)
+      (idDecodeOutput(decoder.rxs1) && id_raddr1 =/= 0.U, id_raddr1),
+      (idDecodeOutput(decoder.rxs2) && id_raddr2 =/= 0.U, id_raddr2),
+      (idDecodeOutput(decoder.wxd) && id_waddr =/= 0.U, id_waddr)
     )
     val fp_hazard_targets = Seq(
       (io.fpu.dec.ren1, id_raddr1),
@@ -1139,43 +1198,48 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     sboard.set(wb_set_sboard && wb_wen, wb_waddr)
 
     // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
-    val ex_cannot_bypass = ex_ctrl(decoder.csr) =/= CSR.N || ex_ctrl(decoder.isJalr) || ex_ctrl(decoder.mem) || Option
-      .when(usingMulDiv && pipelinedMul)(ex_ctrl(decoder.mul))
-      .getOrElse(false.B) || Option.when(usingMulDiv)(ex_ctrl(decoder.div)).getOrElse(false.B) || Option
-      .when(usingFPU)(ex_ctrl(decoder.fp))
-      .getOrElse(false.B) || Option.when(usingRoCC)(ex_ctrl(decoder.rocc)).getOrElse(false.B)
-    val data_hazard_ex = ex_ctrl(decoder.wxd) && checkHazards(hazard_targets, _ === ex_waddr)
+    val ex_cannot_bypass = exDecodeOutput(decoder.csr) =/= CSR.N || exDecodeOutput(decoder.isJalr) || exDecodeOutput(
+      decoder.mem
+    ) || Option.when(usingMulDiv && pipelinedMul)(exDecodeOutput(decoder.mul)).getOrElse(false.B) || Option
+      .when(usingMulDiv)(exDecodeOutput(decoder.div))
+      .getOrElse(false.B) || Option.when(usingFPU)(exDecodeOutput(decoder.fp)).getOrElse(false.B) || Option
+      .when(usingRoCC)(exDecodeOutput(decoder.rocc))
+      .getOrElse(false.B)
+    val data_hazard_ex = exDecodeOutput(decoder.wxd) && checkHazards(hazard_targets, _ === ex_waddr)
     val fp_data_hazard_ex = Option.when(usingFPU)(
-      id_ctrl(decoder.fp) && ex_ctrl(decoder.wfd) && checkHazards(fp_hazard_targets, _ === ex_waddr)
+      idDecodeOutput(decoder.fp) && exDecodeOutput(decoder.wfd) && checkHazards(fp_hazard_targets, _ === ex_waddr)
     )
-    val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex.getOrElse(false.B))
+    val id_ex_hazard = exRegValid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex.getOrElse(false.B))
 
     // stall for RAW/WAW hazards on CSRs, LB/LH, and mul/div in memory stage.
     val mem_mem_cmd_bh =
       if (fastLoadWord) (!fastLoadByte).B && mem_reg_slow_bypass
       else true.B
-    val mem_cannot_bypass = mem_ctrl(decoder.csr) =/= CSR.N || mem_ctrl(decoder.mem) && mem_mem_cmd_bh || Option
-      .when(usingMulDiv && pipelinedMul)(mem_ctrl(decoder.mul))
-      .getOrElse(false.B) || Option.when(usingMulDiv)(mem_ctrl(decoder.div)).getOrElse(false.B) || Option
-      .when(usingFPU)(mem_ctrl(decoder.fp))
-      .getOrElse(false.B) || Option.when(usingRoCC)(mem_ctrl(decoder.rocc)).getOrElse(false.B)
-    val data_hazard_mem = mem_ctrl(decoder.wxd) && checkHazards(hazard_targets, _ === mem_waddr)
+    val mem_cannot_bypass =
+      memDecodeOutput(decoder.csr) =/= CSR.N || memDecodeOutput(decoder.mem) && mem_mem_cmd_bh || Option
+        .when(usingMulDiv && pipelinedMul)(memDecodeOutput(decoder.mul))
+        .getOrElse(false.B) || Option.when(usingMulDiv)(memDecodeOutput(decoder.div)).getOrElse(false.B) || Option
+        .when(usingFPU)(memDecodeOutput(decoder.fp))
+        .getOrElse(false.B) || Option.when(usingRoCC)(memDecodeOutput(decoder.rocc)).getOrElse(false.B)
+    val data_hazard_mem = memDecodeOutput(decoder.wxd) && checkHazards(hazard_targets, _ === mem_waddr)
     val fp_data_hazard_mem = Option.when(usingFPU)(
-      id_ctrl(decoder.fp) && mem_ctrl(decoder.wfd) && checkHazards(fp_hazard_targets, _ === mem_waddr)
+      idDecodeOutput(decoder.fp) && memDecodeOutput(decoder.wfd) && checkHazards(fp_hazard_targets, _ === mem_waddr)
     )
     val id_mem_hazard = mem_reg_valid && (data_hazard_mem && mem_cannot_bypass || fp_data_hazard_mem.getOrElse(false.B))
-    id_load_use := mem_reg_valid && data_hazard_mem && mem_ctrl(decoder.mem)
+    id_load_use := mem_reg_valid && data_hazard_mem && memDecodeOutput(decoder.mem)
 
     // stall for RAW/WAW hazards on load/AMO misses and mul/div in writeback.
-    val data_hazard_wb = wb_ctrl(decoder.wxd) && checkHazards(hazard_targets, _ === wb_waddr)
+    val data_hazard_wb = wbDecodeOutput(decoder.wxd) && checkHazards(hazard_targets, _ === wb_waddr)
     val fp_data_hazard_wb = Option
-      .when(usingFPU)(id_ctrl(decoder.fp) && wb_ctrl(decoder.wfd) && checkHazards(fp_hazard_targets, _ === wb_waddr))
+      .when(usingFPU)(
+        idDecodeOutput(decoder.fp) && wbDecodeOutput(decoder.wfd) && checkHazards(fp_hazard_targets, _ === wb_waddr)
+      )
       .getOrElse(false.B)
     val id_wb_hazard = wb_reg_valid && (data_hazard_wb && wb_set_sboard || fp_data_hazard_wb)
 
     val id_stall_fpu = if (usingFPU) {
       val fp_sboard = new Scoreboard(32)
-      fp_sboard.set((wb_dcache_miss && wb_ctrl(decoder.wfd) || io.fpu.sboard_set) && wb_valid, wb_waddr)
+      fp_sboard.set((wb_dcache_miss && wbDecodeOutput(decoder.wfd) || io.fpu.sboard_set) && wb_valid, wb_waddr)
       fp_sboard.clear(dmem_resp_replay && dmem_resp_fpu, dmem_resp_waddr)
       fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
@@ -1193,16 +1257,16 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
 
     val ctrl_stalld =
       id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
-        csr.io.singleStep && (ex_reg_valid || mem_reg_valid || wb_reg_valid) ||
+        csr.io.singleStep && (exRegValid || mem_reg_valid || wb_reg_valid) ||
         id_csr_en && csr.io.decode(0).fp_csr && !io.fpu.fcsr_rdy ||
-        Option.when(usingFPU)(id_ctrl(decoder.fp) && id_stall_fpu).getOrElse(false.B) ||
-        id_ctrl(decoder.mem) && dcache_blocked || // reduce activity during D$ misses
+        Option.when(usingFPU)(idDecodeOutput(decoder.fp) && id_stall_fpu).getOrElse(false.B) ||
+        idDecodeOutput(decoder.mem) && dcache_blocked || // reduce activity during D$ misses
         Option
-          .when(usingRoCC)(id_ctrl(decoder.rocc) && rocc_blocked.get)
+          .when(usingRoCC)(idDecodeOutput(decoder.rocc) && rocc_blocked.get)
           .getOrElse(false.B) || // reduce activity while RoCC is busy
         Option
           .when(usingMulDiv)(
-            id_ctrl(decoder.div) && (!(div.io.req.ready || (div.io.resp.valid && !wb_wxd)) || div.io.req.valid)
+            idDecodeOutput(decoder.div) && (!(div.io.req.ready || (div.io.resp.valid && !wb_wxd)) || div.io.req.valid)
           )
           .getOrElse(false.B) || // reduce odds of replay
         !clock_en ||
@@ -1226,7 +1290,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
           mem_npc
         )
       ) // flush or branch misprediction
-    io.imem.flush_icache := wb_reg_valid && wb_ctrl(decoder.fenceI) && !io.dmem.s2_nack
+    io.imem.flush_icache := wb_reg_valid && wbDecodeOutput(decoder.fenceI) && !io.dmem.s2_nack
     io.imem.might_request := {
       imem_might_request_reg := ex_pc_valid || mem_pc_valid || io.ptw.customCSRs.disableICacheClockGate
       imem_might_request_reg
@@ -1247,12 +1311,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     io.imem.btb_update.bits.isValid := mem_cfi
     io.imem.btb_update.bits.cfiType :=
       Mux(
-        (mem_ctrl(decoder.isJal) || mem_ctrl(decoder.isJalr)) && mem_waddr(0),
+        (memDecodeOutput(decoder.isJal) || memDecodeOutput(decoder.isJalr)) && mem_waddr(0),
         CFIType.call,
         Mux(
-          mem_ctrl(decoder.isJalr) && (mem_reg_inst(19, 15) & regAddrMask.U) === BitPat("b00?01"),
+          memDecodeOutput(decoder.isJalr) && (mem_reg_inst(19, 15) & regAddrMask.U) === BitPat("b00?01"),
           CFIType.ret,
-          Mux(mem_ctrl(decoder.isJal) || mem_ctrl(decoder.isJalr), CFIType.jump, CFIType.branch)
+          Mux(memDecodeOutput(decoder.isJal) || memDecodeOutput(decoder.isJalr), CFIType.jump, CFIType.branch)
         )
       )
     io.imem.btb_update.bits.target := io.imem.req.bits.pc
@@ -1265,14 +1329,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     io.imem.bht_update.bits.pc := io.imem.btb_update.bits.pc
     io.imem.bht_update.bits.taken := mem_br_taken
     io.imem.bht_update.bits.mispredict := mem_wrong_npc
-    io.imem.bht_update.bits.branch := mem_ctrl(decoder.isBranch)
+    io.imem.bht_update.bits.branch := memDecodeOutput(decoder.isBranch)
     io.imem.bht_update.bits.prediction := mem_reg_btb_resp.bht
 
     // Connect RAS in Frontend
     io.imem.ras_update := DontCare
 
     if (usingFPU) {
-      io.fpu.valid := !ctrl_killd && id_ctrl(decoder.fp)
+      io.fpu.valid := !ctrl_killd && idDecodeOutput(decoder.fp)
       io.fpu.killx := ctrl_killx
       io.fpu.killm := killm_common
       io.fpu.inst := id_inst(0)
@@ -1295,35 +1359,35 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       io.fpu.keep_clock_enabled := DontCare
     }
 
-    io.dmem.req.valid := ex_reg_valid && ex_ctrl(decoder.mem)
-    val ex_dcache_tag = Cat(ex_waddr, Option.when(usingFPU)(ex_ctrl(decoder.fp)).getOrElse(false.B))
+    io.dmem.req.valid := exRegValid && exDecodeOutput(decoder.mem)
+    val ex_dcache_tag = Cat(ex_waddr, Option.when(usingFPU)(exDecodeOutput(decoder.fp)).getOrElse(false.B))
     require(coreParams.dcacheReqTagBits >= ex_dcache_tag.getWidth)
     io.dmem.req.bits.tag := ex_dcache_tag
-    io.dmem.req.bits.cmd := ex_ctrl(decoder.memCommand)
-    io.dmem.req.bits.size := ex_reg_mem_size
-    io.dmem.req.bits.signed := !Mux(ex_reg_hls, ex_reg_inst(20), ex_reg_inst(14))
+    io.dmem.req.bits.cmd := exDecodeOutput(decoder.memCommand)
+    io.dmem.req.bits.size := exRegMemSize
+    io.dmem.req.bits.signed := !Mux(exRegHLS, exRegInstruction(20), exRegInstruction(14))
     io.dmem.req.bits.phys := false.B
     io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
     io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
-    io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
-    io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv
+    io.dmem.req.bits.dprv := Mux(exRegHLS, csr.io.hstatus.spvp, csr.io.status.dprv)
+    io.dmem.req.bits.dv := exRegHLS || csr.io.status.dv
     io.dmem.req.bits.no_alloc := DontCare
     io.dmem.req.bits.no_xcpt := DontCare
     io.dmem.req.bits.data := DontCare
     io.dmem.req.bits.mask := DontCare
 
     io.dmem.s1_data.data := Option
-      .when(usingFPU)(Mux(mem_ctrl(decoder.fp), Fill((xLen.max(fLen)) / fLen, io.fpu.store_data), mem_reg_rs2))
+      .when(usingFPU)(Mux(memDecodeOutput(decoder.fp), Fill((xLen.max(fLen)) / fLen, io.fpu.store_data), mem_reg_rs2))
       .getOrElse(mem_reg_rs2)
     io.dmem.s1_data.mask := DontCare
 
     io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem.getOrElse(false.B)
     io.dmem.s2_kill := false.B
     // don't let D$ go to sleep if we're probably going to use it soon
-    io.dmem.keep_clock_enabled := ibuf.io.inst(0).valid && id_ctrl(decoder.mem) && !csr.io.csr_stall
+    io.dmem.keep_clock_enabled := ibuf.io.inst(0).valid && idDecodeOutput(decoder.mem) && !csr.io.csr_stall
 
     if (usingRoCC) {
-      io.rocc.cmd.valid := wb_reg_valid && wb_ctrl(decoder.rocc) && !replay_wb_common
+      io.rocc.cmd.valid := wb_reg_valid && wbDecodeOutput(decoder.rocc) && !replay_wb_common
       io.rocc.exception := wb_xcpt && csr.io.status.xs.orR
       io.rocc.cmd.bits.status := csr.io.status
       io.rocc.cmd.bits.inst := wb_reg_inst.asTypeOf(new RoCCInstruction())
@@ -1338,7 +1402,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
       io.rocc.cmd.bits.rs2 := DontCare
     }
     t1Request.foreach { t1 =>
-      t1.valid := wb_reg_valid && !replay_wb_common && wb_ctrl(decoder.isVector)
+      t1.valid := wb_reg_valid && !replay_wb_common && wbDecodeOutput(decoder.isVector)
       t1.bits.instruction := wb_reg_inst
       t1.bits.rs1Data := wb_reg_wdata
       t1.bits.rs2Data := wb_reg_rs2
@@ -1394,8 +1458,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
     if (enableCommitLog) {
       val t = csr.io.trace(0)
       val rd = wb_waddr
-      val wfd = Option.when(usingFPU)(wb_ctrl(decoder.wfd)).getOrElse(false.B)
-      val wxd = wb_ctrl(decoder.wxd)
+      val wfd = Option.when(usingFPU)(wbDecodeOutput(decoder.wfd)).getOrElse(false.B)
+      val wxd = wbDecodeOutput(decoder.wxd)
       val has_data = wb_wen && !wb_set_sboard
 
       when(t.valid && !t.exception) {
@@ -1425,29 +1489,29 @@ class Rocket(tile: RocketTile)(implicit p: Parameters)
           coreMonitorBundle.valid,
           coreMonitorBundle.pc,
           Mux(
-            wb_ctrl(decoder.wxd) || Option.when(usingFPU)(wb_ctrl(decoder.wfd)).getOrElse(false.B),
+            wbDecodeOutput(decoder.wxd) || Option.when(usingFPU)(wbDecodeOutput(decoder.wfd)).getOrElse(false.B),
             coreMonitorBundle.wrdst,
             0.U
           ),
           Mux(coreMonitorBundle.wrenx, coreMonitorBundle.wrdata, 0.U),
           coreMonitorBundle.wrenx,
           Mux(
-            wb_ctrl(decoder.rxs1) || Option.when(usingFPU)(wb_ctrl(decoder.rfs1)).getOrElse(false.B),
+            wbDecodeOutput(decoder.rxs1) || Option.when(usingFPU)(wbDecodeOutput(decoder.rfs1)).getOrElse(false.B),
             coreMonitorBundle.rd0src,
             0.U
           ),
           Mux(
-            wb_ctrl(decoder.rxs1) || Option.when(usingFPU)(wb_ctrl(decoder.rfs1)).getOrElse(false.B),
+            wbDecodeOutput(decoder.rxs1) || Option.when(usingFPU)(wbDecodeOutput(decoder.rfs1)).getOrElse(false.B),
             coreMonitorBundle.rd0val,
             0.U
           ),
           Mux(
-            wb_ctrl(decoder.rxs2) || Option.when(usingFPU)(wb_ctrl(decoder.rfs2)).getOrElse(false.B),
+            wbDecodeOutput(decoder.rxs2) || Option.when(usingFPU)(wbDecodeOutput(decoder.rfs2)).getOrElse(false.B),
             coreMonitorBundle.rd1src,
             0.U
           ),
           Mux(
-            wb_ctrl(decoder.rxs2) || Option.when(usingFPU)(wb_ctrl(decoder.rfs2)).getOrElse(false.B),
+            wbDecodeOutput(decoder.rxs2) || Option.when(usingFPU)(wbDecodeOutput(decoder.rfs2)).getOrElse(false.B),
             coreMonitorBundle.rd1val,
             0.U
           ),
