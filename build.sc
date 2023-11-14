@@ -2,6 +2,7 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
+import mill.scalalib.scalafmt.ScalafmtModule
 import $file.hardfloat.common
 import $file.cde.common
 import $file.common
@@ -107,6 +108,150 @@ trait RocketChipPublishModule
   override def publishVersion: T[String] = T("1.6-SNAPSHOT")
 }
 
+object tests extends Cross[Tests](v.chiselCrossVersions.keys.toSeq)
+
+trait Tests
+  extends millbuild.common.TestsModule
+    with ScalafmtModule
+    with RocketChipPublishModule
+    with Cross.Module[String] {
+  def scalaVersion: T[String] = T(v.scala)
+  def rocketchipModule = rocketchip(crossValue)
+}
+
+object testbench extends Cross[Testbench](
+  ("freechips.rocketchip.system.ExampleRocketSystem", "freechips.rocketchip.system.DefaultConfig")
+)
+
+trait Testbench extends Cross.Module2[String, String] {
+  val top: String = crossValue
+  val config: String = crossValue2
+
+  object generator extends Module {
+    def elaborate = T {
+      os.proc(
+        mill.util.Jvm.javaExe,
+        "-jar",
+        tests(v.chiselCrossVersions.keys.last).assembly().path,
+        "--dir", T.dest.toString,
+        "--top", top,
+        config.split('_').flatMap(c => Seq("--config", c)),
+      ).call()
+      PathRef(T.dest)
+    }
+
+    def chiselAnno = T {
+      os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("anno.json") => p }.map(PathRef(_)).get
+    }
+
+    def chirrtl = T {
+      os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("fir") => p }.map(PathRef(_)).get
+    }
+  }
+
+  object mfccompiler extends Module {
+    def compile = T {
+      os.proc("firtool",
+        generator.chirrtl().path,
+        s"--annotation-file=${generator.chiselAnno().path}",
+        "--disable-annotation-unknown",
+        "-dedup",
+        "-O=debug",
+        "--split-verilog",
+        "--preserve-values=named",
+        "--output-annotation-file=mfc.anno.json",
+        s"-o=${T.dest}"
+      ).call(T.dest)
+      PathRef(T.dest)
+    }
+
+    def rtls = T {
+      os.read(compile().path / "filelist.f").split("\n").map(str =>
+        try {
+          os.Path(str)
+        } catch {
+          case e: IllegalArgumentException if e.getMessage.contains("is not an absolute path") =>
+            compile().path / str.stripPrefix("./")
+        }
+      ).filter(p => p.ext == "v" || p.ext == "sv").map(PathRef(_)).toSeq
+    }
+  }
+
+  object verilator extends Module {
+    def csrcDir = T.source {
+      tests(v.chiselCrossVersions.keys.last).millSourcePath / "csrc"
+    }
+
+    def allCSourceFiles = T.sources {
+      Seq(
+        "dpic.cc",
+      ).map(f => PathRef(csrcDir().path / f))
+    }
+
+    def CMakeListsString = T {
+      // format: off
+      s"""cmake_minimum_required(VERSION 3.20)
+         |project(emulator)
+         |include_directories(${csrcDir().path})
+         |# plusarg is here
+         |include_directories(${generator.elaborate().path})
+         |
+         |set(CMAKE_BUILD_TYPE Release)
+         |set(CMAKE_CXX_STANDARD 17)
+         |set(CMAKE_C_COMPILER "clang")
+         |set(CMAKE_CXX_COMPILER "clang++")
+         |set(THREADS_PREFER_PTHREAD_FLAG ON)
+         |
+         |find_package(verilator)
+         |find_package(Threads)
+         |
+         |add_executable(emulator
+         |${allCSourceFiles().map(_.path).mkString("\n")}
+         |)
+         |
+         |target_link_libraries(emulator PRIVATE $${CMAKE_THREAD_LIBS_INIT})
+         |verilate(emulator
+         |  SOURCES
+         |  ${mfccompiler.rtls().sortBy(pr => !pr.path.baseName.startsWith("ref_")).map(_.path.toString).mkString("\n")}
+         |  TOP_MODULE Testbench
+         |  PREFIX VTestbench
+         |  TRACE
+         |  VERILATOR_ARGS ${verilatorArgs().mkString(" ")}
+         |)
+         |""".stripMargin
+      // format: on
+    }
+
+    def verilatorArgs = T {
+      Seq(
+        // format: off
+        "--x-initial unique",
+        "--output-split 100000",
+        "--max-num-width 1048576",
+        "--main",
+        "--timing",
+        // use for coverage
+        "--coverage-user",
+        "--assert",
+        "--Wno-WIDTHEXPAND",
+        // format: on
+      )
+    }
+
+    def cmakefileLists = T.persistent {
+      val path = T.dest / "CMakeLists.txt"
+      os.write.over(path, CMakeListsString())
+      PathRef(T.dest)
+    }
+
+    def elf = T.persistent {
+      mill.util.Jvm.runSubprocess(Seq("cmake", "-G", "Ninja", "-S", cmakefileLists().path, "-B", T.dest.toString).map(_.toString), Map[String, String](), T.dest)
+      mill.util.Jvm.runSubprocess(Seq("ninja", "-C", T.dest).map(_.toString), Map[String, String](), T.dest)
+      PathRef(T.dest / "emulator")
+    }
+  }
+
+}
 
 // Tests
 trait Emulator extends Cross.Module2[String, String] {
