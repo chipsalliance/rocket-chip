@@ -4,6 +4,7 @@
 package freechips.rocketchip.rocket
 
 import chisel3.util._
+import freechips.rocketchip.rocket._
 
 /* make EXTENSIONS="rv_* rv64*" inst.chisel */
 
