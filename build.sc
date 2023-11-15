@@ -15,6 +15,9 @@ object v {
   val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
   val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
   val scalaReflect = ivy"org.scala-lang:scala-reflect:${scala}"
+  val sonatypesSnapshots = Seq(
+    MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
+  )
 }
 
 object macros extends Macros
@@ -47,6 +50,8 @@ trait Hardfloat
   def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
 
   def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+
+  def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
 }
 
 object cde extends CDE
@@ -89,6 +94,8 @@ trait RocketChip
   def mainargsIvy = v.mainargs
 
   def json4sJacksonIvy = v.json4sJackson
+
+  def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
 }
 
 trait RocketChipPublishModule
