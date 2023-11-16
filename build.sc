@@ -185,7 +185,7 @@ trait Emulator extends Cross.Module2[String, String] {
         "debug_rob.cc",
         "emulator.cc",
         "remote_bitbang.cc",
-      ).map(c => PathRef(csrcDir().path / c))
+        ).map(c => PathRef(csrcDir().path / c))
     }
 
     def CMakeListsString = T {
@@ -295,8 +295,6 @@ object emulator extends Cross[Emulator](
   //
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config"),
 )
 
 object `runnable-riscv-test` extends mill.Cross[RiscvTest](
@@ -384,9 +382,6 @@ object `runnable-arch-test` extends mill.Cross[ArchTest](
   // For CI within reasonable time
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultConfig", "64", "RV64IMACZicsr_Zifencei"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "32", "RV32IMACZicsr_Zifencei"),
-
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCryptoConfig", "64", "RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.BitManipCrypto32Config", "32", "RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"),
 )
 
 object `runnable-jtag-dtm-test` extends mill.Cross[JTAGDTMTest](
