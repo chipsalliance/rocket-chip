@@ -307,9 +307,7 @@ class WithRV32 extends Config((site, here, up) => {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(
         fpu = tp.tileParams.core.fpu.map(_.copy(fLen = 32)),
-        mulDiv = Some(MulDivParams(mulUnroll = 8)))))
-    case t => t
-  }
+        mulDiv = Some(MulDivParams(mulUnroll = 8)))))}
 })
 
 class WithFP16 extends Config((site, here, up) => {
@@ -404,38 +402,6 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(fpu = tp.tileParams.core.fpu.map(_.copy(divSqrt = false)))))
-    case t => t
-  }
-})
-
-class WithBitManip extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useBitManip = true)))
-    case t => t
-  }
-})
-
-class WithBitManipCrypto extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useBitManipCrypto = true)))
-    case t => t
-  }
-})
-
-class WithCryptoNIST extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useCryptoNIST = true)))
-    case t => t
-  }
-})
-
-class WithCryptoSM extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useCryptoSM = true)))
     case t => t
   }
 })

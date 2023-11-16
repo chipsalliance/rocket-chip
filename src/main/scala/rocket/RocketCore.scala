@@ -23,10 +23,6 @@ case class RocketCoreParams(
   useAtomicsOnlyForIO: Boolean = false,
   useCompressed: Boolean = true,
   useRVE: Boolean = false,
-  useBitManip: Boolean = false,
-  useBitManipCrypto: Boolean = false,
-  useCryptoNIST: Boolean = false,
-  useCryptoSM: Boolean = false,
   useConditionalZero: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
@@ -79,12 +75,10 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
-  val usingABLU = usingBitManip || usingBitManipCrypto
-  val aluFn = if (usingABLU) new ABLUFN else new ALUFN
+  val aluFn = new ALUFN
 
   require(!fastLoadByte || fastLoadWord)
   require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
-  require(!(usingABLU && usingConditionalZero), "Zicond is not yet implemented in ABLU")
 }
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
@@ -189,14 +183,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
     (if (minFLen == 16) new HDecode(aluFn) +: (xLen > 32).option(new H64Decode(aluFn)).toSeq ++: (fLen >= 64).option(new HDDecode(aluFn)).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode(aluFn))) ++:
-    (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: (xLen == 32).option(new ZBS32Decode).toSeq ++: (xLen == 64).option(new ZBS64Decode).toSeq ++: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
-    (if (usingBitManip && !usingBitManipCrypto) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
-    (if (usingBitManip || usingBitManipCrypto) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 32).option(new ZBBR32Decode).toSeq ++: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
-    (if (usingBitManipCrypto) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
-    (usingCryptoSM.option(new ZKSDecode)) ++:
     (if (xLen == 32) new I32Decode(aluFn) else new I64Decode(aluFn)) +:
     (usingVM.option(new SVMDecode(aluFn))) ++:
     (usingSupervisor.option(new SDecode(aluFn))) ++:
@@ -312,7 +298,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_csr = Mux(id_system_insn && id_ctrl.mem, CSR.N, Mux(id_csr_ren, CSR.R, id_ctrl.csr))
   val id_csr_flush = id_system_insn || (id_csr_en && !id_csr_ren && csr.io.decode(0).write_flush)
 
-  val id_illegal_rnum = if (usingCryptoNIST) (id_ctrl.zkn && aluFn.isKs1(id_ctrl.alu_fn) && id_inst(0)(23,20) > 0xA.U(4.W)) else false.B
   val id_illegal_insn = !id_ctrl.legal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
@@ -324,8 +309,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_waddr_illegal && id_ctrl.wxd ||
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
-    !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal) ||
-    id_illegal_rnum
+    !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal)
   val id_virtual_insn = id_ctrl.legal &&
     ((id_csr_en && !(!id_csr_ren && csr.io.decode(0).write_illegal) && csr.io.decode(0).virtual_access_illegal) ||
      (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal))
@@ -409,41 +393,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S)))
 
   val alu = Module(aluFn match {
-    case _: ABLUFN => new ABLU
     case _: ALUFN => new ALU
   })
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
   alu.io.in1 := ex_op1.asUInt
-
-  val ex_zbk_wdata = if (!usingBitManipCrypto && !usingBitManip) 0.U else {
-    val zbk = Module(new BitManipCrypto(xLen))
-    zbk.io.fn  := ex_ctrl.alu_fn
-    zbk.io.dw  := ex_ctrl.alu_dw
-    zbk.io.rs1 := ex_op1.asUInt
-    zbk.io.rs2 := ex_op2.asUInt
-    zbk.io.rd
-  }
-
-  val ex_zkn_wdata = if (!usingCryptoNIST) 0.U else {
-    val zkn = Module(new CryptoNIST(xLen))
-    zkn.io.fn   := ex_ctrl.alu_fn
-    zkn.io.hl   := ex_reg_inst(27)
-    zkn.io.bs   := ex_reg_inst(31,30)
-    zkn.io.rs1  := ex_op1.asUInt
-    zkn.io.rs2  := ex_op2.asUInt
-    zkn.io.rd
-  }
-
-  val ex_zks_wdata = if (!usingCryptoSM) 0.U else {
-    val zks = Module(new CryptoSM(xLen))
-    zks.io.fn  := ex_ctrl.alu_fn
-    zks.io.bs  := ex_reg_inst(31,30)
-    zks.io.rs1 := ex_op1.asUInt
-    zks.io.rs2 := ex_op2.asUInt
-    zks.io.rd
-  }
 
   // multiplier and divider
   val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen, aluFn = aluFn))
@@ -591,13 +546,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_hls_or_dv := io.dmem.req.bits.dv
     mem_reg_pc := ex_reg_pc
     // IDecode ensured they are 1H
-    mem_reg_wdata := Mux1H(Seq(
-      ex_ctrl.zbk         -> ex_zbk_wdata,
-      ex_ctrl.zkn         -> ex_zkn_wdata,
-      ex_ctrl.zks         -> ex_zks_wdata,
-      (!ex_ctrl.zbk && !ex_ctrl.zkn && !ex_ctrl.zks)
-                          -> alu.io.out,
-    ))
+    mem_reg_wdata := alu.io.out
     mem_br_taken := alu.io.cmp_out
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
