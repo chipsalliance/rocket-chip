@@ -16,7 +16,17 @@ class ExpandedInstruction extends Bundle {
   val rs3 = UInt(5.W)
 }
 
-class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
+/* Parameters for RVCDecoder
+    - Zcb extension contains the compressed I-type (c.lbu, lhu, lh, sb, sh) , M-type (c.mul) 
+      and Bit Manip instructions.
+    - **usingCompressedSuiteB** parameter is used to enable/disable "Zcb" extension in RocketCore.
+    - If Zcb is enabled, furthur **usingBitManip** and **usingMulDiv** parameters (if set as True) are used to decode
+      the corresponding BitManip and M type Instructions.
+    - If **usingCompressedSuiteB** parameter is not set (i.e. False), decoder will give "unimp" 
+      instruction if it encounters any Zcb instruction. Same is true for **usingBitManip** and **usingMulDiv**.
+*/
+
+class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false, usingBitManip: Boolean = false, usingMulDiv: Boolean = false, usingCompressedSuiteB: Boolean = false) {
   def inst(bits: UInt, rd: UInt = x(11,7), rs1: UInt = x(19,15), rs2: UInt = x(24,20), rs3: UInt = x(31,27)) = {
     val res = Wire(new ExpandedInstruction)
     res.bits := bits
@@ -32,6 +42,8 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
   def rs2 = x(6,2)
   def rd = x(11,7)
   def addi4spnImm = Cat(x(10,7), x(12,11), x(5), x(6), 0.U(2.W))
+  def lbImm = Cat(x(5), x(6))
+  def lhImm = Cat(x(5), 0.U(1.W))
   def lwImm = Cat(x(5), x(12,10), x(6), 0.U(2.W))
   def ldImm = Cat(x(6,5), x(12,10), 0.U(3.W))
   def lwspImm = Cat(x(3,2), x(12), x(6,4), 0.U(2.W))
@@ -60,7 +72,19 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
       if (xLen == 32) inst(Cat(lwImm, rs1p, 2.U(3.W), rs2p, 0x07.U(7.W)), rs2p, rs1p, rs2p)
       else ld
     }
-    def unimp = inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x3F.U(7.W)), rs2p, rs1p, rs2p)
+    def zcb_q0 = {
+      if (usingCompressedSuiteB){
+        def lbu = Cat(lbImm, rs1p, 4.U(3.W), rs2p, 0x03.U(7.W))
+        def lh  = {
+          val func3 = Mux(x(6), 1.U(3.W), 5.U(3.W))
+          Cat(lhImm, rs1p, func3, rs2p, 0x03.U(7.W))
+        }
+        def sb  = Cat(rs2p, rs1p, 0.U(3.W), 0.U(3.W), lbImm(1,0), 0x23.U(7.W))
+        def sh  = Cat(rs2p, rs1p, 1.U(3.W), 0.U(3.W), lhImm(1,0), 0x23.U(7.W))
+        inst(Seq(lbu, lh, sb, sh)(x(11,10)), rs2p, rs1p, rs2p)
+      }
+      else inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x3F.U(7.W)), rs2p, rs1p, rs2p) // unimp
+    }
     def sd = inst(Cat(ldImm >> 5, rs2p, rs1p, 3.U(3.W), ldImm(4,0), 0x23.U(7.W)), rs2p, rs1p, rs2p)
     def sw = inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x23.U(7.W)), rs2p, rs1p, rs2p)
     def fsd = inst(Cat(ldImm >> 5, rs2p, rs1p, 3.U(3.W), ldImm(4,0), 0x27.U(7.W)), rs2p, rs1p, rs2p)
@@ -68,7 +92,7 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
       if (xLen == 32) inst(Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x27.U(7.W)), rs2p, rs1p, rs2p)
       else sd
     }
-    Seq(addi4spn, fld, lw, flw, unimp, fsd, sw, fsw)
+    Seq(addi4spn, fld, lw, flw, zcb_q0, fsd, sw, fsw)
   }
 
   def q1 = {
@@ -96,15 +120,45 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
     def bnez = inst(Cat(bImm(12), bImm(10,5), x0, rs1p, 1.U(3.W), bImm(4,1), bImm(11), 0x63.U(7.W)), x0, rs1p, x0)
     def arith = {
       def srli = Cat(shamt, rs1p, 5.U(3.W), rs1p, 0x13.U(7.W))
-      def srai = srli | (1 << 30).U
+      def srai = Cat(0x10.U, srli)
       def andi = Cat(addiImm, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W))
       def rtype = {
-        val funct = Seq(0.U, 4.U, 6.U, 7.U, 0.U, 0.U, 2.U, 3.U)(Cat(x(12), x(6,5)))
+        val funct = Seq(0.U, 4.U, 6.U, 7.U, 0.U, 0.U, 0.U, 3.U)(Cat(x(12), x(6,5)))
         val sub = Mux(x(6,5) === 0.U, (1 << 30).U, 0.U)
-        val opc = Mux(x(12), 0x3B.U(7.W), 0x33.U(7.W))
-        Cat(rs2p, rs1p, funct, rs1p, opc) | sub
+        val opc = Mux(x(12), Mux(x(6), 0x33.U(7.W), 0x3B.U(7.W)), 0x33.U(7.W))
+        def mul = {
+          if(usingMulDiv && usingCompressedSuiteB) Mux(Cat(x(12), x(6,5)) === 6.U, (1 << 25).U, 0.U)
+          else 0.U
+        }
+        def zca = Cat(rs2p, rs1p, funct, rs1p, opc) | sub | mul
+        def zcb_q1 = {
+          def unimp = Cat(lwImm >> 5, rs2p, rs1p, 2.U(3.W), lwImm(4,0), 0x3F.U(7.W))
+          if(usingCompressedSuiteB){
+            def zextb = Cat(0xFF.U, rs1p, 7.U(3.W), rs1p, 0x13.U(7.W))
+            def not   = Cat(0xFFF.U, rs1p, 4.U(3.W), rs1p, 0x13.U(7.W))
+            def sextb = Cat(0x604.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W))
+            def sexth = Cat(0x605.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W))
+            def zextw = Cat(4.U, x0, rs1p, 0.U(3.W), rs1p, 0x3B.U(7.W))
+            def zexth = {
+              val zexth_common = Cat(0x80.U, rs1p, 4.U(3.W), rs1p)
+              if (xLen == 32) Cat(zexth_common, 0x33.U(7.W))
+              else Cat(zexth_common, 0x3B.U(7.W))
+            }
+            if(usingBitManip){
+              Seq(zextb, sextb, zexth, sexth, zextw, not, unimp, unimp)(x(4,2))
+            } else {
+              Mux (x(4,2)=== 5.U, not, Mux (x(4,2) === 0.U, zextb, unimp)) 
+            }
+          }
+          else unimp
+        }
+        Mux(Cat(x(12), x(6,5)) === 7.U, zcb_q1, zca)
       }
-      inst(Seq(srli, srai, andi, rtype)(x(11,10)), rs1p, rs1p, rs2p)
+      def op2 = {
+        if(usingCompressedSuiteB) Mux(Cat(x(15,10), x(6,2)) === 0x4FC.U, x0, rs2p)
+        else rs2p
+      }
+      inst(Seq(srli, srai, andi, rtype)(x(11,10)), rs1p, rs1p, op2)
     }
     Seq(addi, jal, li, lui, arith, j, beqz, bnez)
   }
@@ -164,9 +218,9 @@ class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) ext
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= 3.U
-    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv).decode
+    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv, usingBitManip, usingMulDiv, usingCompressedSuiteB).decode
   } else {
     io.rvc := false.B
-    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv).passthrough
+    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv, usingBitManip, usingMulDiv, usingCompressedSuiteB).passthrough
   }
 }
