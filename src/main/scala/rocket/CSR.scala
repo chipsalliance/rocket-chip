@@ -628,8 +628,6 @@ class CSRFile(
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +
     (if (usingVector) "V" else "") +
-    // The current spec does not define what sub-extensions constitute the 'B' misa bit
-    // (if (usingBitManip) "B" else "") +
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +

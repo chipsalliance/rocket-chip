@@ -72,7 +72,7 @@ jobs:
     if: ${{ false }}  # disable for now, I prefer adding firesim-based simulation framework in the future.
     strategy:
       matrix:
-        config: ["DefaultRV32Config,32,RV32IMACZicsr_Zifencei", "DefaultConfig,64,RV64IMACZicsr_Zifencei", "BitManipCryptoConfig,64,RV64IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh", "BitManipCrypto32Config,32,RV32IZba_Zbb_Zbc_Zbkb_Zbkc_Zbkx_Zbs_Zknd_Zkne_Zknh_Zksed_Zksh"]
+        config: ["DefaultRV32Config,32,RV32IMACZicsr_Zifencei", "DefaultConfig,64,RV64IMACZicsr_Zifencei"]
     steps:
       - uses: actions/checkout@v2
         with:
