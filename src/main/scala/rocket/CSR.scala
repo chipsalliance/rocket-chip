@@ -242,21 +242,21 @@ class CSRDecodeIO(implicit p: Parameters) extends CoreBundle {
 
   def csr_addr = (inst >> 20)(CSR.ADDRSZ-1, 0)
 
-  val fp_illegal = Output(Bool())
-  val vector_illegal = Output(Bool())
-  val fp_csr = Output(Bool())
-  val rocc_illegal = Output(Bool())
-  val read_illegal = Output(Bool())
-  val write_illegal = Output(Bool())
-  val write_flush = Output(Bool())
-  val system_illegal = Output(Bool())
-  val virtual_access_illegal = Output(Bool())
-  val virtual_system_illegal = Output(Bool())
+  val fpIllegal = Output(Bool())
+  val vectorIllegal = Output(Bool())
+  val fpCsr = Output(Bool())
+  val roccIllegal = Output(Bool())
+  val readIllegal = Output(Bool())
+  val writeIllegal = Output(Bool())
+  val writeFlush = Output(Bool())
+  val systemIllegal = Output(Bool())
+  val virtualAccessIllegal = Output(Bool())
+  val virtualSystemIllegal = Output(Bool())
 }
 
 class CSRFileIO(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
-  val ungated_clock = Input(Clock())
+  val ungatedClock = Input(Clock())
   val interrupts = Input(new CoreInterrupts())
   val hartid = Input(UInt(hartIdLen.W))
   val rw = new Bundle {
@@ -569,7 +569,7 @@ class CSRFile(
   val reg_sscratch = Reg(Bits(xLen.W))
   val reg_stvec = Reg(UInt((if (usingHypervisor) vaddrBitsExtended else vaddrBits).W))
   val reg_satp = Reg(new PTBR)
-  val reg_wfi = withClock(io.ungated_clock) { RegInit(false.B) }
+  val reg_wfi = withClock(io.ungatedClock) { RegInit(false.B) }
 
   val reg_fflags = Reg(UInt(5.W))
   val reg_frm = Reg(UInt(3.W))
@@ -582,7 +582,7 @@ class CSRFile(
   io.inhibit_cycle := reg_mcountinhibit(0)
   val reg_instret = WideCounter(64, io.retire, inhibit = reg_mcountinhibit(2))
   val reg_cycle = if (enableCommitLog) WideCounter(64, io.retire,     inhibit = reg_mcountinhibit(0))
-    else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall, inhibit = reg_mcountinhibit(0)) }
+    else withClock(io.ungatedClock) { WideCounter(64, !io.csr_stall, inhibit = reg_mcountinhibit(0)) }
   val reg_hpmevent = io.counters.map(c => RegInit(0.U(xLen.W)))
     (io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
   val reg_hpmcounter = io.counters.zipWithIndex.map { case (c, i) =>
@@ -898,26 +898,26 @@ class CSRFile(
     val allow_counter = (reg_mstatus.prv > PRV.S.U || read_mcounteren(counter_addr)) &&
       (!usingSupervisor.B || reg_mstatus.prv >= PRV.S.U || read_scounteren(counter_addr)) &&
       (!usingHypervisor.B || !reg_mstatus.v || read_hcounteren(counter_addr))
-    io_dec.fp_illegal := io.status.fs === 0.U || reg_mstatus.v && reg_vsstatus.fs === 0.U || !reg_misa('f'-'a')
-    io_dec.vector_illegal := io.status.vs === 0.U || reg_mstatus.v && reg_vsstatus.vs === 0.U || !reg_misa('v'-'a')
-    io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
-    io_dec.rocc_illegal := io.status.xs === 0.U || reg_mstatus.v && reg_vsstatus.xs === 0.U || !reg_misa('x'-'a')
+    io_dec.fpIllegal := io.status.fs === 0.U || reg_mstatus.v && reg_vsstatus.fs === 0.U || !reg_misa('f'-'a')
+    io_dec.vectorIllegal := io.status.vs === 0.U || reg_mstatus.v && reg_vsstatus.vs === 0.U || !reg_misa('v'-'a')
+    io_dec.fpCsr := decodeFast(fp_csrs.keys.toList)
+    io_dec.roccIllegal := io.status.xs === 0.U || reg_mstatus.v && reg_vsstatus.xs === 0.U || !reg_misa('x'-'a')
     val csr_addr_legal = reg_mstatus.prv >= CSR.mode(addr) ||
       usingHypervisor.B && !reg_mstatus.v && reg_mstatus.prv === PRV.S.U && CSR.mode(addr) === PRV.H.U
     val csr_exists = decodeAny(read_mapping)
-    io_dec.read_illegal := !csr_addr_legal ||
+    io_dec.readIllegal := !csr_addr_legal ||
       !csr_exists ||
       ((addr === CSRs.satp.U || addr === CSRs.hgatp.U) && !allow_sfence_vma) ||
       is_counter && !allow_counter ||
       decodeFast(debug_csrs.keys.toList) && !reg_debug ||
-      decodeFast(vector_csrs.keys.toList) && io_dec.vector_illegal ||
-      io_dec.fp_csr && io_dec.fp_illegal
-    io_dec.write_illegal := addr(11,10).andR
-    io_dec.write_flush := {
+      decodeFast(vector_csrs.keys.toList) && io_dec.vectorIllegal ||
+      io_dec.fpCsr && io_dec.fpIllegal
+    io_dec.writeIllegal := addr(11,10).andR
+    io_dec.writeFlush := {
       val addr_m = addr | (PRV.M.U << CSR.modeLSB)
       !(addr_m >= CSRs.mscratch.U && addr_m <= CSRs.mtval.U)
     }
-    io_dec.system_illegal := !csr_addr_legal && !is_hlsv ||
+    io_dec.systemIllegal := !csr_addr_legal && !is_hlsv ||
       is_wfi && !allow_wfi ||
       is_ret && !allow_sret ||
       is_ret && addr(10) && addr(7) && !reg_debug ||
@@ -925,13 +925,13 @@ class CSRFile(
       is_hfence_vvma && !allow_hfence_vvma ||
       is_hlsv && !allow_hlsv
 
-    io_dec.virtual_access_illegal := reg_mstatus.v && csr_exists && (
+    io_dec.virtualAccessIllegal := reg_mstatus.v && csr_exists && (
       CSR.mode(addr) === PRV.H.U ||
       is_counter && read_mcounteren(counter_addr) && (!read_hcounteren(counter_addr) || !reg_mstatus.prv(0) && !read_scounteren(counter_addr)) ||
       CSR.mode(addr) === PRV.S.U && !reg_mstatus.prv(0) ||
       addr === CSRs.satp.U && reg_mstatus.prv(0) && reg_hstatus.vtvm)
 
-    io_dec.virtual_system_illegal := reg_mstatus.v && (
+    io_dec.virtualSystemIllegal := reg_mstatus.v && (
       is_hfence_vvma ||
       is_hfence_gvma ||
       is_hlsv ||

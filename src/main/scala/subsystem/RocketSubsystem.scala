@@ -26,7 +26,7 @@ trait HasRocketTiles extends HasTiles { this: BaseSubsystem =>
   val rocketTiles = tiles.collect { case r: RocketTile => r }
 
   def coreMonitorBundles = (rocketTiles map { t =>
-    t.module.core.rocketImpl.coreMonitorBundle
+    t.module.core.gatedDomain.coreMonitorBundle
   }).toList
 }
 

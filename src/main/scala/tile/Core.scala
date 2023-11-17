@@ -141,17 +141,21 @@ trait HasCoreParameters extends HasTileParameters {
 
 }
 
+// TODO: remove it
 abstract class CoreModule(implicit val p: Parameters) extends Module
   with HasCoreParameters
 
+// TODO: remove it
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
+// TODO: remove it
 class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
   val buserror = tileParams.beuAddr.map(a => Bool())
 }
 
 // This is a raw commit trace from the core, not the TraceCoreInterface
+// TODO: remove it via Output(Probe())
 class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
   val time = UInt(64.W)
