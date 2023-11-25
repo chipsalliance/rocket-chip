@@ -88,7 +88,7 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
 
 trait HasLazyRoCCModule extends CanHavePTWModule
     with HasCoreParameters { this: RocketTileModuleImp with HasFpuOpt =>
-
+  def roccBufferEntries: Int = 2
   val (respArb, cmdRouter) = if(outer.roccs.nonEmpty) {
     val respArb = Module(new RRArbiter(new RoCCResponse()(outer.p), outer.roccs.size))
     val cmdRouter = Module(new RoccCommandRouter(outer.roccs.map(_.opcodes))(outer.p))
@@ -405,7 +405,7 @@ object OpcodeSet {
   def all = custom0 | custom1 | custom2 | custom3
 }
 
-class RoccCommandRouter(opcodes: Seq[OpcodeSet])(implicit p: Parameters)
+class RoccCommandRouter(opcodes: Seq[OpcodeSet], bufferEntries: Int = 2)(implicit p: Parameters)
     extends CoreModule()(p) {
   val io = IO(new Bundle {
     val in = Flipped(Decoupled(new RoCCCommand))
@@ -413,7 +413,7 @@ class RoccCommandRouter(opcodes: Seq[OpcodeSet])(implicit p: Parameters)
     val busy = Output(Bool())
   })
 
-  val cmd = Queue(io.in)
+  val cmd = Queue(io.in, bufferEntries)
   val cmdReadys = io.out.zip(opcodes).map { case (out, opcode) =>
     val me = opcode.matches(cmd.bits.inst.opcode)
     out.valid := cmd.valid && me

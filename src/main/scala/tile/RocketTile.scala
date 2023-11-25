@@ -27,7 +27,8 @@ case class RocketTileParams(
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
-    boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None
+    boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None,
+    roccBufferEntries: Int = 2
     ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
@@ -173,6 +174,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
+  override def roccBufferEntries: Int = outer.rocketParams.roccBufferEntries
   if (outer.roccs.size > 0) {
     cmdRouter.get.io.in <> core.io.rocc.cmd
     outer.roccs.foreach{ lm =>
