@@ -25,8 +25,12 @@ trait CoreParams {
   val useBitManip: Boolean
   val useBitManipCrypto: Boolean
   val useVector: Boolean = false
+<<<<<<< HEAD
   val useCryptoNIST: Boolean
   val useCryptoSM: Boolean
+=======
+  val vectorUseDCache: Boolean = false
+>>>>>>> 5bef59a8c (add vectorUseDCache parameter)
   val useRVE: Boolean
   val useConditionalZero: Boolean
   val mulDiv: Option[MulDivParams]
