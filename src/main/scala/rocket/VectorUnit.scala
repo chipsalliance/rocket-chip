@@ -38,6 +38,7 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
     val xcpt = Output(Bool())
     val cause = Output(UInt(log2Ceil(Causes.all.max).W))
     val tval = Output(UInt(coreMaxAddrBits.W))
+    val vxrm = Input(UInt(2.W))
   }
   val set_vstart = Valid(UInt(log2Ceil(maxVLMax).W))
   val set_vxsat = Output(Bool())
