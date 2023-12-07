@@ -269,6 +269,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val take_pc_mem = Wire(Bool())
   val mem_reg_wphit          = Reg(Vec(nBreakpoints, Bool()))
 
+  val mem_frs1              = Reg(UInt(fLen.W))
+
   val wb_reg_valid           = Reg(Bool())
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
@@ -375,7 +377,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_illegal_insn = !id_ctrl.legal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
-    id_ctrl.fp && (csr.io.decode(0).fp_illegal || io.fpu.illegal_rm) ||
+    id_ctrl.fp && (csr.io.decode(0).fp_illegal || (io.fpu.illegal_rm && !id_ctrl.vec)) ||
     (id_ctrl.vec) && (csr.io.decode(0).vector_illegal || csr.io.vector.map(_.vconfig.vtype.vill).getOrElse(false.B)) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
@@ -700,6 +702,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       (!ex_scie_unpipelined && !ex_ctrl.zbk && !ex_ctrl.zks && !ex_reg_set_vconfig) -> alu.io.out))
     mem_br_taken := alu.io.cmp_out
 
+    mem_frs1 := io.fpu.frs1 
+
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
       val size = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_reg_mem_size)
       mem_reg_rs2 := new StoreGen(size, 0.U, ex_rs(1), coreDataBytes).data
@@ -901,6 +905,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       }
     }
     v.wb.vxrm := csr.io.vector.get.vxrm
+    v.wb.frm := csr.io.fcsr_rm 
+    v.wb.frs1 := mem_frs1
     csr.io.vector.get.set_vxsat := v.set_vxsat
     when (v.set_vconfig.valid) {
       csr.io.vector.get.set_vconfig.valid := true.B
@@ -957,7 +963,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val fp_hazard_targets = Seq((io.fpu.dec.ren1, id_raddr1),
                               (io.fpu.dec.ren2, id_raddr2),
                               (io.fpu.dec.ren3, id_raddr3),
-                              (io.fpu.dec.wen, id_waddr))
+                              (io.fpu.dec.wen, id_waddr),
+                              (id_ctrl.rfs1, id_raddr1))
 
   val sboard = new Scoreboard(32, true)
   sboard.clear(ll_wen, ll_waddr)
@@ -1085,6 +1092,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.dmem_resp_type := io.dmem.resp.bits.size
   io.fpu.dmem_resp_tag := dmem_resp_waddr
   io.fpu.keep_clock_enabled := io.ptw.customCSRs.disableCoreClockGate
+
+  io.fpu.v_sew := csr.io.vector.get.vconfig.vtype.vsew
 
   io.vector.foreach { v =>
     v.ex.valid := ex_reg_valid && ex_ctrl.vec && !ctrl_killx

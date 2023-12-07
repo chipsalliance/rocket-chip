@@ -185,6 +185,9 @@ class FPUCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val fcsr_rm = Input(Bits(FPConstants.RM_SZ.W))
   val fcsr_flags = Valid(Bits(FPConstants.FLAGS_SZ.W))
 
+  val v_sew = Input(UInt(3.W))
+  val frs1 = Output(Bits(fLen.W))
+
   val store_data = Output(Bits(fLen.W))
   val toint_data = Output(Bits(xLen.W))
 
@@ -468,6 +471,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
   val tag = in.typeTagOut
   val store = (floatTypes.map(t => if (t == FType.H) Fill(maxType.ieeeWidth / minXLen,   ieee(in.in1)(15, 0).sextTo(minXLen))
                                    else              Fill(maxType.ieeeWidth / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1, 0))): Seq[UInt])(tag)
+
   val toint = WireDefault(store)
   val intType = WireDefault(in.fmt(0))
   io.out.bits.store := store
@@ -746,6 +750,8 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
       id_ctrl.ren1 := true.B
       id_ctrl.swap12 := false.B
       id_ctrl.toint := true.B
+      id_ctrl.typeTagIn := 1.U
+      id_ctrl.typeTagOut := io.v_sew === 3.U 
     }
     when (v_decode.io.write_frd) { id_ctrl.wen := true.B }
   })}
@@ -864,6 +870,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     io.cp_resp.bits.data := fpiu.io.out.bits.toint
     io.cp_resp.valid := true.B
   }
+
+  // Vector FP scalar argument read
+  io.frs1 := fpiu.io.out.bits.store 
 
   val ifpu = Module(new IntToFP(2))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
