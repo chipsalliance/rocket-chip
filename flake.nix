@@ -20,7 +20,8 @@
           mill
           dtc
           verilator cmake ninja
-          python3 python3Packages.bootstrapped-pip
+          python3
+          python3Packages.pip
           pkgsCross.riscv64-embedded.buildPackages.gcc
           pkgsCross.riscv64-embedded.buildPackages.gdb
           openocd

@@ -2,8 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
-import chisel3.Flipped
-import chisel3.experimental.IO
+import chisel3.{Flipped, IO}
 import chisel3.util._
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._

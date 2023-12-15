@@ -84,7 +84,7 @@ trait HasNonDiplomaticTileParameters {
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
   //                  Core   PTW                DTIM                    coprocessors           
-  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + tileParams.core.useVector.toInt
+  def dcacheArbPorts = 1 + usingVM.toInt + usingDataScratchpad.toInt + p(BuildRoCC).size + (tileParams.core.useVector && tileParams.core.vectorUseDCache).toInt
 
   // TODO merge with isaString in CSR.scala
   def isaDTS: String = {
@@ -104,11 +104,6 @@ trait HasNonDiplomaticTileParameters {
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("zba", "zbb", "zbc")) ++
-      Option.when(tileParams.core.hasBitManipCrypto)(Seq("zbkb", "zbkc", "zbkx")) ++
-      Option.when(tileParams.core.useBitManip)(Seq("zbs")) ++
-      Option.when(tileParams.core.useCryptoNIST)(Seq("zknd", "zkne", "zknh")) ++
-      Option.when(tileParams.core.useCryptoSM)(Seq("zksed", "zksh")) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")

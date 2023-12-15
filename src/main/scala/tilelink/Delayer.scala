@@ -30,6 +30,8 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       anoise.size    := LFSRNoiseMaker(anoise.params.sizeBits)
       anoise.source  := LFSRNoiseMaker(anoise.params.sourceBits)
       anoise.address := LFSRNoiseMaker(anoise.params.addressBits)
+      anoise.user    := DontCare
+      anoise.echo    := DontCare
       anoise.mask    := LFSRNoiseMaker(anoise.params.dataBits/8)
       anoise.data    := LFSRNoiseMaker(anoise.params.dataBits)
       anoise.corrupt := LFSRNoiseMaker(1)
@@ -50,6 +52,8 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       cnoise.size    := LFSRNoiseMaker(cnoise.params.sizeBits)
       cnoise.source  := LFSRNoiseMaker(cnoise.params.sourceBits)
       cnoise.address := LFSRNoiseMaker(cnoise.params.addressBits)
+      cnoise.user    := DontCare
+      cnoise.echo    := DontCare
       cnoise.data    := LFSRNoiseMaker(cnoise.params.dataBits)
       cnoise.corrupt := LFSRNoiseMaker(1)(0)
 
@@ -60,6 +64,8 @@ class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule
       dnoise.source  := LFSRNoiseMaker(dnoise.params.sourceBits)
       dnoise.sink    := LFSRNoiseMaker(dnoise.params.sinkBits)
       dnoise.denied  := LFSRNoiseMaker(1)(0)
+      dnoise.user    := DontCare
+      dnoise.echo    := DontCare
       dnoise.data    := LFSRNoiseMaker(dnoise.params.dataBits)
       dnoise.corrupt := LFSRNoiseMaker(1)(0)
 
