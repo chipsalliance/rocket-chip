@@ -45,6 +45,7 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val set_vstart = Valid(UInt(log2Ceil(maxVLMax).W))
   val set_vxsat = Output(Bool())
   val set_vconfig = Valid(new VConfig)
+  val set_fflags = Valid(UInt(5.W))
 
   val trap_check_busy = Output(Bool())
   val backend_busy = Output(Bool())
