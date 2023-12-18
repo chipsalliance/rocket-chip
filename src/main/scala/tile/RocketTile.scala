@@ -99,6 +99,11 @@ class RocketTile private(
     }
   }
 
+  val vector_unit = rocketParams.core.vector.map(v => LazyModule(v.build(p)))
+  vector_unit.foreach(vu => tlMasterXbar.node :=* vu.atlNode)
+  vector_unit.foreach(vu => tlOtherMastersNode :=* vu.tlNode)
+
+
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(staticIdForMetadataUseOnly))
   }
@@ -124,11 +129,10 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
-  val vector = outer.rocketParams.core.vector.map(_.build(p))
   val core = Module(new Rocket(outer)(outer.p))
-  vector.foreach { v =>
-    core.io.vector.get <> v.io.core
-    v.io.tlb <> outer.dcache.module.asInstanceOf[DCacheModule].tlb_port
+  outer.vector_unit.foreach { v =>
+    core.io.vector.get <> v.module.io.core
+    v.module.io.tlb <> outer.dcache.module.asInstanceOf[DCacheModule].tlb_port
   }
 
   // reset vector is connected in the Frontend to s2_pc
@@ -175,7 +179,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   if (fpuOpt.isEmpty) {
     core.io.fpu := DontCare
   }
-  vector foreach { v => dcachePorts += v.io.dmem }
+  outer.vector_unit foreach { v => dcachePorts += v.module.io.dmem }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces

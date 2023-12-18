@@ -4,6 +4,8 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.tile._
+import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.tilelink._
 
 case class RocketCoreVectorParams(
   build: Parameters => RocketVectorUnit,
@@ -11,7 +13,6 @@ case class RocketCoreVectorParams(
   vMemDataBits: Int,
   decoder: Parameters => RocketVectorDecoder
 )
-
 
 class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val status = Input(new MStatus)
@@ -62,7 +63,13 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val backend_busy = Output(Bool())
 }
 
-abstract class RocketVectorUnit(implicit p: Parameters) extends CoreModule()(p) {
+abstract class RocketVectorUnit(implicit p: Parameters) extends LazyModule {
+  val module: RocketVectorUnitModuleImp
+  val tlNode: TLNode = TLIdentityNode()
+  val atlNode: TLNode = TLIdentityNode()
+}
+
+class RocketVectorUnitModuleImp(outer: RocketVectorUnit) extends LazyModuleImp(outer) {
   val io = IO(new Bundle {
     val core = new VectorCoreIO
     val tlb = Flipped(new DCacheTLBPort)
