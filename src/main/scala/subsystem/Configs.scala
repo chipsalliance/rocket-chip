@@ -580,6 +580,17 @@ class WithNoSlavePort extends Config((site, here, up) => {
   case ExtIn => None
 })
 
+class WithScratchpadsBaseAddress(address: BigInt) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(
+        _.copy(scratch = Some(address))
+      )
+    ))
+    case t => t
+  }
+})
+
 class WithScratchpadsOnly extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
