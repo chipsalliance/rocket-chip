@@ -749,6 +749,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
       id_ctrl.ren1 := true.B
       id_ctrl.swap12 := false.B
       id_ctrl.toint := true.B
+      id_ctrl.typeTagIn := I
       id_ctrl.typeTagOut := Mux(io.v_sew === 3.U, D, S)
     }
     when (v_decode.io.write_frd) { id_ctrl.wen := true.B }
@@ -980,7 +981,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_write_port_busy = (mem_ctrl.div || mem_ctrl.sqrt) && wen.orR
   io.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_inFlight)
   io.nack_mem := write_port_busy || divSqrt_write_port_busy || divSqrt_inFlight
-  io.dec <> fp_decoder.io.sigs
+  io.dec <> id_ctrl
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(false.B)(_||_)
   io.sboard_set := wb_reg_valid && !wb_cp_valid && RegNext(useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt)
   io.sboard_clr := !wb_cp_valid && (divSqrt_wen || (wen(0) && useScoreboard(x => wbInfo(0).pipeid === x._2.U)))
