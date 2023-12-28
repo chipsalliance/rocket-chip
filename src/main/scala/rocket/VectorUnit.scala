@@ -27,6 +27,7 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   }
   val killm = Input(Bool())
   val mem = new Bundle {
+    val frs1 = Input(UInt(fLen.W))
     val block_mem = Output(Bool())
     val block_all = Output(Bool())
   }
@@ -40,7 +41,6 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
     val tval = Output(UInt(coreMaxAddrBits.W))
     val vxrm = Input(UInt(2.W))
     val frm = Input(UInt(3.W))
-    val frs1 = Input(UInt(fLen.W))
   }
   val set_vstart = Valid(UInt(log2Ceil(maxVLMax).W))
   val set_vxsat = Output(Bool())

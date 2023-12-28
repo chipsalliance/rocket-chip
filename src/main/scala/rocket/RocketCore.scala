@@ -269,8 +269,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val take_pc_mem = Wire(Bool())
   val mem_reg_wphit          = Reg(Vec(nBreakpoints, Bool()))
 
-  val mem_frs1              = Reg(UInt(fLen.W))
-
   val wb_reg_valid           = Reg(Bool())
   val wb_reg_xcpt            = Reg(Bool())
   val wb_reg_replay          = Reg(Bool())
@@ -702,7 +700,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       (!ex_scie_unpipelined && !ex_ctrl.zbk && !ex_ctrl.zks && !ex_reg_set_vconfig) -> alu.io.out))
     mem_br_taken := alu.io.cmp_out
 
-    mem_frs1 := io.fpu.frs1 
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
       val size = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_reg_mem_size)
@@ -905,8 +902,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       }
     }
     v.wb.vxrm := csr.io.vector.get.vxrm
-    v.wb.frm := csr.io.fcsr_rm 
-    v.wb.frs1 := mem_frs1
+    v.wb.frm := csr.io.fcsr_rm
     csr.io.vector.get.set_vxsat := v.set_vxsat
     when (v.set_vconfig.valid) {
       csr.io.vector.get.set_vconfig.valid := true.B
@@ -963,8 +959,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val fp_hazard_targets = Seq((io.fpu.dec.ren1, id_raddr1),
                               (io.fpu.dec.ren2, id_raddr2),
                               (io.fpu.dec.ren3, id_raddr3),
-                              (io.fpu.dec.wen, id_waddr),
-                              (id_ctrl.rfs1, id_raddr1))
+                              (io.fpu.dec.wen, id_waddr))
 
   val sboard = new Scoreboard(32, true)
   sboard.clear(ll_wen, ll_waddr)
@@ -1093,7 +1088,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.dmem_resp_tag := dmem_resp_waddr
   io.fpu.keep_clock_enabled := io.ptw.customCSRs.disableCoreClockGate
 
-  io.fpu.v_sew := csr.io.vector.get.vconfig.vtype.vsew
+  io.fpu.v_sew := csr.io.vector.map(_.vconfig.vtype.vsew).getOrElse(0.U)
 
   io.vector.foreach { v =>
     v.ex.valid := ex_reg_valid && ex_ctrl.vec && !ctrl_killx
@@ -1103,6 +1098,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     v.ex.rs1 := ex_rs(0)
     v.ex.rs2 := ex_rs(1)
     v.ex.pc := ex_reg_pc
+    v.mem.frs1 := io.fpu.store_data
     v.killm := ctrl_killm
     v.status := csr.io.status
   }
