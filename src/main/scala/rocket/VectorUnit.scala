@@ -35,6 +35,8 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   val wb = new Bundle {
     val replay = Output(Bool())
     val retire = Output(Bool())
+    val inst = Output(UInt(32.W))
+    val rob_should_wb = Output(Bool())
     val pc = Output(UInt(vaddrBitsExtended.W))
     val xcpt = Output(Bool())
     val cause = Output(UInt(log2Ceil(Causes.all.max).W))

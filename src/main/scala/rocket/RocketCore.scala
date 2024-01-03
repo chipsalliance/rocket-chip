@@ -912,6 +912,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     when (v.wb.retire || v.wb.xcpt || wb_ctrl.vec) {
       csr.io.pc := v.wb.pc
       csr.io.retire := v.wb.retire
+      csr.io.inst(0) := v.wb.inst
       when (v.wb.xcpt && !wb_reg_xcpt) {
         wb_xcpt := true.B
         wb_cause := v.wb.cause
@@ -949,11 +950,19 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   if (rocketParams.debugROB) {
     val csr_trace_with_wdata = WireInit(csr.io.trace(0))
     csr_trace_with_wdata.wdata.get := rf_wdata
+    val should_wb = WireInit((wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception)
+    val has_wb = WireInit(wb_ctrl.wxd && wb_wen && !wb_set_sboard)
+    val wb_addr = WireInit(wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
+
+    io.vector.foreach { v => when (v.wb.retire) {
+      should_wb := v.wb.rob_should_wb
+      has_wb := false.B
+      wb_addr := csr_trace_with_wdata.insn(11,7)
+    }}
+
     DebugROB.pushTrace(clock, reset,
       io.hartid, csr_trace_with_wdata,
-      (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception && !io.vector.map(_.wb.retire).getOrElse(false.B),
-      wb_ctrl.wxd && wb_wen && !wb_set_sboard,
-      wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
+      should_wb, has_wb, wb_addr)
 
     io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
 
