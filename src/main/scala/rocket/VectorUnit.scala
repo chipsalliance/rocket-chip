@@ -42,6 +42,13 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
     val vxrm = Input(UInt(2.W))
     val frm = Input(UInt(3.W))
   }
+
+  val resp = Decoupled(new Bundle {
+    val fp = Bool()
+    val rd = UInt(5.W)
+    val data = UInt((xLen max fLen).W)
+  })
+
   val set_vstart = Valid(UInt(log2Ceil(maxVLMax).W))
   val set_vxsat = Output(Bool())
   val set_vconfig = Valid(new VConfig)

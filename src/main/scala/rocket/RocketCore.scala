@@ -810,30 +810,44 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
 
-  div.io.resp.ready := !wb_wxd
-  val ll_wdata = WireDefault(div.io.resp.bits.data)
-  val ll_waddr = WireDefault(div.io.resp.bits.tag)
-  val ll_wen = WireDefault(div.io.resp.fire)
+  val ll_arb = Module(new Arbiter(new Bundle {
+    val data = UInt(xLen.W)
+    val tag = UInt(5.W)
+  }, 3)) // div, rocc, vec
+  ll_arb.io.in.foreach(_.valid := false.B)
+  ll_arb.io.in.foreach(_.bits := DontCare)
+  val ll_wdata = WireInit(ll_arb.io.out.bits.data)
+  val ll_waddr = WireInit(ll_arb.io.out.bits.tag)
+  val ll_wen = WireInit(ll_arb.io.out.fire)
+  ll_arb.io.out.ready := !wb_wxd
+
+  div.io.resp.ready := ll_arb.io.in(0).ready
+  ll_arb.io.in(0).valid := div.io.resp.valid
+  ll_arb.io.in(0).bits.data := div.io.resp.bits.data
+  ll_arb.io.in(0).bits.tag := div.io.resp.bits.tag
+
   if (usingRoCC) {
-    io.rocc.resp.ready := !wb_wxd
-    when (io.rocc.resp.fire) {
-      div.io.resp.ready := false.B
-      ll_wdata := io.rocc.resp.bits.data
-      ll_waddr := io.rocc.resp.bits.rd
-      ll_wen := true.B
-    }
+    io.rocc.resp.ready := ll_arb.io.in(1).ready
+    ll_arb.io.in(1).valid := io.rocc.resp.valid
+    ll_arb.io.in(1).bits.data := io.rocc.resp.bits.data
+    ll_arb.io.in(1).bits.tag := io.rocc.resp.bits.rd
   } else {
     // tie off RoCC
     io.rocc.resp.ready := false.B
     io.rocc.mem.req.ready := false.B
   }
+
+  io.vector.map { v =>
+    v.resp.ready := Mux(v.resp.bits.fp, false.B, ll_arb.io.in(2).ready)
+    ll_arb.io.in(2).valid := v.resp.valid && !v.resp.bits.fp
+    ll_arb.io.in(2).bits.data := v.resp.bits.data
+    ll_arb.io.in(2).bits.tag := v.resp.bits.rd
+  }
   // Dont care mem since not all RoCC need accessing memory
   io.rocc.mem := DontCare
 
   when (dmem_resp_replay && dmem_resp_xpu) {
-    div.io.resp.ready := false.B
-    if (usingRoCC)
-      io.rocc.resp.ready := false.B
+    ll_arb.io.out.ready := false.B
     ll_waddr := dmem_resp_waddr
     ll_wen := true.B
   }
