@@ -745,7 +745,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   // writeback stage
   wb_reg_valid := !ctrl_killm
   wb_reg_replay := replay_mem && !take_pc_wb
-  wb_reg_xcpt := mem_xcpt && !take_pc_wb
+  wb_reg_xcpt := mem_xcpt && !take_pc_wb && !io.vector.map(_.mem.block_all).getOrElse(false.B)
   wb_reg_flush_pipe := !ctrl_killm && mem_reg_flush_pipe
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
