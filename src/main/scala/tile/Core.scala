@@ -23,6 +23,7 @@ trait CoreParams {
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
   val useVector: Boolean = false
+  val vectorUseDCache: Boolean = false
   val useRVE: Boolean
   val useConditionalZero: Boolean
   val mulDiv: Option[MulDivParams]
@@ -113,7 +114,6 @@ trait HasCoreParameters extends HasTileParameters {
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
-    require(vMemDataBits >= eLen && vLen % vMemDataBits == 0, s"vMemDataBits ($vMemDataBits) must divide vLen ($vLen) and be no less than eLen ($eLen)")
   }
 
   lazy val hartIdLen: Int = p(MaxHartIdBits)
