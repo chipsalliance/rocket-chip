@@ -221,8 +221,8 @@ abstract class HellaCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameter
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
 }
 
-class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends CoreBundle()(p) {
-  val cpu = Flipped((new HellaCacheIO))
+class HellaCacheBundle(implicit p: Parameters) extends CoreBundle()(p) {
+  val cpu = Flipped(new HellaCacheIO)
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
 }
@@ -231,7 +231,7 @@ class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
   implicit val edge = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
-  val io = IO(new HellaCacheBundle(outer))
+  val io = IO(new HellaCacheBundle)
   val io_hartid = outer.hartIdSinkNodeOpt.map(_.bundle)
   val io_mmio_address_prefix = outer.mmioAddressPrefixSinkNodeOpt.map(_.bundle)
   dontTouch(io.cpu.resp) // Users like to monitor these fields even if the core ignores some signals
