@@ -17,7 +17,7 @@ class EventSet(val gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bo
   }
   def dump(): Unit = {
     for (((name, _), i) <- events.zipWithIndex)
-      when (check(1.U << i)) { printf(s"Event $name\n") }
+      when (check(1.U << i)) { printf(cf"Event $name\n") }
   }
   def withCovers: Unit = {
     events.zipWithIndex.foreach {

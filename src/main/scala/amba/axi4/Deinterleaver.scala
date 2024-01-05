@@ -73,7 +73,7 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
             // correct type.
             val q = Wire(new QueueIO(out.r.bits.cloneType, beats))
             q.suggestName(s"queue_wire_${i}")
-            assert(!q.enq.valid, s"ID ${i} should not be used")
+            assert(!q.enq.valid, cf"ID ${i.toString} should not be used")
             q := DontCare
             q
           }
