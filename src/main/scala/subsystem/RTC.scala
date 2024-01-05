@@ -5,7 +5,7 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.util.Counter
 import freechips.rocketchip.diplomacy.{LazyModuleImp, DTSTimebase}
-import freechips.rocketchip.devices.tilelink.CanHavePeripheryCLINT
+import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CLINTKey}
 
 trait HasRTCModuleImp extends LazyModuleImp {
   val outer: BaseSubsystem with CanHavePeripheryCLINT
@@ -22,8 +22,16 @@ trait HasRTCModuleImp extends LazyModuleImp {
   // Use the static period to toggle the RTC
   chisel3.withClockAndReset(pbus.module.clock, pbus.module.reset) {
     val (_, int_rtc_tick) = Counter(true.B, internalPeriod.toInt)
-    outer.clintOpt.foreach { clint =>
-      clint.module.io.rtcTick := int_rtc_tick
+    p(CLINTKey).map { params =>
+      if(!params.isACLINT) {
+        outer.mswiOpt.map { mtimer =>
+          mtimer.module.io.rtcTick.get := int_rtc_tick
+        }
+      } else {
+        outer.mtimerOpt.map { mtimer =>
+          mtimer.module.io.rtcTick := int_rtc_tick
+        }
+      }
     }
   }
 }

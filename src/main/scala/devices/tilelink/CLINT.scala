@@ -12,108 +12,70 @@ import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
-object CLINTConsts
-{
-  def msipOffset(hart: Int) = hart * msipBytes
-  def timecmpOffset(hart: Int) = 0x4000 + hart * timecmpBytes
-  def timeOffset = 0xbff8
-  def msipBytes = 4
-  def timecmpBytes = 8
-  def size = 0x10000
-  def timeWidth = 64
-  def ipiWidth = 32
-  def ints = 2
-}
-
-case class CLINTParams(baseAddress: BigInt = 0x02000000, intStages: Int = 0)
-{
-  def address = AddressSet(baseAddress, CLINTConsts.size-1)
+/** If isACLINT is false, the code will generate a clint
+ *  If isACLINT is true, here is the template:
+ *  CLINTParams(
+ *    isACLINT: Boolean = true,
+ *    mtimer: Option[MTIMERParams]  = Some(MTIMERParams(mtimecmpBaseAddress = yyy, mtimeBaseAddress = zzz)),
+ *    mswi: Option[MSWIParams]      = Some(MSWIParams(baseAddress = xxx))
+ *  )
+ */
+case class CLINTParams(
+  isACLINT: Boolean = false,
+  mtimer: Option[MTIMERParams]  = None,
+  mswi: Option[MSWIParams]      = Some(MSWIParams())
+){
+  require(mtimer.isDefined || mswi.isDefined, "If both mtimer and mswi are empty, please directly set CLINTKey to empty")
+  require(!(!isACLINT && mtimer.isDefined), "The mtimer should not be specified when isACLINT = false")
 }
 
 case object CLINTKey extends Field[Option[CLINTParams]](None)
 
-case class CLINTAttachParams(
-  slaveWhere: TLBusWrapperLocation = CBUS
-)
-
-case object CLINTAttachKey extends Field(CLINTAttachParams())
-
-class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule
-{
-  import CLINTConsts._
-
-  // clint0 => at most 4095 devices
-  val device = new SimpleDevice("clint", Seq("riscv,clint0")) {
-    override val alwaysExtended = true
-  }
-
-  val node: TLRegisterNode = TLRegisterNode(
-    address   = Seq(params.address),
-    device    = device,
-    beatBytes = beatBytes)
-
-  val intnode : IntNexusNode = IntNexusNode(
-    sourceFn = { _ => IntSourcePortParameters(Seq(IntSourceParameters(ints, Seq(Resource(device, "int"))))) },
-    sinkFn   = { _ => IntSinkPortParameters(Seq(IntSinkParameters())) },
-    outputRequiresInput = false)
-
-  lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
-    Annotated.params(this, params)
-    require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
-
-    val io = IO(new Bundle {
-      val rtcTick = Input(Bool())
-    })
-
-    val time = RegInit(0.U(timeWidth.W))
-    when (io.rtcTick) { time := time + 1.U }
-
-    val nTiles = intnode.out.size
-    val timecmp = Seq.fill(nTiles) { Reg(UInt(timeWidth.W)) }
-    val ipi = Seq.fill(nTiles) { RegInit(0.U(1.W)) }
-
-    val (intnode_out, _) = intnode.out.unzip
-    intnode_out.zipWithIndex.foreach { case (int, i) =>
-      int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
-      int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
-    }
-
-    /* 0000 msip hart 0
-     * 0004 msip hart 1
-     * 4000 mtimecmp hart 0 lo
-     * 4004 mtimecmp hart 0 hi
-     * 4008 mtimecmp hart 1 lo
-     * 400c mtimecmp hart 1 hi
-     * bff8 mtime lo
-     * bffc mtime hi
-     */
-
-    node.regmap(
-      0                -> RegFieldGroup ("msip", Some("MSIP Bits"), ipi.zipWithIndex.flatMap{ case (r, i) =>
-        RegField(1, r, RegFieldDesc(s"msip_$i", s"MSIP bit for Hart $i", reset=Some(0))) :: RegField(ipiWidth - 1) :: Nil }),
-      timecmpOffset(0) -> timecmp.zipWithIndex.flatMap{ case (t, i) => RegFieldGroup(s"mtimecmp_$i", Some(s"MTIMECMP for hart $i"),
-          RegField.bytes(t, Some(RegFieldDesc(s"mtimecmp_$i", "", reset=None))))},
-      timeOffset       -> RegFieldGroup("mtime", Some("Timer Register"),
-        RegField.bytes(time, Some(RegFieldDesc("mtime", "", reset=Some(0), volatile=true))))
-    )
-  }
-}
-
-/** Trait that will connect a CLINT to a subsystem */
+// If isACLINT is false, a clint will be generated according to base address of mswi device
+// The Chisel MSWI device will implement the entirety of the CLINT in this case
 trait CanHavePeripheryCLINT { this: BaseSubsystem =>
-  val clintOpt = p(CLINTKey).map { params =>
-    val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
-    val clint = LazyModule(new CLINT(params, cbus.beatBytes))
-    clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ }
+  val mswiOpt = p(CLINTKey) match { 
+    case Some(clintParams) => 
+      {
+        val mswiOpt = clintParams.mswi.map { params =>
+          val tlbus = locateTLBusWrapper(p(MSWIAttachKey).slaveWhere)
+          val beatBytes = tlbus.beatBytes
+          val mswi = LazyModule(new MSWI(params, MTIMERParams(mtimeBaseAddress = params.baseAddress + SWIConsts.size), clintParams.isACLINT, beatBytes))
+          mswi.node := tlbus.coupleTo("mswi") { TLFragmenter(tlbus) := _ }
 
-    // Override the implicit clock and reset -- could instead include a clockNode in the clint, and make it a RawModuleImp?
-    InModuleBody {
-      clint.module.clock := tlbus.module.clock
-      clint.module.reset := tlbus.module.reset
-    }
+          InModuleBody {
+            mswi.module.clock := tlbus.module.clock
+            mswi.module.reset := tlbus.module.reset
+          }
 
-    clint
+          mswi
+        }
 
+        mswiOpt
+      }
+    case _ => None
+  }
+
+  val mtimerOpt = p(CLINTKey) match { 
+    case Some(clintParams) if clintParams.isACLINT =>
+      {
+        val mtimerOpt = clintParams.mtimer.map { params =>
+          val tlbus = locateTLBusWrapper(p(MTIMERAttachKey).slaveWhere)
+          val beatBytes = tlbus.beatBytes
+          val mtimer = LazyModule(new MTIMER(params, beatBytes))
+          mtimer.mtimecmpNode := tlbus.coupleTo("mtimecmp") { TLFragmenter(tlbus) := _ }
+          mtimer.mtimeNode := tlbus.coupleTo("mtime") { TLFragmenter(tlbus) := _ }
+
+          InModuleBody {
+            mtimer.module.clock := tlbus.module.clock
+            mtimer.module.reset := tlbus.module.reset
+          }
+
+          mtimer
+        }
+
+        mtimerOpt
+      }
+    case _ => None 
   }
 }
