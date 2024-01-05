@@ -7,3 +7,9 @@
 [submodule "dependencies/chisel"]
 	path = dependencies/chisel
 	url = https://github.com/chipsalliance/chisel.git
+[submodule "dependencies/rvdecoderdb"]
+	path = dependencies/rvdecoderdb
+	url = https://github.com/sequencer/rvdecoderdb.git
+[submodule "dependencies/riscv-opcodes"]
+	path = dependencies/riscv-opcodes
+	url = https://github.com/riscv/riscv-opcodes.git

@@ -7,6 +7,7 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
+import freechips.rocketchip.rocket._
 import Instructions._
 import CustomInstructions._
 
