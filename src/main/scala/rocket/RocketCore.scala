@@ -838,10 +838,17 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
   io.vector.map { v =>
-    v.resp.ready := Mux(v.resp.bits.fp, false.B, ll_arb.io.in(2).ready)
+    v.resp.ready := Mux(v.resp.bits.fp, !(dmem_resp_valid && dmem_resp_fpu), ll_arb.io.in(2).ready)
     ll_arb.io.in(2).valid := v.resp.valid && !v.resp.bits.fp
     ll_arb.io.in(2).bits.data := v.resp.bits.data
     ll_arb.io.in(2).bits.tag := v.resp.bits.rd
+
+    when (!(dmem_resp_valid && dmem_resp_fpu)) {
+      io.fpu.ll_resp_val := v.resp.valid && v.resp.bits.fp
+      io.fpu.ll_resp_data := v.resp.bits.data
+      io.fpu.ll_resp_type := v.resp.bits.size
+      io.fpu.ll_resp_tag := v.resp.bits.rd
+    }
   }
   // Dont care mem since not all RoCC need accessing memory
   io.rocc.mem := DontCare
@@ -957,7 +964,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     io.vector.foreach { v => when (v.wb.retire) {
       should_wb := v.wb.rob_should_wb
       has_wb := false.B
-      wb_addr := csr_trace_with_wdata.insn(11,7)
+      wb_addr := Cat(v.wb.rob_should_wb_fp, csr_trace_with_wdata.insn(11,7))
     }}
 
     DebugROB.pushTrace(clock, reset,
@@ -1025,7 +1032,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_stall_fpu = if (usingFPU) {
     val fp_sboard = new Scoreboard(32)
     fp_sboard.set((wb_dcache_miss && wb_ctrl.wfd || io.fpu.sboard_set) && wb_valid, wb_waddr)
-    fp_sboard.clear(dmem_resp_replay && dmem_resp_fpu, dmem_resp_waddr)
+    val v_ll = io.vector.map(v => v.resp.fire && v.resp.bits.fp).getOrElse(false.B)
+    fp_sboard.clear((dmem_resp_replay && dmem_resp_fpu) || v_ll, io.fpu.ll_resp_tag)
     fp_sboard.clear(io.fpu.sboard_clr, io.fpu.sboard_clra)
 
     checkHazards(fp_hazard_targets, fp_sboard.read _)
@@ -1108,10 +1116,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.killm := killm_common
   io.fpu.inst := id_inst(0)
   io.fpu.fromint_data := ex_rs(0)
-  io.fpu.dmem_resp_val := dmem_resp_valid && dmem_resp_fpu
-  io.fpu.dmem_resp_data := (if (minFLen == 32) io.dmem.resp.bits.data_word_bypass else io.dmem.resp.bits.data)
-  io.fpu.dmem_resp_type := io.dmem.resp.bits.size
-  io.fpu.dmem_resp_tag := dmem_resp_waddr
+  io.fpu.ll_resp_val := dmem_resp_valid && dmem_resp_fpu
+  io.fpu.ll_resp_data := (if (minFLen == 32) io.dmem.resp.bits.data_word_bypass else io.dmem.resp.bits.data)
+  io.fpu.ll_resp_type := io.dmem.resp.bits.size
+  io.fpu.ll_resp_tag := dmem_resp_waddr
   io.fpu.keep_clock_enabled := io.ptw.customCSRs.disableCoreClockGate
 
   io.fpu.v_sew := csr.io.vector.map(_.vconfig.vtype.vsew).getOrElse(0.U)
