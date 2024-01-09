@@ -45,7 +45,7 @@ abstract trait HasExtInterrupts { this: BaseSubsystem =>
   */
 trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
-    ibus.fromAsync := extInterrupts
+    ibus { ibus.fromAsync := extInterrupts }
   }
 }
 
@@ -54,7 +54,7 @@ trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   */
 trait HasSyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
-    ibus.fromSync := extInterrupts
+    ibus { ibus.fromSync := extInterrupts }
   }
 }
 
@@ -70,7 +70,7 @@ trait HasExtInterruptsBundle {
 /** This trait performs the translation from a UInt IO into Diplomatic Interrupts.
   * The wiring must be done in the concrete LazyModuleImp. 
   */
-trait HasExtInterruptsModuleImp extends LazyModuleImp with HasExtInterruptsBundle {
+trait HasExtInterruptsModuleImp extends LazyRawModuleImp with HasExtInterruptsBundle {
   val outer: HasExtInterrupts
   val interrupts = IO(Input(UInt(outer.nExtInterrupts.W)))
 

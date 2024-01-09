@@ -136,33 +136,9 @@ abstract class CoreModule(implicit val p: Parameters) extends Module
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
-class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
-  val buserror = tileParams.beuAddr.map(a => Bool())
-}
-
 // This is a raw commit trace from the core, not the TraceCoreInterface
 class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
   val time = UInt(64.W)
   val custom = coreParams.traceCustom
-}
-
-trait HasCoreIO extends HasTileParameters {
-  implicit val p: Parameters
-  def nTotalRoCCCSRs: Int
-  val io = IO(new CoreBundle()(p) {
-    val hartid = Input(UInt(hartIdLen.W))
-    val reset_vector = Input(UInt(resetVectorLen.W))
-    val interrupts = Input(new CoreInterrupts())
-    val imem  = new FrontendIO
-    val dmem = new HellaCacheIO
-    val ptw = Flipped(new DatapathPTWIO())
-    val fpu = Flipped(new FPUCoreIO())
-    val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
-    val trace = Output(new TraceBundle)
-    val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
-    val cease = Output(Bool())
-    val wfi = Output(Bool())
-    val traceStall = Input(Bool())
-  })
 }

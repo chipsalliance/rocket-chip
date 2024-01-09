@@ -34,6 +34,17 @@ class DualCoreConfig extends Config(new WithNBigCores(2) ++ new WithCoherentBusT
 class DualChannelConfig extends Config(new WithNMemoryChannels(2) ++ new DefaultConfig)
 class EightChannelConfig extends Config(new WithNMemoryChannels(8) ++ new DefaultConfig)
 
+class ClusterConfig extends Config(
+  new WithNBigCores(2, InCluster(3)) ++
+  new WithNBigCores(2, InCluster(1)) ++
+  new WithNBigCores(2, InCluster(0)) ++
+  new WithCluster(3, location=InCluster(2)) ++
+  new WithCluster(2) ++
+  new WithCluster(1) ++
+  new WithCluster(0) ++
+  new DefaultConfig
+)
+
 class DualChannelDualBankConfig extends Config(
   new WithNMemoryChannels(2) ++
   new WithNBanks(4) ++ new DefaultConfig

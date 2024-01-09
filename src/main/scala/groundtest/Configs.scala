@@ -30,25 +30,24 @@ class GroundTestBaseConfig extends Config(
     case DebugModuleKey => None
     case CLINTKey => None
     case PLICKey => None
-    case SubsystemExternalResetVectorKey => true
+    case HasTilesExternalResetVectorKey => true
   })
 )
 
 class WithTraceGen(
   n: Int = 2,
-  overrideIdOffset: Option[Int] = None,
   overrideMemOffset: Option[BigInt] = None)(
   params: Seq[DCacheParams] = List.fill(n){ DCacheParams(nSets = 16, nWays = 1) },
   nReqs: Int = 8192
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val idOffset = up(NumTiles)
     val memOffset: BigInt = overrideMemOffset.orElse(site(ExtMem).map(_.master.base)).getOrElse(0x0L)
     params.zipWithIndex.map { case (dcp, i) =>
       TraceGenTileAttachParams(
         tileParams = TraceGenParams(
-          hartId = i + idOffset,
+          tileId = i + idOffset,
           dcache = Some(dcp),
           wordBits = site(XLen),
           addrBits = 32,
@@ -68,4 +67,5 @@ class WithTraceGen(
       )
     } ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })

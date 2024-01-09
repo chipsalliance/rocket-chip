@@ -12,7 +12,7 @@ class NullIntSource(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: 
   val intnode = IntSourceNode(IntSourcePortSimple(num, ports, sources))
 
   lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
+  class Impl extends LazyRawModuleImp(this) {
     intnode.out.foreach { case (o, _) => o.foreach { _ := false.B } }
   }
 }
@@ -26,6 +26,6 @@ object NullIntSource {
 
 object NullIntSyncSource {
   def apply(num: Int = 1, ports: Int = 1, sources: Int = 1)(implicit p: Parameters): IntSyncOutwardNode = {
-    IntSyncCrossingSource() := NullIntSource(num, ports, sources)
+    IntSyncCrossingSource(alreadyRegistered = true) := NullIntSource(num, ports, sources)
   }
 }

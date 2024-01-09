@@ -254,10 +254,10 @@ class CSRDecodeIO(implicit p: Parameters) extends CoreBundle {
   val virtual_system_illegal = Output(Bool())
 }
 
-class CSRFileIO(implicit p: Parameters) extends CoreBundle
+class CSRFileIO(hasBeu: Boolean)(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
   val ungated_clock = Input(Clock())
-  val interrupts = Input(new CoreInterrupts())
+  val interrupts = Input(new CoreInterrupts(hasBeu))
   val hartid = Input(UInt(hartIdLen.W))
   val rw = new Bundle {
     val addr = Input(UInt(CSR.ADDRSZ.W))
@@ -375,10 +375,11 @@ class VType(implicit p: Parameters) extends CoreBundle {
 class CSRFile(
   perfEventSets: EventSets = new EventSets(Seq()),
   customCSRs: Seq[CustomCSR] = Nil,
-  roccCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
+  roccCSRs: Seq[CustomCSR] = Nil,
+  hasBeu: Boolean = false)(implicit p: Parameters)
     extends CoreModule()(p)
     with HasCoreParameters {
-  val io = IO(new CSRFileIO {
+  val io = IO(new CSRFileIO(hasBeu) {
     val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO)
     val roccCSRs = Vec(CSRFile.this.roccCSRs.size, new CustomCSRIO)
   })

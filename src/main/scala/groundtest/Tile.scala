@@ -34,7 +34,7 @@ abstract class GroundTestTile(
   with SourcesExternalNotifications
 {
   val cpuDevice: SimpleDevice = new SimpleDevice("groundtest", Nil)
-  val intOutwardNode: IntOutwardNode = IntIdentityNode()
+  val intOutwardNode = None
   val slaveNode: TLInwardNode = TLIdentityNode()
   val statusNode = BundleBridgeSource(() => new GroundTestStatus)
 
