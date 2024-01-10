@@ -703,7 +703,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
       val size = Mux(ex_ctrl.rocc, log2Ceil(xLen/8).U, ex_reg_mem_size)
-      mem_reg_rs2 := new StoreGen(size, 0.U, ex_rs(1), coreDataBytes).data
+      mem_reg_rs2 := new StoreGen(size, 0.U, ex_rs(1), xLen/8).data
     }
     if (usingVector) { when (ex_reg_set_vconfig) {
       mem_reg_rs2 := ex_new_vconfig.get.asUInt
@@ -734,9 +734,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coverExceptions(mem_xcpt, mem_cause, "MEMORY", memCoverCauses)
 
   val dcache_kill_mem = mem_reg_valid && mem_ctrl.wxd && io.dmem.replay_next // structural hazard on writeback port
-  val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem
   val vec_kill_mem = mem_reg_valid && mem_ctrl.mem && io.vector.map(_.mem.block_mem).getOrElse(false.B)
   val vec_kill_all = mem_reg_valid && io.vector.map(_.mem.block_all).getOrElse(false.B)
+  val fpu_kill_mem = mem_reg_valid && mem_ctrl.fp && io.fpu.nack_mem || vec_kill_mem
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem || vec_kill_mem || vec_kill_all
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   div.io.kill := killm_common && RegNext(div.io.req.fire)
