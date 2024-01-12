@@ -850,6 +850,10 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     req.fmaCmd := ex_reg_inst(3,2) | (!ex_ctrl.ren3 && ex_reg_inst(27))
     when (ex_cp_valid) {
       req := io.cp_req.bits
+      when (io.cp_req.bits.swap12) {
+        req.in1 := io.cp_req.bits.in2
+        req.in2 := io.cp_req.bits.in1
+      }
       when (io.cp_req.bits.swap23) {
         req.in2 := io.cp_req.bits.in3
         req.in3 := io.cp_req.bits.in2

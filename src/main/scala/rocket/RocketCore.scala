@@ -1135,6 +1135,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     v.mem.frs1 := io.fpu.store_data
     v.killm := ctrl_killm
     v.status := csr.io.status
+
+    io.fpu.cp_req <> v.fp_req
+    v.fp_resp <> io.fpu.cp_resp
   }
 
 

@@ -168,7 +168,7 @@ trait HasCoreIO extends HasTileParameters {
     val imem  = new FrontendIO
     val dmem = new HellaCacheIO
     val ptw = Flipped(new DatapathPTWIO())
-    val fpu = Flipped(new FPUCoreIO())
+    val fpu = Flipped(new FPUIO())
     val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
     val trace = Output(new TraceBundle)
     val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))

@@ -60,6 +60,9 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
 
   val trap_check_busy = Output(Bool())
   val backend_busy = Output(Bool())
+
+  val fp_req = Decoupled(new FPInput())
+  val fp_resp = Flipped(Decoupled(new FPResult()))
 }
 
 abstract class RocketVectorUnit(implicit p: Parameters) extends CoreModule()(p) {
