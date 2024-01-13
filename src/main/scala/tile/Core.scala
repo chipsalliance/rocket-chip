@@ -55,6 +55,7 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val traceHasWdata: Boolean
+  val traceHasRFWdata: Boolean
   def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
@@ -114,6 +115,7 @@ trait HasCoreParameters extends HasTileParameters {
   val mtvecWritable = coreParams.mtvecWritable
   val customIsaExt = coreParams.customIsaExt
   val traceHasWdata = coreParams.traceHasWdata
+  val traceHasRFWdata = coreParams.traceHasRFWdata
 
   def vLen = coreParams.vLen
   def sLen = coreParams.sLen

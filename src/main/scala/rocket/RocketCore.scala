@@ -56,7 +56,8 @@ case class RocketCoreParams(
   fpu: Option[FPUParams] = Some(FPUParams()),
   debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
   haveCease: Boolean = true, // non-standard CEASE instruction
-  haveSimTimeout: Boolean = true // add plusarg for simulation timeout
+  haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
+  traceRFWb: Boolean = false
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -68,6 +69,7 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = false // ooo wb, so no wdata in trace
+  val traceHasRFWdata: Boolean = traceRFWb
   override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
@@ -840,6 +842,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
   } else {
     io.trace.insns := csr.io.trace
+    io.trace.insns(0).rfwdata.foreach(_ := rf_wdata)
+    io.trace.insns(0).rfwen  .foreach(_ := rf_wen)
   }
   for (((iobpw, wphit), bp) <- io.bpwatch zip wb_reg_wphit zip csr.io.bp) {
     iobpw.valid(0) := wphit
@@ -1082,6 +1086,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
   else {
     when (csr.io.trace(0).valid) {
+      if (traceHasRFWdata) {
+        printf("rfwen: %d rfwd: %d ", rf_wen, rf_wdata)
+      }
       printf("C%d: %d [%d] pc=[%x] W[r%d=%x][%d] R[r%d=%x] R[r%d=%x] inst=[%x] DASM(%x)\n",
          io.hartid, coreMonitorBundle.timer, coreMonitorBundle.valid,
          coreMonitorBundle.pc,

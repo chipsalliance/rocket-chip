@@ -229,7 +229,9 @@ class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val interrupt = Bool()
   val cause = UInt(xLen.W)
   val tval = UInt((coreMaxAddrBits max iLen).W)
-  val wdata = Option.when(traceHasWdata)(UInt((vLen max xLen).W))
+  val rfwdata = Option.when(traceHasRFWdata)(UInt((vLen max xLen).W))
+  val rfwen   = Option.when(traceHasRFWdata)(Bool())
+  val wdata   = Option.when(traceHasWdata)(UInt((vLen max xLen).W))
 }
 
 class TraceAux extends Bundle {
@@ -1603,7 +1605,9 @@ class CSRFile(
     t.cause := cause
     t.interrupt := cause(xLen-1)
     t.tval := io.tval
-    t.wdata.foreach(_ := DontCare)
+    t.rfwdata.foreach(_ := DontCare)
+    t.rfwen  .foreach(_ := DontCare)
+    t.wdata  .foreach(_ := DontCare)
   }
 
   def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {
