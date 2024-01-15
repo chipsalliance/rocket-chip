@@ -4,7 +4,7 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import chisel3.experimental.ChiselEnum
+import chisel3.ChiselEnum
 
 // Definitions for Trace core Interface defined in RISC-V Processor Trace Specification V1.0
 object TraceItype extends ChiselEnum {
