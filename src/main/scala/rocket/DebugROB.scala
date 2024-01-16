@@ -9,6 +9,7 @@ import chisel3.experimental.{IntParam}
 import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.tile.{HasCoreParameters}
 import freechips.rocketchip.util.DecoupledHelper
+import midas.targetutils.SynthesizePrintf
 
 
 class WidenedTracedInstruction extends Bundle {
@@ -129,7 +130,7 @@ class HardDebugROB(val nXPR: Int)(implicit val p: Parameters) extends Module wit
     val o_insn   = Output(new TracedInstruction)
   })
 
-  val iq = Module(new Queue(new TaggedInstruction(nXPR), 2*nXPR, flow = true))
+  val iq = Module(new Queue(new TaggedInstruction(nXPR), 32*nXPR, flow = true))
 
   // No backpressure
   assert(iq.io.enq.ready)
@@ -180,4 +181,14 @@ class HardDebugROB(val nXPR: Int)(implicit val p: Parameters) extends Module wit
       wb_q(i).valid := false.B
     }
   }
+
+  val qcnt = RegInit(0.U(64.W))
+  when (iq.io.enq.fire && !iq.io.deq.fire) {
+    qcnt := qcnt + 1.U
+  } .elsewhen (!iq.io.enq.fire && iq.io.deq.fire) {
+    qcnt := qcnt - 1.U
+  } .otherwise {
+    qcnt := qcnt
+  }
+  printf(SynthesizePrintf("qcnt: %d\n", qcnt))
 }
