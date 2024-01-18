@@ -229,8 +229,9 @@ class TLRAM(
     val r_ready = !d_wb && !r_replay && (!d_full || d_ready) && (!r_respond || (!d_win && in.d.ready))
     in.a.ready := !(d_full && d_wb) && (!r_full || r_ready) && (!r_full || !(r_atomic || r_sublane))
 
+    // ignore sublane if mask is all set
     val a_sublane = if (eccBytes == 1) false.B else
-      in.a.bits.opcode === TLMessages.PutPartialData ||
+      ((in.a.bits.opcode === TLMessages.PutPartialData) && (~in.a.bits.mask.andR)) ||
       in.a.bits.size < log2Ceil(eccBytes).U
     val a_atomic = if (!atomics) false.B else
       in.a.bits.opcode === TLMessages.ArithmeticData ||
