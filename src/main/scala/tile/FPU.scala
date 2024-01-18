@@ -970,7 +970,15 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     DebugROB.pushWb(clock, reset, io.hartid, (!wbInfo(0).cp && wen(0)) || divSqrt_wen, waddr + 32.U, ieee(wdata))
   }
 
-  when (wbInfo(0).cp && wen(0)) {
+  val wb_cp_divSqrt_valid = RegInit(false.B)
+  
+  when (divSqrt_wen) {
+    wb_cp_divSqrt_valid := false.B
+  } .elsewhen (mem_cp_valid && mem_reg_valid && (mem_ctrl.div || mem_ctrl.sqrt) && !divSqrt_inFlight) {
+    wb_cp_divSqrt_valid := true.B    
+  }
+
+  when ((wbInfo(0).cp && wen(0)) || ((wb_cp_valid || wb_cp_divSqrt_valid) && divSqrt_wen)) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := true.B
   }
