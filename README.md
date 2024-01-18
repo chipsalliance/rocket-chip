@@ -2,7 +2,7 @@ Rocket Chip Generator :rocket: ![Build Status](https://github.com/chipsalliance/
 =====================
 
 This repository contains the Rocket chip generator necessary to instantiate
-the RISC-V Rocket Core. For more information on Rocket Chip, please consult our [technical report](http://www.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html).
+the RISC-V Rocket Core. For more information on Rocket Chip, please consult our [technical report](https://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-17.html).
 
 ## RocketChip Dev Meeting
 
