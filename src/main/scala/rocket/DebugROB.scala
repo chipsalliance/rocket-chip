@@ -9,8 +9,8 @@ import chisel3.experimental.{IntParam}
 import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.tile.{HasCoreParameters}
 import freechips.rocketchip.util.DecoupledHelper
-import midas.targetutils.SynthesizePrintf
 
+case class DebugROBParams(size: Int)
 
 class WidenedTracedInstruction extends Bundle {
   val valid = Bool()
@@ -116,7 +116,9 @@ class TaggedWbData(implicit val p: Parameters) extends Bundle with HasCoreParame
   val data  = UInt(xLen.W)
 }
 
-class HardDebugROB(val nXPR: Int)(implicit val p: Parameters) extends Module with HasCoreParameters {
+class HardDebugROB(val traceRatio: Int, val nXPR: Int)(implicit val p: Parameters)
+  extends Module with HasCoreParameters
+{
   val io = IO(new Bundle {
     val i_insn    = Input(new TracedInstruction)
     val should_wb = Input(Bool())
@@ -130,7 +132,7 @@ class HardDebugROB(val nXPR: Int)(implicit val p: Parameters) extends Module wit
     val o_insn   = Output(new TracedInstruction)
   })
 
-  val iq = Module(new Queue(new TaggedInstruction(nXPR), 32*nXPR, flow = true))
+  val iq = Module(new Queue(new TaggedInstruction(nXPR), traceRatio * nXPR, flow = true))
 
   // No backpressure
   assert(iq.io.enq.ready)
@@ -190,5 +192,4 @@ class HardDebugROB(val nXPR: Int)(implicit val p: Parameters) extends Module wit
   } .otherwise {
     qcnt := qcnt
   }
-  printf(SynthesizePrintf("qcnt: %d\n", qcnt))
 }

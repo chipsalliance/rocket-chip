@@ -48,10 +48,9 @@ case class RocketCoreParams(
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
-  debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
+  debugROB: Option[DebugROBParams] = None, // if size < 1, SW ROB, else HW ROB
   haveCease: Boolean = true, // non-standard CEASE instruction
   haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
-  traceWdata: Boolean = false
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -62,7 +61,7 @@ case class RocketCoreParams(
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
-  val traceHasWdata: Boolean = traceWdata // ooo wb, so no wdata in trace
+  val traceHasWdata: Boolean = debugROB.isDefined // ooo wb, so no wdata in trace
   override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
   override def customCSRs(implicit p: Parameters) = new RocketCustomCSRs
@@ -737,34 +736,37 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.csrs <> csr.io.roccCSRs
   io.trace.time := csr.io.time
   io.trace.insns := csr.io.trace
-  if (rocketParams.debugROB) {
-    val csr_trace_with_wdata = WireInit(csr.io.trace(0))
-    csr_trace_with_wdata.wdata.get := rf_wdata
-    DebugROB.pushTrace(clock, reset,
-      io.hartid, csr_trace_with_wdata,
-      (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception,
-      wb_ctrl.wxd && wb_wen && !wb_set_sboard,
-      wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
+  if (rocketParams.debugROB.isDefined) {
+    val sz = rocketParams.debugROB.get.size
+    if (sz < 1) {
+      val csr_trace_with_wdata = WireInit(csr.io.trace(0))
+      csr_trace_with_wdata.wdata.get := rf_wdata
+      DebugROB.pushTrace(clock, reset,
+        io.hartid, csr_trace_with_wdata,
+        (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception,
+        wb_ctrl.wxd && wb_wen && !wb_set_sboard,
+        wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
 
-    io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
+      io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
 
-    DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
-  } else if (traceHasWdata) {
-    val csr_trace_with_wdata = WireInit(csr.io.trace(0))
-    csr_trace_with_wdata.wdata.get := rf_wdata
+      DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
+    } else {
+      val csr_trace_with_wdata = WireInit(csr.io.trace(0))
+      csr_trace_with_wdata.wdata.get := rf_wdata
 
-    val debug_rob = Module(new HardDebugROB(32))
-    debug_rob.io.i_insn := csr_trace_with_wdata
-    debug_rob.io.should_wb := (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) &&
-                              !csr.io.trace(0).exception
-    debug_rob.io.has_wb := wb_ctrl.wxd && wb_wen && !wb_set_sboard
-    debug_rob.io.tag    := wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U)
+      val debug_rob = Module(new HardDebugROB(sz, 32))
+      debug_rob.io.i_insn := csr_trace_with_wdata
+      debug_rob.io.should_wb := (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) &&
+                                !csr.io.trace(0).exception
+      debug_rob.io.has_wb := wb_ctrl.wxd && wb_wen && !wb_set_sboard
+      debug_rob.io.tag    := wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U)
 
-    debug_rob.io.wb_val  := ll_wen
-    debug_rob.io.wb_tag  := rf_waddr
-    debug_rob.io.wb_data := rf_wdata
+      debug_rob.io.wb_val  := ll_wen
+      debug_rob.io.wb_tag  := rf_waddr
+      debug_rob.io.wb_data := rf_wdata
 
-    io.trace.insns(0) := debug_rob.io.o_insn
+      io.trace.insns(0) := debug_rob.io.o_insn
+    }
   } else {
     io.trace.insns := csr.io.trace
   }
