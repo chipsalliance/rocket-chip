@@ -10,6 +10,7 @@ import org.chipsalliance.cde.config.Parameters
 class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
   val size = Wire(UInt(log2Up(log2Up(maxSize)+1).W))
   size := typ
+  val dat_padded = dat.pad(maxSize*8)
   def misaligned: Bool =
     (addr & ((1.U << size) - 1.U)(log2Up(maxSize)-1,0)).orR
 
@@ -24,8 +25,8 @@ class StoreGen(typ: UInt, addr: UInt, dat: UInt, maxSize: Int) {
   }
 
   protected def genData(i: Int): UInt =
-    if (i >= log2Up(maxSize)) dat
-    else Mux(size === i.U, Fill(1 << (log2Up(maxSize)-i), dat((8 << i)-1,0)), genData(i+1))
+    if (i >= log2Up(maxSize)) dat_padded
+    else Mux(size === i.U, Fill(1 << (log2Up(maxSize)-i), dat_padded((8 << i)-1,0)), genData(i+1))
 
   def data = genData(0)
   def wordData = genData(2)
