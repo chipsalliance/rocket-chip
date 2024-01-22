@@ -740,7 +740,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val replay_mem  = dcache_kill_mem || mem_reg_replay || fpu_kill_mem || vec_kill_mem || vec_kill_all
   val killm_common = dcache_kill_mem || take_pc_wb || mem_reg_xcpt || !mem_reg_valid
   div.io.kill := killm_common && RegNext(div.io.req.fire)
-  val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem
+  val ctrl_killm = killm_common || mem_xcpt || fpu_kill_mem || vec_kill_mem
 
   // writeback stage
   wb_reg_valid := !ctrl_killm
@@ -1158,7 +1158,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_data.mask := DontCare
 
-  io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem
+  io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem || vec_kill_mem
   io.dmem.s2_kill := false.B
   // don't let D$ go to sleep if we're probably going to use it soon
   io.dmem.keep_clock_enabled := ibuf.io.inst(0).valid && id_ctrl.mem && !csr.io.csr_stall
