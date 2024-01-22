@@ -38,7 +38,7 @@ behavior of typical Chisel width inference.
 ```scala mdoc:invisible
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.stage.ChiselStage
 import chisel3.util.random.FibonacciLFSR
 import freechips.rocketchip.diplomacy.{SimpleNodeImp, RenderedEdge, ValName, SourceNode,
@@ -252,8 +252,7 @@ class AdderMonitor(width: Int, numOperands: Int)(implicit p: Parameters) extends
   val nodeSeq = Seq.fill(numOperands) { new AdderMonitorNode(UpwardParam(width)) }
   val nodeSum = new AdderMonitorNode(UpwardParam(width))
 
-  lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
+  lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
       val error = Output(Bool())
     })
