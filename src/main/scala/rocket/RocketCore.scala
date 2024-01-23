@@ -1133,7 +1133,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     v.ex.rs2 := ex_rs(1)
     v.ex.pc := ex_reg_pc
     v.mem.frs1 := io.fpu.store_data
-    v.killm := ctrl_killm
+    v.killm := killm_common
     v.status := csr.io.status
   }
 
