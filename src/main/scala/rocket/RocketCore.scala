@@ -939,6 +939,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       csr.io.vector.get.set_vconfig.bits := v.set_vconfig.bits
     }
     when (v.set_vstart.valid) {
+      csr.io.vector.get.set_vstart.valid := true.B
       csr.io.vector.get.set_vstart.bits := v.set_vstart.bits
     }
   }
