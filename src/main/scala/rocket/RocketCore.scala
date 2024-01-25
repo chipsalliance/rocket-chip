@@ -50,7 +50,8 @@ case class RocketCoreParams(
   fpu: Option[FPUParams] = Some(FPUParams()),
   debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
   haveCease: Boolean = true, // non-standard CEASE instruction
-  haveSimTimeout: Boolean = true // add plusarg for simulation timeout
+  haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
+  customDecoder: Option[UInt => IntCtrlSigs] = None // custom decoder implementation
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -298,6 +299,11 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   require(!(coreParams.useRVE && coreParams.fpu.nonEmpty), "Can't select both RVE and floating-point")
   require(!(coreParams.useRVE && coreParams.useHypervisor), "Can't select both RVE and Hypervisor")
   val id_ctrl = Wire(new IntCtrlSigs(aluFn)).decode(id_inst(0), decode_table)
+  if (rocketParams.customDecoder.isDefined) {
+    id_ctrl := rocketParams.customDecoder.get(id_inst(0))
+  } else {
+    id_ctrl.decode(id_inst(0), decode_table)
+  }
   val lgNXRegs = if (coreParams.useRVE) 4 else 5
   val regAddrMask = (1 << lgNXRegs) - 1
 
