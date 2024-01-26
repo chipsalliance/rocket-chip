@@ -889,6 +889,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val divSqrt_wen = WireDefault(false.B)
   val divSqrt_inFlight = WireDefault(false.B)
   val divSqrt_waddr = Reg(UInt(5.W))
+  val divSqrt_cp = Reg(Bool())
   val divSqrt_typeTag = Wire(UInt(log2Up(floatTypes.size).W))
   val divSqrt_wdata = Wire(UInt((fLen+1).W))
   val divSqrt_flags = Wire(UInt(FPConstants.FLAGS_SZ.W))
@@ -953,6 +954,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   }
 
   val waddr = Mux(divSqrt_wen, divSqrt_waddr, wbInfo(0).rd)
+  val wb_cp = Mux(divSqrt_wen, divSqrt_cp, wbInfo(0).cp)
   val wtypeTag = Mux(divSqrt_wen, divSqrt_typeTag, wbInfo(0).typeTag)
   val wdata = box(Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid)), wtypeTag)
   val wexc = (pipes.map(_.res.exc): Seq[UInt])(wbInfo(0).pipeid)
@@ -970,7 +972,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     DebugROB.pushWb(clock, reset, io.hartid, (!wbInfo(0).cp && wen(0)) || divSqrt_wen, waddr + 32.U, ieee(wdata))
   }
 
-  when (wbInfo(0).cp && wen(0)) {
+  when (wb_cp && wen(0)) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := true.B
   }
@@ -1001,6 +1003,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     val divSqrt_killed = RegNext(divSqrt_inValid && killm, true.B)
     when (divSqrt_inValid) {
       divSqrt_waddr := mem_reg_inst(11,7)
+      divSqrt_cp := mem_cp_valid
     }
 
     ccover(divSqrt_inFlight && divSqrt_killed, "DIV_KILLED", "divide killed after issued to divider")

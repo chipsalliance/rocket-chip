@@ -223,4 +223,21 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
 trait HasFpuOpt { this: RocketTileModuleImp =>
   val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
+  fpuOpt.foreach { fpu =>
+    val nRoCCFPUPorts = outer.roccs.count(_.usesFPU)
+    val nFPUPorts = nRoCCFPUPorts + outer.rocketParams.core.useVector.toInt
+    val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
+    fpu.io.cp_req <> fpArb.io.out_req
+    fpArb.io.out_resp <> fpu.io.cp_resp
+
+    val fp_rocc_ios = outer.roccs.filter(_.usesFPU).map(_.module.io)
+    for (i <- 0 until nRoCCFPUPorts) {
+      fpArb.io.in_req(i) <> fp_rocc_ios(i).fpu_req
+      fp_rocc_ios(i).fpu_resp <> fpArb.io.in_resp(i)
+    }
+    outer.vector_unit.foreach(vu => {
+      fpArb.io.in_req(nRoCCFPUPorts) <> vu.module.io.fp_req
+      vu.module.io.fp_resp <> fpArb.io.in_resp(nRoCCFPUPorts)
+    })
+  }
 }

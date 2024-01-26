@@ -74,6 +74,9 @@ class RocketVectorUnitModuleImp(outer: RocketVectorUnit) extends LazyModuleImp(o
     val core = new VectorCoreIO
     val tlb = Flipped(new DCacheTLBPort)
     val dmem = new HellaCacheIO
+
+    val fp_req = Decoupled(new FPInput())
+    val fp_resp = Flipped(Decoupled(new FPResult()))
   })
 }
 
