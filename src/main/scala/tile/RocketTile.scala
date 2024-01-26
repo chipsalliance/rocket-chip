@@ -173,8 +173,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu =>
     core.io.fpu :<>= fpu.io.waiveAs[FPUCoreIO](_.cp_req, _.cp_resp)
-    fpu.io.cp_req := DontCare
-    fpu.io.cp_resp := DontCare
   }
   if (fpuOpt.isEmpty) {
     core.io.fpu := DontCare
