@@ -763,7 +763,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.trace.insns := csr.io.trace
   if (rocketParams.debugROB.isDefined) {
     val sz = rocketParams.debugROB.get.size
-    if (sz < 1) {
+    if (sz < 1) { // use unsynthesizable ROB
       val csr_trace_with_wdata = WireInit(csr.io.trace(0))
       csr_trace_with_wdata.wdata.get := rf_wdata
       DebugROB.pushTrace(clock, reset,
