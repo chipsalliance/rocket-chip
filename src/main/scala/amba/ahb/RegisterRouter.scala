@@ -68,50 +68,6 @@ case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes:
   }
 }
 
-// These convenience methods below combine to make it possible to create a AHB
-// register mapped device from a totally abstract register mapped device.
-
-@deprecated("Use HasAHBControlRegMap+HasInterruptSources traits in place of AHBRegisterRouter+AHBRegBundle+AHBRegModule", "rocket-chip 1.3")
-abstract class AHBRegisterRouterBase(address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
-{
-  val node = AHBRegisterNode(address, concurrency, beatBytes, undefZero, executable)
-  val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts))
-}
-
-@deprecated("AHBRegBundleArg is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
-case class AHBRegBundleArg()(implicit val p: Parameters)
-
-@deprecated("AHBRegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
-class AHBRegBundleBase(arg: AHBRegBundleArg) extends Bundle
-{
-  implicit val p = arg.p
-}
-
-@deprecated("Use HasAHBControlRegMap+HasInterruptSources traits in place of AHBRegisterRouter+AHBRegBundle+AHBRegModule", "rocket-chip 1.3")
-class AHBRegBundle[P](val params: P, arg: AHBRegBundleArg) extends AHBRegBundleBase(arg)
-
-@deprecated("Use HasAHBControlRegMap+HasInterruptSources traits in place of AHBRegisterRouter+AHBRegBundle+AHBRegModule", "rocket-chip 1.3")
-class AHBRegModule[P, B <: AHBRegBundleBase](val params: P, bundleBuilder: => B, router: AHBRegisterRouterBase)
-  extends LazyModuleImp(router) with HasRegMap
-{
-  val io = IO(bundleBuilder)
-  val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
-  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
-}
-
-@deprecated("Use HasAHBControlRegMap+HasInterruptSources traits in place of AHBRegisterRouter+AHBRegBundle+AHBRegModule", "rocket-chip 1.3")
-class AHBRegisterRouter[B <: AHBRegBundleBase, M <: LazyModuleImp]
-   (val base: BigInt, val interrupts: Int = 0, val size: BigInt = 4096, val concurrency: Int = 0, val beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)
-   (bundleBuilder: AHBRegBundleArg => B)
-   (moduleBuilder: (=> B, AHBRegisterRouterBase) => M)(implicit p: Parameters)
-  extends AHBRegisterRouterBase(AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
-{
-  require (isPow2(size))
-  // require (size >= 4096) ... not absolutely required, but highly recommended
-
-  lazy val module = moduleBuilder(bundleBuilder(AHBRegBundleArg()), this)
-}
-
 /** Mix this trait into a RegisterRouter to be able to attach its register map to an AXI4 bus */
 trait HasAHBControlRegMap { this: RegisterRouter =>
   // Externally, this node should be used to connect the register control port to a bus
