@@ -775,7 +775,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
 
       DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
-    } else {
+    } else { // synthesizable ROB (no FPRs)
       val csr_trace_with_wdata = WireInit(csr.io.trace(0))
       csr_trace_with_wdata.wdata.get := rf_wdata
 
