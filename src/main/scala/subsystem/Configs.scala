@@ -447,7 +447,7 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
   }
 })
 
-class WithRocketDebugROB(size: Int = 0) extends Config((site, here, up) => {
+class WithRocketDebugROB(enable: Boolean = false, size: Int = 0) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(debugROB = Some(DebugROBParams(size)))
