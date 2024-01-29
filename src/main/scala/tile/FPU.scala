@@ -727,7 +727,9 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val io = IO(new FPUIO)
 
   val (useClockGating, useDebugROB) = coreParams match {
-    case r: RocketCoreParams => (r.clockGate, r.debugROB)
+    case r: RocketCoreParams =>
+      val sz = if (r.debugROB.isDefined) r.debugROB.get.size else 1
+      (r.clockGate, sz < 1)
     case _ => (false, false)
   }
   val clock_en_reg = Reg(Bool())
