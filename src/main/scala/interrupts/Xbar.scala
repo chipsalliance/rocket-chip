@@ -19,7 +19,7 @@ class IntXbar()(implicit p: Parameters) extends LazyModule
   }
 
   lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
+  class Impl extends LazyRawModuleImp(this) {
     val cat = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
     intnode.out.foreach { case (o, _) => o := cat }
   }

@@ -4,7 +4,7 @@ package freechips.rocketchip.prci
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 
-case class ClockGroupNode(groupName: String)(implicit valName: ValName)
+case class ClockGroupingNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(
     dFn = { _ => ClockSourceParameters() },
     uFn = { seq => ClockGroupSinkParameters(name = groupName, members = seq) })
@@ -14,7 +14,7 @@ case class ClockGroupNode(groupName: String)(implicit valName: ValName)
 
 class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 {
-  val node = ClockGroupNode(groupName)
+  val node = ClockGroupingNode(groupName)
 
   lazy val module = new Impl
   class Impl extends LazyRawModuleImp(this) {
@@ -107,7 +107,7 @@ class FixedClockBroadcast(fixedClockOpt: Option[ClockParameters])(implicit p: Pa
 
 object FixedClockBroadcast
 {
-  def apply(fixedClockOpt: Option[ClockParameters])(implicit p: Parameters, valName: ValName) = LazyModule(new FixedClockBroadcast(fixedClockOpt)).node
+  def apply(fixedClockOpt: Option[ClockParameters] = None)(implicit p: Parameters, valName: ValName) = LazyModule(new FixedClockBroadcast(fixedClockOpt)).node
 }
 
 case class PRCIClockGroupNode()(implicit valName: ValName)

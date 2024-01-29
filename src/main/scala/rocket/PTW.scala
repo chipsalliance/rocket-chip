@@ -677,8 +677,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   r_pte := OptimizationBarrier(
     // l2tlb hit->find a leaf PTE(l2_pte), respond to L1TLB
     Mux(l2_hit && !l2_error, l2_pte,
+    // S2 PTE cache hit -> proceed to the next level of walking, update the r_pte with hgatp
+    Mux(state === s_req && stage2_pte_cache_hit, makeHypervisorRootPTE(r_hgatp, stage2_pte_cache_data, l2_pte),
     // pte cache hit->find a non-leaf PTE(pte_cache),continue to request mem
-    Mux(state === s_req && !stage2_pte_cache_hit && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
+    Mux(state === s_req && pte_cache_hit, makePTE(pte_cache_data, l2_pte),
     // 2-stage translation
     Mux(do_switch, makeHypervisorRootPTE(r_hgatp, pte.ppn, r_pte),
     // when mem respond, store mem.resp.pte
@@ -687,7 +689,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Mux(state === s_fragment_superpage && !homogeneous && count =/= (pgLevels - 1).U, makePTE(makeFragmentedSuperpagePPN(r_pte.ppn)(count), r_pte),
     // when tlb request come->request mem, use root address in satp(or vsatp,hgatp)
     Mux(arb.io.out.fire, Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
-    r_pte)))))))
+    r_pte))))))))
 
   when (l2_hit && !l2_error) {
     assert(state === s_req || state === s_wait1)

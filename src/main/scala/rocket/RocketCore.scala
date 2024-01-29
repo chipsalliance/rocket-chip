@@ -10,7 +10,6 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
-import freechips.rocketchip.scie._
 import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(
@@ -24,11 +23,6 @@ case class RocketCoreParams(
   useAtomicsOnlyForIO: Boolean = false,
   useCompressed: Boolean = true,
   useRVE: Boolean = false,
-  useSCIE: Boolean = false,
-  useBitManip: Boolean = false,
-  useBitManipCrypto: Boolean = false,
-  useCryptoNIST: Boolean = false,
-  useCryptoSM: Boolean = false,
   useConditionalZero: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
@@ -69,7 +63,8 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = debugROB // ooo wb, so no wdata in trace unless debugROB
-  val useVector = vector.isDefined
+  override val useVector = vector.isDefined
+  override val vectorUseDCache = vector.map(_.useDCache).getOrElse(false)
   override def vLen = vector.map(_.vLen).getOrElse(0)
   override def vMemDataBits = vector.map(_.vMemDataBits).getOrElse(0)
   override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
@@ -85,12 +80,10 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
   val mulDivParams = rocketParams.mulDiv.getOrElse(MulDivParams()) // TODO ask andrew about this
 
-  val usingABLU = usingBitManip || usingBitManipCrypto
-  val aluFn = if (usingABLU) new ABLUFN else new ALUFN
+  val aluFn = new ALUFN
 
   require(!fastLoadByte || fastLoadWord)
   require(!rocketParams.haveFSDirty, "rocket doesn't support setting fs dirty from outside, please disable haveFSDirty")
-  require(!(usingABLU && usingConditionalZero), "Zicond is not yet implemented in ABLU")
 }
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
@@ -124,9 +117,35 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
   override def decls = super.decls :+ marchid :+ mvendorid :+ mimpid
 }
 
+class CoreInterrupts(val hasBeu: Boolean)(implicit p: Parameters) extends TileInterrupts()(p) {
+  val buserror = Option.when(hasBeu)(Bool())
+}
+
+trait HasRocketCoreIO extends HasRocketCoreParameters {
+  implicit val p: Parameters
+  def nTotalRoCCCSRs: Int
+  val io = IO(new CoreBundle()(p) {
+    val hartid = Input(UInt(hartIdLen.W))
+    val reset_vector = Input(UInt(resetVectorLen.W))
+    val interrupts = Input(new CoreInterrupts(tileParams.asInstanceOf[RocketTileParams].beuAddr.isDefined))
+    val imem  = new FrontendIO
+    val dmem = new HellaCacheIO
+    val ptw = Flipped(new DatapathPTWIO())
+    val fpu = Flipped(new FPUCoreIO())
+    val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
+    val trace = Output(new TraceBundle)
+    val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
+    val cease = Output(Bool())
+    val wfi = Output(Bool())
+    val traceStall = Input(Bool())
+    val vector = if (usingVector) Some(Flipped(new VectorCoreIO)) else None
+  })
+}
+
+
 class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     with HasRocketCoreParameters
-    with HasCoreIO {
+    with HasRocketCoreIO {
   def nTotalRoCCCSRs = tile.roccCSRs.flatten.size
 
   val clock_en_reg = RegInit(true.B)
@@ -189,22 +208,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
-    require(!usingRoCC || !rocketParams.useSCIE)
     (if (usingMulDiv) new MDecode(pipelinedMul, aluFn) +: (xLen > 32).option(new M64Decode(pipelinedMul, aluFn)).toSeq else Nil) ++:
     (if (usingAtomics) new ADecode(aluFn) +: (xLen > 32).option(new A64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 32)    new FDecode(aluFn) +: (xLen > 32).option(new F64Decode(aluFn)).toSeq else Nil) ++:
     (if (fLen >= 64)    new DDecode(aluFn) +: (xLen > 32).option(new D64Decode(aluFn)).toSeq else Nil) ++:
     (if (minFLen == 16) new HDecode(aluFn) +: (xLen > 32).option(new H64Decode(aluFn)).toSeq ++: (fLen >= 64).option(new HDDecode(aluFn)).toSeq else Nil) ++:
     (usingRoCC.option(new RoCCDecode(aluFn))) ++:
-    (rocketParams.useSCIE.option(new SCIEDecode(aluFn))) ++:
-    (if (usingBitManip) new ZBADecode +: (xLen == 64).option(new ZBA64Decode).toSeq ++: new ZBBMDecode +: new ZBBORCBDecode +: new ZBCRDecode +: new ZBSDecode +: (xLen == 32).option(new ZBS32Decode).toSeq ++: (xLen == 64).option(new ZBS64Decode).toSeq ++: new ZBBSEDecode +: new ZBBCDecode +: (xLen == 64).option(new ZBBC64Decode).toSeq else Nil) ++:
-    (if (usingBitManip && !usingBitManipCrypto) (xLen == 32).option(new ZBBZE32Decode).toSeq ++: (xLen == 64).option(new ZBBZE64Decode).toSeq else Nil) ++:
-    (if (usingBitManip || usingBitManipCrypto) new ZBBNDecode +: new ZBCDecode +: new ZBBRDecode +: (xLen == 32).option(new ZBBR32Decode).toSeq ++: (xLen == 64).option(new ZBBR64Decode).toSeq ++: (xLen == 32).option(new ZBBREV832Decode).toSeq ++: (xLen == 64).option(new ZBBREV864Decode).toSeq else Nil) ++:
-    (if (usingBitManipCrypto) new ZBKXDecode +: new ZBKBDecode +: (xLen == 32).option(new ZBKB32Decode).toSeq ++: (xLen == 64).option(new ZBKB64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) (xLen == 32).option(new ZKND32Decode).toSeq ++: (xLen == 64).option(new ZKND64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) (xLen == 32).option(new ZKNE32Decode).toSeq ++: (xLen == 64).option(new ZKNE64Decode).toSeq else Nil) ++:
-    (if (usingCryptoNIST) new ZKNHDecode +: (xLen == 32).option(new ZKNH32Decode).toSeq ++: (xLen == 64).option(new ZKNH64Decode).toSeq else Nil) ++:
-    (usingCryptoSM.option(new ZKSDecode)) ++:
     (if (xLen == 32) new I32Decode(aluFn) else new I64Decode(aluFn)) +:
     (usingVM.option(new SVMDecode(aluFn))) ++:
     (usingSupervisor.option(new SDecode(aluFn))) ++:
@@ -238,8 +247,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ex_reg_hls = Reg(Bool())
   val ex_reg_inst = Reg(Bits())
   val ex_reg_raw_inst = Reg(UInt())
-  val ex_scie_unpipelined = Reg(Bool())
-  val ex_scie_pipelined = Reg(Bool())
   val ex_reg_wphit            = Reg(Vec(nBreakpoints, Bool()))
   val ex_reg_set_vconfig      = Reg(Bool())
 
@@ -261,8 +268,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val mem_reg_mem_size = Reg(UInt())
   val mem_reg_hls_or_dv = Reg(Bool())
   val mem_reg_raw_inst = Reg(UInt())
-  val mem_scie_unpipelined = Reg(Bool())
-  val mem_scie_pipelined = Reg(Bool())
   val mem_reg_wdata = Reg(Bits())
   val mem_reg_rs2 = Reg(Bits())
   val mem_br_taken = Reg(Bool())
@@ -322,7 +327,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls, tile.roccCSRs.flatten))
+  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls, tile.roccCSRs.flatten, tile.rocketParams.beuAddr.isDefined))
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
   val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_expanded_inst(0).rs1 === 0.U
@@ -343,10 +348,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       id_ctrl.jalr := false.B
       id_ctrl.rxs2 := v_decode.io.read_rs2
       id_ctrl.rxs1 := v_decode.io.read_rs1
-      id_ctrl.scie := false.B
-      id_ctrl.zbk := false.B
-      id_ctrl.zkn := false.B
-      id_ctrl.zks := false.B
       id_ctrl.mem := false.B
       id_ctrl.rfs1 := v_decode.io.read_frs1
       id_ctrl.rfs2 := false.B
@@ -365,13 +366,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
 
-  val id_scie_decoder = if (!rocketParams.useSCIE) WireDefault(0.U.asTypeOf(new SCIEDecoderInterface)) else {
-    val d = Module(new SCIEDecoder)
-    assert(!io.imem.resp.valid || PopCount(d.io.unpipelined :: d.io.pipelined :: d.io.multicycle :: Nil) <= 1.U)
-    d.io.insn := id_raw_inst(0)
-    d.io
-  }
-  val id_illegal_rnum = if (usingCryptoNIST) (id_ctrl.zkn && aluFn.isKs1(id_ctrl.alu_fn) && id_inst(0)(23,20) > 0xA.U(4.W)) else false.B
   val id_illegal_insn = !id_ctrl.legal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
@@ -379,14 +373,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (id_ctrl.vec) && (csr.io.decode(0).vector_illegal || csr.io.vector.map(_.vconfig.vtype.vill).getOrElse(false.B)) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
-    id_raddr2_illegal && !id_ctrl.scie && id_ctrl.rxs2 ||
-    id_raddr1_illegal && !id_ctrl.scie && id_ctrl.rxs1 ||
-    id_waddr_illegal && !id_ctrl.scie && id_ctrl.wxd ||
+    id_raddr2_illegal && id_ctrl.rxs2 ||
+    id_raddr1_illegal && id_ctrl.rxs1 ||
+    id_waddr_illegal && id_ctrl.wxd ||
     id_ctrl.rocc && csr.io.decode(0).rocc_illegal ||
-    id_ctrl.scie && !(id_scie_decoder.unpipelined || id_scie_decoder.pipelined) ||
     id_csr_en && (csr.io.decode(0).read_illegal || !id_csr_ren && csr.io.decode(0).write_illegal) ||
-    !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal) ||
-    id_illegal_rnum
+    !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal)
   val id_virtual_insn = id_ctrl.legal &&
     ((id_csr_en && !(!id_csr_ren && csr.io.decode(0).write_illegal) && csr.io.decode(0).virtual_access_illegal) ||
      (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal))
@@ -489,59 +481,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   } else { (None, None) }
 
   val alu = Module(aluFn match {
-    case _: ABLUFN => new ABLU
     case _: ALUFN => new ALU
   })
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
   alu.io.in1 := ex_op1.asUInt
-
-  val ex_scie_unpipelined_wdata = if (!rocketParams.useSCIE) 0.U else {
-    val u = Module(new SCIEUnpipelined(xLen))
-    u.io.insn := ex_reg_inst
-    u.io.rs1 := ex_rs(0)
-    u.io.rs2 := ex_rs(1)
-    u.io.rd
-  }
-
-  val mem_scie_pipelined_wdata = if (!rocketParams.useSCIE) 0.U else {
-    val u = Module(new SCIEPipelined(xLen))
-    u.io.clock := Module.clock
-    u.io.valid := ex_reg_valid && ex_scie_pipelined
-    u.io.insn := ex_reg_inst
-    u.io.rs1 := ex_rs(0)
-    u.io.rs2 := ex_rs(1)
-    u.io.rd
-  }
-
-  val ex_zbk_wdata = if (!usingBitManipCrypto && !usingBitManip) 0.U else {
-    val zbk = Module(new BitManipCrypto(xLen))
-    zbk.io.fn  := ex_ctrl.alu_fn
-    zbk.io.dw  := ex_ctrl.alu_dw
-    zbk.io.rs1 := ex_op1.asUInt
-    zbk.io.rs2 := ex_op2.asUInt
-    zbk.io.rd
-  }
-
-  val ex_zkn_wdata = if (!usingCryptoNIST) 0.U else {
-    val zkn = Module(new CryptoNIST(xLen))
-    zkn.io.fn   := ex_ctrl.alu_fn
-    zkn.io.hl   := ex_reg_inst(27)
-    zkn.io.bs   := ex_reg_inst(31,30)
-    zkn.io.rs1  := ex_op1.asUInt
-    zkn.io.rs2  := ex_op2.asUInt
-    zkn.io.rd
-  }
-
-  val ex_zks_wdata = if (!usingCryptoSM) 0.U else {
-    val zks = Module(new CryptoSM(xLen))
-    zks.io.fn  := ex_ctrl.alu_fn
-    zks.io.bs  := ex_reg_inst(31,30)
-    zks.io.rs1 := ex_op1.asUInt
-    zks.io.rs2 := ex_op2.asUInt
-    zks.io.rd
-  }
 
   // multiplier and divider
   val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen, aluFn = aluFn))
@@ -567,8 +512,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     ex_ctrl := id_ctrl
     ex_reg_rvc := ibuf.io.inst(0).bits.rvc
     ex_ctrl.csr := id_csr
-    ex_scie_unpipelined := id_ctrl.scie && id_scie_decoder.unpipelined
-    ex_scie_pipelined := id_ctrl.scie && id_scie_decoder.pipelined
     when (id_ctrl.fence && id_fence_succ === 0.U) { id_reg_pause := true.B }
     when (id_fence_next) { id_reg_fence := true.B }
     when (id_xcpt) { // pass PC down ALU writeback pipeline for badaddr
@@ -677,8 +620,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_sfence := false.B
   }.elsewhen (ex_pc_valid) {
     mem_ctrl := ex_ctrl
-    mem_scie_unpipelined := ex_scie_unpipelined
-    mem_scie_pipelined := ex_scie_pipelined
     mem_reg_rvc := ex_reg_rvc
     mem_reg_load := ex_ctrl.mem && isRead(ex_ctrl.mem_cmd)
     mem_reg_store := ex_ctrl.mem && isWrite(ex_ctrl.mem_cmd)
@@ -696,13 +637,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_hls_or_dv := io.dmem.req.bits.dv
     mem_reg_pc := ex_reg_pc
     // IDecode ensured they are 1H
-    mem_reg_wdata := Mux1H(Seq(
-      ex_scie_unpipelined -> ex_scie_unpipelined_wdata,
-      ex_ctrl.zbk         -> ex_zbk_wdata,
-      ex_ctrl.zkn         -> ex_zkn_wdata,
-      ex_ctrl.zks         -> ex_zks_wdata,
-      ex_reg_set_vconfig  -> ex_new_vl.getOrElse(0.U),
-      (!ex_scie_unpipelined && !ex_ctrl.zbk && !ex_ctrl.zks && !ex_reg_set_vconfig) -> alu.io.out))
+    mem_reg_wdata := Mux(ex_reg_set_vconfig, ex_new_vl.getOrElse(alu.io.out), alu.io.out)
     mem_br_taken := alu.io.cmp_out
 
 
@@ -755,8 +690,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   when (mem_pc_valid) {
     wb_ctrl := mem_ctrl
     wb_reg_sfence := mem_reg_sfence
-    wb_reg_wdata := Mux(mem_scie_pipelined, mem_scie_pipelined_wdata,
-      Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata))
+    wb_reg_wdata := Mux(!mem_reg_xcpt && mem_ctrl.fp && mem_ctrl.wxd, io.fpu.toint_data, mem_int_wdata)
     when (mem_ctrl.rocc || mem_reg_sfence || mem_reg_set_vconfig) {
       wb_reg_rs2 := mem_reg_rs2
     }
@@ -1011,7 +945,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   sboard.set(wb_set_sboard && wb_wen, wb_waddr)
 
   // stall for RAW/WAW hazards on CSRs, loads, AMOs, and mul/div in execute stage.
-  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.mul || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc || ex_scie_pipelined
+  val ex_cannot_bypass = ex_ctrl.csr =/= CSR.N || ex_ctrl.jalr || ex_ctrl.mem || ex_ctrl.mul || ex_ctrl.div || ex_ctrl.fp || ex_ctrl.rocc
   val data_hazard_ex = ex_ctrl.wxd && checkHazards(hazard_targets, _ === ex_waddr)
   val fp_data_hazard_ex = id_ctrl.fp && ex_ctrl.wfd && checkHazards(fp_hazard_targets, _ === ex_waddr)
   val id_ex_hazard = ex_reg_valid && (data_hazard_ex && ex_cannot_bypass || fp_data_hazard_ex)

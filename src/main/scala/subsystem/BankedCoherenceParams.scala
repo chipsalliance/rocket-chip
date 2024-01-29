@@ -14,7 +14,7 @@ import CoherenceManagerWrapper._
 /** Global cache coherence granularity, which applies to all caches, for now. */
 case object CacheBlockBytes extends Field[Int](64)
 
-/** L2 Broadcast Hub configuration */
+/** LLC Broadcast Hub configuration */
 case object BroadcastKey extends Field(BroadcastParams())
 
 case class BroadcastParams(
@@ -23,10 +23,11 @@ case class BroadcastParams(
   controlAddress: Option[BigInt] = None,
   filterFactory:  TLBroadcast.ProbeFilterFactory = BroadcastFilter.factory)
 
-/** L2 memory subsystem configuration */
-case object BankedL2Key extends Field(BankedL2Params())
+/** Coherence manager configuration */
+case object SubsystemBankedCoherenceKey extends Field(BankedCoherenceParams())
+case class ClusterBankedCoherenceKey(clusterId: Int) extends Field(BankedCoherenceParams(nBanks=0))
 
-case class BankedL2Params(
+case class BankedCoherenceParams(
   nBanks: Int = 1,
   coherenceManager: CoherenceManagerInstantiationFn = broadcastManager
 ) {

@@ -22,12 +22,8 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
-  val useBitManip: Boolean
-  val useBitManipCrypto: Boolean
-  val useVector: Boolean
-  val useSCIE: Boolean
-  val useCryptoNIST: Boolean
-  val useCryptoSM: Boolean
+  val useVector: Boolean = false
+  val vectorUseDCache: Boolean = false
   val useRVE: Boolean
   val useConditionalZero: Boolean
   val mulDiv: Option[MulDivParams]
@@ -60,7 +56,6 @@ trait CoreParams {
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
 
   def hasSupervisorMode: Boolean = useSupervisor || useVM
-  def hasBitManipCrypto: Boolean = useBitManipCrypto || useCryptoNIST || useCryptoSM
   def instBytes: Int = instBits / 8
   def fetchBytes: Int = fetchWidth * instBytes
   def lrscCycles: Int
@@ -86,12 +81,7 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
-  val usingBitManip = coreParams.useBitManip
-  val usingBitManipCrypto = coreParams.hasBitManipCrypto
   val usingVector = coreParams.useVector
-  val usingSCIE = coreParams.useSCIE
-  val usingCryptoNIST = coreParams.useCryptoNIST
-  val usingCryptoSM = coreParams.useCryptoSM
   val usingNMI = coreParams.useNMI
   val usingConditionalZero = coreParams.useConditionalZero
 
@@ -124,7 +114,6 @@ trait HasCoreParameters extends HasTileParameters {
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
-    require(vMemDataBits >= eLen && vLen % vMemDataBits == 0, s"vMemDataBits ($vMemDataBits) must divide vLen ($vLen) and be no less than eLen ($eLen)")
   }
 
   lazy val hartIdLen: Int = p(MaxHartIdBits)
@@ -147,34 +136,9 @@ abstract class CoreModule(implicit val p: Parameters) extends Module
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
-class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
-  val buserror = tileParams.beuAddr.map(a => Bool())
-}
-
 // This is a raw commit trace from the core, not the TraceCoreInterface
 class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
   val time = UInt(64.W)
   val custom = coreParams.traceCustom
-}
-
-trait HasCoreIO extends HasTileParameters {
-  implicit val p: Parameters
-  def nTotalRoCCCSRs: Int
-  val io = IO(new CoreBundle()(p) {
-    val hartid = Input(UInt(hartIdLen.W))
-    val reset_vector = Input(UInt(resetVectorLen.W))
-    val interrupts = Input(new CoreInterrupts())
-    val imem  = new FrontendIO
-    val dmem = new HellaCacheIO
-    val ptw = Flipped(new DatapathPTWIO())
-    val fpu = Flipped(new FPUCoreIO())
-    val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
-    val trace = Output(new TraceBundle)
-    val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
-    val cease = Output(Bool())
-    val wfi = Output(Bool())
-    val traceStall = Input(Bool())
-    val vector = if (usingVector) Some(Flipped(new VectorCoreIO)) else None
-  })
 }

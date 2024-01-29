@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.subsystem
 
+import chisel3.{Flipped, IO}
 import chisel3.util._
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
@@ -9,8 +10,7 @@ import freechips.rocketchip.prci._
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util._
 
-case object SubsystemDriveAsyncClockGroupsKey extends Field[Option[ClockGroupDriverParameters]](Some(ClockGroupDriverParameters(1)))
-case object AsyncClockGroupsKey extends Field[() => ClockGroupEphemeralNode](() => ClockGroupEphemeralNode()(ValName("clock_sources")))
+case object SubsystemDriveClockGroupsFromIO extends Field[Boolean](true)
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
 case class TLManagerViewpointLocated(where: HierarchicalLocation) extends Field[Location[TLBusWrapper]](SBUS)
 
@@ -26,7 +26,7 @@ abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with Bin
   lazy val json = JSON(bindingTree)
 }
 
-abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends LazyModuleImp(_outer) {
+abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends LazyRawModuleImp(_outer) {
   val outer = _outer
   ElaborationArtefacts.add("graphml", outer.graphML)
   ElaborationArtefacts.add("dts", outer.dts)
@@ -47,11 +47,22 @@ case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSyn
   */
 trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val ibus = LazyModule(new InterruptBusWrapper)
-  implicit val asyncClockGroupsNode = p(AsyncClockGroupsKey)()
-  val clock_sources: ModuleValue[RecordMap[ClockBundle]] =
-    p(SubsystemDriveAsyncClockGroupsKey)
-      .map(_.drive(asyncClockGroupsNode))
-      .getOrElse(InModuleBody { RecordMap[ClockBundle]() })
+  val allClockGroupsNode = ClockGroupIdentityNode()
+  val io_clocks = if (p(SubsystemDriveClockGroupsFromIO)) {
+    val aggregator = ClockGroupAggregator()
+    val source = ClockGroupSourceNode(Seq(ClockGroupSourceParameters()))
+    allClockGroupsNode :*= aggregator := source
+    Some(InModuleBody {
+      val elements = source.out.map(_._1.member.elements).flatten
+      val io = IO(Flipped(RecordMap(elements.map { case (name, data) =>
+        name -> data.cloneType
+      }:_*)))
+      elements.foreach { case (name, data) => io(name).foreach { data := _ } }
+      io
+    })
+  } else {
+    None
+  }
 }
 
 /** Look up the topology configuration for the TL buses located within this layer of the hierarchy */
@@ -77,9 +88,11 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
+  val busContextName = "subsystem"
+
   // TODO must there really always be an "sbus"?
   val sbus = tlBusWrapperLocationMap(SBUS)
-  tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := asyncClockGroupsNode }
+  tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := allClockGroupsNode }
 
   // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
   // a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.

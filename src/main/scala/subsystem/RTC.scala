@@ -4,26 +4,28 @@ package freechips.rocketchip.subsystem
 
 import chisel3._
 import chisel3.util.Counter
-import freechips.rocketchip.diplomacy.{LazyModuleImp, DTSTimebase}
-import freechips.rocketchip.devices.tilelink.CanHavePeripheryCLINT
+import freechips.rocketchip.diplomacy.{LazyRawModuleImp, DTSTimebase}
+import freechips.rocketchip.devices.tilelink.{CLINTAttachKey, CanHavePeripheryCLINT}
 
-trait HasRTCModuleImp extends LazyModuleImp {
+trait HasRTCModuleImp extends LazyRawModuleImp {
   val outer: BaseSubsystem with CanHavePeripheryCLINT
-  private val pbusFreq = outer.p(PeripheryBusKey).dtsFrequency.get
-  private val rtcFreq = outer.p(DTSTimebase)
-  private val internalPeriod: BigInt = pbusFreq / rtcFreq
-
-  val pbus = outer.locateTLBusWrapper(PBUS)
-  // check whether pbusFreq >= rtcFreq
-  require(internalPeriod > 0)
-  // check wehther the integer division is within 5% of the real division
-  require((pbusFreq - rtcFreq * internalPeriod) * 100 / pbusFreq <= 5)
 
   // Use the static period to toggle the RTC
-  chisel3.withClockAndReset(pbus.module.clock, pbus.module.reset) {
-    val (_, int_rtc_tick) = Counter(true.B, internalPeriod.toInt)
-    outer.clintOpt.foreach { clint =>
-      clint.module.io.rtcTick := int_rtc_tick
+  outer.clintDomainOpt.map { domain => {
+    val bus = outer.locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
+    val busFreq = bus.dtsFrequency.get
+    val rtcFreq = outer.p(DTSTimebase)
+    val internalPeriod: BigInt = busFreq / rtcFreq
+
+
+    // check whether pbusFreq >= rtcFreq
+    require(internalPeriod > 0)
+    // check wehther the integer division is within 5% of the real division
+    require((busFreq - rtcFreq * internalPeriod) * 100 / busFreq <= 5)
+
+    withClockAndReset (domain.module.clock, domain.module.reset) {
+      val (_, int_rtc_tick) = Counter(true.B, internalPeriod.toInt)
+      outer.clintTickOpt.foreach { _ := int_rtc_tick }
     }
-  }
+  }}
 }

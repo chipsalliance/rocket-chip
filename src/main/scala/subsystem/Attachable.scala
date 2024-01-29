@@ -4,7 +4,7 @@ package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{LazyModule, LazyScope}
-import freechips.rocketchip.prci.ClockGroupEphemeralNode
+import freechips.rocketchip.prci.ClockGroupNode
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util.{Location, LocationMap}
 
@@ -23,13 +23,14 @@ trait LazyScopeWithParameters extends LazyScope { this: LazyModule =>
 
 /** Layers of hierarchy with this trait contain attachment points for neworks of power, clock, reset, and interrupt resources */
 trait HasPRCILocations extends LazyScopeWithParameters { this: LazyModule =>
-  implicit val asyncClockGroupsNode: ClockGroupEphemeralNode
+  val allClockGroupsNode: ClockGroupNode
   val ibus: InterruptBusWrapper
   val anyLocationMap = LocationMap.empty[Any]
 }
 
 /** Layers of hierarchy with this trait contain attachment points for TileLink interfaces */
 trait HasTileLinkLocations extends HasPRCILocations { this: LazyModule =>
+  val busContextName: String
   val tlBusWrapperLocationMap = LocationMap.empty[TLBusWrapper]
   def locateTLBusWrapper(location: Location[TLBusWrapper]): TLBusWrapper = locateTLBusWrapper(location.name)
   def locateTLBusWrapper(name: String): TLBusWrapper = tlBusWrapperLocationMap(Location[TLBusWrapper](name))

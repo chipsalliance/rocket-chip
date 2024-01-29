@@ -16,7 +16,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
   case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
-  case MaxHartIdBits => log2Up((site(TilesLocated(InSubsystem)).map(_.tileParams.hartId) :+ 0).max+1)
+  case MaxHartIdBits => log2Up((site(PossibleTileLocations).flatMap(loc => site(TilesLocated(loc)))
+      .map(_.tileParams.tileId) :+ 0).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
     beatBytes = site(XLen)/8,
@@ -24,6 +25,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
+    dtsFrequency = Some(100000000), // Default to 100 MHz cbus clock
     errorDevice = Some(BuiltInErrorDeviceParams(
       errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096))))
   case PeripheryBusKey => PeripheryBusParams(
@@ -38,11 +40,12 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
-  case SubsystemExternalResetVectorKey => false
+  case HasTilesExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
   case TilesLocated(InSubsystem) => Nil
+  case PossibleTileLocations => Seq(InSubsystem)
 })
 
 /* Composable partial function Configs to set individual parameters */
@@ -80,21 +83,20 @@ class WithCoherentBusTopology extends Config((site, here, up) => {
         fbusToSbusXType = site(FbusToSbusXTypeKey)),
       driveClocksFromSBus = site(DriveClocksFromSBus)),
     CoherentBusTopologyParams(
-      sbus = site(SystemBusKey),
       mbus = site(MemoryBusKey),
-      l2 = site(BankedL2Key),
+      coherence = site(SubsystemBankedCoherenceKey),
       sbusToMbusXType = site(SbusToMbusXTypeKey),
       driveMBusClockFromSBus = site(DriveClocksFromSBus)))
 })
 
 class WithNBigCores(
   n: Int,
-  overrideIdOffset: Option[Int] = None,
-  crossing: RocketCrossingParams = RocketCrossingParams()
+  location: HierarchicalLocation,
+  crossing: RocketCrossingParams,
 ) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+  case TilesLocated(`location`) => {
+    val prev = up(TilesLocated(`location`), site)
+    val idOffset = up(NumTiles)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
         mulUnroll = 8,
@@ -108,20 +110,31 @@ class WithNBigCores(
         rowBits = site(SystemBusKey).beatBits,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
-      big.copy(hartId = i + idOffset),
+      big.copy(tileId = i + idOffset),
       crossing
     )) ++ prev
   }
-})
+  case NumTiles => up(NumTiles) + n
+}) {
+  def this(n: Int, location: HierarchicalLocation = InSubsystem) = this(n, location, RocketCrossingParams(
+    master = HierarchicalElementMasterPortParams.locationDefault(location),
+    slave = HierarchicalElementSlavePortParams.locationDefault(location),
+    mmioBaseAddressPrefixWhere = location match {
+      case InSubsystem => CBUS
+      case InCluster(clusterId) => CCBUS(clusterId)
+    }
+  ))
+}
+
+
 
 class WithNMedCores(
   n: Int,
-  overrideIdOffset: Option[Int] = None,
-  crossing: RocketCrossingParams = RocketCrossingParams()
+  crossing: RocketCrossingParams = RocketCrossingParams(),
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val idOffset = up(NumTiles)
     val med = RocketTileParams(
       core = RocketCoreParams(fpu = None),
       btb = None,
@@ -141,20 +154,20 @@ class WithNMedCores(
         nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
-      med.copy(hartId = i + idOffset),
+      med.copy(tileId = i + idOffset),
       crossing
     )) ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })
 
 class WithNSmallCores(
   n: Int,
-  overrideIdOffset: Option[Int] = None,
   crossing: RocketCrossingParams = RocketCrossingParams()
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val idOffset = up(NumTiles)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
       btb = None,
@@ -174,10 +187,11 @@ class WithNSmallCores(
         nTLBWays = 4,
         blockBytes = site(CacheBlockBytes))))
     List.tabulate(n)(i => RocketTileAttachParams(
-      small.copy(hartId = i + idOffset),
+      small.copy(tileId = i + idOffset),
       crossing
     )) ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })
 
 class With1TinyCore extends Config((site, here, up) => {
@@ -210,13 +224,38 @@ class With1TinyCore extends Config((site, here, up) => {
       tiny,
       RocketCrossingParams(
         crossingType = SynchronousCrossing(),
-        master = TileMasterPortParams())
+        master = HierarchicalElementMasterPortParams())
     ))
   }
+  case NumTiles => 1
+  case ClustersLocated(_) => Nil
+})
+
+class WithCluster(
+  clusterId: Int,
+  location: HierarchicalLocation = InSubsystem,
+  crossing: RocketCrossingParams = RocketCrossingParams() // TODO make this not rocket
+) extends Config((site, here, up) => {
+  case ClustersLocated(`location`) => up(ClustersLocated(location)) :+ ClusterAttachParams(
+    ClusterParams(clusterId = clusterId),
+    crossing)
+  case TLNetworkTopologyLocated(InCluster(`clusterId`)) => List(
+    ClusterBusTopologyParams(
+      clusterId = clusterId,
+      csbus = site(SystemBusKey),
+      ccbus = site(ControlBusKey).copy(errorDevice = None),
+      coherence = site(ClusterBankedCoherenceKey(clusterId))
+    )
+  )
+  case PossibleTileLocations => up(PossibleTileLocations) :+ InCluster(clusterId)
+})
+
+class WithClusterBanks(clusterId: Int, nBanks: Int = 1) extends Config((site, here, up) => {
+  case ClusterBankedCoherenceKey(`clusterId`) => up(ClusterBankedCoherenceKey(clusterId)).copy(nBanks=nBanks)
 })
 
 class WithNBanks(n: Int) extends Config((site, here, up) => {
-  case BankedL2Key => up(BankedL2Key, site).copy(nBanks = n)
+  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey, site).copy(nBanks = n)
 })
 
 class WithNTrackersPerBank(n: Int) extends Config((site, here, up) => {
@@ -225,7 +264,7 @@ class WithNTrackersPerBank(n: Int) extends Config((site, here, up) => {
 
 // This is the number of icache sets for all Rocket tiles
 class WithL1ICacheSets(sets: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       icache = tp.tileParams.icache.map(_.copy(nSets = sets))))
     case t => t
@@ -234,7 +273,7 @@ class WithL1ICacheSets(sets: Int) extends Config((site, here, up) => {
 
 // This is the number of icache sets for all Rocket tiles
 class WithL1DCacheSets(sets: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       dcache = tp.tileParams.dcache.map(_.copy(nSets = sets))))
     case t => t
@@ -242,7 +281,7 @@ class WithL1DCacheSets(sets: Int) extends Config((site, here, up) => {
 })
 
 class WithL1ICacheWays(ways: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       icache = tp.tileParams.icache.map(_.copy(nWays = ways))))
     case t => t
@@ -250,7 +289,7 @@ class WithL1ICacheWays(ways: Int) extends Config((site, here, up) => {
 })
 
 class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       dcache = tp.tileParams.dcache.map(_.copy(nWays = ways))))
     case t => t
@@ -288,22 +327,22 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  * DO NOT use this configuration.
  */
 class WithIncoherentTiles extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       master = tp.crossingParams.master match {
-        case x: TileMasterPortParams => x.copy(cork = Some(true))
+        case x: HierarchicalElementMasterPortParams => x.copy(cork = Some(true))
         case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
       }))
     case t => t
   }
-  case BankedL2Key => up(BankedL2Key, site).copy(
+  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey, site).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager
   )
 })
 
 class WithRV32 extends Config((site, here, up) => {
   case XLen => 32
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(
         fpu = tp.tileParams.core.fpu.map(_.copy(fLen = 32)),
@@ -313,7 +352,7 @@ class WithRV32 extends Config((site, here, up) => {
 })
 
 class WithFP16 extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(
         fpu = tp.tileParams.core.fpu.map(_.copy(minFLen = 16))
@@ -324,7 +363,7 @@ class WithFP16 extends Config((site, here, up) => {
 })
 
 class WithNonblockingL1(nMSHRs: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       dcache = tp.tileParams.dcache.map(_.copy(nMSHRs = nMSHRs))))
     case t => t
@@ -332,7 +371,7 @@ class WithNonblockingL1(nMSHRs: Int) extends Config((site, here, up) => {
 })
 
 class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(nBreakpoints = hwbp)))
     case t => t
@@ -340,7 +379,7 @@ class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
 })
 
 class WithHypervisor(hext: Boolean = true) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(useHypervisor = hext)))
     case t => t
@@ -368,7 +407,7 @@ class WithRoccExample extends Config((site, here, up) => {
 })
 
 class WithDefaultBtb extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       btb = Some(BTBParams())))
     case t => t
@@ -376,7 +415,7 @@ class WithDefaultBtb extends Config((site, here, up) => {
 })
 
 class WithFastMulDiv extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(mulDiv = Some(
         MulDivParams(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true)))))
@@ -385,7 +424,7 @@ class WithFastMulDiv extends Config((site, here, up) => {
 })
 
 class WithoutMulDiv extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(mulDiv = None)))
     case t => t
@@ -393,7 +432,7 @@ class WithoutMulDiv extends Config((site, here, up) => {
 })
 
 class WithoutFPU extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(fpu = None)))
     case t => t
@@ -401,41 +440,9 @@ class WithoutFPU extends Config((site, here, up) => {
 })
 
 class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(fpu = tp.tileParams.core.fpu.map(_.copy(divSqrt = false)))))
-    case t => t
-  }
-})
-
-class WithBitManip extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useBitManip = true)))
-    case t => t
-  }
-})
-
-class WithBitManipCrypto extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useBitManipCrypto = true)))
-    case t => t
-  }
-})
-
-class WithCryptoNIST extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useCryptoNIST = true)))
-    case t => t
-  }
-})
-
-class WithCryptoSM extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useCryptoSM = true)))
     case t => t
   }
 })
@@ -473,7 +480,7 @@ class WithClockGateModel(file: String = "/vsrc/EICG_wrapper.v") extends Config((
 })
 
 class WithSynchronousRocketTiles extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = SynchronousCrossing()))
     case t => t
@@ -481,7 +488,7 @@ class WithSynchronousRocketTiles extends Config((site, here, up) => {
 })
 
 class WithAsynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = AsynchronousCrossing()))
     case t => t
@@ -489,7 +496,7 @@ class WithAsynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, h
 })
 
 class WithRationalRocketTiles extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = RationalCrossing()))
     case t => t
@@ -499,7 +506,6 @@ class WithRationalRocketTiles extends Config((site, here, up) => {
 class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
   case MemoryBusKey => up(MemoryBusKey, site).copy(beatBytes = dataBits/8)
   case ExtIn => up(ExtIn, site).map(_.copy(beatBytes = dataBits/8))
-  
 })
 
 class WithJtagDTM extends Config ((site, here, up) => {
@@ -592,7 +598,7 @@ class WithScratchpadsBaseAddress(address: BigInt) extends Config((site, here, up
 })
 
 class WithScratchpadsOnly extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(useVM = false),
       dcache = tp.tileParams.dcache.map(_.copy(
@@ -651,16 +657,41 @@ class WithDontDriveBusClocksFromSBus extends Config((site, here, up) => {
   case DriveClocksFromSBus => false
 })
 
-class WithCloneRocketTiles(n: Int = 1, cloneHart: Int = 0, overrideIdOffset: Option[Int] = None) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
-    val tileAttachParams = prev(cloneHart).asInstanceOf[RocketTileAttachParams]
+class WithCloneRocketTiles(
+  n: Int = 1,
+  cloneTileId: Int = 0,
+  location: HierarchicalLocation = InSubsystem,
+  cloneLocation: HierarchicalLocation = InSubsystem
+) extends Config((site, here, up) => {
+  case TilesLocated(`location`) => {
+    val prev = up(TilesLocated(location), site)
+    val idOffset = up(NumTiles)
+    val tileAttachParams = up(TilesLocated(cloneLocation)).find(_.tileParams.tileId == cloneTileId)
+      .get.asInstanceOf[RocketTileAttachParams]
     (0 until n).map { i =>
-      CloneTileAttachParams(cloneHart, tileAttachParams.copy(
-        tileParams = tileAttachParams.tileParams.copy(hartId = i + idOffset)
+      CloneTileAttachParams(cloneTileId, tileAttachParams.copy(
+        tileParams = tileAttachParams.tileParams.copy(tileId = i + idOffset)
       ))
     } ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })
 
+class WithCloneCluster(
+  clusterId: Int,
+  cloneClusterId: Int = 0,
+  location: HierarchicalLocation = InSubsystem,
+  cloneLocation: HierarchicalLocation = InSubsystem
+) extends Config((site, here, up) => {
+  case ClustersLocated(`location`) => {
+    val prev = up(ClustersLocated(location))
+    val clusterAttachParams = up(ClustersLocated(cloneLocation)).find(_.clusterParams.clusterId == cloneClusterId)
+      .get.asInstanceOf[ClusterAttachParams]
+    prev :+ CloneClusterAttachParams(
+      cloneClusterId,
+      clusterAttachParams.copy(clusterParams = clusterAttachParams.clusterParams.copy(clusterId = clusterId))
+    )
+  }
+  case TLNetworkTopologyLocated(InCluster(`clusterId`)) => site(TLNetworkTopologyLocated(InCluster(cloneClusterId)))
+  case PossibleTileLocations => up(PossibleTileLocations) :+ InCluster(clusterId)
+})

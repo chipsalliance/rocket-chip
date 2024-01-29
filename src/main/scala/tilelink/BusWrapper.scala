@@ -72,6 +72,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
+  def generateSynchronousDomain: ClockSinkDomain = {
+    val domain = LazyModule(new ClockSinkDomain(take = fixedClockOpt))
+    domain.clockNode := fixedClockNode
+    domain
+  }
 
   protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
@@ -89,15 +94,15 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
     from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
-  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
-    bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
+  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType, allClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
+    bus.clockGroupNode := asyncMux(xType, allClockGroupNode, this.clockGroupNode)
     coupleTo(s"bus_named_${bus.busName}") {
       bus.crossInHelper(xType) :*= TLWidthWidget(beatBytes) :*= _
     }
   }
 
-  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType)(implicit asyncClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
-    bus.clockGroupNode := asyncMux(xType, asyncClockGroupNode, this.clockGroupNode)
+  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType, allClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
+    bus.clockGroupNode := asyncMux(xType, allClockGroupNode, this.clockGroupNode)
     coupleFrom(s"bus_named_${bus.busName}") {
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
@@ -178,8 +183,8 @@ class TLBusWrapperConnection
     val masterTLBus = context.locateTLBusWrapper(master)
     val slaveTLBus  = context.locateTLBusWrapper(slave)
     def bindClocks(implicit p: Parameters) = driveClockFromMaster match {
-      case Some(true)  => slaveTLBus.clockGroupNode  := asyncMux(xType, context.asyncClockGroupsNode, masterTLBus.clockGroupNode)
-      case Some(false) => masterTLBus.clockGroupNode := asyncMux(xType, context.asyncClockGroupsNode, slaveTLBus.clockGroupNode)
+      case Some(true)  => slaveTLBus.clockGroupNode  := asyncMux(xType, context.allClockGroupsNode, masterTLBus.clockGroupNode)
+      case Some(false) => masterTLBus.clockGroupNode := asyncMux(xType, context.allClockGroupsNode, slaveTLBus.clockGroupNode)
       case None =>
     }
     def bindTLNodes(implicit p: Parameters) = nodeBinding match {
@@ -240,8 +245,8 @@ case class AddressAdjusterWrapperParams(
 {
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
-    val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, loc.name))
-    aaWrapper.suggestName(loc.name + "_wrapper")
+    val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, context.busContextName + "_" + loc.name))
+    aaWrapper.suggestName(context.busContextName + "_" + loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> aaWrapper)
     aaWrapper
   }
@@ -270,8 +275,8 @@ case class TLJBarWrapperParams(
 {
   val dtsFrequency = None
   def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLJBarWrapper = {
-    val jbarWrapper = LazyModule(new TLJBarWrapper(this, loc.name))
-    jbarWrapper.suggestName(loc.name + "_wrapper")
+    val jbarWrapper = LazyModule(new TLJBarWrapper(this, context.busContextName + "_" + loc.name))
+    jbarWrapper.suggestName(context.busContextName + "_" + loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> jbarWrapper)
     jbarWrapper
   }

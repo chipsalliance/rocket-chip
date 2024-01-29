@@ -587,7 +587,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     if (edge.manager.minLatency > 0) {
-      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assume(a_set =/= d_clr || !a_set.orR, s"'A' and 'D' concurrent, despite minlatency > 0" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
@@ -696,7 +696,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     }
 
     if (edge.manager.minLatency > 0) {
-      assume(a_set_wo_ready =/= d_clr_wo_ready || !a_set_wo_ready.orR, s"'A' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+      assume(a_set_wo_ready =/= d_clr_wo_ready || !a_set_wo_ready.orR, s"'A' and 'D' concurrent, despite minlatency > 0" + extra)
     }
 
     inflight := (inflight | a_set) & ~d_clr
@@ -804,7 +804,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
 
     if (edge.manager.minLatency > 0) {
       when (c_set_wo_ready.orR) {
-        assume(c_set_wo_ready =/= d_clr_wo_ready, s"'C' and 'D' concurrent, despite minlatency ${edge.manager.minLatency}" + extra)
+        assume(c_set_wo_ready =/= d_clr_wo_ready, s"'C' and 'D' concurrent, despite minlatency > 0" + extra)
       }
     }
 

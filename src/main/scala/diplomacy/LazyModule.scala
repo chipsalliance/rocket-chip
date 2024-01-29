@@ -415,7 +415,11 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
   // the default is that these are disabled
   childClock := false.B.asClock
   childReset := chisel3.DontCare
-  val (auto, dangles) = withClockAndReset(childClock, childReset) {
+
+  def provideImplicitClockToLazyChildren: Boolean = false
+  val (auto, dangles) = if (provideImplicitClockToLazyChildren) {
+    withClockAndReset(childClock, childReset) { instantiate() }
+  } else {
     instantiate()
   }
 }
@@ -427,6 +431,10 @@ class LazyRawModuleImp(val wrapper: LazyModule) extends RawModule with LazyModul
 class SimpleLazyModule(implicit p: Parameters) extends LazyModule {
   lazy val module = new LazyModuleImp(this)
 }
+class SimpleLazyRawModule(implicit p: Parameters) extends LazyModule {
+  lazy val module = new LazyRawModuleImp(this)
+}
+
 
 /** Allows dynamic creation of [[Module]] hierarchy and "shoving" logic into a [[LazyModule]]. */
 trait LazyScope {

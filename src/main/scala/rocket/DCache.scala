@@ -115,6 +115,17 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // tags
   val replacer = ReplacementPolicy.fromString(cacheParams.replacementPolicy, nWays)
+
+  /** Metadata Arbiter:
+    * 0: Tag update on reset
+    * 1: Tag update on ECC error
+    * 2: Tag update on hit
+    * 3: Tag update on refill
+    * 4: Tag update on release
+    * 5: Tag update on flush
+    * 6: Tag update on probe
+    * 7: Tag update on CPU request
+    */
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val tag_array = DescribedSRAM(
@@ -126,6 +137,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // data
   val data = Module(new DCacheDataArray)
+  /** Data Arbiter
+    * 0: data from pending store buffer
+    * 1: data from TL-D refill
+    * 2: release to TL-A
+    * 3: hit path to CPU
+    */
   val dataArb = Module(new Arbiter(new DCacheDataReq, 4) with InlineInstance)
   dataArb.io.in.tail.foreach(_.bits.wdata := dataArb.io.in.head.bits.wdata) // tie off write ports by default
   data.io.req.bits <> dataArb.io.out.bits

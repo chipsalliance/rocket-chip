@@ -693,7 +693,8 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   })
 
   val dmOuter = LazyModule( new TLDebugModuleOuter(device))
-  val intnode = IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
+  val intnode = IntSyncIdentityNode()
+  intnode :*= IntSyncCrossingSource(alreadyRegistered = true) :*= dmOuter.intnode
 
   val dmiBypass = LazyModule(new TLBusBypass(beatBytes=4, bufferError=false, maxAtomic=0, maxTransfer=4))
   val dmiInnerNode = TLAsyncCrossingSource() := dmiBypass.node := dmiXbar.node
@@ -727,6 +728,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
 
     childClock := io.dmi_clock
     childReset := io.dmi_reset
+    override def provideImplicitClockToLazyChildren = true
 
     withClockAndReset(childClock, childReset) {
       dmi2tlOpt.foreach { _.module.io.dmi <> io.dmi.get }
@@ -1898,6 +1900,7 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
     childClock := io.debug_clock
     childReset := io.debug_reset
+    override def provideImplicitClockToLazyChildren = true
 
     val dmactive_synced = withClockAndReset(childClock, childReset) {
       val dmactive_synced = AsyncResetSynchronizerShiftReg(in=io.dmactive, sync=3, name=Some("dmactiveSync"))
@@ -1986,6 +1989,7 @@ class TLDebugModule(beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
     childClock := io.tl_clock
     childReset := io.tl_reset
+    override def provideImplicitClockToLazyChildren = true
 
     dmOuter.module.io.dmi.foreach { dmOuterDMI =>
       dmOuterDMI <> io.dmi.get.dmi
