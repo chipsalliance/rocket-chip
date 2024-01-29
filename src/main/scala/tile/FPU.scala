@@ -972,7 +972,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     DebugROB.pushWb(clock, reset, io.hartid, (!wbInfo(0).cp && wen(0)) || divSqrt_wen, waddr + 32.U, ieee(wdata))
   }
 
-  when (wb_cp && wen(0)) {
+  when (wb_cp && (wen(0) || divSqrt_wen)) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := true.B
   }
