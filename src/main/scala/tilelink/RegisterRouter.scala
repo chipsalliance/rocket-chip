@@ -128,66 +128,6 @@ case class TLRegisterNode(
   }
 }
 
-@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
-abstract class TLRegisterRouterBase(devname: String, devcompat: Seq[String], val address: AddressSet, interrupts: Int, concurrency: Int, beatBytes: Int, undefZero: Boolean, executable: Boolean)(implicit p: Parameters) extends LazyModule
-{
-  // Allow devices to extend the DTS mapping
-  def extraResources(resources: ResourceBindings) = Map[String, Seq[ResourceValue]]()
-  val device = new SimpleDevice(devname, devcompat) {
-    override def describe(resources: ResourceBindings): Description = {
-      val Description(name, mapping) = super.describe(resources)
-      Description(name, mapping ++ extraResources(resources))
-    }
-  }
-
-  val node = TLRegisterNode(Seq(address), device, "reg/control", concurrency, beatBytes, undefZero, executable)
-  import freechips.rocketchip.interrupts._
-  val intnode = IntSourceNode(IntSourcePortSimple(num = interrupts, resources = Seq(Resource(device, "int"))))
-}
-
-@deprecated("TLRegBundleArg is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
-case class TLRegBundleArg()(implicit val p: Parameters)
-
-@deprecated("TLRegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
-class TLRegBundleBase(arg: TLRegBundleArg) extends Bundle
-{
-  implicit val p = arg.p
-}
-
-@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
-class TLRegBundle[P](val params: P, val arg: TLRegBundleArg) extends TLRegBundleBase(arg)
-
-@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
-class TLRegModule[P, B <: TLRegBundleBase](val params: P, bundleBuilder: => B, router: TLRegisterRouterBase)
-  extends LazyModuleImp(router) with HasRegMap
-{
-  val io = IO(bundleBuilder)
-  val interrupts = if (router.intnode.out.isEmpty) Vec(0, Bool()) else router.intnode.out(0)._1
-  val address = router.address
-  def regmap(mapping: RegField.Map*) = router.node.regmap(mapping:_*)
-}
-
-@deprecated("Use HasTLControlRegMap+HasInterruptSources traits in place of TLRegisterRouter+TLRegBundle+TLRegModule", "rocket-chip 1.3")
-class TLRegisterRouter[B <: TLRegBundleBase, M <: LazyModuleImp](
-     val base:        BigInt,
-     val devname:     String,
-     val devcompat:   Seq[String],
-     val interrupts:  Int     = 0,
-     val size:        BigInt  = 4096,
-     val concurrency: Int     = 0,
-     val beatBytes:   Int     = 4,
-     val undefZero:   Boolean = true,
-     val executable:  Boolean = false)
-   (bundleBuilder: TLRegBundleArg => B)
-   (moduleBuilder: (=> B, TLRegisterRouterBase) => M)(implicit p: Parameters)
-  extends TLRegisterRouterBase(devname, devcompat, AddressSet(base, size-1), interrupts, concurrency, beatBytes, undefZero, executable)
-{
-  require (isPow2(size))
-  // require (size >= 4096) ... not absolutely required, but highly recommended
-
-  lazy val module = moduleBuilder(bundleBuilder(TLRegBundleArg()), this)
-}
-
 /** Mix HasTLControlRegMap into any subclass of RegisterRouter to gain helper functions for attaching a device control register map to TileLink.
   * - The intended use case is that controlNode will diplomatically publish a SW-visible device's memory-mapped control registers.
   * - Use the clock crossing helper controlXing to externally connect controlNode to a TileLink interconnect. 
