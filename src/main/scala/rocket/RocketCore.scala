@@ -339,6 +339,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   if (usingVector) {
     val v_decode = rocketParams.vector.get.decoder(p)
     v_decode.io.inst := id_inst(0)
+    v_decode.io.vconfig := csr.io.vector.get.vconfig
     when (v_decode.io.legal) {
       id_ctrl.legal := true.B
       id_ctrl.fp := v_decode.io.fp

@@ -84,6 +84,7 @@ class RocketVectorUnitModuleImp(outer: RocketVectorUnit) extends LazyModuleImp(o
 abstract class RocketVectorDecoder(implicit p: Parameters) extends CoreModule()(p) {
   val io = IO(new Bundle {
     val inst = Input(UInt(32.W))
+    val vconfig = Input(new VConfig)
     val legal = Output(Bool())
     val fp = Output(Bool())
     val read_rs1 = Output(Bool())
