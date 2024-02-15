@@ -333,7 +333,14 @@ sealed trait LazyModuleImpLike extends RawModule {
         dangles
       } .getOrElse {
         // For non-clones, instantiate the child module
-        val mod = Module(c.module)
+        val mod = try {
+          Module(c.module)
+        } catch {
+          case e: ChiselException => {
+            println(s"Chisel exception caught when instantiating ${c.name} within ${this.name} at ${c.line}")
+            throw e
+          }
+        }
         mod.dangles
       }
     }
