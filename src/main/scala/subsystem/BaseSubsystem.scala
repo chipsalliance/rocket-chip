@@ -90,8 +90,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 
   val busContextName = "subsystem"
 
-  // TODO must there really always be an "sbus"?
-  val sbus = tlBusWrapperLocationMap(SBUS)
+  val sbus = tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))
   tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := allClockGroupsNode }
 
   // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
