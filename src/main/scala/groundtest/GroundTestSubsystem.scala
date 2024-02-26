@@ -42,6 +42,6 @@ class GroundTestSubsystem(implicit p: Parameters)
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
   val success = IO(Output(Bool()))
-  val status = dontTouch(DebugCombiner(outer.tileStatusNodes.map(_.bundle).toSeq))
-  success := outer.tileCeaseSinkNode.in.head._1.asUInt.andR
+  val status = dontTouch(DebugCombiner(_outer.tileStatusNodes.map(_.bundle).toSeq))
+  success := _outer.tileCeaseSinkNode.in.head._1.asUInt.andR
 }
