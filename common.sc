@@ -45,16 +45,20 @@ trait RocketChipModule
   // should be cde/common.sc#CDEModule
   def cdeModule: ScalaModule
 
+  def diplomacyModule: ScalaModule
+
+  def diplomacyIvy: Option[Dep]
+
   def mainargsIvy: Dep
 
   def json4sJacksonIvy: Dep
 
-  override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, cdeModule)
+  override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, cdeModule, diplomacyModule)
 
   override def ivyDeps = T(
     super.ivyDeps() ++ Agg(
       mainargsIvy,
-      json4sJacksonIvy
-    )
+      json4sJacksonIvy,
+    ) ++ diplomacyIvy
   )
 }

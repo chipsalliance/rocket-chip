@@ -286,4 +286,10 @@ package object util {
     case x if x == n => in
     case _ => throw new Exception(s"must provide exactly 1 or $n of some field, but got:\n$in")
   }
+
+  // HeterogeneousBag moved to standalond diplomacy
+  @deprecated("HeterogeneousBag has been absorbed into standalone diplomacy library", "rocketchip 2.0.0")
+  def HeterogeneousBag[T <: Data](elts: Seq[T]) = _root_.org.chipsalliance.diplomacy.nodes.HeterogeneousBag[T](elts)
+  @deprecated("HeterogeneousBag has been absorbed into standalone diplomacy library", "rocketchip 2.0.0")
+  val HeterogeneousBag = _root_.org.chipsalliance.diplomacy.nodes.HeterogeneousBag
 }
