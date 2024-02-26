@@ -36,6 +36,7 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
   private val portName = "axi4"
   private val device = new MemoryDevice
   private val idBits = memPortParamsOpt.map(_.master.idBits).getOrElse(1)
+  private val mbus = tlBusWrapperLocationMap.get(MBUS).getOrElse(viewpointBus)
 
   val memAXI4Node = AXI4SlaveNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels, _) =>
     Seq.tabulate(nMemoryChannels) { channel =>
@@ -63,7 +64,7 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
       memPortParams.incohBase.foreach(incohBase => {
         val cohRegion = AddressSet(0, incohBase-1)
         val incohRegion = AddressSet(incohBase, incohBase-1)
-        val replicator = sbus {
+        val replicator = tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location))) {
           val replicator = LazyModule(new RegionReplicator(ReplicatedRegion(cohRegion, cohRegion.widen(incohBase))))
           val prefixSource = BundleBridgeSource[UInt](() => UInt(1.W))
           replicator.prefix := prefixSource
@@ -71,9 +72,9 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
           InModuleBody { prefixSource.bundle := 0.U(1.W) }
           replicator
         }
-        sbus.coupleTo(s"memory_controller_bypass_port_named_$portName") {
+        viewpointBus.coupleTo(s"memory_controller_bypass_port_named_$portName") {
           (mbus.crossIn(mem_bypass_xbar)(ValName("bus_xing"))(p(SbusToMbusXTypeKey))
-            := TLWidthWidget(sbus.beatBytes)
+            := TLWidthWidget(viewpointBus.beatBytes)
             := replicator.node
             := TLFilter(TLFilter.mSubtract(cohRegion))
             := TLFilter(TLFilter.mResourceRemover)
@@ -116,14 +117,14 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>
-    sbus.coupleTo(s"port_named_$portName") {
+    viewpointBus.coupleTo(s"port_named_$portName") {
       (mmioAXI4Node
         := AXI4Buffer()
         := AXI4UserYanker()
-        := AXI4Deinterleaver(sbus.blockBytes)
+        := AXI4Deinterleaver(viewpointBus.blockBytes)
         := AXI4IdIndexer(params.idBits)
         := TLToAXI4()
-        := TLWidthWidget(sbus.beatBytes)
+        := TLWidthWidget(viewpointBus.beatBytes)
         := _)
     }
   }
@@ -136,6 +137,7 @@ trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
   private val slavePortParamsOpt = p(ExtIn)
   private val portName = "slave_port_axi4"
   private val fifoBits = 1
+  private val fbus = tlBusWrapperLocationMap.get(FBUS).getOrElse(viewpointBus)
 
   val l2FrontendAXI4Node = AXI4MasterNode(
     slavePortParamsOpt.map(params =>
@@ -174,17 +176,17 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
           address            = AddressSet.misaligned(params.base, params.size),
           resources          = device.ranges,
           executable         = params.executable,
-          supportsGet        = TransferSizes(1, sbus.blockBytes),
-          supportsPutFull    = TransferSizes(1, sbus.blockBytes),
-          supportsPutPartial = TransferSizes(1, sbus.blockBytes))),
+          supportsGet        = TransferSizes(1, viewpointBus.blockBytes),
+          supportsPutFull    = TransferSizes(1, viewpointBus.blockBytes),
+          supportsPutPartial = TransferSizes(1, viewpointBus.blockBytes))),
         beatBytes = params.beatBytes)).toSeq)
 
   mmioPortParamsOpt.map { params =>
-    sbus.coupleTo(s"port_named_$portName") {
+    viewpointBus.coupleTo(s"port_named_$portName") {
       (mmioTLNode
         := TLBuffer()
         := TLSourceShrinker(1 << params.idBits)
-        := TLWidthWidget(sbus.beatBytes)
+        := TLWidthWidget(viewpointBus.beatBytes)
         := _ )
     }
   }
@@ -210,7 +212,7 @@ trait CanHaveSlaveTLPort { this: BaseSubsystem =>
           sourceId = IdRange(0, 1 << params.idBits))))).toSeq)
 
   slavePortParamsOpt.map { params =>
-    sbus.coupleFrom(s"port_named_$portName") {
+    viewpointBus.coupleFrom(s"port_named_$portName") {
       ( _
         := TLSourceShrinker(1 << params.sourceBits)
         := TLWidthWidget(params.beatBytes)

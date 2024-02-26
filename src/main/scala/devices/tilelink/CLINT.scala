@@ -105,7 +105,7 @@ trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val (clintOpt, clintDomainOpt, clintTickOpt) = p(CLINTKey).map { params =>
     val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
     val clintDomainWrapper = tlbus.generateSynchronousDomain.suggestName("clint_domain")
-    val clint = clintDomainWrapper { LazyModule(new CLINT(params, cbus.beatBytes)) }
+    val clint = clintDomainWrapper { LazyModule(new CLINT(params, tlbus.beatBytes)) }
     clintDomainWrapper { clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ } }
     val clintTick = clintDomainWrapper { InModuleBody {
       val tick = IO(Input(Bool()))

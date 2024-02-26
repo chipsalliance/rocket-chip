@@ -78,11 +78,12 @@ trait HasConfigurableTLNetworkTopology { this: HasTileLinkLocations =>
 
   // Calling these functions populates tlBusWrapperLocationMap and connects the locations to each other.
   val topology = p(TLNetworkTopologyLocated(location))
-  topology.map(_.instantiate(this))
+  topology.foreach(_.instantiate(this))
   topology.foreach(_.connect(this))
+  def viewpointBus: TLBusWrapper = tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))
 
   // This is used lazily at DTS binding time to get a view of the network
-  lazy val topManagers = tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location))).unifyManagers
+  lazy val topManagers = viewpointBus.unifyManagers
 }
 
 /** Base Subsystem class with no peripheral devices, ports or cores added yet */
@@ -98,18 +99,11 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 
   val busContextName = "subsystem"
 
-  val sbus = tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))
-  tlBusWrapperLocationMap.lift(SBUS).map { _.clockGroupNode := allClockGroupsNode }
+  viewpointBus.clockGroupNode := allClockGroupsNode
 
   // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
-  // a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.
-  ibus.clockNode := sbus.fixedClockNode
-
-  // TODO deprecate these public members to see where users are manually hardcoding a particular bus that might actually not exist in a certain dynamic topology
-  val pbus = tlBusWrapperLocationMap.lift(PBUS).getOrElse(sbus)
-  val fbus = tlBusWrapperLocationMap.lift(FBUS).getOrElse(sbus)
-  val mbus = tlBusWrapperLocationMap.lift(MBUS).getOrElse(sbus)
-  val cbus = tlBusWrapperLocationMap.lift(CBUS).getOrElse(sbus)
+  //       a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.
+  ibus.clockNode := viewpointBus.fixedClockNode
 
   // Collect information for use in DTS
   ResourceBinding {
@@ -150,7 +144,7 @@ abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends Ba
   Annotated.addressMapping(this, mapping)
 
   println("Generated Address Map")
-  mapping.map(entry => println(entry.toString((dtsLM.sbus.busView.bundle.addressBits-1)/4 + 1)))
+  mapping.foreach(entry => println(entry.toString((dtsLM.tlBusWrapperLocationMap(p(TLManagerViewpointLocated(dtsLM.location))).busView.bundle.addressBits-1)/4 + 1)))
   println("")
 
   ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.toJSON).mkString(",")}]}""")
