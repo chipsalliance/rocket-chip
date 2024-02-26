@@ -19,21 +19,28 @@ case object InTile extends HierarchicalLocation("InTile")
 case object InSubsystem extends HierarchicalLocation("InSubsystem")
 case object InSystem extends HierarchicalLocation("InSystem")
 
-/** BareSubsystem is the root class for creating a subsystem */
-abstract class BareSubsystem(implicit p: Parameters) extends LazyModule with BindingScope {
+// HasDts is generating metadatas from Scala, which is not the target for new diplomacy and Property.
+// It will be deprecated and removed after we migrate all metadata handling logic to OM Dialect.
+trait HasDTS extends LazyModule with BindingScope {
   lazy val dts = DTS(bindingTree)
   lazy val dtb = DTB(dts)
   lazy val json = JSON(bindingTree)
 }
 
-abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends LazyRawModuleImp(_outer) {
-  val outer = _outer
-  ElaborationArtefacts.add("graphml", outer.graphML)
-  ElaborationArtefacts.add("dts", outer.dts)
-  ElaborationArtefacts.add("json", outer.json)
+trait HasDTSImp[+L <: HasDTS] { this: LazyRawModuleImp =>
+  def dtsLM: L
+  // GraphML should live outside form this trait, but we keep it here until we find an appropriate way to handle metadata
+  ElaborationArtefacts.add("graphml", dtsLM.graphML)
+  // PlusArg should be purged out from rocket-chip in a near feature.
   ElaborationArtefacts.add("plusArgs", PlusArgArtefacts.serialize_cHeader())
-  println(outer.dts)
+  ElaborationArtefacts.add("dts", dtsLM.dts)
+  ElaborationArtefacts.add("json", dtsLM.json)
+  println(dtsLM.dts)
 }
+
+/** BareSubsystem is the root class for creating a subsystem */
+abstract class BareSubsystem(implicit p: Parameters) extends LazyModule
+abstract class BareSubsystemModuleImp[+L <: BareSubsystem](_outer: L) extends LazyRawModuleImp(_outer)
 
 trait SubsystemResetScheme
 case object ResetSynchronous extends SubsystemResetScheme
@@ -82,6 +89,7 @@ trait HasConfigurableTLNetworkTopology { this: HasTileLinkLocations =>
 abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
                             (implicit p: Parameters)
   extends BareSubsystem
+  with HasDTS
   with Attachable
   with HasConfigurablePRCILocations
   with HasConfigurableTLNetworkTopology
@@ -131,9 +139,10 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 }
 
 
-abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) {
+abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) with HasDTSImp[L] {
+  def dtsLM: L = _outer
   private val mapping: Seq[AddressMapEntry] = Annotated.addressMapping(this, {
-    outer.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
+    dtsLM.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
     }.sortBy(_.range)
   })
@@ -141,14 +150,14 @@ abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends Ba
   Annotated.addressMapping(this, mapping)
 
   println("Generated Address Map")
-  mapping.map(entry => println(entry.toString((outer.sbus.busView.bundle.addressBits-1)/4 + 1)))
+  mapping.map(entry => println(entry.toString((dtsLM.sbus.busView.bundle.addressBits-1)/4 + 1)))
   println("")
 
   ElaborationArtefacts.add("memmap.json", s"""{"mapping":[${mapping.map(_.toJSON).mkString(",")}]}""")
 
   // Confirm that all of memory was described by DTS
   private val dtsRanges = AddressRange.unify(mapping.map(_.range))
-  private val allRanges = AddressRange.unify(outer.topManagers.flatMap { m => AddressRange.fromSets(m.address) })
+  private val allRanges = AddressRange.unify(dtsLM.topManagers.flatMap { m => AddressRange.fromSets(m.address) })
 
   if (dtsRanges != allRanges) {
     println("Address map described by DTS differs from physical implementation:")
