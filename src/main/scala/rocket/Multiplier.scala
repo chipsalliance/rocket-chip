@@ -17,6 +17,7 @@ class MultiplierReq(dataBits: Int, tagBits: Int, aluFn: ALUFN = new ALUFN) exten
 
 class MultiplierResp(dataBits: Int, tagBits: Int) extends Bundle {
   val data = Bits(dataBits.W)
+  val full_data = Bits((2*dataBits).W)
   val tag = UInt(tagBits.W)
 }
 
@@ -175,6 +176,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32, aluFn: ALUFN = new A
   io.resp.bits.tag := req.tag
 
   io.resp.bits.data := Cat(hiOut, loOut)
+  io.resp.bits.full_data := Cat(remainder(2*w, w+1), remainder(w-1, 0))
   io.resp.valid := (state === s_done_mul || state === s_done_div)
   io.req.ready := state === s_ready
 }
