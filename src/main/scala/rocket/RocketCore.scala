@@ -456,10 +456,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ex_rs = for (i <- 0 until id_raddr.size)
     yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = ImmGen(ex_ctrl.sel_imm, ex_reg_inst)
-  val ex_op1 = MuxLookup(ex_ctrl.sel_alu1, 0.S, Seq(
+  val ex_op1 = MuxLookup(ex_ctrl.sel_alu1, 0.S)(Seq(
     A1_RS1 -> ex_rs(0).asSInt,
     A1_PC -> ex_reg_pc.asSInt))
-  val ex_op2 = MuxLookup(ex_ctrl.sel_alu2, 0.S, Seq(
+  val ex_op2 = MuxLookup(ex_ctrl.sel_alu2, 0.S)(Seq(
     A2_RS2 -> ex_rs(1).asSInt,
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S)))

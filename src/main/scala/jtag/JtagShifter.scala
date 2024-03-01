@@ -3,7 +3,7 @@
 package freechips.rocketchip.jtag
 
 import chisel3._
-import chisel3.experimental.DataMirror
+import chisel3.reflect.DataMirror
 import chisel3.internal.firrtl.KnownWidth
 import chisel3.util.{Cat, Valid}
 
