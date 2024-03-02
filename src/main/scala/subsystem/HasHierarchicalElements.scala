@@ -86,16 +86,16 @@ trait InstantiatesHierarchicalElements { this: LazyModule with Attachable =>
   }
 
   val clusterAttachParams: Seq[CanAttachCluster] = p(ClustersLocated(location)).sortBy(_.clusterParams.clusterId)
-  val clusterParams: Seq[ClusterParams] = clusterAttachParams.map(_.clusterParams)
+  val clusterParams: Seq[BaseClusterParams] = clusterAttachParams.map(_.clusterParams)
   val clusterCrossingTypes: Seq[ClockCrossingType] = clusterAttachParams.map(_.crossingParams.crossingType)
-  val cluster_prci_domains: SortedMap[Int, ClusterPRCIDomain] = clusterAttachParams.foldLeft(SortedMap[Int, ClusterPRCIDomain]()) {
+  val cluster_prci_domains: SortedMap[Int, ClusterPRCIDomain[_]] = clusterAttachParams.foldLeft(SortedMap[Int, ClusterPRCIDomain[_]]()) {
     case (instantiated, params) => instantiated + (params.clusterParams.clusterId -> params.instantiate(clusterParams, instantiated)(p))
   }
 
   val element_prci_domains: Seq[HierarchicalElementPRCIDomain[_]] = tile_prci_domains.values.toSeq ++ cluster_prci_domains.values.toSeq
 
   val leafTiles: SortedMap[Int, BaseTile] = SortedMap(tile_prci_domains.mapValues(_.element.asInstanceOf[BaseTile]).toSeq.sortBy(_._1):_*)
-  val totalTiles: SortedMap[Int, BaseTile] = (leafTiles ++ cluster_prci_domains.values.map(_.element.totalTiles).flatten)
+  val totalTiles: SortedMap[Int, BaseTile] = (leafTiles ++ cluster_prci_domains.values.map(_.element.asInstanceOf[Cluster].totalTiles).flatten)
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
   def nLeafTiles: Int = leafTiles.size
@@ -117,7 +117,7 @@ trait HasHierarchicalElements extends DefaultHierarchicalElementContextType
     params.connect(tile_prci_domains(params.tileParams.tileId).asInstanceOf[TilePRCIDomain[params.TileType]], this.asInstanceOf[params.TileContextType])
   }
   clusterAttachParams.foreach { params =>
-    params.connect(cluster_prci_domains(params.clusterParams.clusterId).asInstanceOf[ClusterPRCIDomain], this.asInstanceOf[params.ClusterContextType])
+    params.connect(cluster_prci_domains(params.clusterParams.clusterId).asInstanceOf[ClusterPRCIDomain[params.ClusterType]], this.asInstanceOf[params.ClusterContextType])
   }
 }
 
