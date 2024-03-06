@@ -10,4 +10,4 @@
 [submodule "dependencies/diplomacy"]
 	path = dependencies/diplomacy
 	url = https://github.com/chipsalliance/diplomacy.git
-	branch = lordspacehog/standalone_diplomacy
+	branch = master
