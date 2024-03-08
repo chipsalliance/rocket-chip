@@ -7,3 +7,7 @@
 [submodule "dependencies/chisel"]
 	path = dependencies/chisel
 	url = https://github.com/chipsalliance/chisel.git
+[submodule "dependencies/diplomacy"]
+	path = dependencies/diplomacy
+	url = https://github.com/chipsalliance/diplomacy.git
+	branch = master
