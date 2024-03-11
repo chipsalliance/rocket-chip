@@ -57,7 +57,7 @@ trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val prciClockNode = ClockAdapterNode()
   val io_clocks = Option.when(p(SubsystemDriveClockFromIO)){
     val source = ClockSourceNode(Seq(ClockSourceParameters()))
-    prciClockNode :*= source
+    prciClockNode :*= FixedClockBroadcast() := source
     InModuleBody(source.makeIOs())
   }
 }
@@ -90,7 +90,7 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 
   val busContextName = "subsystem"
 
-  viewpointBus.clockNode := prciClockNode
+  viewpointBus.clockNode :*= prciClockNode
 
   // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
   //       a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.
