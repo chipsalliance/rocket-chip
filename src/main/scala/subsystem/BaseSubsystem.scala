@@ -57,7 +57,7 @@ trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val prciClockNode = ClockAdapterNode()
   val io_clocks = Option.when(p(SubsystemDriveClockFromIO)){
     val source = ClockSourceNode(Seq(ClockSourceParameters()))
-    prciClockNode :*= source
+    prciClockNode :*= FixedClockBroadcast() := source
     InModuleBody(source.makeIOs())
   }
 }

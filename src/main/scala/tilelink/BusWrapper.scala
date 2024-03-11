@@ -36,7 +36,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     with HasTLBusParams
     with CanHaveBuiltInDevices
 {
-  val clockNode = ClockAdapterNode() // device clocks attach here
+  val clockNode = ClockIdentityNode() // device clocks attach here
   val fixedClockNode = FixedClockBroadcast(fixedClockOpt)
   private val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
 
@@ -84,14 +84,14 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
   def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType, asyncClockNode: ClockEphemeralNode): NoHandle = {
-    bus.clockNode := asyncMux(xType, asyncClockNode, this.clockNode)
+    bus.clockNode := asyncMux(xType, asyncClockNode, fixedClockNode)
     coupleTo(s"bus_named_${bus.busName}") {
       bus.crossInHelper(xType) :*= TLWidthWidget(beatBytes) :*= _
     }
   }
 
   def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType, asyncClockNode: ClockEphemeralNode): NoHandle = {
-    this.clockNode := asyncMux(xType, asyncClockNode, bus.clockNode)
+    this.clockNode := asyncMux(xType, asyncClockNode, bus.fixedClockNode)
     coupleFrom(s"bus_named_${bus.busName}") {
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
