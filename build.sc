@@ -100,11 +100,8 @@ trait Diplomacy
   def chiselIvy       = Some(v.chiselCrossVersions(crossValue)._1)
   def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
 
-  // use CDE from source untill published to sonatype
-  def cdeModule = Some(cde)
-
-  // no cde ivy currently published
-  def cdeIvy = None
+  // use CDE from source until published to sonatype
+  def cdeModule = cde
 
   def sourcecodeIvy = v.sourcecode
 }
