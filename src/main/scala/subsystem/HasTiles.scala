@@ -278,7 +278,7 @@ trait CanAttachTile {
       case _: RationalCrossing => domain.clockNode := tlBusToGetClockDriverFrom.clockNode
       case _: AsynchronousCrossing => {
         val tileClockGroup = ClockGroup()
-        tileClockGroup := context.allClockGroupsNode
+        // tileClockGroup := context.allClockGroupsNode
         domain.clockNode := tileClockGroup
       }
     })

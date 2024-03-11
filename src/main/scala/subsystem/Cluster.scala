@@ -41,14 +41,14 @@ class Cluster(
   lazy val clusterId = thisClusterParams.clusterId
   lazy val location = InCluster(clusterId)
 
-  lazy val allClockGroupsNode = ClockGroupIdentityNode()
+  // lazy val allClockGroupsNode = ClockGroupIdentityNode()
 
   val csbus = tlBusWrapperLocationMap(CSBUS(clusterId)) // like the sbus in the base subsystem
   val ccbus = tlBusWrapperLocationMap(CCBUS(clusterId)) // like the cbus in the base subsystem
   val cmbus = tlBusWrapperLocationMap.lift(CMBUS(clusterId)).getOrElse(csbus)
 
-  csbus.clockGroupNode := allClockGroupsNode
-  ccbus.clockGroupNode := allClockGroupsNode
+  // csbus.clockGroupNode := allClockGroupsNode
+  // ccbus.clockGroupNode := allClockGroupsNode
 
   val slaveNode = ccbus.inwardNode
   val masterNode = cmbus.outwardNode
@@ -169,7 +169,7 @@ trait CanAttachCluster {
 
   def connectPRC(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
     implicit val p = context.p
-    domain.element.allClockGroupsNode :*= context.allClockGroupsNode
+    // domain.element.allClockGroupsNode :*= context.allClockGroupsNode
     domain {
       domain.element_reset_domain.clockNode := crossingParams.resetCrossingType.injectClockNode := domain.clockNode
     }
