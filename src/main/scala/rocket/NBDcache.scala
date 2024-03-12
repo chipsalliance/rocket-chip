@@ -102,7 +102,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   io.mem_access.valid := (state === s_mem_access)
   io.mem_access.bits := Mux(isAMO(req.cmd), atomics, Mux(isRead(req.cmd), get, put))
 
-  io.replay_next := (state === s_mem_ack) || io.resp.valid && !io.resp.ready
+  io.replay_next := io.resp.valid && !io.resp.ready
   io.resp.valid := (state === s_resp)
   io.resp.bits.addr := req.addr
   io.resp.bits.idx.foreach(_ := req.idx.get)
