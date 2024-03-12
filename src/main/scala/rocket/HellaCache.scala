@@ -225,6 +225,7 @@ class HellaCacheBundle(implicit p: Parameters) extends CoreBundle()(p) {
   val cpu = Flipped(new HellaCacheIO)
   val ptw = new TLBPTWIO()
   val errors = new DCacheErrors
+  val tlb_port = new DCacheTLBPort
 }
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
@@ -272,10 +273,7 @@ trait HasHellaCache { this: BaseTile =>
   dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
   dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
   InModuleBody {
-    dcache.module match {
-      case module: DCacheModule => module.tlb_port := DontCare
-      case other => other
-    }
+    dcache.module.io.tlb_port := DontCare
   }
 }
 
