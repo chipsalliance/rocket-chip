@@ -534,6 +534,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
   io.mem.req.bits.dv := do_both_stages && !stage2
   io.mem.req.bits.tag := DontCare
+  io.mem.req.bits.no_resp := false.B
   io.mem.req.bits.no_alloc := DontCare
   io.mem.req.bits.no_xcpt := DontCare
   io.mem.req.bits.data := DontCare

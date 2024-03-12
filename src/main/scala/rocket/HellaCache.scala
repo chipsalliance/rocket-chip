@@ -119,6 +119,7 @@ trait HasCoreData extends HasCoreParameters {
 
 class HellaCacheReqInternal(implicit p: Parameters) extends CoreBundle()(p) with HasCoreMemOp {
   val phys = Bool()
+  val no_resp = Bool() // The dcache may omit generating a response for this request
   val no_alloc = Bool()
   val no_xcpt = Bool()
 }
