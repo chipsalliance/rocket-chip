@@ -176,6 +176,7 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   io.mem.req.bits.phys := false.B
   io.mem.req.bits.dprv := cmd.bits.status.dprv
   io.mem.req.bits.dv := cmd.bits.status.dv
+  io.mem.req.bits.no_resp := false.B
 }
 
 class  TranslatorExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes, nPTWPorts = 1) {
