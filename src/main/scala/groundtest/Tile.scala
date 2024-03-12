@@ -43,10 +43,7 @@ abstract class GroundTestTile(
   dcacheOpt.foreach { m =>
     m.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode }
     InModuleBody {
-      m.module match {
-        case module: DCacheModule => module.tlb_port := DontCare
-        case other => other
-      }
+      m.module.io.tlb_port := DontCare
     }
   }
 
