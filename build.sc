@@ -2,9 +2,9 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
-import $file.dependencies.hardfloat.common
-import $file.dependencies.cde.common
-import $file.dependencies.diplomacy.common
+import $file.dependencies.hardfloat.build
+import $file.dependencies.cde.build
+import $file.dependencies.diplomacy.build
 import $file.dependencies.chisel.build
 import $file.common
 
@@ -29,9 +29,9 @@ object v {
 object chisel extends Chisel
 
 trait Chisel
-  extends millbuild.dependencies.chisel.build.Chisel {
+  extends dependencies.chisel.build.Chisel {
   def crossValue = v.scala
-  override def millSourcePath = os.pwd / "dependencies" / "chisel"
+  override def millSourcePath = dependencies.chisel.build.chisel.millSourcePath
   def scalaVersion = T(v.scala)
 }
 
@@ -50,13 +50,11 @@ trait Macros
 object hardfloat extends mill.define.Cross[Hardfloat](v.chiselCrossVersions.keys.toSeq)
 
 trait Hardfloat
-  extends millbuild.dependencies.hardfloat.common.HardfloatModule
-    with RocketChipPublishModule
-    with Cross.Module[String] {
+  extends dependencies.hardfloat.common.Hardfloat {
 
   def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "dependencies" / "hardfloat" / "hardfloat"
+  override def millSourcePath = dependencies.hardfloat.build.hardfloat.millSourcePath
 
   def chiselModule = Option.when(crossValue == "source")(chisel)
 
@@ -72,25 +70,21 @@ trait Hardfloat
 object cde extends CDE
 
 trait CDE
-  extends millbuild.dependencies.cde.common.CDEModule
-    with RocketChipPublishModule
-    with ScalaModule {
+  extends millbuild.dependencies.cde.build.CDE with Module {
 
   def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "dependencies" / "cde" / "cde"
+  override def millSourcePath = dependencies.cde.build.cde.millSourcePath
 }
 
 object diplomacy extends mill.define.Cross[Diplomacy](v.chiselCrossVersions.keys.toSeq)
 
 trait Diplomacy
-    extends millbuild.dependencies.diplomacy.common.DiplomacyModule
-    with RocketChipPublishModule
-    with Cross.Module[String] {
+    extends millbuild.dependencies.diplomacy.build.Diplomacy {
 
   override def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "dependencies" / "diplomacy" / "diplomacy"
+  override def millSourcePath = dependencies.diplomacy.build.diplomacy.millSourcePath
 
   // dont use chisel from source
   def chiselModule    = None
