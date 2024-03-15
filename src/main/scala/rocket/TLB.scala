@@ -412,7 +412,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   pma.io.paddr := mpu_physaddr
   // todo: using DataScratchpad doesn't support cacheable.
   val cacheable = pma.io.resp.cacheable && (instruction || !usingDataScratchpad).B
-  val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
+  val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits, 1 << lgMaxSize)(mpu_physaddr).homogeneous
+  // In M mode, if access DM address(debug module program buffer)
   val deny_access_to_debug = mpu_priv <= PRV.M.U && p(DebugModuleKey).map(dmp => dmp.address.contains(mpu_physaddr)).getOrElse(false.B)
   val prot_r = pma.io.resp.r && !deny_access_to_debug && pmp.io.r
   val prot_w = pma.io.resp.w && !deny_access_to_debug && pmp.io.w
