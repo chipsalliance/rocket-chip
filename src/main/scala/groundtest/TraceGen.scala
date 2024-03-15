@@ -533,6 +533,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.bits.tag  := reqTag
   io.mem.req.bits.no_alloc := false.B
   io.mem.req.bits.no_xcpt := false.B
+  io.mem.req.bits.no_resp := false.B
   io.mem.req.bits.mask := ~(0.U((numBitsInWord / 8).W))
   io.mem.req.bits.phys := false.B
   io.mem.req.bits.dprv := PRV.M.U
