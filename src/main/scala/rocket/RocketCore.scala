@@ -946,6 +946,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
   io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv
+  io.dmem.req.bits.no_resp := !isRead(ex_ctrl.mem_cmd) || (!ex_ctrl.fp && ex_waddr === 0.U)
   io.dmem.req.bits.no_alloc := DontCare
   io.dmem.req.bits.no_xcpt := DontCare
   io.dmem.req.bits.data := DontCare

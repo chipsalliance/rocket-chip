@@ -91,8 +91,6 @@ class DCacheTLBPort(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  val tlb_port = IO(new DCacheTLBPort)
-
   val tECC = cacheParams.tagCode
   val dECC = cacheParams.dataCode
   require(subWordBits % eccBits == 0, "subWordBits must be a multiple of eccBits")
@@ -179,7 +177,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_nack = WireDefault(false.B)
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_valid_not_nacked = s1_valid && !s1_nack
-  val s1_tlb_req_valid = RegNext(tlb_port.req.fire, false.B)
+  val s1_tlb_req_valid = RegNext(io.tlb_port.req.fire, false.B)
   val s2_tlb_req_valid = RegNext(s1_tlb_req_valid, false.B)
   val s0_clk_en = metaArb.io.out.valid && !metaArb.io.out.bits.write
 
@@ -190,8 +188,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_req = RegEnable(s0_req, s0_clk_en)
   val s1_vaddr = Cat(s1_req.idx.getOrElse(s1_req.addr) >> tagLSB, s1_req.addr(tagLSB-1, 0))
 
-  val s0_tlb_req = WireInit(tlb_port.req.bits)
-  when (!tlb_port.req.fire) {
+  val s0_tlb_req = WireInit(io.tlb_port.req.bits)
+  when (!io.tlb_port.req.fire) {
     s0_tlb_req.passthrough := s0_req.phys
     s0_tlb_req.vaddr := s0_req.addr
     s0_tlb_req.size := s0_req.size
@@ -199,7 +197,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     s0_tlb_req.prv := s0_req.dprv
     s0_tlb_req.v := s0_req.dv
   }
-  val s1_tlb_req = RegEnable(s0_tlb_req, s0_clk_en || tlb_port.req.valid)
+  val s1_tlb_req = RegEnable(s0_tlb_req, s0_clk_en || io.tlb_port.req.valid)
 
   val s1_read = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
@@ -263,7 +261,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val s1_cmd_uses_tlb = s1_readwrite || s1_flush_line || s1_req.cmd === M_WOK
   io.ptw <> tlb.io.ptw
-  tlb.io.kill := io.cpu.s2_kill || s2_tlb_req_valid && tlb_port.s2_kill
+  tlb.io.kill := io.cpu.s2_kill || s2_tlb_req_valid && io.tlb_port.s2_kill
   tlb.io.req.valid := s1_tlb_req_valid || s1_valid && !io.cpu.s1_kill && s1_cmd_uses_tlb
   tlb.io.req.bits := s1_tlb_req
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false.B }
@@ -277,8 +275,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.sfence.bits.hv := s1_req.cmd === M_HFENCEV
   tlb.io.sfence.bits.hg := s1_req.cmd === M_HFENCEG
 
-  tlb_port.req.ready := clock_en_reg
-  tlb_port.s1_resp := tlb.io.resp
+  io.tlb_port.req.ready := clock_en_reg
+  io.tlb_port.s1_resp := tlb.io.resp
   when (s1_tlb_req_valid && s1_valid && !(s1_req.phys && s1_req.no_xcpt)) { s1_nack := true.B }
 
   pma_checker.io <> DontCare
@@ -1056,7 +1054,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     metaArb.io.out.valid || // subsumes resetting || flushing
     s1_probe || s2_probe ||
     s1_valid || s2_valid ||
-    tlb_port.req.valid ||
+    io.tlb_port.req.valid ||
     s1_tlb_req_valid || s2_tlb_req_valid ||
     pstore1_held || pstore2_valid ||
     release_state =/= s_ready ||
