@@ -301,7 +301,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
   }
   // construct pte from mem.resp
-  val (pte, invalid_paddr) = {
+  val (pte, invalid_paddr, invalid_gpa) = {
     val tmp = mem_resp_data.asTypeOf(new PTE())
     val res = WireDefault(tmp)
     res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits.min(tmp.ppn.getWidth)-1, 0), tmp.ppn(ppnBits-1, 0))
@@ -310,10 +310,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       for (i <- 0 until pgLevels-1)
         when (count <= i.U && tmp.ppn((pgLevels-1-i)*pgLevelBits-1, (pgLevels-2-i)*pgLevelBits) =/= 0.U) { res.v := false.B }
     }
-    (res, Mux(do_both_stages && !stage2, (tmp.ppn >> vpnBits) =/= 0.U, (tmp.ppn >> ppnBits) =/= 0.U))
+    (res,
+     Mux(do_both_stages && !stage2, (tmp.ppn >> vpnBits) =/= 0.U, (tmp.ppn >> ppnBits) =/= 0.U),
+     do_both_stages && !stage2 && checkInvalidHypervisorGPA(r_hgatp, tmp.ppn))
   }
   // find non-leaf PTE, need traverse
-  val traverse = pte.table() && !invalid_paddr && count < (pgLevels-1).U
+  val traverse = pte.table() && !invalid_paddr && !invalid_gpa && count < (pgLevels-1).U
   /** address send to mem for enquerry */
   val pte_addr = if (!usingVM) 0.U else {
     val vpn_idxs = (0 until pgLevels).map { i =>
@@ -759,8 +761,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   for (i <- 0 until pgLevels) {
     val leaf = mem_resp_valid && !traverse && count === i.U
-    ccover(leaf && pte.v && !invalid_paddr && pte.reserved_for_future === 0.U, s"L$i", s"successful page-table access, level $i")
+    ccover(leaf && pte.v && !invalid_paddr && !invalid_gpa && pte.reserved_for_future === 0.U, s"L$i", s"successful page-table access, level $i")
     ccover(leaf && pte.v && invalid_paddr, s"L${i}_BAD_PPN_MSB", s"PPN too large, level $i")
+    ccover(leaf && pte.v && invalid_gpa, s"L${i}_BAD_GPA_MSB", s"GPA too large, level $i")
     ccover(leaf && pte.v && pte.reserved_for_future =/= 0.U, s"L${i}_BAD_RSV_MSB", s"reserved MSBs set, level $i")
     ccover(leaf && !mem_resp_data(0), s"L${i}_INVALID_PTE", s"page not present, level $i")
     if (i != pgLevels-1)
@@ -789,6 +792,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val pte = WireDefault(default)
     pte.ppn := Cat(hgatp.ppn >> maxHypervisorExtraAddrBits, lsbs)
     pte
+  }
+  /** use hgatp and vpn to check for gpa out of range */
+  private def checkInvalidHypervisorGPA(hgatp: PTBR, vpn: UInt) = {
+    val count = pgLevels.U - minPgLevels.U - hgatp.additionalPgLevels
+    val idxs = (0 to pgLevels-minPgLevels).map(i => (vpn >> ((pgLevels-i)*pgLevelBits)+maxHypervisorExtraAddrBits))
+    idxs.extract(count) =/= 0.U
   }
 }
 
