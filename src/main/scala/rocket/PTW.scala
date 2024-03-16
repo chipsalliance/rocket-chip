@@ -541,7 +541,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.data := DontCare
   io.mem.req.bits.mask := DontCare
 
-  io.mem.s1_kill := l2_hit || state =/= s_wait1
+  io.mem.s1_kill := l2_hit || (state =/= s_wait1) || resp_gf
   io.mem.s1_data := DontCare
   io.mem.s2_kill := false.B
 
@@ -614,7 +614,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         resp_ae_ptw := false.B
         resp_ae_final := false.B
         resp_pf := false.B
-        resp_gf := false.B
+        resp_gf := checkInvalidHypervisorGPA(io.dpath.hgatp, aux_ppn) && arb.io.out.bits.bits.stage2
         resp_hr := true.B
         resp_hw := true.B
         resp_hx := true.B
@@ -640,6 +640,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         pte_hit := true.B
       }.otherwise {
         next_state := Mux(io.mem.req.ready, s_wait1, s_req)
+      }
+      when(resp_gf) {
+        next_state := s_ready
+        resp_valid(r_req_dest) := true.B
       }
     }
     is (s_wait1) {
@@ -678,7 +682,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   r_pte := OptimizationBarrier(
     // l2tlb hit->find a leaf PTE(l2_pte), respond to L1TLB
-    Mux(l2_hit && !l2_error, l2_pte,
+    Mux(l2_hit && !l2_error && !resp_gf, l2_pte,
     // S2 PTE cache hit -> proceed to the next level of walking, update the r_pte with hgatp
     Mux(state === s_req && stage2_pte_cache_hit, makeHypervisorRootPTE(r_hgatp, stage2_pte_cache_data, l2_pte),
     // pte cache hit->find a non-leaf PTE(pte_cache),continue to request mem
@@ -693,7 +697,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     Mux(arb.io.out.fire, Mux(arb.io.out.bits.bits.stage2, makeHypervisorRootPTE(io.dpath.hgatp, io.dpath.vsatp.ppn, r_pte), makePTE(satp.ppn, r_pte)),
     r_pte))))))))
 
-  when (l2_hit && !l2_error) {
+  when (l2_hit && !l2_error && !resp_gf) {
     assert(state === s_req || state === s_wait1)
     next_state := s_ready
     resp_valid(r_req_dest) := true.B
