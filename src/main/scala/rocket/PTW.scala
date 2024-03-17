@@ -278,7 +278,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val aux_count = Reg(UInt(log2Ceil(pgLevels).W))
   /** pte for 2-stage translation */
   val aux_pte = Reg(new PTE)
-  val aux_ppn_hi = (pgLevels > 4 && r_req.addr.getWidth > aux_pte.ppn.getWidth).option(Reg(UInt((r_req.addr.getWidth - aux_pte.ppn.getWidth).W)))
   val gpa_pgoff = Reg(UInt(pgIdxBits.W)) // only valid in resp_gf case
   val stage2 = Reg(Bool())
   val stage2_final = Reg(Bool())
@@ -330,19 +329,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     //use vpn slice as offset
     raw_pte_addr.apply(size.min(raw_pte_addr.getWidth) - 1, 0)
   }
-  /** pte_cache input addr */
-  val pte_cache_addr = if (!usingHypervisor) pte_addr else {
-    val vpn_idxs = (0 until pgLevels-1).map { i =>
-      val ext_aux_pte_ppn = aux_ppn_hi match {
-        case None     => aux_pte.ppn
-        case Some(hi) => Cat(hi, aux_pte.ppn)
-      }
-      (ext_aux_pte_ppn >> (pgLevels - i - 1) * pgLevelBits)(pgLevelBits - 1, 0)
-    }
-    val vpn_idx = vpn_idxs(count)
-    val raw_pte_cache_addr = Cat(r_pte.ppn, vpn_idx) << log2Ceil(xLen/8)
-    raw_pte_cache_addr(vaddrBits.min(raw_pte_cache_addr.getWidth)-1, 0)
-  }
   /** stage2_pte_cache input addr */
   val stage2_pte_cache_addr = if (!usingHypervisor) 0.U else {
     val vpn_idxs = (0 until pgLevels - 1).map { i =>
@@ -375,7 +361,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       else can_hit
     val tag =
       if (s2) Cat(true.B, stage2_pte_cache_addr.padTo(vaddrBits))
-      else Cat(r_req.vstage1, pte_cache_addr.padTo(if (usingHypervisor) vaddrBits else paddrBits))
+      else Cat(r_req.vstage1, pte_addr.padTo(if (usingHypervisor) vaddrBits else paddrBits))
 
     val hits = tags.map(_ === tag).asUInt & valid
     val hit = hits.orR && can_hit
@@ -609,7 +595,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         count       := Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
         aux_count   := Mux(arb.io.out.bits.bits.vstage1, vsatp_initial_count, 0.U)
         aux_pte.ppn := aux_ppn
-        aux_ppn_hi.foreach { _ := aux_ppn >> aux_pte.ppn.getWidth }
         aux_pte.reserved_for_future := 0.U
         resp_ae_ptw := false.B
         resp_ae_final := false.B
@@ -632,7 +617,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (stage2_pte_cache_hit) {
         aux_count := aux_count + 1.U
         aux_pte.ppn := stage2_pte_cache_data
-        aux_ppn_hi.foreach { _ := 0.U }
         aux_pte.reserved_for_future := 0.U
         pte_hit := true.B
       }.elsewhen (pte_cache_hit) {
@@ -759,7 +743,6 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       val s1_ppns = (0 until pgLevels-1).map(i => Cat(pte.ppn(pte.ppn.getWidth-1, (pgLevels-i-1)*pgLevelBits), r_req.addr(((pgLevels-i-1)*pgLevelBits min vpnBits)-1,0).padTo((pgLevels-i-1)*pgLevelBits))) :+ pte.ppn
       makePTE(s1_ppns(count), pte)
     })
-    aux_ppn_hi.foreach { _ := 0.U }
     stage2 := true.B
   }
 
