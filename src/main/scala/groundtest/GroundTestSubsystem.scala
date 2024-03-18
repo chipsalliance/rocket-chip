@@ -21,8 +21,8 @@ class GroundTestSubsystem(implicit p: Parameters)
   with HasTileInputConstants
   with CanHaveMasterAXI4MemPort
 {
-  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=pbus.beatBytes))
-  pbus.coupleTo("TestRAM") { testram.node := TLFragmenter(pbus) := _ }
+  val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=tlBusWrapperLocationMap.get(PBUS).getOrElse(tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))).beatBytes))
+  tlBusWrapperLocationMap.lift(PBUS).getOrElse(tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))).coupleTo("TestRAM") { testram.node := TLFragmenter(tlBusWrapperLocationMap.lift(PBUS).getOrElse(tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location))))) := _ }
 
   // No cores to monitor
   def coreMonitorBundles = Nil
@@ -42,6 +42,6 @@ class GroundTestSubsystem(implicit p: Parameters)
 
 class GroundTestSubsystemModuleImp[+L <: GroundTestSubsystem](_outer: L) extends BaseSubsystemModuleImp(_outer) {
   val success = IO(Output(Bool()))
-  val status = dontTouch(DebugCombiner(outer.tileStatusNodes.map(_.bundle).toSeq))
-  success := outer.tileCeaseSinkNode.in.head._1.asUInt.andR
+  val status = dontTouch(DebugCombiner(_outer.tileStatusNodes.map(_.bundle).toSeq))
+  success := _outer.tileCeaseSinkNode.in.head._1.asUInt.andR
 }

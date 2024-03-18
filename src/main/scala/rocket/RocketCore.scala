@@ -48,7 +48,7 @@ case class RocketCoreParams(
   mimpid: Int = 0x20181004, // release date in BCD
   mulDiv: Option[MulDivParams] = Some(MulDivParams()),
   fpu: Option[FPUParams] = Some(FPUParams()),
-  debugROB: Boolean = false, // if enabled, uses a C++ debug ROB to generate trace-with-wdata
+  debugROB: Option[DebugROBParams] = None, // if size < 1, SW ROB, else HW ROB
   haveCease: Boolean = true, // non-standard CEASE instruction
   haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
   vector: Option[RocketCoreVectorParams] = None
@@ -62,7 +62,7 @@ case class RocketCoreParams(
   val retireWidth: Int = 1
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
-  val traceHasWdata: Boolean = debugROB // ooo wb, so no wdata in trace unless debugROB
+  val traceHasWdata: Boolean = debugROB.isDefined // ooo wb, so no wdata in trace
   override val useVector = vector.isDefined
   override val vectorUseDCache = vector.map(_.useDCache).getOrElse(false)
   override def vLen = vector.map(_.vLen).getOrElse(0)
@@ -394,8 +394,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_rocc_busy = usingRoCC.B &&
     (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
      mem_reg_valid && mem_ctrl.rocc || wb_reg_valid && wb_ctrl.rocc)
+  val id_csr_rocc_write = tile.roccCSRs.flatten.map(_.id.U === id_inst(0)(31,20)).orR && id_csr_en && !id_csr_ren
   val id_vec_busy = io.vector.map(v => v.backend_busy || v.trap_check_busy).getOrElse(false.B)
-  val id_do_fence = WireDefault(id_rocc_busy && id_ctrl.fence ||
+  val id_do_fence = WireDefault(id_rocc_busy && (id_ctrl.fence || id_csr_rocc_write) ||
     id_vec_busy && id_ctrl.fence ||
     id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
 
@@ -895,26 +896,46 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.csrs <> csr.io.roccCSRs
   io.trace.time := csr.io.time
   io.trace.insns := csr.io.trace
-  if (rocketParams.debugROB) {
-    val csr_trace_with_wdata = WireInit(csr.io.trace(0))
-    csr_trace_with_wdata.wdata.get := rf_wdata
-    val should_wb = WireInit((wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception)
-    val has_wb = WireInit(wb_ctrl.wxd && wb_wen && !wb_set_sboard)
-    val wb_addr = WireInit(wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
+  if (rocketParams.debugROB.isDefined) {
+    val sz = rocketParams.debugROB.get.size
+    if (sz < 1) { // use unsynthesizable ROB
+      val csr_trace_with_wdata = WireInit(csr.io.trace(0))
+      csr_trace_with_wdata.wdata.get := rf_wdata
+      val should_wb = WireInit((wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) && !csr.io.trace(0).exception)
+      val has_wb = WireInit(wb_ctrl.wxd && wb_wen && !wb_set_sboard)
+      val wb_addr = WireInit(wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
 
-    io.vector.foreach { v => when (v.wb.retire) {
-      should_wb := v.wb.rob_should_wb
-      has_wb := false.B
-      wb_addr := Cat(v.wb.rob_should_wb_fp, csr_trace_with_wdata.insn(11,7))
-    }}
+      io.vector.foreach { v => when (v.wb.retire) {
+        should_wb := v.wb.rob_should_wb
+        has_wb := false.B
+        wb_addr := Cat(v.wb.rob_should_wb_fp, csr_trace_with_wdata.insn(11,7))
+      }}
 
-    DebugROB.pushTrace(clock, reset,
-      io.hartid, csr_trace_with_wdata,
-      should_wb, has_wb, wb_addr)
+      DebugROB.pushTrace(clock, reset,
+        io.hartid, csr_trace_with_wdata,
+        should_wb, has_wb, wb_addr)
 
-    io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
+      io.trace.insns(0) := DebugROB.popTrace(clock, reset, io.hartid)
 
-    DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
+      DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
+    } else { // synthesizable ROB (no FPRs)
+      require(!usingVector)
+      val csr_trace_with_wdata = WireInit(csr.io.trace(0))
+      csr_trace_with_wdata.wdata.get := rf_wdata
+
+      val debug_rob = Module(new HardDebugROB(sz, 32))
+      debug_rob.io.i_insn := csr_trace_with_wdata
+      debug_rob.io.should_wb := (wb_ctrl.wfd || (wb_ctrl.wxd && wb_waddr =/= 0.U)) &&
+                                !csr.io.trace(0).exception
+      debug_rob.io.has_wb := wb_ctrl.wxd && wb_wen && !wb_set_sboard
+      debug_rob.io.tag    := wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U)
+
+      debug_rob.io.wb_val  := ll_wen
+      debug_rob.io.wb_tag  := rf_waddr
+      debug_rob.io.wb_data := rf_wdata
+
+      io.trace.insns(0) := debug_rob.io.o_insn
+    }
   } else {
     io.trace.insns := csr.io.trace
   }

@@ -411,24 +411,21 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   pmp.io.size := io.req.bits.size
   pmp.io.pmp := (io.ptw.pmp: Seq[PMP])
   pmp.io.prv := mpu_priv
-  // PMA
-  // check exist a slave can consume this address.
-  val legal_address = edge.manager.findSafe(mpu_physaddr).reduce(_||_)
-  // check utility to help check SoC property.
-  def fastCheck(member: TLManagerParameters => Boolean) =
-    legal_address && edge.manager.fastProperty(mpu_physaddr, member, (b:Boolean) => b.B)
+
+  val pma = Module(new PMAChecker(edge.manager)(p))
+  pma.io.paddr := mpu_physaddr
   // todo: using DataScratchpad doesn't support cacheable.
-  val cacheable = fastCheck(_.supportsAcquireB) && (instruction || !usingDataScratchpad).B
-  val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits)(mpu_physaddr).homogeneous
+  val cacheable = pma.io.resp.cacheable && (instruction || !usingDataScratchpad).B
+  val homogeneous = TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), BigInt(1) << pgIdxBits, 1 << lgMaxSize)(mpu_physaddr).homogeneous
   // In M mode, if access DM address(debug module program buffer)
   val deny_access_to_debug = mpu_priv <= PRV.M.U && p(DebugModuleKey).map(dmp => dmp.address.contains(mpu_physaddr)).getOrElse(false.B)
-  val prot_r = fastCheck(_.supportsGet) && !deny_access_to_debug && pmp.io.r
-  val prot_w = fastCheck(_.supportsPutFull) && !deny_access_to_debug && pmp.io.w
-  val prot_pp = fastCheck(_.supportsPutPartial)
-  val prot_al = fastCheck(_.supportsLogical)
-  val prot_aa = fastCheck(_.supportsArithmetic)
-  val prot_x = fastCheck(_.executable) && !deny_access_to_debug && pmp.io.x
-  val prot_eff = fastCheck(Seq(RegionType.PUT_EFFECTS, RegionType.GET_EFFECTS) contains _.regionType)
+  val prot_r = pma.io.resp.r && !deny_access_to_debug && pmp.io.r
+  val prot_w = pma.io.resp.w && !deny_access_to_debug && pmp.io.w
+  val prot_pp = pma.io.resp.pp
+  val prot_al = pma.io.resp.al
+  val prot_aa = pma.io.resp.aa
+  val prot_x = pma.io.resp.x && !deny_access_to_debug && pmp.io.x
+  val prot_eff = pma.io.resp.eff
 
   // hit check
   val sector_hits = sectored_entries(memIdx).map(_.sectorHit(vpn, priv_v))

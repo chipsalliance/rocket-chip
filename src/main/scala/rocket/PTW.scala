@@ -553,7 +553,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       require(TLBPageLookup.homogeneous(edge.manager.managers, pgSize), s"All memory regions must be $pgSize-byte aligned")
       true.B
     } else {
-      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize)(r_pte.ppn << pgIdxBits).homogeneous
+      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize, xLen/8)(r_pte.ppn << pgIdxBits).homogeneous
     }
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)

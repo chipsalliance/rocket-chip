@@ -33,12 +33,14 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
     (fixMap, splatMap)
   }
 
-  val node = TLAdapterNode(
-    clientFn  = { cp => cp },
-    managerFn = { mp =>
+  val node = new AdapterNode(TLImp)(
+    { cp => cp },
+    { mp =>
       val (fixMap, _) = fifoMap(mp.managers)
       mp.v1copy(managers = (fixMap zip mp.managers) map { case (id, m) => m.v1copy(fifoId = id) })
-    })
+    }) with TLFormatNode {
+    override def circuitIdentity = edges.in.map(_.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).size).sum == 0
+  }
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {

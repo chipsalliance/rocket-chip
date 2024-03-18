@@ -65,6 +65,7 @@ abstract class LazyRoCC(
   require(roccCSRs.map(_.id).toSet.size == roccCSRs.size)
   val atlNode: TLNode = TLIdentityNode()
   val tlNode: TLNode = TLIdentityNode()
+  val stlNode: TLNode = TLIdentityNode()
 }
 
 class LazyRoCCModuleImp(outer: LazyRoCC) extends LazyModuleImp(outer) {
@@ -81,6 +82,7 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
     "LazyRoCC instantiations require overlapping CSRs")
   roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
   roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
+  roccs.map(_.stlNode).foreach { stl => stl :*= tlSlaveXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).sum
   nDCachePorts += roccs.size

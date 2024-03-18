@@ -51,13 +51,13 @@ object TLBPageLookup
   }
 
   // Unmapped memory is considered to be inhomogeneous
-  def apply(managers: Seq[TLManagerParameters], xLen: Int, cacheBlockBytes: Int, pageSize: BigInt): UInt => TLBPermissions = {
+  def apply(managers: Seq[TLManagerParameters], xLen: Int, cacheBlockBytes: Int, pageSize: BigInt, maxRequestBytes: Int): UInt => TLBPermissions = {
     require (isPow2(xLen) && xLen >= 8)
     require (isPow2(cacheBlockBytes) && cacheBlockBytes >= xLen/8)
     require (isPow2(pageSize) && pageSize >= cacheBlockBytes)
 
     val xferSizes = TransferSizes(cacheBlockBytes, cacheBlockBytes)
-    val allSizes = TransferSizes(1, cacheBlockBytes)
+    val allSizes = TransferSizes(1, maxRequestBytes)
     val amoSizes = TransferSizes(4, xLen/8)
 
     val permissions = managers.foreach { m =>
