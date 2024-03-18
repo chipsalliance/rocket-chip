@@ -9,6 +9,7 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
+import freechips.rocketchip.diplomacy.IdRange
 import freechips.rocketchip.util.{ControlKey, SimpleBundleField}
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
