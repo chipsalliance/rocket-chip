@@ -3,12 +3,16 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.unittest._
-import freechips.rocketchip.tilelink._
+import chisel3.util.{Cat, Queue, UIntToOH, log2Ceil, OHToUInt, Mux1H, IrrevocableIO}
+
+import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, BufferParams}
+import freechips.rocketchip.tilelink.{TLArbiter, TLXbar, TLFilter, TLFuzzer, TLToAXI4, TLRAMModel}
+import freechips.rocketchip.unittest.{UnitTest, UnitTestModule}
+import freechips.rocketchip.util.BundleField
 
 /**
   * AXI4 Crossbar. It connects multiple AXI4 masters to slaves.

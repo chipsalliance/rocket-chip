@@ -2,7 +2,7 @@
 
 package freechips.rocketchip.amba
 
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.nodes.{InwardNodeHandle, OutwardNodeHandle, NodeHandle}
 
 package object axis
 {

@@ -3,9 +3,13 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
+
 import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp, SimpleLazyModule}
+
 import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams}
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest._

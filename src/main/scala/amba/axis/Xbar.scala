@@ -3,10 +3,12 @@
 package freechips.rocketchip.amba.axis
 
 import chisel3._
-import chisel3.util._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import chisel3.util.{Cat, log2Ceil, Mux1H}
+
+import org.chipsalliance.cde.config.{Config, Parameters}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.tilelink.{TLXbar, TLArbiter}
 
 class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {

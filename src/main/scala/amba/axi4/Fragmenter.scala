@@ -3,10 +3,14 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Mux1H, Queue, IrrevocableIO, log2Ceil, UIntToOH}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, TransferSizes}
+import freechips.rocketchip.util.{ControlKey, SimpleBundleField, rightOR, leftOR, OH1ToOH, UIntToOH1}
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)

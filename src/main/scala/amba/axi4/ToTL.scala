@@ -3,12 +3,18 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
-import freechips.rocketchip.amba._
+import chisel3.util.{Cat, log2Up, log2Ceil, UIntToOH, Queue}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.nodes.{MixedAdapterNode, InwardNodeImp}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.amba.{AMBACorrupt, AMBAProt, AMBAProtField}
+import freechips.rocketchip.diplomacy.{IdRange, IdMapEntry, TransferSizes}
+import freechips.rocketchip.tilelink.{TLImp, TLMasterParameters, TLMasterPortParameters, TLArbiter}
+import freechips.rocketchip.util.{OH1ToUInt, UIntToOH1}
 
 case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
   extends IdMapEntry
