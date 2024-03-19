@@ -3,10 +3,13 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy.{AddressSet, LazyModule, LazyModuleImp, SimpleDevice}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, SimpleDevice}
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
-import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode, TLBusWrapper, TLNameNode, TLNode}
+import freechips.rocketchip.tilelink.{TLBusWrapper, TLFragmenter, TLNameNode, TLNode, TLRegisterNode}
 
 /** Parameterize a BasicBusBlocker.
   *

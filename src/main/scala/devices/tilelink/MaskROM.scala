@@ -3,12 +3,17 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.log2Ceil
+
 import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule.{InModuleBody, LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, SimpleDevice, TransferSizes}
 import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation}
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters, TLWidthWidget}
+import freechips.rocketchip.util.{ROMConfig, ROMGenerator}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 case class MaskROMParams(address: BigInt, name: String, depth: Int = 2048, width: Int = 32)
 

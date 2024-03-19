@@ -4,10 +4,14 @@ package freechips.rocketchip.devices.tilelink
 
 import chisel3._
 import chisel3.util.log2Ceil
+
 import org.chipsalliance.cde.config.{Field, Parameters}
+import org.chipsalliance.diplomacy.bundlebridge.BundleBridgeSource
+import org.chipsalliance.diplomacy.lazymodule.{InModuleBody, LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, Resource, SimpleDevice, TransferSizes}
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
 
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}

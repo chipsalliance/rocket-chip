@@ -3,8 +3,10 @@
 package freechips.rocketchip.devices.tilelink
 
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyScope}
+
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams}
+import freechips.rocketchip.tilelink.{HasTLBusParams, TLBuffer, TLCacheCork, TLCacheCorkParams, TLFragmenter, TLOutwardNode, TLTempNode}
 
 case class BuiltInZeroDeviceParams(
   addr: AddressSet,

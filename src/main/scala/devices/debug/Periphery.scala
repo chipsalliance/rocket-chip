@@ -4,17 +4,20 @@ package freechips.rocketchip.devices.debug
 
 import chisel3._
 import chisel3.experimental.{IntParam, noPrefix}
-import chisel3.util._
 import chisel3.util.HasBlackBoxResource
+
 import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.amba.apb._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.jtag._
-import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters, ClockSinkNode}
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts.{NullIntSyncSource, IntSyncXbar}
+import org.chipsalliance.diplomacy.lazymodule.{InModuleBody, LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.amba.apb.{APBBundle, APBBundleParameters, APBMasterNode, APBMasterParameters, APBMasterPortParameters}
+import freechips.rocketchip.interrupts.{IntSyncXbar, NullIntSyncSource}
+import freechips.rocketchip.jtag.JTAGIO
+import freechips.rocketchip.prci.{ClockSinkNode, ClockSinkParameters}
+import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, FBUS, ResetSynchronous, SubsystemResetSchemeKey, TLBusWrapperLocation}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLWidthWidget}
+import freechips.rocketchip.util.{AsyncResetSynchronizerShiftReg, CanHavePSDTestModeIO, ClockGate, PSDTestMode, PlusArg, ResetSynchronizerShiftReg}
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 /** Protocols used for communicating with external debugging tools */
 sealed trait DebugExportProtocol

@@ -3,12 +3,16 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Cat, PriorityMux, isPow2, log2Ceil}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, SimpleDevice}
+import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup, RegFieldWrType, RegReadFn, RegWriteFn}
+import freechips.rocketchip.tilelink.{TLAdapterNode, TLMessages, TLPermissions, TLRegisterNode}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
 

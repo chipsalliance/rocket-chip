@@ -3,18 +3,23 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util._
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
 import chisel3.experimental.SourceInfo
+import chisel3.util.{Cat, RegEnable, ShiftRegister, UIntToOH, log2Ceil, log2Up}
+
+import org.chipsalliance.cde.config.{Field, Parameters}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, Description, Resource, ResourceBinding, ResourceBindings, ResourceInt, SimpleDevice}
+import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSinkPortParameters, IntSourceParameters, IntSourcePortParameters}
+import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldRdAction, RegFieldWrType, RegReadFn, RegWriteFn}
+import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
+import freechips.rocketchip.util.{Annotated, MuxT, property}
 
 import scala.math.min
+
+import freechips.rocketchip.util.UIntToAugmentedUInt
+import freechips.rocketchip.util.SeqToAugmentedSeq
 
 class GatewayPLICIO extends Bundle {
   val valid = Output(Bool())

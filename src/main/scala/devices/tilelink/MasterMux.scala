@@ -3,9 +3,29 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
+import freechips.rocketchip.tilelink.{
+  LFSR64,
+  TLBundleA,
+  TLBundleC,
+  TLBundleE,
+  TLClientNode,
+  TLCustomNode,
+  TLFilter,
+  TLFragmenter,
+  TLFuzzer,
+  TLMasterParameters,
+  TLMasterPortParameters,
+  TLPermissions,
+  TLRAM,
+  TLRAMModel,
+  TLSlaveParameters,
+  TLSlavePortParameters}
 
 class MasterMuxNode(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(implicit valName: ValName) extends TLCustomNode
 {
