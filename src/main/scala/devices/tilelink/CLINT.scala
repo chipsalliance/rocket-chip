@@ -76,7 +76,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
     val (intnode_out, _) = intnode.out.unzip
     intnode_out.zipWithIndex.foreach { case (int, i) =>
       int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
-      int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
+      int(1) := ShiftRegister(time >= timecmp(i), params.intStages) // mtip
     }
 
     /* 0000 msip hart 0
