@@ -3,10 +3,14 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
 import chisel3.util.{log2Ceil, Cat}
+
+import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.IdRange
+import freechips.rocketchip.util.{ControlKey, SimpleBundleField}
 
 case object AXI4ExtraId extends ControlKey[UInt]("extra_id")
 case class AXI4ExtraIdField(width: Int) extends SimpleBundleField(AXI4ExtraId)(Output(UInt(width.W)), 0.U)

@@ -2,8 +2,10 @@
 
 package freechips.rocketchip.amba.axis
 
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.BufferParams
 
 class AXISBuffer(val params: BufferParams)(implicit p: Parameters) extends LazyModule
 {

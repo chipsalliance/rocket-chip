@@ -3,10 +3,13 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Queue, QueueIO, UIntToOH}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.util.BundleMap
 
 /** This adapter prunes all user bit fields of the echo type from request messages,
   * storing them in queues and echoing them back when matching response messages are received.

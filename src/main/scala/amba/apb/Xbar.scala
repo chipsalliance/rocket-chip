@@ -3,10 +3,14 @@
 package freechips.rocketchip.amba.apb
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.Mux1H
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.AddressDecoder
+import freechips.rocketchip.util.BundleField
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new APBNexusNode(

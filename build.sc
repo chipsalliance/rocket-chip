@@ -93,12 +93,12 @@ trait Diplomacy
   override def millSourcePath = os.pwd / "dependencies" / "diplomacy" / "diplomacy"
 
   // dont use chisel from source
-  def chiselModule    = None
-  def chiselPluginJar = None
+  def chiselModule = Option.when(crossValue == "source")(chisel)
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
 
   // use chisel from ivy
-  def chiselIvy       = Some(v.chiselCrossVersions(crossValue)._1)
-  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
 
   // use CDE from source until published to sonatype
   def cdeModule = cde
