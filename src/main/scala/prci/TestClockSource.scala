@@ -1,10 +1,11 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import chisel3.util.HasBlackBoxInline
+import chisel3.util._
 import chisel3.experimental.DoubleParam
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
 
 class ClockSourceIO extends Bundle {
   val power = Input(Bool())

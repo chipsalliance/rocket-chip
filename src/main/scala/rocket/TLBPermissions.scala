@@ -3,10 +3,10 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.isPow2
+import chisel3.util._
 
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes, RegionType, AddressDecoder}
+import freechips.rocketchip.tilelink.TLManagerParameters
 
 case class TLBPermissions(
   homogeneous: Bool, // if false, the below are undefined

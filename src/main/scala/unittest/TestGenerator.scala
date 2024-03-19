@@ -3,8 +3,9 @@
 package freechips.rocketchip.unittest
 
 import chisel3._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
 
 abstract class LazyUnitTest(implicit p: Parameters) extends LazyModule
 { self =>

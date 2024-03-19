@@ -3,8 +3,11 @@
 package freechips.rocketchip.subsystem
 
 import chisel3._
-import chisel3.util.Counter
-import freechips.rocketchip.diplomacy.{LazyRawModuleImp, DTSTimebase}
+import chisel3.util._
+
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.DTSTimebase
 import freechips.rocketchip.devices.tilelink.{CLINTAttachKey, CanHavePeripheryCLINT}
 
 trait HasRTCModuleImp extends LazyRawModuleImp {

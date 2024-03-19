@@ -4,9 +4,12 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, RegionType, IdRange, TriStateValue}
+import freechips.rocketchip.util.BundleField
 
 // Trades off slave port proximity against routing resource cost
 object ForceFanout

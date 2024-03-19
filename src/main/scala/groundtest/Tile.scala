@@ -4,8 +4,12 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{ClockCrossingType, SimpleDevice}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{BuildHellaCache, DCache, DCacheModule, ICacheParams, NonBlockingDCache, NonBlockingDCacheModule, RocketCoreParams}
 import freechips.rocketchip.tile._

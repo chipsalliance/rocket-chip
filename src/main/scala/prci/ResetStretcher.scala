@@ -2,9 +2,10 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import chisel3.util.log2Ceil
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
+import chisel3.util._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
 
 /** This adapter takes an input reset and stretches it.
   *

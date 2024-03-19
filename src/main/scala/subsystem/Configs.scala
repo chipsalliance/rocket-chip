@@ -4,13 +4,23 @@
 package freechips.rocketchip.subsystem
 
 import chisel3.util._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.devices.debug._
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.rocket._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.util._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.debug.{DebugModuleKey, DefaultDebugModuleParams, ExportDebug, JTAG, APB}
+import freechips.rocketchip.devices.tilelink.{
+  BuiltInErrorDeviceParams, BootROMLocated, BootROMParams, CLINTKey, DevNullDevice, CLINTParams, PLICKey, PLICParams, DevNullParams
+}
+import freechips.rocketchip.diplomacy.{
+  AddressSet, SynchronousCrossing, AsynchronousCrossing, RationalCrossing, MonitorsEnabled,
+  DTSModel, DTSCompat, DTSTimebase, ClockCrossingType, BigIntHexContext
+}
+import freechips.rocketchip.rocket.{PgLevels, RocketCoreParams, MulDivParams, DCacheParams, ICacheParams, BTBParams, DebugROBParams}
+import freechips.rocketchip.tile.{
+  XLen, MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
+}
+import freechips.rocketchip.util.ClockGateModelFile
 
 class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters

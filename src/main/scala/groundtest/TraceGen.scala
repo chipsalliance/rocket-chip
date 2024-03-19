@@ -20,9 +20,11 @@
 package freechips.rocketchip.groundtest
  
 import chisel3._
-import chisel3.util.{log2Up, MuxLookup, Cat, log2Ceil, Enum}
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.diplomacy.{ClockCrossingType}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+
+import freechips.rocketchip.diplomacy.ClockCrossingType
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._

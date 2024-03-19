@@ -3,18 +3,25 @@
 
 package freechips.rocketchip.rocket
 
-import chisel3._
-import chisel3.util.{Cat, Decoupled, Mux1H, OHToUInt, RegEnable, Valid, isPow2, log2Ceil, log2Up, PopCount}
-import freechips.rocketchip.amba._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{DescribedSRAM, _}
-import freechips.rocketchip.util.property
-import chisel3.experimental.SourceInfo
-import chisel3.dontTouch
+import chisel3.{dontTouch, _}
+import chisel3.util._
 import chisel3.util.random.LFSR
+import chisel3.experimental.SourceInfo
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
+import freechips.rocketchip.diplomacy.{IdRange, SimpleDevice, ResourceBindings, Description, AddressSet, Binding, ResourceAddress, ResourceString, ResourceValue, RegionType, TransferSizes}
+import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, TileKey, LookupByHartId}
+import freechips.rocketchip.tilelink.{TLClientNode, TLMasterPortParameters, TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLMasterParameters, TLHints}
+import freechips.rocketchip.util.{Code, CanHaveErrors, DescribedSRAM, RandomReplacement, Split, IdentityCode, property}
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.util.UIntToAugmentedUInt
+import freechips.rocketchip.util.SeqToAugmentedSeq
+import freechips.rocketchip.util.OptionUIntToAugmentedOptionUInt
 
 /** Parameter of [[ICache]].
   *

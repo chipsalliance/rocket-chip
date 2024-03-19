@@ -4,9 +4,11 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 trait Pattern {
   def address: BigInt
@@ -73,7 +75,7 @@ class TLPatternPusher(name: String, pattern: Seq[Pattern])(implicit p: Parameter
     }
 
     val (plegal, pbits) = pattern.map(_.bits(edgeOut)).unzip
-    assert (end || VecInit(plegal)(step), s"Pattern pusher ${name} tried to push an illegal request")
+    assert (end || VecInit(plegal)(step), s"Pattern pusher ${this.name} tried to push an illegal request")
 
     a.valid := io.run && ready && !end && !flight
     a.bits  := VecInit(pbits)(step)

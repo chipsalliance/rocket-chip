@@ -4,8 +4,12 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.util.property
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule

@@ -2,13 +2,20 @@
 
 package freechips.rocketchip.subsystem
 
-import chisel3.{Flipped, IO}
+import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{
+  BindingScope, DTS, DTB, ResourceBinding, JSON, ResourceInt,
+  DTSModel, DTSCompat, DTSTimebase, ResourceString, Resource,
+  ResourceAnchors, AddressMapEntry, AddressRange
+}
+import freechips.rocketchip.prci.{ClockGroupIdentityNode, ClockGroupAggregator, ClockGroupSourceNode, ClockGroupSourceParameters}
 import freechips.rocketchip.tilelink.TLBusWrapper
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.{Location, ElaborationArtefacts, PlusArgArtefacts, RecordMap, Annotated}
 
 case object SubsystemDriveClockGroupsFromIO extends Field[Boolean](true)
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]

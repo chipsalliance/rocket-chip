@@ -4,15 +4,27 @@ package freechips.rocketchip.tile
 
 import chisel3._
 import chisel3.util.{log2Ceil, log2Up}
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.diplomacy._
 
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.rocket._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters}
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.bundlebridge._
+
+
+import freechips.rocketchip.diplomacy.{ClockCrossingType, PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
+import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
+import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, PgLevels, ASIdBits, VMIdBits, TraceAux, BPWatch}
+import freechips.rocketchip.subsystem.{
+  HierarchicalElementParams, InstantiableHierarchicalElementParams, HierarchicalElementCrossingParamsLike,
+  CacheBlockBytes, SystemBusKey, BaseHierarchicalElement, InsertTimingClosureRegistersOnHartIds, BaseHierarchicalElementModuleImp
+}
+import freechips.rocketchip.tilelink.{TLEphemeralNode, TLOutwardNode, TLNode, TLFragmenter, EarlyAck, TLWidthWidget, TLManagerParameters, ManagerUnification}
+import freechips.rocketchip.prci.ClockSinkParameters
+import freechips.rocketchip.util.{TraceCoreParams, TraceCoreInterface}
+
+import freechips.rocketchip.diplomacy.BigIntToProperty
+import freechips.rocketchip.diplomacy.IntToProperty
+import freechips.rocketchip.diplomacy.StringToProperty
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
