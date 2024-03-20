@@ -92,8 +92,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val beatBytes = manager.beatBytes
         val fifoId = managers(0).fifoId
         require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
-        require (!manager.anySupportAcquireB)
-
+        require (!manager.anySupportAcquireB || !edgeOut.client.anySupportProbe,
+          s"TLFragmenter (with parent $parent) can't fragment a caching client's requests into a cacheable region")
+        
         require (minSize >= beatBytes, s"TLFragmenter (with parent $parent) can't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
         // We can't support devices which are cached on both sides of us
         require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)
