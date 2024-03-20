@@ -905,7 +905,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       val has_wb = WireInit(wb_ctrl.wxd && wb_wen && !wb_set_sboard)
       val wb_addr = WireInit(wb_waddr + Mux(wb_ctrl.wfd, 32.U, 0.U))
 
-      io.vector.foreach { v => when (v.wb.retire) {
+      io.vector.foreach { v => when (v.wb.retire && !wb_reg_set_vconfig) {
         should_wb := v.wb.rob_should_wb
         has_wb := false.B
         wb_addr := Cat(v.wb.rob_should_wb_fp, csr_trace_with_wdata.insn(11,7))
