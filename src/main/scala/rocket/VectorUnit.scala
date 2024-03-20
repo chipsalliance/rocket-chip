@@ -12,7 +12,8 @@ case class RocketCoreVectorParams(
   vLen: Int,
   vMemDataBits: Int,
   decoder: Parameters => RocketVectorDecoder,
-  useDCache: Boolean
+  useDCache: Boolean,
+  issueVConfig: Boolean
 )
 
 class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {

@@ -1087,7 +1087,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.v_sew := csr.io.vector.map(_.vconfig.vtype.vsew).getOrElse(0.U)
 
   io.vector.foreach { v =>
-    v.ex.valid := ex_reg_valid && ex_ctrl.vec && !ctrl_killx
+    v.ex.valid := ex_reg_valid && (ex_ctrl.vec || rocketParams.vector.get.issueVConfig.B && ex_reg_set_vconfig) && !ctrl_killx
     v.ex.inst := ex_reg_inst
     v.ex.vconfig := csr.io.vector.get.vconfig
     v.ex.vstart := Mux(mem_reg_valid && mem_ctrl.vec || wb_reg_valid && wb_ctrl.vec, 0.U, csr.io.vector.get.vstart)
