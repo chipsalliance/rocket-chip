@@ -81,7 +81,7 @@ class RocketTile private(
   masterNode :=* tlOtherMastersNode
   DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
 
-  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt + rocketParams.core.useVector.toInt
+  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt + rocketParams.core.vector.map(_.useDCache.toInt).getOrElse(0)
 
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
@@ -178,7 +178,11 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   if (fpuOpt.isEmpty) {
     core.io.fpu := DontCare
   }
-  outer.vector_unit foreach { v => dcachePorts += v.module.io.dmem }
+  outer.vector_unit foreach { v => if (outer.rocketParams.core.vector.get.useDCache) {
+    dcachePorts += v.module.io.dmem
+  } else {
+    v.module.io.dmem := DontCare
+  } }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
