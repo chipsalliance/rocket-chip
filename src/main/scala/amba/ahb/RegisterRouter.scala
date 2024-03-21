@@ -3,12 +3,18 @@
 package freechips.rocketchip.amba.ahb
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{log2Up, log2Ceil, Decoupled}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
+
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.nodes.{SinkNode}
+
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
+import freechips.rocketchip.regmapper.{RegMapperParams, RegField, RegMapperInput, RegisterRouter, RegMapper}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.MaskGen
+
 import scala.math.min
 
 case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)

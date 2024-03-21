@@ -3,10 +3,15 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Decoupled, Queue, log2Ceil, log2Up}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
+
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.nodes.{SinkNode}
+
+import freechips.rocketchip.diplomacy.{AddressSet, NoCrossing, TransferSizes}
+import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperInput, RegMapperParams, RegisterRouter}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util._
 

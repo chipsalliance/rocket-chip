@@ -4,11 +4,16 @@ package freechips.rocketchip.amba.apb
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.amba._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.nodes.{MixedAdapterNode}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
+import freechips.rocketchip.diplomacy.TransferSizes
+import freechips.rocketchip.tilelink.{TLImp, TLMessages, TLMasterPortParameters, TLMasterParameters}
 
 case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APBImp, TLImp)(
   dFn = { mp =>
