@@ -919,7 +919,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
       DebugROB.pushWb(clock, reset, io.hartid, ll_wen, rf_waddr, rf_wdata)
     } else { // synthesizable ROB (no FPRs)
-      require(!usingVector)
+      require(!usingVector, "Synthesizable ROB does not support vector implementations")
       val csr_trace_with_wdata = WireInit(csr.io.trace(0))
       csr_trace_with_wdata.wdata.get := rf_wdata
 
