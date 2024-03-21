@@ -159,6 +159,7 @@ module RoccBlackBox
     output [fLen:0]                      rocc_fpu_req_bits_in1,
     output [fLen:0]                      rocc_fpu_req_bits_in2,
     output [fLen:0]                      rocc_fpu_req_bits_in3,
+    output                               rocc_fpu_req_bits_vec,
     output                               rocc_fpu_resp_ready,
     input                                rocc_fpu_resp_valid,
     input [fLen:0]                       rocc_fpu_resp_bits_data,
