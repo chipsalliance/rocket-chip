@@ -783,13 +783,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     ll_arb.io.in(2).valid := v.resp.valid && !v.resp.bits.fp
     ll_arb.io.in(2).bits.data := v.resp.bits.data
     ll_arb.io.in(2).bits.tag := v.resp.bits.rd
-
-    when (!(dmem_resp_valid && dmem_resp_fpu)) {
-      io.fpu.ll_resp_val := v.resp.valid && v.resp.bits.fp
-      io.fpu.ll_resp_data := v.resp.bits.data
-      io.fpu.ll_resp_type := v.resp.bits.size
-      io.fpu.ll_resp_tag := v.resp.bits.rd
-    }
   }
   // Dont care mem since not all RoCC need accessing memory
   io.rocc.mem := DontCare
@@ -1085,6 +1078,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.fpu.keep_clock_enabled := io.ptw.customCSRs.disableCoreClockGate
 
   io.fpu.v_sew := csr.io.vector.map(_.vconfig.vtype.vsew).getOrElse(0.U)
+
+  io.vector.map { v =>
+    when (!(dmem_resp_valid && dmem_resp_fpu)) {
+      io.fpu.ll_resp_val := v.resp.valid && v.resp.bits.fp
+      io.fpu.ll_resp_data := v.resp.bits.data
+      io.fpu.ll_resp_type := v.resp.bits.size
+      io.fpu.ll_resp_tag := v.resp.bits.rd
+    }
+  }
 
   io.vector.foreach { v =>
     v.ex.valid := ex_reg_valid && (ex_ctrl.vec || rocketParams.vector.get.issueVConfig.B && ex_reg_set_vconfig) && !ctrl_killx
