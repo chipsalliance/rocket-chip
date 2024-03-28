@@ -119,6 +119,7 @@ module RoccBlackBox
     input                                rocc_mem_s2_xcpt_ae_ld,
     input                                rocc_mem_s2_xcpt_ae_st,
     input                                rocc_mem_ordered,
+    input                                rocc_mem_store_pending,
     input                                rocc_mem_perf_acquire,
     input                                rocc_mem_perf_release,
     input                                rocc_mem_perf_grant,
