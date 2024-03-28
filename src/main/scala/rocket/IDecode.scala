@@ -44,6 +44,7 @@ class IntCtrlSigs(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends Bu
   val fence = Bool()
   val amo = Bool()
   val dp = Bool()
+  val vec = Bool()
 
   def default: List[BitPat] =
                 //           jal                                                                 renf1               fence.i
@@ -432,6 +433,15 @@ class D64Decode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends Deco
     FCVT_D_L->  List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,Y,N,N,N,CSR.N,N,N,N,Y),
     FCVT_D_LU-> List(Y,Y,N,N,N,N,N,Y,A2_X,   A1_RS1, IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,Y,N,N,N,CSR.N,N,N,N,Y))
 }
+
+class VCFGDecode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    VSETVLI  -> List(Y,N,N,N,N,N,N,Y,A2_X,   A1_X,   IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VSETIVLI -> List(Y,N,N,N,N,N,N,N,A2_X,   A1_X,   IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    VSETVL   -> List(Y,N,N,N,N,N,Y,Y,A2_X,   A1_X,   IMM_X, DW_X,  aluFn.FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
+}
+
 
 class RoCCDecode(aluFn: ALUFN = ALUFN())(implicit val p: Parameters) extends DecodeConstants
 {
