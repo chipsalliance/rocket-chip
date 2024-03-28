@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.experimental._
+import chisel3.experimental.{noPrefix, IntParam}
 import chisel3.util._
 
 import org.chipsalliance.cde.config._
