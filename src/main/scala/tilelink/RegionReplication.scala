@@ -3,8 +3,12 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.AddressSet
 
 /* Address inside the 'local' space are replicated to fill the 'remote' space.
  */

@@ -3,8 +3,12 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.AddressSet
+
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{NMI}
 import freechips.rocketchip.devices.tilelink.{CLINTConsts}

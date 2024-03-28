@@ -2,11 +2,17 @@
 
 package freechips.rocketchip.subsystem
 
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.tilelink.{BuiltInZeroDeviceParams, BuiltInErrorDeviceParams, HasBuiltInDeviceParams, BuiltInDevices}
+import freechips.rocketchip.diplomacy.BufferParams
+import freechips.rocketchip.tilelink.{
+  RegionReplicator, ReplicatedRegion, HasTLBusParams, HasRegionReplicatorParams, TLBusWrapper,
+  TLBusWrapperInstantiationLike, TLFIFOFixer, TLNode, TLXbar, TLInwardNode, TLOutwardNode,
+  TLBuffer, TLWidthWidget, TLAtomicAutomata, TLEdge
+}
+import freechips.rocketchip.util.Location
 
 case class BusAtomics(
   arithmetic: Boolean = true,

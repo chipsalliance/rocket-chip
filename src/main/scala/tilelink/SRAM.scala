@@ -4,10 +4,16 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, Device, DeviceRegName, DiplomaticSRAM, RegionType, TransferSizes, HasJustOneSeqMem}
+import freechips.rocketchip.util.{CanHaveErrors, ECCParams, property, SECDEDCode}
+
+import freechips.rocketchip.util.DataToAugmentedData
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
   val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))

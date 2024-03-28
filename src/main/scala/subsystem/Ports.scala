@@ -4,11 +4,28 @@ package freechips.rocketchip.subsystem
 
 import chisel3._
 
-import org.chipsalliance.cde.config.Field
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.util._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.axi4.{
+  AXI4SlaveNode, AXI4SlavePortParameters, AXI4SlaveParameters, AXI4UserYanker, AXI4Buffer,
+  AXI4Deinterleaver, AXI4IdIndexer, AXI4MasterNode, AXI4MasterPortParameters, AXI4ToTL,
+  AXI4Fragmenter, AXI4MasterParameters
+}
+import freechips.rocketchip.diplomacy.{
+  MemoryDevice, AddressSet, RegionType, TransferSizes, SimpleBus, IdRange, BufferParams
+}
+import freechips.rocketchip.tilelink.{
+  TLXbar, RegionReplicator, ReplicatedRegion, TLWidthWidget, TLFilter, TLToAXI4, TLBuffer,
+  TLFIFOFixer, TLSlavePortParameters, TLManagerNode, TLSlaveParameters, TLClientNode,
+  TLSourceShrinker, TLMasterParameters, TLMasterPortParameters
+}
+import freechips.rocketchip.util.StringToAugmentedString
+
+import freechips.rocketchip.tilelink.TLClockDomainCrossing
+import freechips.rocketchip.tilelink.TLResetDomainCrossing
 
 /** Specifies the size and width of external memory ports */
 case class MasterPortParams(

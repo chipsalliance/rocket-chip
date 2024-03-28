@@ -3,12 +3,17 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.amba.apb._
-import freechips.rocketchip.amba._
-import APBParameters._
 import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.TransferSizes
+import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
+import freechips.rocketchip.amba.apb.{APBImp, APBMasterParameters, APBMasterPortParameters}
+import freechips.rocketchip.amba.apb.APBParameters.PROT_DEFAULT
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { cp =>

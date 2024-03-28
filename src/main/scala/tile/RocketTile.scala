@@ -4,15 +4,27 @@
 package freechips.rocketchip.tile
 
 import chisel3._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.rocket._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.tilelink.{BasicBusBlockerParams, BasicBusBlocker}
+import freechips.rocketchip.diplomacy.{
+  AddressSet, ClockCrossingType, DisableMonitors, SimpleDevice, Description,
+  ResourceAnchors, ResourceBindings, ResourceBinding, Resource, ResourceAddress,
+  RationalCrossing, BufferParams
+}
+import freechips.rocketchip.interrupts.IntIdentityNode
+import freechips.rocketchip.tilelink.{TLIdentityNode, TLBuffer}
+import freechips.rocketchip.rocket.{
+  RocketCoreParams, ICacheParams, DCacheParams, BTBParams, HasHellaCache,
+  HasICacheFrontend, ScratchpadSlavePort, HasICacheFrontendModule, Rocket
+}
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
-import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters}
+import freechips.rocketchip.prci.ClockSinkParameters
+import freechips.rocketchip.util.Annotated
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 case class RocketTileBoundaryBufferParams(force: Boolean = false)
 

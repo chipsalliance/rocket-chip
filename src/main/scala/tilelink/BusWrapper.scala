@@ -4,15 +4,28 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.{AddressSet, ClockCrossingType, NoCrossing, NoHandle, NodeHandle, NodeBinding}
 
 // TODO This class should be moved to package subsystem to resolve
 //      the dependency awkwardness of the following imports
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.prci._
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.util._
+import freechips.rocketchip.devices.tilelink.{BuiltInDevices, CanHaveBuiltInDevices}
+import freechips.rocketchip.prci.{
+  ClockParameters, ClockDomain, ClockGroup, ClockGroupAggregator, ClockSinkNode,
+  FixedClockBroadcast, ClockGroupEdgeParameters, ClockSinkParameters, ClockSinkDomain,
+  ClockGroupEphemeralNode, asyncMux
+}
+import freechips.rocketchip.subsystem.{
+  HasTileLinkLocations, CanConnectWithinContextThatHasTileLinkLocations,
+  CanInstantiateWithinContextThatHasTileLinkLocations
+}
+import freechips.rocketchip.util.Location
 
 /** Specifies widths of various attachement points in the SoC */
 trait HasTLBusParams {

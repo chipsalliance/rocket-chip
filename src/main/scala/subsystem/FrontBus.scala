@@ -2,10 +2,11 @@
 
 package freechips.rocketchip.subsystem
 
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.tilelink.{BuiltInErrorDeviceParams, BuiltInZeroDeviceParams, BuiltInDevices, HasBuiltInDeviceParams}
+import freechips.rocketchip.tilelink.{HasTLBusParams, TLBusWrapper, TLBusWrapperInstantiationLike, HasTLXbarPhy}
 import freechips.rocketchip.util.{Location}
 
 case class FrontBusParams(

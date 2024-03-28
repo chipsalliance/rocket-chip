@@ -3,12 +3,19 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.amba._
-import chisel3.util.{log2Ceil, UIntToOH, Queue, Decoupled, Cat}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.amba.{AMBACorrupt, AMBACorruptField, AMBAProt, AMBAProtField}
+import freechips.rocketchip.amba.axi4.{AXI4BundleARW, AXI4MasterParameters, AXI4MasterPortParameters, AXI4Parameters, AXI4Imp}
+import freechips.rocketchip.diplomacy.{IdMap, IdMapEntry, IdRange}
+import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, UIntToOH1}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)

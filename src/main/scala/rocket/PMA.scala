@@ -5,16 +5,15 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.CacheBlockBytes
-import freechips.rocketchip.diplomacy.RegionType
-import freechips.rocketchip.tile.{CoreModule, CoreBundle}
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
-import freechips.rocketchip.devices.debug.DebugModuleKey
 import chisel3.experimental.SourceInfo
+
+import org.chipsalliance.cde.config._
+
+import freechips.rocketchip.devices.debug.DebugModuleKey
+import freechips.rocketchip.diplomacy.RegionType
+import freechips.rocketchip.subsystem.CacheBlockBytes
+import freechips.rocketchip.tile.{CoreModule, CoreBundle}
+import freechips.rocketchip.tilelink.{TLSlavePortParameters, TLManagerParameters}
 
 class PMAChecker(manager: TLSlavePortParameters)(implicit p: Parameters) extends CoreModule()(p) {
   val io = IO(new Bundle {
