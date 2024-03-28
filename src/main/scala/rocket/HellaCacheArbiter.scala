@@ -63,6 +63,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       io.requestor(i).s2_gpa := io.mem.s2_gpa
       io.requestor(i).s2_gpa_is_pte := io.mem.s2_gpa_is_pte
       io.requestor(i).ordered := io.mem.ordered
+      io.requestor(i).store_pending := io.mem.store_pending
       io.requestor(i).perf := io.mem.perf
       io.requestor(i).s2_nack := io.mem.s2_nack && s2_id === i.U
       io.requestor(i).s2_nack_cause_raw := io.mem.s2_nack_cause_raw

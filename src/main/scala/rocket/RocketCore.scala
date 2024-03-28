@@ -860,6 +860,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
         csr.io.tval := v.wb.tval
       }
     }
+    v.wb.store_pending := io.dmem.store_pending
     v.wb.vxrm := csr.io.vector.get.vxrm
     v.wb.frm := csr.io.fcsr_rm
     csr.io.vector.get.set_vxsat := v.set_vxsat

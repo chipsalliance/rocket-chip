@@ -919,6 +919,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_isSlavePortAccess = s1_req.no_xcpt
   val s2_isSlavePortAccess = s2_req.no_xcpt
   io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
+  io.cpu.store_pending := (cached_grant_wait && isWrite(s2_req.cmd)) || uncachedInFlight.asUInt.orR
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))

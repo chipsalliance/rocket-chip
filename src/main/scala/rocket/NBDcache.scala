@@ -335,6 +335,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     val probe_rdy = Output(Bool())
     val fence_rdy = Output(Bool())
     val replay_next = Output(Bool())
+    val store_pending = Output(Bool())
   })
 
   // determine if the request is cacheable or not
@@ -366,6 +367,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
 
   io.fence_rdy := true.B
   io.probe_rdy := true.B
+  io.store_pending := sdq_val =/= 0.U
 
   val mshrs = (0 until cfg.nMSHRs) map { i =>
     val mshr = Module(new MSHR(i))
@@ -1051,6 +1053,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.resp.bits.data_raw := s2_data_word
   io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
+  io.cpu.store_pending := mshrs.io.store_pending
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 
   val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack

@@ -181,6 +181,7 @@ class HellaCacheIO(implicit p: Parameters) extends CoreBundle()(p) {
   val s2_gpa_is_pte = Input(Bool())
   val uncached_resp = tileParams.dcache.get.separateUncachedResp.option(Flipped(Decoupled(new HellaCacheResp)))
   val ordered = Input(Bool())
+  val store_pending = Input(Bool()) // there is a store in a store buffer somewhere
   val perf = Input(new HellaCachePerfEvents())
 
   val keep_clock_enabled = Output(Bool()) // should D$ avoid clock-gating itself?

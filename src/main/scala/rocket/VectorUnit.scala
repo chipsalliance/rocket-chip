@@ -36,6 +36,7 @@ class VectorCoreIO(implicit p: Parameters) extends CoreBundle()(p) {
   }
 
   val wb = new Bundle {
+    val store_pending = Input(Bool())
     val replay = Output(Bool())
     val retire = Output(Bool())
     val inst = Output(UInt(32.W))
