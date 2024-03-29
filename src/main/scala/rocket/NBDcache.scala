@@ -56,6 +56,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
     val mem_access = Decoupled(new TLBundleA(edge.bundle))
     val mem_ack = Flipped(Valid(new TLBundleD(edge.bundle)))
     val replay_next = Output(Bool())
+    val store_pending = Output(Bool())
   })
 
   def beatOffset(addr: UInt) = addr.extract(beatOffBits - 1, wordOffBits)
@@ -119,6 +120,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   io.resp.bits.data_word_bypass := loadgen.wordData
   io.resp.bits.store_data := req.data
   io.resp.bits.replay := true.B
+  io.store_pending := state =/= s_idle && isWrite(req.cmd)
 
   when (io.req.fire) {
     req := io.req.bits
@@ -367,7 +369,6 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
 
   io.fence_rdy := true.B
   io.probe_rdy := true.B
-  io.store_pending := sdq_val =/= 0.U
 
   val mshrs = (0 until cfg.nMSHRs) map { i =>
     val mshr = Module(new MSHR(i))
@@ -444,6 +445,8 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
 
   TLArbiter.lowestFromSeq(edge, io.mem_acquire, mshrs.map(_.io.mem_acquire) ++ mmios.map(_.io.mem_access))
   TLArbiter.lowestFromSeq(edge, io.mem_finish,  mshrs.map(_.io.mem_finish))
+
+  io.store_pending := sdq_val =/= 0.U || mmios.map(_.io.store_pending).orR
 
   io.resp <> resp_arb.io.out
   io.req.ready := Mux(!cacheable,
