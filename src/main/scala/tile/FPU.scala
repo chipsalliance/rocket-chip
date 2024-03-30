@@ -979,7 +979,8 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := true.B
   }
-  io.cp_req.ready := !ex_reg_valid
+  // Avoid structural hazards and nacking of external requests
+  io.cp_req.ready := !ex_reg_valid && !mem_reg_valid && !wb_reg_valid
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
