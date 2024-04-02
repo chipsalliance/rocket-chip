@@ -207,7 +207,7 @@ trait HasHierarchicalElementsRootContext
     outputRequiresInput = false,
     inputRequiresOutput = false))
   val meipNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
-    (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(meipIONode.get))
+    (i, IntEphemeralNode())
   }.to(SortedMap)
 
   val seipIONode = Option.when(plicOpt.isEmpty)(IntNexusNode(
@@ -216,7 +216,14 @@ trait HasHierarchicalElementsRootContext
     outputRequiresInput = false,
     inputRequiresOutput = false))
   val seipNodes: SortedMap[Int, IntNode] = totalTiles.filter { case (_, t) => t.tileParams.core.hasSupervisorMode }
-    .mapValues( _ => IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get)).to(SortedMap)
+    .mapValues( _ => IntEphemeralNode()).to(SortedMap)
+
+  // meip/seip nodes must be connected in MSMSMS order
+  // TODO: This is ultra fragile... the plic should just expose two intnodes
+  for (i <- 0 until nTotalTiles) {
+    meipNodes.get(i).foreach { _ := plicOpt.map(_.intnode).getOrElse(meipIONode.get) }
+    seipNodes.get(i).foreach { _ := plicOpt.map(_.intnode).getOrElse(seipIONode.get) }
+  }
 
   val tileToPlicNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     plicOpt.map(o => (i, o.intnode :=* IntEphemeralNode()))
