@@ -86,7 +86,7 @@ class Cluster(
   // TODO fix: shouldn't need to connect dummy notifications
   tileHaltXbarNode := NullIntSource()
   tileWFIXbarNode := NullIntSource()
-  tileCeaseXbarNode := NullIntSource()
+  // tileCeaseXbarNode := NullIntSource()
 
   override lazy val module = new ClusterModuleImp(this)
 }
