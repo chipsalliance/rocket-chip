@@ -81,7 +81,7 @@ class ClientMetadata extends Bundle {
     import ClientStates._
     val c = categorize(cmd)
     //assert(c === rd || param === toT, "Client was expecting trunk permissions.")
-    MuxLookup(Cat(c, param), Nothing, Seq(
+    MuxLookup(Cat(c, param), Nothing)(Seq(
     //(effect param) -> (next)
       Cat(rd, toB)   -> Branch,
       Cat(rd, toT)   -> Trunk,
@@ -137,7 +137,7 @@ class ClientMetadata extends Bundle {
   private def cmdToPermCap(cmd: UInt): UInt = {
     import MemoryOpCategories._
     import TLPermissions._
-    MuxLookup(cmd, toN, Seq(
+    MuxLookup(cmd, toN)(Seq(
       M_FLUSH   -> toN,
       M_PRODUCE -> toB,
       M_CLEAN   -> toT))

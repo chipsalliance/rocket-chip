@@ -3,9 +3,8 @@
 package freechips.rocketchip.diplomacy
 
 import chisel3._
-import chisel3.internal.sourceinfo.{SourceInfo, UnlocatableSourceInfo}
 import chisel3.{Module, RawModule, Reset, withClockAndReset}
-import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord}
+import chisel3.experimental.{ChiselAnnotation, CloneModuleAsRecord, SourceInfo, UnlocatableSourceInfo}
 import firrtl.passes.InlineAnnotation
 import org.chipsalliance.cde.config.Parameters
 

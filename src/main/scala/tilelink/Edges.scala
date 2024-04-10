@@ -4,7 +4,6 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util._
@@ -274,17 +273,17 @@ class TLEdge(
 
   // Does the request need T permissions to be executed?
   def needT(a: TLBundleA): Bool = {
-    val acq_needT = MuxLookup(a.param, WireDefault(Bool(), DontCare), Array(
+    val acq_needT = MuxLookup(a.param, WireDefault(Bool(), DontCare))(Array(
       TLPermissions.NtoB -> false.B,
       TLPermissions.NtoT -> true.B,
       TLPermissions.BtoT -> true.B))
-    MuxLookup(a.opcode, WireDefault(Bool(), DontCare), Array(
+    MuxLookup(a.opcode, WireDefault(Bool(), DontCare))(Array(
       TLMessages.PutFullData    -> true.B,
       TLMessages.PutPartialData -> true.B,
       TLMessages.ArithmeticData -> true.B,
       TLMessages.LogicalData    -> true.B,
       TLMessages.Get            -> false.B,
-      TLMessages.Hint           -> MuxLookup(a.param, WireDefault(Bool(), DontCare), Array(
+      TLMessages.Hint           -> MuxLookup(a.param, WireDefault(Bool(), DontCare))(Array(
         TLHints.PREFETCH_READ   -> false.B,
         TLHints.PREFETCH_WRITE  -> true.B)),
       TLMessages.AcquireBlock   -> acq_needT,

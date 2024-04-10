@@ -3,8 +3,9 @@
 package freechips.rocketchip.diplomacy
 
 import chisel3._
-import chisel3.experimental.{DataMirror, SourceInfo}
-import chisel3.experimental.DataMirror.internal.chiselTypeClone
+import chisel3.experimental.SourceInfo
+import chisel3.reflect.DataMirror
+import chisel3.reflect.DataMirror.internal.chiselTypeClone
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.util.DataToAugmentedData
 
