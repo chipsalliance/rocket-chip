@@ -186,7 +186,7 @@ class TagMan(val logNumTags : Int) extends Module {
   io.tagOut := nextTag
 
   // Is the next tag available?
-  io.available := ~MuxLookup(nextTag, true.B, inUseMap)
+  io.available := ~MuxLookup(nextTag, true.B)(inUseMap)
 
   // When user takes a tag
   when (io.take) {
@@ -249,7 +249,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val addrBagIndices = (0 to addressBagLen-1).
                     map(i => i.U(logAddressBagLen.W))
 
-  val randAddrFromBag = MuxLookup(randAddrBagIndex, 0.U,
+  val randAddrFromBag = MuxLookup(randAddrBagIndex, 0.U)(
                           addrBagIndices.zip(bagOfAddrs))
 
   // Random address from the address bag or the extra addresses.
@@ -268,7 +268,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
           // A random address from the extra addresses.
           val randAddrFromExtra = Cat(0.U,
-                MuxLookup(randExtraAddrIndex, 0.U,
+                MuxLookup(randExtraAddrIndex, 0.U)(
                   extraAddrIndices.zip(extraAddrs)), 0.U(3.W))
 
           Frequency(List(
@@ -279,7 +279,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val allAddrs = extraAddrs ++ bagOfAddrs
   val allAddrIndices = (0 until totalNumAddrs)
     .map(i => i.U(log2Ceil(totalNumAddrs).W))
-  val initAddr = MuxLookup(initCount, 0.U,
+  val initAddr = MuxLookup(initCount, 0.U)(
     allAddrIndices.zip(allAddrs))
 
   // Random opcodes

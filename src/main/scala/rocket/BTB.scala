@@ -5,7 +5,6 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import chisel3.internal.InstanceId
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters

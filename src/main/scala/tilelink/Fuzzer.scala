@@ -180,7 +180,7 @@ class TLFuzzer(
     // Pick a specific message to try to send
     val a_type_sel  = noiseMaker(3, inc, 0)
 
-    val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
+    val legal = legal_dest && MuxLookup(a_type_sel, glegal)(Seq(
       "b000".U -> glegal,
       "b001".U -> (pflegal && !noModify.B),
       "b010".U -> (pplegal && !noModify.B),
@@ -188,7 +188,7 @@ class TLFuzzer(
       "b100".U -> (llegal && !noModify.B),
       "b101".U -> hlegal))
 
-    val bits = MuxLookup(a_type_sel, gbits, Seq(
+    val bits = MuxLookup(a_type_sel, gbits)(Seq(
       "b000".U -> gbits,
       "b001".U -> pfbits,
       "b010".U -> ppbits,
