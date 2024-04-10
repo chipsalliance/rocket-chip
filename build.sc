@@ -142,7 +142,6 @@ trait Emulator extends Cross.Module2[String, String] {
         generator.chirrtl().path,
         s"--annotation-file=${generator.chiselAnno().path}",
         "--disable-annotation-unknown",
-        "-dedup",
         "-O=debug",
         "--split-verilog",
         "--preserve-values=named",
