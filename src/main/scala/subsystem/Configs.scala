@@ -14,7 +14,7 @@ import freechips.rocketchip.util._
 
 class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
-  case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
+  case PgLevels => if (site(XLen) == 64) 4 /* Sv48 */ else 2 /* Sv32 */
   case XLen => 64 // Applies to all cores
   case MaxHartIdBits => log2Up((site(TilesLocated(InSubsystem)).map(_.tileParams.hartId) :+ 0).max+1)
   // Interconnect parameters
