@@ -3,15 +3,21 @@
 
 package freechips.rocketchip.rocket
 
-import chisel3._
-import chisel3.util.{isPow2,log2Ceil,log2Up,Decoupled,Valid}
-import chisel3.dontTouch
-import freechips.rocketchip.amba._
-import org.chipsalliance.cde.config.{Parameters, Field}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import chisel3.{dontTouch, _}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.AMBAProtField
+import freechips.rocketchip.diplomacy.{IdRange, TransferSizes, RegionType}
+import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, HasNonDiplomaticTileParameters, BaseTile, HasTileParameters}
+import freechips.rocketchip.tilelink.{TLMasterParameters, TLClientNode, TLMasterPortParameters, TLEdgeOut, TLWidthWidget, TLFIFOFixer, ClientMetadata}
+import freechips.rocketchip.util.{Code, RandomReplacement, ParameterizedBundle}
+
+import freechips.rocketchip.util.{BooleanToAugmentedBoolean, IntToAugmentedInt}
+
 import scala.collection.mutable.ListBuffer
 
 case class DCacheParams(
@@ -232,7 +238,7 @@ class HellaCacheBundle(implicit p: Parameters) extends CoreBundle()(p) {
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
-  implicit val edge = outer.node.edges.out(0)
+  implicit val edge: TLEdgeOut = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle)
   val io_hartid = outer.hartIdSinkNodeOpt.map(_.bundle)

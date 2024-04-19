@@ -3,17 +3,24 @@
 package freechips.rocketchip.subsystem
 
 import chisel3._
-import chisel3.dontTouch
-import org.chipsalliance.cde.config.{Field, Parameters}
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.devices.debug.{TLDebugModule, HasPeripheryDebug}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, TLPLIC, CLINTConsts}
+import freechips.rocketchip.diplomacy.ClockCrossingType
+import freechips.rocketchip.interrupts.{
+  IntNode, IntSyncNode, IntEphemeralNode, NullIntSource, IntNexusNode, IntSourcePortParameters,
+  IntSourceParameters, IntSinkPortParameters, IntSinkParameters, IntSyncIdentityNode, NullIntSyncSource
+}
+import freechips.rocketchip.tile.{TileParams, TilePRCIDomain, BaseTile, NMI, TraceBundle}
+import freechips.rocketchip.tilelink.{TLNode, TLBuffer, TLCacheCork, TLTempNode, TLFragmenter}
 import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode, ClockDomain}
-import freechips.rocketchip.util._
-import freechips.rocketchip.rocket.{TracedInstruction}
+import freechips.rocketchip.rocket.TracedInstruction
+import freechips.rocketchip.util.TraceCoreInterface
+
 import scala.collection.immutable.SortedMap
 
 /** A default implementation of parameterizing the connectivity of the port where the tile is the master.
@@ -200,7 +207,7 @@ trait HasHierarchicalElementsRootContext
     outputRequiresInput = false,
     inputRequiresOutput = false))
   val meipNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
-    (i, IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(meipIONode.get))
+    (i, IntEphemeralNode())
   }.to(SortedMap)
 
   val seipIONode = Option.when(plicOpt.isEmpty)(IntNexusNode(
@@ -209,7 +216,14 @@ trait HasHierarchicalElementsRootContext
     outputRequiresInput = false,
     inputRequiresOutput = false))
   val seipNodes: SortedMap[Int, IntNode] = totalTiles.filter { case (_, t) => t.tileParams.core.hasSupervisorMode }
-    .mapValues( _ => IntEphemeralNode() := plicOpt.map(_.intnode).getOrElse(seipIONode.get)).to(SortedMap)
+    .mapValues( _ => IntEphemeralNode()).to(SortedMap)
+
+  // meip/seip nodes must be connected in MSMSMS order
+  // TODO: This is ultra fragile... the plic should just expose two intnodes
+  for (i <- 0 until nTotalTiles) {
+    meipNodes.get(i).foreach { _ := plicOpt.map(_.intnode).getOrElse(meipIONode.get) }
+    seipNodes.get(i).foreach { _ := plicOpt.map(_.intnode).getOrElse(seipIONode.get) }
+  }
 
   val tileToPlicNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     plicOpt.map(o => (i, o.intnode :=* IntEphemeralNode()))

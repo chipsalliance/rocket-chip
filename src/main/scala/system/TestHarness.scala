@@ -3,9 +3,11 @@
 package freechips.rocketchip.system
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.devices.debug.Debug
-import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.util.AsyncResetReg
 
 class TestHarness()(implicit p: Parameters) extends Module {

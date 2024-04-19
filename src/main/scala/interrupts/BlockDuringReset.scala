@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.interrupts
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.util.BlockDuringReset
 
 /** BlockDuringReset ensures that no interrupt is raised while reset is raised. */

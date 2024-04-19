@@ -2,15 +2,14 @@
 
 package freechips.rocketchip.tile
 
-import chisel3.Vec
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci._
-import freechips.rocketchip.rocket.{TracedInstruction}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{TraceCoreInterface}
+import chisel3._
+
+import org.chipsalliance.cde.config._
+
+import freechips.rocketchip.prci.ClockSinkParameters
+import freechips.rocketchip.rocket.TracedInstruction
+import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, HierarchicalElementPRCIDomain}
+import freechips.rocketchip.util.TraceCoreInterface
 
 
 /** A wrapper containing all logic necessary to safely place a tile

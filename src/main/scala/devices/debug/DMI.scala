@@ -4,10 +4,13 @@ package freechips.rocketchip.devices.debug
 
 import chisel3._
 import chisel3.util._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.util._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.TransferSizes
+import freechips.rocketchip.tilelink.{TLClientNode, TLMasterParameters, TLMasterPortParameters, TLMasterToSlaveTransferSizes}
+import freechips.rocketchip.util.ParameterizedBundle
 
 /** Constant values used by both Debug Bus Response & Request
   */

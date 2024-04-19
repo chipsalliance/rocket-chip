@@ -5,9 +5,19 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.SourceInfo
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.{
+  AddressDecoder, AddressSet, BufferParams, DirectedBuffers, IdMap, IdMapEntry,
+  IdRange, RegionType, Resource, ResourceAddress, ResourcePermissions, TransferSizes
+}
+import freechips.rocketchip.util.{
+  AsyncQueueParams, BundleField, BundleFieldBase, BundleKeyBase,
+  CreditedDelay, groupByIntoSeq, RationalDirection, SimpleProduct
+}
+
 import scala.math.max
 
 //These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel

@@ -3,8 +3,11 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.AddressSet
 
 // Moves the AddressSets of slave devices around
 // Combine with TLFilter to remove slaves or reduce their size

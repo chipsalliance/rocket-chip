@@ -10,9 +10,15 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, NodeHandle}
+import freechips.rocketchip.util.{
+  FromRational, ToRational, RationalDirection, Symmetric, FastToSlow, SlowToFast, Pow2ClockDivider, ClockDivider3
+}
+
 
 class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule
 {

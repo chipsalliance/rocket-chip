@@ -4,10 +4,17 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, IdRange, TransferSizes}
+import freechips.rocketchip.util.{Repeater, OH1ToUInt, UIntToOH1}
+
 import scala.math.min
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 object EarlyAck {
   sealed trait T

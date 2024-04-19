@@ -3,17 +3,20 @@
 package freechips.rocketchip.subsystem
 
 import chisel3._
-import chisel3.dontTouch
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.devices.debug.{TLDebugModule}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci._
-import freechips.rocketchip.util._
-import freechips.rocketchip.rocket.{TracedInstruction}
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.debug.TLDebugModule
+import freechips.rocketchip.diplomacy.{DisableMonitors, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing, FlipRendering}
+import freechips.rocketchip.interrupts.{IntXbar, IntSinkNode, IntSinkPortSimple, IntSyncAsyncCrossingSink}
+import freechips.rocketchip.tile.{MaxHartIdBits, BaseTile, InstantiableTileParams, TileParams, TilePRCIDomain, TraceBundle, PriorityMuxHartIdFromSeq}
+import freechips.rocketchip.tilelink.TLWidthWidget
+import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset}
+import freechips.rocketchip.rocket.TracedInstruction
+import freechips.rocketchip.util.TraceCoreInterface
+
 import scala.collection.immutable.SortedMap
 
 /** Entry point for Config-uring the presence of Tiles */
@@ -235,7 +238,7 @@ trait CanAttachTile {
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.tileToPlicNodes.get(domain.element.tileId).foreach { node =>
       FlipRendering { implicit p => domain.element.intOutwardNode.foreach { out =>
-        node :*= domain.crossIntOut(crossingParams.crossingType, out)
+        node := domain.crossIntOut(crossingParams.crossingType, out)
       }}
     }
 

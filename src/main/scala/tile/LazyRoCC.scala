@@ -5,12 +5,18 @@ package freechips.rocketchip.tile
 
 import chisel3._
 import chisel3.util._
-import chisel3.util.HasBlackBoxResource
 import chisel3.experimental.IntParam
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.rocket._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.rocket.{
+  MStatus, HellaCacheIO, TLBPTWIO, CanHavePTW, CanHavePTWModule,
+  SimpleHellaCacheIF, M_XRD, PTE, PRV, M_SZ
+}
+import freechips.rocketchip.tilelink.{
+  TLNode, TLIdentityNode, TLClientNode, TLMasterParameters, TLMasterPortParameters
+}
 import freechips.rocketchip.util.InOrderArbiter
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)

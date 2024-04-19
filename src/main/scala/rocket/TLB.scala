@@ -5,16 +5,23 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.SourceInfo
 
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.CacheBlockBytes
+import org.chipsalliance.cde.config._
+
+import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.diplomacy.RegionType
+import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.{CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
-import freechips.rocketchip.devices.debug.DebugModuleKey
-import chisel3.experimental.SourceInfo
+import freechips.rocketchip.util.{OptimizationBarrier, SetAssocLRU, PseudoLRU, PopCountAtLeast, property}
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.util.IntToAugmentedInt
+import freechips.rocketchip.util.UIntToAugmentedUInt
+import freechips.rocketchip.util.UIntIsOneOf
+import freechips.rocketchip.util.SeqToAugmentedSeq
+import freechips.rocketchip.util.SeqBoolBitwiseOps
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)
@@ -590,9 +597,9 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val pf_ld_array = Mux(cmd_read, ((~Mux(cmd_readx, x_array, r_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_st_array = Mux(cmd_write_perms, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_inst_array = ((~x_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array
-  val gf_ld_array = Mux(priv_v && cmd_read, ~Mux(cmd_readx, hx_array, hr_array) & ~ptw_ae_array, 0.U)
-  val gf_st_array = Mux(priv_v && cmd_write_perms, ~hw_array & ~ptw_ae_array, 0.U)
-  val gf_inst_array = Mux(priv_v, ~hx_array & ~ptw_ae_array, 0.U)
+  val gf_ld_array = Mux(priv_v && cmd_read, (~Mux(cmd_readx, hx_array, hr_array) | ptw_gf_array) & ~ptw_ae_array, 0.U)
+  val gf_st_array = Mux(priv_v && cmd_write_perms, (~hw_array | ptw_gf_array) & ~ptw_ae_array, 0.U)
+  val gf_inst_array = Mux(priv_v, (~hx_array | ptw_gf_array) & ~ptw_ae_array, 0.U)
 
   val gpa_hits = {
     val need_gpa_mask = if (instruction) gf_inst_array else gf_ld_array | gf_st_array

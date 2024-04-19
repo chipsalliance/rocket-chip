@@ -3,16 +3,15 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.util._
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.debug.TLDebugModule
+import freechips.rocketchip.diplomacy.{BufferParams, ClockCrossingType}
+import freechips.rocketchip.interrupts.IntXbar
+import freechips.rocketchip.prci.{ClockSinkParameters, ResetCrossingType}
 import freechips.rocketchip.tile.{LookupByHartIdImpl, TraceBundle}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.devices.debug.{TLDebugModule}
-import freechips.rocketchip.devices.tilelink._
+import freechips.rocketchip.tilelink.{TLNode, TLIdentityNode, TLXbar, TLBuffer, TLInwardNode, TLOutwardNode}
 
 trait HierarchicalElementParams {
   val baseName: String // duplicated instances shouuld share a base name

@@ -3,14 +3,17 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util.ShiftRegister
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, Resource, SimpleDevice}
+import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSinkPortParameters, IntSourceParameters, IntSourcePortParameters}
+import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup}
+import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
+import freechips.rocketchip.util.Annotated
 
 object CLINTConsts
 {

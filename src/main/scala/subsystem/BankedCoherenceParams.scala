@@ -2,13 +2,21 @@
 
 package freechips.rocketchip.subsystem
 
-import chisel3.util.isPow2
+import chisel3.util._
+
 import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.devices.tilelink.BuiltInDevices
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.interrupts.IntOutwardNode
+import freechips.rocketchip.tilelink.{
+  TLBroadcast, HasTLBusParams, BroadcastFilter, TLBusWrapper, TLBusWrapperInstantiationLike,
+  TLJbar, TLEdge, TLOutwardNode, TLTempNode, TLInwardNode, BankBinder, TLBroadcastParams,
+  TLBroadcastControlParams, TLBuffer, TLFragmenter, TLNameNode
+}
+import freechips.rocketchip.util.Location
+
 import CoherenceManagerWrapper._
 
 /** Global cache coherence granularity, which applies to all caches, for now. */

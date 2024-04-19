@@ -5,14 +5,17 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import chisel3.{withClock,withReset}
 import chisel3.experimental.SourceInfo
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink.{TLWidthWidget}
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.tile.{CoreBundle, BaseTile}
+import freechips.rocketchip.tilelink.{TLWidthWidget, TLEdgeOut}
+import freechips.rocketchip.util.{ClockGate, ShiftQueue, property}
+
+import freechips.rocketchip.util.UIntToAugmentedUInt
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(vaddrBitsExtended.W)
@@ -80,7 +83,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
   val io_reset_vector = outer.resetVectorSinkNode.bundle
-  implicit val edge = outer.masterNode.edges.out(0)
+  implicit val edge: TLEdgeOut = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 

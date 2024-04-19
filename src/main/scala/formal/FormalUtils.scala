@@ -2,9 +2,10 @@
 package freechips.rocketchip.formal
 
 import chisel3._
-import chisel3.util._
 import chisel3.experimental.{SourceInfo, SourceLine}
-import org.chipsalliance.cde.config.Field
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
 
 sealed abstract class MonitorDirection(name: String) {
   override def toString: String = name
