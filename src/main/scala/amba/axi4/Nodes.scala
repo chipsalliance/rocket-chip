@@ -4,8 +4,12 @@ package freechips.rocketchip.amba.axi4
 
 import chisel3._
 import chisel3.experimental.SourceInfo
+
 import org.chipsalliance.cde.config.{Parameters, Field}
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.nodes.{SimpleNodeImp, RenderedEdge, OutwardNode, InwardNode, SourceNode, SinkNode, NexusNode, AdapterNode, IdentityNode, MixedAdapterNode}
+
 import freechips.rocketchip.util.AsyncQueueParams
 
 case object AXI4MonitorBuilder extends Field[AXI4MonitorArgs => AXI4MonitorBase]

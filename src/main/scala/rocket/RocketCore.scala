@@ -349,7 +349,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_rocc_busy = usingRoCC.B &&
     (io.rocc.busy || ex_reg_valid && ex_ctrl.rocc ||
      mem_reg_valid && mem_ctrl.rocc || wb_reg_valid && wb_ctrl.rocc)
-  val id_do_fence = WireDefault(id_rocc_busy && id_ctrl.fence ||
+  val id_csr_rocc_write = tile.roccCSRs.flatten.map(_.id.U === id_inst(0)(31,20)).orR && id_csr_en && !id_csr_ren
+  val id_do_fence = WireDefault(id_rocc_busy && (id_ctrl.fence || id_csr_rocc_write) ||
     id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
 
   val bpu = Module(new BreakpointUnit(nBreakpoints))
@@ -945,12 +946,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
   io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv
+  io.dmem.req.bits.no_resp := !isRead(ex_ctrl.mem_cmd) || (!ex_ctrl.fp && ex_waddr === 0.U)
   io.dmem.req.bits.no_alloc := DontCare
   io.dmem.req.bits.no_xcpt := DontCare
   io.dmem.req.bits.data := DontCare
   io.dmem.req.bits.mask := DontCare
 
-  io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill((xLen max fLen) / fLen, io.fpu.store_data), mem_reg_rs2))
+  io.dmem.s1_data.data := (if (fLen == 0) mem_reg_rs2 else Mux(mem_ctrl.fp, Fill(coreDataBits / fLen, io.fpu.store_data), mem_reg_rs2))
   io.dmem.s1_data.mask := DontCare
 
   io.dmem.s1_kill := killm_common || mem_ldst_xcpt || fpu_kill_mem

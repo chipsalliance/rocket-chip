@@ -3,10 +3,13 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import chisel3.util.{DecoupledIO, log2Ceil, Cat, RegEnable}
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.util.{Repeater, UIntToOH1}
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule

@@ -3,10 +3,13 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
+import chisel3.experimental._
 import chisel3.util._
-import chisel3.experimental.SourceInfo
-import freechips.rocketchip.diplomacy._
-import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
 
 case class DebugCustomParams(
   addrs: List[Int],

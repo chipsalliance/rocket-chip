@@ -3,10 +3,15 @@
 package freechips.rocketchip.amba.apb
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Decoupled, log2Up, log2Ceil}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
+
+import org.chipsalliance.diplomacy.ValName
+import org.chipsalliance.diplomacy.nodes.SinkNode
+
+import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.regmapper.{RegField, RegMapperParams, RegMapperInput, RegMapper, RegisterRouter}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 
 case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)

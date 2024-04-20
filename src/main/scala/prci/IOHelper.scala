@@ -3,7 +3,10 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{ClockCrossingType, SynchronousCrossing}
 
 object IOHelper {
 

@@ -18,6 +18,12 @@ package object util {
     def isOneOf(u1: UInt, u2: UInt*): Bool = isOneOf(u1 +: u2.toSeq)
   }
 
+  implicit class VecToAugmentedVec[T <: Data](private val x: Vec[T]) extends AnyVal {
+
+    /** Like Vec.apply(idx), but tolerates indices of mismatched width */
+    def extract(idx: UInt): T = x((idx | 0.U(log2Ceil(x.size).W)).extract(log2Ceil(x.size) - 1, 0))
+  }
+
   implicit class SeqToAugmentedSeq[T <: Data](private val x: Seq[T]) extends AnyVal {
     def apply(idx: UInt): T = {
       if (x.size <= 1) {
@@ -33,6 +39,8 @@ package object util {
         x.zipWithIndex.tail.foldLeft(x.head) { case (prev, (cur, i)) => Mux(truncIdx === i.U, cur, prev) }
       }
     }
+
+    def extract(idx: UInt): T = VecInit(x).extract(idx)
 
     def asUInt: UInt = Cat(x.map(_.asUInt).reverse)
 
@@ -286,4 +294,10 @@ package object util {
     case x if x == n => in
     case _ => throw new Exception(s"must provide exactly 1 or $n of some field, but got:\n$in")
   }
+
+  // HeterogeneousBag moved to standalond diplomacy
+  @deprecated("HeterogeneousBag has been absorbed into standalone diplomacy library", "rocketchip 2.0.0")
+  def HeterogeneousBag[T <: Data](elts: Seq[T]) = _root_.org.chipsalliance.diplomacy.nodes.HeterogeneousBag[T](elts)
+  @deprecated("HeterogeneousBag has been absorbed into standalone diplomacy library", "rocketchip 2.0.0")
+  val HeterogeneousBag = _root_.org.chipsalliance.diplomacy.nodes.HeterogeneousBag
 }

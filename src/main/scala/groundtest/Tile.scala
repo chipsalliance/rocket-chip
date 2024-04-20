@@ -4,8 +4,12 @@
 package freechips.rocketchip.groundtest
 
 import chisel3._
+
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{ClockCrossingType, SimpleDevice}
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.rocket.{BuildHellaCache, DCache, DCacheModule, ICacheParams, NonBlockingDCache, NonBlockingDCacheModule, RocketCoreParams}
 import freechips.rocketchip.tile._
@@ -43,10 +47,7 @@ abstract class GroundTestTile(
   dcacheOpt.foreach { m =>
     m.hartIdSinkNodeOpt.foreach { _ := hartIdNexusNode }
     InModuleBody {
-      m.module match {
-        case module: DCacheModule => module.tlb_port := DontCare
-        case other => other
-      }
+      m.module.io.tlb_port := DontCare
     }
   }
 

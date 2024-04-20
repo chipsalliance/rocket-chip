@@ -4,13 +4,13 @@ package freechips.rocketchip.regmapper
 
 import chisel3._
 import chisel3.experimental.SourceInfo
-import chisel3.util.{DecoupledIO, Decoupled, Queue, Cat, FillInterleaved, UIntToOH}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+import chisel3.util._
+
+import freechips.rocketchip.diplomacy.AddressDecoder
+
+import freechips.rocketchip.util.{BundleFieldBase, BundleMap, MuxSeq, ReduceOthers, property}
 
 // A bus agnostic register interface to a register-based device
-
 case class RegMapperParams(indexBits: Int, maskBits: Int, extraFields: Seq[BundleFieldBase] = Nil)
 
 class RegMapperInput(val params: RegMapperParams) extends Bundle

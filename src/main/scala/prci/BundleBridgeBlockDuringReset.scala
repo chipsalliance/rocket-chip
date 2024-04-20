@@ -3,9 +3,13 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.diplomacy.BundleBridgeNexus.fillN
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNexus.fillN
+
 import freechips.rocketchip.util.{BlockDuringReset, Blockable}
 
 object BundleBridgeBlockDuringReset {

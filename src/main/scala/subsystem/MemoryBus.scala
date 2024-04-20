@@ -3,10 +3,15 @@
 package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.tilelink.{BuiltInDevices, HasBuiltInDeviceParams, BuiltInErrorDeviceParams, BuiltInZeroDeviceParams}
+import freechips.rocketchip.tilelink.{
+  ReplicatedRegion, HasTLBusParams, HasRegionReplicatorParams, TLBusWrapper,
+  TLBusWrapperInstantiationLike, RegionReplicator, TLXbar, TLInwardNode,
+  TLOutwardNode, ProbePicker, TLEdge, TLFIFOFixer
+}
+import freechips.rocketchip.util.Location
 
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(

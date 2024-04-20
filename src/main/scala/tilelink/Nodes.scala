@@ -4,8 +4,11 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.experimental.SourceInfo
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.nodes._
+
 import freechips.rocketchip.util.{AsyncQueueParams,RationalDirection}
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => new TLMonitor(args))

@@ -2,9 +2,11 @@
 
 package freechips.rocketchip.subsystem
 
-import org.chipsalliance.cde.config.Field
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.{ClockCrossingType, NoCrossing, SynchronousCrossing}
+import freechips.rocketchip.tilelink.{TLBusWrapper, TLBusWrapperTopology, TLBusWrapperConnection}
 import freechips.rocketchip.util.Location
 
 // These fields control parameters of the five traditional tilelink bus wrappers.

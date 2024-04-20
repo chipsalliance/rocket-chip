@@ -4,10 +4,16 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, Device, DeviceRegName, DiplomaticSRAM, RegionType, TransferSizes, HasJustOneSeqMem}
+import freechips.rocketchip.util.{CanHaveErrors, ECCParams, property, SECDEDCode}
+
+import freechips.rocketchip.util.DataToAugmentedData
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 class TLRAMErrors(val params: ECCParams, val addrBits: Int) extends Bundle with CanHaveErrors {
   val correctable   = (params.code.canCorrect && params.notifyErrors).option(Valid(UInt(addrBits.W)))
@@ -229,14 +235,15 @@ class TLRAM(
     val r_ready = !d_wb && !r_replay && (!d_full || d_ready) && (!r_respond || (!d_win && in.d.ready))
     in.a.ready := !(d_full && d_wb) && (!r_full || r_ready) && (!r_full || !(r_atomic || r_sublane))
 
-    // ignore sublane if mask is all set
+    // ignore sublane if it is a read or mask is all set
+    val a_read = in.a.bits.opcode === TLMessages.Get
     val a_sublane = if (eccBytes == 1) false.B else
-      ((in.a.bits.opcode === TLMessages.PutPartialData) && (~in.a.bits.mask.andR)) ||
-      in.a.bits.size < log2Ceil(eccBytes).U
+      ~a_read && 
+      (((in.a.bits.opcode === TLMessages.PutPartialData) && (~in.a.bits.mask.andR)) ||
+      in.a.bits.size < log2Ceil(eccBytes).U)
     val a_atomic = if (!atomics) false.B else
       in.a.bits.opcode === TLMessages.ArithmeticData ||
       in.a.bits.opcode === TLMessages.LogicalData
-    val a_read = in.a.bits.opcode === TLMessages.Get
 
     // Forward pipeline stage from R to D
     when (d_ready) { d_full := false.B }

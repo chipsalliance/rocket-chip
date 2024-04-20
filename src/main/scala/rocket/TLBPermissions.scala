@@ -3,10 +3,10 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.isPow2
+import chisel3.util._
 
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes, RegionType, AddressDecoder}
+import freechips.rocketchip.tilelink.TLManagerParameters
 
 case class TLBPermissions(
   homogeneous: Bool, // if false, the below are undefined
@@ -51,13 +51,13 @@ object TLBPageLookup
   }
 
   // Unmapped memory is considered to be inhomogeneous
-  def apply(managers: Seq[TLManagerParameters], xLen: Int, cacheBlockBytes: Int, pageSize: BigInt): UInt => TLBPermissions = {
+  def apply(managers: Seq[TLManagerParameters], xLen: Int, cacheBlockBytes: Int, pageSize: BigInt, maxRequestBytes: Int): UInt => TLBPermissions = {
     require (isPow2(xLen) && xLen >= 8)
     require (isPow2(cacheBlockBytes) && cacheBlockBytes >= xLen/8)
     require (isPow2(pageSize) && pageSize >= cacheBlockBytes)
 
     val xferSizes = TransferSizes(cacheBlockBytes, cacheBlockBytes)
-    val allSizes = TransferSizes(1, cacheBlockBytes)
+    val allSizes = TransferSizes(1, maxRequestBytes)
     val amoSizes = TransferSizes(4, xLen/8)
 
     val permissions = managers.foreach { m =>

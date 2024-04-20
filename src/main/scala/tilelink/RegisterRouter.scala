@@ -4,11 +4,14 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import chisel3.RawModule
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.{AddressSet, Device, TransferSizes, Resource, NoCrossing, ResourceBindings}
+import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperParams, RegMapperInput, RegisterRouter}
+import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, GenRegDescsAnno}
 
 import scala.math.min
 

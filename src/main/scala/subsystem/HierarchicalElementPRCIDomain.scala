@@ -3,17 +3,21 @@ package freechips.rocketchip.subsystem
 import chisel3._
 import chisel3.util._
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci._
-import freechips.rocketchip.tile.{RocketTile, TraceBundle}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.devices.debug.{TLDebugModule}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.util.{TraceCoreInterface}
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
 
+import freechips.rocketchip.devices.debug.TLDebugModule
+import freechips.rocketchip.diplomacy.{ClockCrossingType, DisableMonitors, FlipRendering}
+import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
+import freechips.rocketchip.prci.{ResetCrossingType, ResetDomain, ClockSinkNode, ClockSinkParameters, ClockIdentityNode, FixedClockBroadcast, ClockDomain}
+import freechips.rocketchip.tile.{RocketTile, TraceBundle}
+import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode}
+import freechips.rocketchip.util.TraceCoreInterface
+
+import freechips.rocketchip.tilelink.TLClockDomainCrossing
+import freechips.rocketchip.tilelink.TLResetDomainCrossing
+import freechips.rocketchip.interrupts.IntClockDomainCrossing
+import freechips.rocketchip.interrupts.IntResetDomainCrossing
 
 /** A wrapper containing all logic within a managed reset domain for a element.
   *

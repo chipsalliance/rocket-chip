@@ -4,9 +4,13 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.util.{CRC, UIntToOH1}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 // We detect concurrent puts that put memory into an undefined state.
 // put0, put0Ack, put1, put1Ack => ok: defined

@@ -4,8 +4,13 @@ package freechips.rocketchip.amba.axi4
 
 import chisel3._
 import chisel3.util.{Queue, IrrevocableIO}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.BufferParams
+
 import scala.math.min
 
 /**

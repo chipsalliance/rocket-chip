@@ -20,9 +20,11 @@
 package freechips.rocketchip.groundtest
  
 import chisel3._
-import chisel3.util.{log2Up, MuxLookup, Cat, log2Ceil, Enum}
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.diplomacy.{ClockCrossingType}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+
+import freechips.rocketchip.diplomacy.ClockCrossingType
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
@@ -533,6 +535,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.bits.tag  := reqTag
   io.mem.req.bits.no_alloc := false.B
   io.mem.req.bits.no_xcpt := false.B
+  io.mem.req.bits.no_resp := false.B
   io.mem.req.bits.mask := ~(0.U((numBitsInWord / 8).W))
   io.mem.req.bits.phys := false.B
   io.mem.req.bits.dprv := PRV.M.U

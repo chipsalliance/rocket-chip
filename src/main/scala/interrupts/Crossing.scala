@@ -4,9 +4,10 @@ package freechips.rocketchip.interrupts
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.util.{SynchronizerShiftReg, AsyncResetReg}
-import freechips.rocketchip.diplomacy._
 
 @deprecated("IntXing does not ensure interrupt source is glitch free. Use IntSyncSource and IntSyncSink", "rocket-chip 1.2")
 class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule

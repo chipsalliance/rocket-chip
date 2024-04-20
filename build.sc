@@ -4,6 +4,7 @@ import mill.scalalib.publish._
 import coursier.maven.MavenRepository
 import $file.dependencies.hardfloat.common
 import $file.dependencies.cde.common
+import $file.dependencies.diplomacy.common
 import $file.dependencies.chisel.build
 import $file.common
 
@@ -18,6 +19,7 @@ object v {
   val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
   val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
   val scalaReflect = ivy"org.scala-lang:scala-reflect:${scala}"
+  val sourcecode = ivy"com.lihaoyi::sourcecode:0.3.1"
   val sonatypesSnapshots = Seq(
     MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
   )
@@ -79,6 +81,31 @@ trait CDE
   override def millSourcePath = os.pwd / "dependencies" / "cde" / "cde"
 }
 
+object diplomacy extends mill.define.Cross[Diplomacy](v.chiselCrossVersions.keys.toSeq)
+
+trait Diplomacy
+    extends millbuild.dependencies.diplomacy.common.DiplomacyModule
+    with RocketChipPublishModule
+    with Cross.Module[String] {
+
+  override def scalaVersion: T[String] = T(v.scala)
+
+  override def millSourcePath = os.pwd / "dependencies" / "diplomacy" / "diplomacy"
+
+  // dont use chisel from source
+  def chiselModule = Option.when(crossValue == "source")(chisel)
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
+
+  // use chisel from ivy
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
+
+  // use CDE from source until published to sonatype
+  def cdeModule = cde
+
+  def sourcecodeIvy = v.sourcecode
+}
+
 object rocketchip extends Cross[RocketChip](v.chiselCrossVersions.keys.toSeq)
 
 trait RocketChip
@@ -104,6 +131,10 @@ trait RocketChip
 
   def cdeModule = cde
 
+  def diplomacyModule = diplomacy(crossValue)
+
+  def diplomacyIvy = None
+
   def mainargsIvy = v.mainargs
 
   def json4sJacksonIvy = v.json4sJackson
@@ -126,7 +157,6 @@ trait RocketChipPublishModule
 
   override def publishVersion: T[String] = T("1.6-SNAPSHOT")
 }
-
 
 // Tests
 trait Emulator extends Cross.Module2[String, String] {

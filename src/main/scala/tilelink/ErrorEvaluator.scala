@@ -3,9 +3,14 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.util.UIntToOH1
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 // Check if a request satisfies some interesting property
 class RequestPattern(test: TLBundleA => Bool)

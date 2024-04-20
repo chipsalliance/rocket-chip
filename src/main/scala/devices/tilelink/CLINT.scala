@@ -3,14 +3,17 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util.ShiftRegister
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, Resource, SimpleDevice}
+import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSinkPortParameters, IntSourceParameters, IntSourcePortParameters}
+import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup}
+import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
+import freechips.rocketchip.util.Annotated
 
 object CLINTConsts
 {
@@ -105,7 +108,7 @@ trait CanHavePeripheryCLINT { this: BaseSubsystem =>
   val (clintOpt, clintDomainOpt, clintTickOpt) = p(CLINTKey).map { params =>
     val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
     val clintDomainWrapper = tlbus.generateSynchronousDomain.suggestName("clint_domain")
-    val clint = clintDomainWrapper { LazyModule(new CLINT(params, cbus.beatBytes)) }
+    val clint = clintDomainWrapper { LazyModule(new CLINT(params, tlbus.beatBytes)) }
     clintDomainWrapper { clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ } }
     val clintTick = clintDomainWrapper { InModuleBody {
       val tick = IO(Input(Bool()))

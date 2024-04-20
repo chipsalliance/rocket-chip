@@ -2,8 +2,10 @@
 
 package freechips.rocketchip.interrupts
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{CrossingType, ClockCrossingType, NoCrossing, AsynchronousCrossing, RationalCrossing, SynchronousCrossing, CreditedCrossing}
 import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
 import freechips.rocketchip.util.CreditedDelay
 

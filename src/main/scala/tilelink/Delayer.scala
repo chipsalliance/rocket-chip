@@ -4,8 +4,9 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
 
 // q is the probability to delay a request
 class TLDelayer(q: Double)(implicit p: Parameters) extends LazyModule

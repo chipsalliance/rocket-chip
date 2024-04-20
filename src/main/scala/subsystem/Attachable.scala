@@ -2,8 +2,9 @@
 
 package freechips.rocketchip.subsystem
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy.{LazyModule, LazyScope}
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.prci.ClockGroupNode
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util.{Location, LocationMap}

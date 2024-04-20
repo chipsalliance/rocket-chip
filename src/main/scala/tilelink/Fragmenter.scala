@@ -4,10 +4,17 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, IdRange, TransferSizes}
+import freechips.rocketchip.util.{Repeater, OH1ToUInt, UIntToOH1}
+
 import scala.math.min
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 object EarlyAck {
   sealed trait T
@@ -92,8 +99,9 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val beatBytes = manager.beatBytes
         val fifoId = managers(0).fifoId
         require (fifoId.isDefined && managers.map(_.fifoId == fifoId).reduce(_ && _))
-        require (!manager.anySupportAcquireB)
-
+        require (!manager.anySupportAcquireB || !edgeOut.client.anySupportProbe,
+          s"TLFragmenter (with parent $parent) can't fragment a caching client's requests into a cacheable region")
+        
         require (minSize >= beatBytes, s"TLFragmenter (with parent $parent) can't support fragmenting ($minSize) to sub-beat ($beatBytes) accesses")
         // We can't support devices which are cached on both sides of us
         require (!edgeOut.manager.anySupportAcquireB || !edgeIn.client.anySupportProbe)

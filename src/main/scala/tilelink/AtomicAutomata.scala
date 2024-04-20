@@ -3,11 +3,15 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
+import freechips.rocketchip.util.leftOR
+
 import scala.math.{min,max}
-import chisel3.util.{PriorityMux, Cat, FillInterleaved, Mux1H, MuxLookup, log2Up}
 
 // Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.

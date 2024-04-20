@@ -3,7 +3,8 @@
 
 package freechips.rocketchip.groundtest
 
-import org.chipsalliance.cde.config.Config
+import org.chipsalliance.cde.config._
+
 import freechips.rocketchip.devices.tilelink.{CLINTKey, PLICKey}
 import freechips.rocketchip.devices.debug.{DebugModuleKey}
 import freechips.rocketchip.subsystem._

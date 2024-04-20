@@ -3,10 +3,13 @@
 package freechips.rocketchip.system // TODO this should really be in a testharness package
 
 import chisel3._
-import freechips.rocketchip.amba._
-import freechips.rocketchip.amba.axi4._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.AMBACorrupt
+import freechips.rocketchip.amba.axi4.{AXI4RAM, AXI4MasterNode, AXI4EdgeParameters, AXI4Xbar, AXI4Buffer, AXI4Fragmenter}
+import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.subsystem.{CanHaveMasterAXI4MMIOPort, CanHaveMasterAXI4MemPort, ExtBus, ExtMem}
 
 /** Memory with AXI port for use in elaboratable test harnesses.
