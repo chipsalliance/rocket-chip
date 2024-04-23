@@ -694,7 +694,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (do_both_stages && !stage2) { do_switch := true.B }
       count := count + 1.U
     }.otherwise {
-      val gf = stage2 && !stage2_final && !pte.ur()
+      val gf = (stage2 && !stage2_final && !pte.ur()) || (pte.v && pte.reserved_for_future === 0.U && invalid_gpa)
       val ae = pte.v && invalid_paddr
       val pf = pte.v && pte.reserved_for_future =/= 0.U
       val success = pte.v && !ae && !pf && !gf
