@@ -38,6 +38,8 @@ trait RocketChipModule
   override def mainClass = T(Some("freechips.rocketchip.diplomacy.Main"))
 
   def macrosModule: MacrosModule
+  
+  def rocketUtilsModule: ScalaModule
 
   // should be hardfloat/common.sc#HardfloatModule
   def hardfloatModule: ScalaModule
@@ -48,7 +50,7 @@ trait RocketChipModule
 
   def json4sJacksonIvy: Dep
 
-  override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, diplomacyModule)
+  override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, diplomacyModule, rocketUtilsModule)
 
   override def ivyDeps = T(
     super.ivyDeps() ++ Agg(
