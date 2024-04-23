@@ -830,7 +830,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val tval_valid = wb_xcpt && (tval_any_addr || tval_inst)
   csr.io.gva := wb_xcpt && (tval_any_addr && csr.io.status.v || tval_dmem_addr && wb_reg_hls_or_dv)
   csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
-  csr.io.htval := {
+  val (htval, mhtinst_read_pseudo) = {
     val htval_valid_imem = wb_reg_xcpt && wb_reg_cause === Causes.fetch_guest_page_fault.U
     val htval_imem = Mux(htval_valid_imem, io.imem.gpa.bits, 0.U)
     assert(!htval_valid_imem || io.imem.gpa.valid)
@@ -838,7 +838,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     val htval_valid_dmem = wb_xcpt && tval_dmem_addr && io.dmem.s2_xcpt.gf.asUInt.orR && !io.dmem.s2_xcpt.pf.asUInt.orR
     val htval_dmem = Mux(htval_valid_dmem, io.dmem.s2_gpa, 0.U)
 
-    (htval_dmem | htval_imem) >> hypervisorExtraAddrBits
+    val htval = (htval_dmem | htval_imem) >> hypervisorExtraAddrBits
+    // read pseudoinstruction if a guest-page fault is caused by an implicit memory access for VS-stage address translation
+    val mhtinst_read_pseudo = (io.imem.gpa_is_pte && htval_valid_imem) || (io.dmem.s2_gpa_is_pte && htval_valid_dmem)
+    (htval, mhtinst_read_pseudo)
   }
 
   csr.io.vector.foreach { v =>
@@ -874,6 +877,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
 
+  csr.io.htval := htval
+  csr.io.mhtinst_read_pseudo := mhtinst_read_pseudo
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.hgatp := csr.io.hgatp
   io.ptw.vsatp := csr.io.vsatp
