@@ -177,14 +177,19 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
       // The assumption is that this sort of situation happens only where
       // you connect a narrow master to the system bus, so there are few sources.
 
-      def sourceMap(source: UInt) = {
+      def sourceMap(source_bits: UInt) = {
+        val source = if (edgeIn.client.endSourceId == 1) 0.U(0.W) else source_bits
         require (edgeOut.manager.beatBytes > edgeIn.manager.beatBytes)
         val keepBits = log2Ceil(edgeOut.manager.beatBytes)
         val dropBits = log2Ceil(edgeIn.manager.beatBytes)
         val sources  = Reg(Vec(edgeIn.client.endSourceId, UInt((keepBits-dropBits).W)))
         val a_sel = in.a.bits.address(keepBits-1, dropBits)
         when (in.a.fire) {
-          sources(in.a.bits.source) := a_sel
+          if (edgeIn.client.endSourceId == 1) { // avoid extraction-index-width warning
+            sources(0) := a_sel
+          } else {
+            sources(in.a.bits.source) := a_sel
+          }
         }
 
         // depopulate unused source registers:
