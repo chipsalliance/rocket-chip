@@ -632,7 +632,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     a_sizes_set.suggestName("a_sizes_set")
 
-    val a_opcode_lookup = WireInit(0.U((1 << log_a_opcode_bus_size).W))
+    val a_opcode_lookup = WireInit(0.U((a_opcode_bus_size - 1).W))
     a_opcode_lookup.suggestName("a_opcode_lookup")
     a_opcode_lookup := ((inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)) >> 1.U
 
