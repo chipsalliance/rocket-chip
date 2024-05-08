@@ -957,6 +957,7 @@ class CSRFile(
     Mux(insn_call, Causes.user_ecall.U + Mux(reg_mstatus.prv(0) && reg_mstatus.v, PRV.H.U, reg_mstatus.prv),
     Mux[UInt](insn_break, Causes.breakpoint.U, io.cause))
   val cause_lsbs = cause(log2Ceil(1 + CSR.busErrorIntCause)-1, 0)
+  val cause_deleg_lsbs = cause(log2Ceil(xLen)-1,0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause.U
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause.U
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
@@ -964,8 +965,8 @@ class CSRFile(
   val debugEntry = p(DebugModuleKey).map(_.debugEntry).getOrElse(BigInt(0x800))
   val debugException = p(DebugModuleKey).map(_.debugException).getOrElse(BigInt(0x808))
   val debugTVec = Mux(reg_debug, Mux(insn_break, debugEntry.U, debugException.U), debugEntry.U)
-  val delegate = usingSupervisor.B && reg_mstatus.prv <= PRV.S.U && Mux(cause(xLen-1), read_mideleg(cause_lsbs), read_medeleg(cause_lsbs))
-  val delegateVS = reg_mstatus.v && delegate && Mux(cause(xLen-1), read_hideleg(cause_lsbs), read_hedeleg(cause_lsbs))
+  val delegate = usingSupervisor.B && reg_mstatus.prv <= PRV.S.U && Mux(cause(xLen-1), read_mideleg(cause_deleg_lsbs), read_medeleg(cause_deleg_lsbs))
+  val delegateVS = reg_mstatus.v && delegate && Mux(cause(xLen-1), read_hideleg(cause_deleg_lsbs), read_hedeleg(cause_deleg_lsbs))
   def mtvecBaseAlign = 2
   def mtvecInterruptAlign = {
     require(reg_mip.getWidth <= xLen)

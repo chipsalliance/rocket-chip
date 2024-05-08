@@ -307,7 +307,7 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     val counter = RegInit(0.U((log2Ceil(cfg.maxSupportedSBAccess/8)+1).W))
     val vecData   = Wire(Vec(cfg.maxSupportedSBAccess/8, UInt(8.W)))
     vecData.zipWithIndex.map { case (vd, i) => vd := io.dataIn(8*i+7,8*i) }
-    muxedData := vecData(counter)
+    muxedData := vecData(counter(log2Ceil(vecData.size)-1,0))
 
     // Need an additional check to determine if address is safe for Get/Put
     val rdLegal_addr = edge.manager.supportsGetSafe(io.addrIn, io.sizeIn, Some(TransferSizes(1,cfg.maxSupportedSBAccess/8)))

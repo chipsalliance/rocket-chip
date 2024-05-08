@@ -922,7 +922,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Outer.hamask doesn't consider the hart selected by dmcontrol.hartsello,
     // so append it here
     when (selectedHartReg < nComponents.U) {
-      hamaskFull(selectedHartReg) := true.B
+      hamaskFull(if (nComponents == 1) 0.U(0.W) else selectedHartReg) := true.B
     }
 
     io.innerCtrl.ready := true.B
@@ -1046,7 +1046,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           }
         }
       }
-      DMCS2RdData.haltgroup := hgParticipateHart(selectedHartReg)
+      DMCS2RdData.haltgroup := hgParticipateHart(if (nComponents == 1) 0.U(0.W) else selectedHartReg)
 
       if (nExtTriggers > 0) {
         val hgSelect = Reg(Bool())
@@ -1730,7 +1730,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // This is not an initialization!
     val ctrlStateReg = Reg(chiselTypeOf(CtrlState(Waiting)))
 
-    val hartHalted   = haltedBitRegs(selectedHartReg)
+    val hartHalted   = haltedBitRegs(if (nComponents == 1) 0.U(0.W) else selectedHartReg)
     val ctrlStateNxt = WireInit(ctrlStateReg)
 
     //------------------------
