@@ -466,15 +466,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S)))
 
   val (ex_new_vl, ex_new_vconfig) = if (usingVector) {
-    val ex_avl = Mux(ex_ctrl.rxs1,
-      Mux(ex_reg_inst(19,15) === 0.U,
-        Mux(ex_reg_inst(11,6) === 0.U, csr.io.vector.get.vconfig.vl, csr.io.vector.get.vconfig.vtype.vlMax),
-        ex_rs(0)
-      ),
-      ex_reg_inst(19,15))
     val ex_new_vtype = VType.fromUInt(MuxCase(ex_rs(1), Seq(
       ex_reg_inst(31,30).andR -> ex_reg_inst(29,20),
       !ex_reg_inst(31)        -> ex_reg_inst(30,20))))
+    val ex_avl = Mux(ex_ctrl.rxs1,
+      Mux(ex_reg_inst(19,15) === 0.U,
+        Mux(ex_reg_inst(11,6) === 0.U, csr.io.vector.get.vconfig.vl, ex_new_vtype.vlMax),
+        ex_rs(0)
+      ),
+      ex_reg_inst(19,15))
     val ex_new_vl = ex_new_vtype.vl(ex_avl, csr.io.vector.get.vconfig.vl, false.B, false.B, false.B)
     val ex_new_vconfig = Wire(new VConfig)
     ex_new_vconfig.vtype := ex_new_vtype
