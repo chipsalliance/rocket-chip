@@ -611,7 +611,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val log_a_size_bus_size   = log2Ceil(a_size_bus_size)
     def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
 
-    val inflight = RegInit(0.U(edge.client.endSourceId.W))
+    val inflight = RegInit(0.U((2 max edge.client.endSourceId).W)) // size up to avoid width error
     inflight.suggestName("inflight")
     val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_a_opcode_bus_size).W))
     inflight_opcodes.suggestName("inflight_opcodes")
@@ -632,7 +632,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val a_sizes_set = WireInit(0.U((edge.client.endSourceId << log_a_size_bus_size).W))
     a_sizes_set.suggestName("a_sizes_set")
 
-    val a_opcode_lookup = WireInit(0.U((1 << log_a_opcode_bus_size).W))
+    val a_opcode_lookup = WireInit(0.U((a_opcode_bus_size - 1).W))
     a_opcode_lookup.suggestName("a_opcode_lookup")
     a_opcode_lookup := ((inflight_opcodes) >> (bundle.d.bits.source << log_a_opcode_bus_size.U) & size_to_numfullbits(1.U << log_a_opcode_bus_size.U)) >> 1.U
 
@@ -723,7 +723,7 @@ class TLMonitor(args: TLMonitorArgs, monitorDir: MonitorDirection = MonitorDirec
     val log_c_size_bus_size   = log2Ceil(c_size_bus_size)
     def size_to_numfullbits(x: UInt): UInt = (1.U << x) - 1.U //convert a number to that many full bits
 
-    val inflight         = RegInit(0.U(edge.client.endSourceId.W))
+    val inflight         = RegInit(0.U((2 max edge.client.endSourceId).W))
     val inflight_opcodes = RegInit(0.U((edge.client.endSourceId << log_c_opcode_bus_size).W))
     val inflight_sizes   = RegInit(0.U((edge.client.endSourceId << log_c_size_bus_size).W))
     inflight.suggestName("inflight")

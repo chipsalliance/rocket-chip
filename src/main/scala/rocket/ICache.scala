@@ -504,7 +504,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         // @todo Accessing ITIM correspond address will be able to read cacheline?
         //       is this desired behavior?
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i.U)
-    val s1_vb = vb_array(Cat(i.U, s1_idx)) && !s1_slaveValid
+    val s1_vb = vb_array(Cat(i.U, s1_idx).pad(log2Ceil(nSets*nWays))) && !s1_slaveValid
     val enc_tag = tECC.decode(tag_rdata(i))
     /** [[tl_error]] ECC error bit.
       * [[tag]] of [[tag_array]] access.

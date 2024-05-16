@@ -55,6 +55,7 @@ class FrontendIO(implicit p: Parameters) extends CoreBundle()(p) {
   val sfence = Valid(new SFenceReq)
   val resp = Flipped(Decoupled(new FrontendResp))
   val gpa = Flipped(Valid(UInt(vaddrBitsExtended.W)))
+  val gpa_is_pte = Input(Bool())
   val btb_update = Valid(new BTBUpdate)
   val bht_update = Valid(new BHTUpdate)
   val ras_update = Valid(new RASUpdate)
@@ -243,7 +244,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
       val rvcJAL = (xLen == 32).B && bits === Instructions32.C_JAL
       val rvcJump = bits === Instructions.C_J || rvcJAL
-      val rvcImm = Mux(bits(14), new RVCDecoder(bits, xLen).bImm.asSInt, new RVCDecoder(bits, xLen).jImm.asSInt)
+      val rvcImm = Mux(bits(14), new RVCDecoder(bits, xLen, fLen).bImm.asSInt, new RVCDecoder(bits, xLen, fLen).jImm.asSInt)
       val rvcJR = bits === Instructions.C_MV && bits(6,2) === 0.U
       val rvcReturn = rvcJR && BitPat("b00?01") === bits(11,7)
       val rvcJALR = bits === Instructions.C_ADD && bits(6,2) === 0.U
@@ -351,9 +352,11 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   // supply guest physical address to commit stage
   val gpa_valid = Reg(Bool())
   val gpa = Reg(UInt(vaddrBitsExtended.W))
+  val gpa_is_pte = Reg(Bool())
   when (fq.io.enq.fire && s2_tlb_resp.gf.inst) {
     when (!gpa_valid) {
       gpa := s2_tlb_resp.gpa
+      gpa_is_pte := s2_tlb_resp.gpa_is_pte
     }
     gpa_valid := true.B
   }
@@ -362,6 +365,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   }
   io.cpu.gpa.valid := gpa_valid
   io.cpu.gpa.bits := gpa
+  io.cpu.gpa_is_pte := gpa_is_pte
 
   // performance events
   io.cpu.perf.acquire := icache.io.perf.acquire

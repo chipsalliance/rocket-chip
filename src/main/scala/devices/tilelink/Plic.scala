@@ -361,7 +361,7 @@ class PLICFanIn(nDevices: Int, prioBits: Int) extends Module {
 trait CanHavePeripheryPLIC { this: BaseSubsystem =>
   val (plicOpt, plicDomainOpt) = p(PLICKey).map { params =>
     val tlbus = locateTLBusWrapper(p(PLICAttachKey).slaveWhere)
-    val plicDomainWrapper = tlbus.generateSynchronousDomain
+    val plicDomainWrapper = tlbus.generateSynchronousDomain.suggestName("plic_domain")
 
     val plic = plicDomainWrapper { LazyModule(new TLPLIC(params, tlbus.beatBytes)) }
     plicDomainWrapper { plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ } }

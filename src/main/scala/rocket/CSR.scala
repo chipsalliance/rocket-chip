@@ -286,6 +286,7 @@ class CSRFileIO(hasBeu: Boolean)(implicit p: Parameters) extends CoreBundle
   val pc = Input(UInt(vaddrBitsExtended.W))
   val tval = Input(UInt(vaddrBitsExtended.W))
   val htval = Input(UInt(((maxSVAddrBits + 1) min xLen).W))
+  val mhtinst_read_pseudo = Input(Bool())
   val gva = Input(Bool())
   val time = Output(UInt(xLen.W))
   val fcsr_rm = Output(Bits(FPConstants.RM_SZ.W))
@@ -579,6 +580,12 @@ class CSRFile(
   val reg_vxsat = usingVector.option(Reg(Bool()))
   val reg_vxrm = usingVector.option(Reg(UInt(io.vector.get.vxrm.getWidth.W)))
 
+  val reg_mtinst_read_pseudo = Reg(Bool())
+  val reg_htinst_read_pseudo = Reg(Bool())
+  // XLEN=32: 0x00002000
+  // XLEN=64: 0x00003000
+  val Seq(read_mtinst, read_htinst) = Seq(reg_mtinst_read_pseudo, reg_htinst_read_pseudo).map(r => Cat(r, (xLen == 32).option(0.U).getOrElse(r), 0.U(12.W)))
+
   val reg_mcountinhibit = RegInit(0.U((CSR.firstHPM + nPerfCounters).W))
   io.inhibit_cycle := reg_mcountinhibit(0)
   val reg_instret = WideCounter(64, io.retire, inhibit = reg_mcountinhibit(2))
@@ -798,7 +805,7 @@ class CSRFile(
   val reg_rocc = roccCSRs.zip(io.roccCSRs).map(t => generateCustomCSR(t._1, t._2))
 
   if (usingHypervisor) {
-    read_mapping += CSRs.mtinst -> 0.U
+    read_mapping += CSRs.mtinst -> read_mtinst
     read_mapping += CSRs.mtval2 -> reg_mtval2
 
     val read_hstatus = io.hstatus.asUInt.extract(xLen-1,0)
@@ -814,7 +821,7 @@ class CSRFile(
     read_mapping += CSRs.hgeie -> 0.U
     read_mapping += CSRs.hgeip -> 0.U
     read_mapping += CSRs.htval -> reg_htval
-    read_mapping += CSRs.htinst -> 0.U
+    read_mapping += CSRs.htinst -> read_htinst
     read_mapping += CSRs.henvcfg -> reg_henvcfg.asUInt
     if (xLen == 32)
       read_mapping += CSRs.henvcfgh -> (reg_henvcfg.asUInt >> 32)
@@ -950,6 +957,7 @@ class CSRFile(
     Mux(insn_call, Causes.user_ecall.U + Mux(reg_mstatus.prv(0) && reg_mstatus.v, PRV.H.U, reg_mstatus.prv),
     Mux[UInt](insn_break, Causes.breakpoint.U, io.cause))
   val cause_lsbs = cause(log2Ceil(1 + CSR.busErrorIntCause)-1, 0)
+  val cause_deleg_lsbs = cause(log2Ceil(xLen)-1,0)
   val causeIsDebugInt = cause(xLen-1) && cause_lsbs === CSR.debugIntCause.U
   val causeIsDebugTrigger = !cause(xLen-1) && cause_lsbs === CSR.debugTriggerCause.U
   val causeIsDebugBreak = !cause(xLen-1) && insn_break && Cat(reg_dcsr.ebreakm, reg_dcsr.ebreakh, reg_dcsr.ebreaks, reg_dcsr.ebreaku)(reg_mstatus.prv)
@@ -957,8 +965,8 @@ class CSRFile(
   val debugEntry = p(DebugModuleKey).map(_.debugEntry).getOrElse(BigInt(0x800))
   val debugException = p(DebugModuleKey).map(_.debugException).getOrElse(BigInt(0x808))
   val debugTVec = Mux(reg_debug, Mux(insn_break, debugEntry.U, debugException.U), debugEntry.U)
-  val delegate = usingSupervisor.B && reg_mstatus.prv <= PRV.S.U && Mux(cause(xLen-1), read_mideleg(cause_lsbs), read_medeleg(cause_lsbs))
-  val delegateVS = reg_mstatus.v && delegate && Mux(cause(xLen-1), read_hideleg(cause_lsbs), read_hedeleg(cause_lsbs))
+  val delegate = usingSupervisor.B && reg_mstatus.prv <= PRV.S.U && Mux(cause(xLen-1), read_mideleg(cause_deleg_lsbs), read_medeleg(cause_deleg_lsbs))
+  val delegateVS = reg_mstatus.v && delegate && Mux(cause(xLen-1), read_hideleg(cause_deleg_lsbs), read_hedeleg(cause_deleg_lsbs))
   def mtvecBaseAlign = 2
   def mtvecInterruptAlign = {
     require(reg_mip.getWidth <= xLen)
@@ -1061,6 +1069,7 @@ class CSRFile(
       reg_scause := cause
       reg_stval := tval
       reg_htval := io.htval
+      reg_htinst_read_pseudo := io.mhtinst_read_pseudo
       reg_mstatus.spie := reg_mstatus.sie
       reg_mstatus.spp := reg_mstatus.prv
       reg_mstatus.sie := false.B
@@ -1073,6 +1082,7 @@ class CSRFile(
       reg_mcause := cause
       reg_mtval := tval
       reg_mtval2 := io.htval
+      reg_mtinst_read_pseudo := io.mhtinst_read_pseudo
       reg_mstatus.mpie := reg_mstatus.mie
       reg_mstatus.mpp := trimPrivilege(reg_mstatus.prv)
       reg_mstatus.mie := false.B
@@ -1397,6 +1407,10 @@ class CSRFile(
       when (decoded_addr(CSRs.hcounteren)) { reg_hcounteren := wdata }
       when (decoded_addr(CSRs.htval))      { reg_htval := wdata }
       when (decoded_addr(CSRs.mtval2))     { reg_mtval2 := wdata }
+
+      val write_mhtinst_read_pseudo = wdata(13) && (xLen == 32).option(true.B).getOrElse(wdata(12))
+      when(decoded_addr(CSRs.mtinst)) { reg_mtinst_read_pseudo := write_mhtinst_read_pseudo }
+      when(decoded_addr(CSRs.htinst)) { reg_htinst_read_pseudo := write_mhtinst_read_pseudo }
 
       when (decoded_addr(CSRs.vsstatus)) {
         val new_vsstatus = wdata.asTypeOf(new MStatus())
