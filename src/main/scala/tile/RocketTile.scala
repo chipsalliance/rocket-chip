@@ -22,7 +22,7 @@ import freechips.rocketchip.rocket.{
 }
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.ClockSinkParameters
-import freechips.rocketchip.util.Annotated
+import freechips.rocketchip.util.{Annotated, InOrderArbiter}
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
@@ -39,7 +39,7 @@ case class RocketTileParams(
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
     boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None
-    ) extends InstantiableTileParams[RocketTile] {
+  ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
   val baseName = "rockettile"
@@ -93,7 +93,7 @@ class RocketTile private(
   masterNode :=* tlOtherMastersNode
   DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
 
-  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt
+  nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt + rocketParams.core.vector.map(_.useDCache.toInt).getOrElse(0)
 
   val dtimProperty = dtim_adapter.map(d => Map(
     "sifive,dtim" -> d.device.asProperty)).getOrElse(Nil)
@@ -111,6 +111,11 @@ class RocketTile private(
                   ++ tileProperties ++ dtimProperty ++ itimProperty ++ beuProperty)
     }
   }
+
+  val vector_unit = rocketParams.core.vector.map(v => LazyModule(v.build(p)))
+  vector_unit.foreach(vu => tlMasterXbar.node :=* vu.atlNode)
+  vector_unit.foreach(vu => tlOtherMastersNode :=* vu.tlNode)
+
 
   ResourceBinding {
     Resource(cpuDevice, "reg").bind(ResourceAddress(tileId))
@@ -138,6 +143,10 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   Annotated.params(this, outer.rocketParams)
 
   val core = Module(new Rocket(outer)(outer.p))
+  outer.vector_unit.foreach { v =>
+    core.io.vector.get <> v.module.io.core
+    v.module.io.tlb <> outer.dcache.module.io.tlb_port
+  }
 
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
@@ -177,12 +186,15 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   dcachePorts += core.io.dmem // TODO outer.dcachePorts += () => module.core.io.dmem ??
   fpuOpt foreach { fpu =>
     core.io.fpu :<>= fpu.io.waiveAs[FPUCoreIO](_.cp_req, _.cp_resp)
-    fpu.io.cp_req := DontCare
-    fpu.io.cp_resp := DontCare
   }
   if (fpuOpt.isEmpty) {
     core.io.fpu := DontCare
   }
+  outer.vector_unit foreach { v => if (outer.rocketParams.core.vector.get.useDCache) {
+    dcachePorts += v.module.io.dmem
+  } else {
+    v.module.io.dmem := DontCare
+  } }
   core.io.ptw <> ptw.io.dpath
 
   // Connect the coprocessor interfaces
@@ -226,4 +238,27 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
 trait HasFpuOpt { this: RocketTileModuleImp =>
   val fpuOpt = outer.tileParams.core.fpu.map(params => Module(new FPU(params)(outer.p)))
+  fpuOpt.foreach { fpu =>
+    val nRoCCFPUPorts = outer.roccs.count(_.usesFPU)
+    val nFPUPorts = nRoCCFPUPorts + outer.rocketParams.core.useVector.toInt
+    if (nFPUPorts > 0) {
+      val fpArb = Module(new InOrderArbiter(new FPInput()(outer.p), new FPResult()(outer.p), nFPUPorts))
+      fpu.io.cp_req <> fpArb.io.out_req
+      fpArb.io.out_resp <> fpu.io.cp_resp
+
+      val fp_rocc_ios = outer.roccs.filter(_.usesFPU).map(_.module.io)
+      for (i <- 0 until nRoCCFPUPorts) {
+        fpArb.io.in_req(i) <> fp_rocc_ios(i).fpu_req
+        fp_rocc_ios(i).fpu_resp <> fpArb.io.in_resp(i)
+      }
+      outer.vector_unit.foreach(vu => {
+        fpArb.io.in_req(nRoCCFPUPorts) <> vu.module.io.fp_req
+        vu.module.io.fp_resp <> fpArb.io.in_resp(nRoCCFPUPorts)
+      })
+    } else {
+      fpu.io.cp_req.valid := false.B
+      fpu.io.cp_req.bits := DontCare
+      fpu.io.cp_resp.ready := false.B
+    }
+  }
 }

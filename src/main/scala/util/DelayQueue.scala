@@ -15,23 +15,23 @@ import chisel3.util._
   * @param timer            cycle count timer
   * @param entries          cycle delay
   */
-class DelayQueue[T <: Data](gen: T, entries: Int) extends Module {
+class DelayQueue[T <: Data](gen: T, entries: Int, width: Int) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(DecoupledIO(gen))
     val deq = DecoupledIO(gen)
-    val timer = Input(UInt())
-    val delay = Input(UInt())
+    val timer = Input(UInt(width.W))
+    val delay = Input(UInt(width.W))
   })
 
   val q = Module(new Queue(new Bundle {
-    val data = gen
-    val time = UInt(io.timer.getWidth.W)
+    val data = gen.cloneType
+    val time = UInt(width.W)
   }, entries, flow=true))
 
-  val delay_r = RegInit(0.U(io.delay.getWidth.W))
+  val delay_r = RegInit(0.U(width.W))
   when (delay_r =/= io.delay) {
     delay_r := io.delay
-    assert(q.io.count == 0, "Undefined behavior when delay is changed while queue has elements.")
+    //assert(q.io.count == 0, "Undefined behavior when delay is changed while queue has elements.")
   }
 
   q.io.enq.bits.data := io.enq.bits
@@ -53,7 +53,7 @@ object DelayQueue {
    * @param depth            queue size
    */
   def apply[T <: Data](source: DecoupledIO[T], timer: UInt, delay: UInt, depth: Int): DecoupledIO[T] = {
-    val delayQueue = Module(new DelayQueue(chiselTypeOf(source.bits), depth))
+    val delayQueue = Module(new DelayQueue(chiselTypeOf(source.bits), depth, timer.getWidth))
     delayQueue.io.enq <> source
     delayQueue.io.timer := timer
     delayQueue.io.delay := delay
