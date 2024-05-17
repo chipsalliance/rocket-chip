@@ -19,7 +19,9 @@ case class FPUParams(
   fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
-  dfmaLatency: Int = 4
+  dfmaLatency: Int = 4,
+  fpmuLatency: Int = 2,
+  ifpuLatency: Int = 2
 )
 
 object FPConstants
@@ -879,12 +881,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     io.cp_resp.valid := true.B
   }
 
-  val ifpu = Module(new IntToFP(2))
+  val ifpu = Module(new IntToFP(cfg.ifpuLatency))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
   ifpu.io.in.bits := fpiu.io.in.bits
   ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
 
-  val fpmu = Module(new FPToFP(2))
+  val fpmu = Module(new FPToFP(cfg.fpmuLatency))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
   fpmu.io.in.bits := fpiu.io.in.bits
   fpmu.io.lt := fpiu.io.out.bits.lt
