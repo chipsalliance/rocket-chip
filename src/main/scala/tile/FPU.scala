@@ -19,7 +19,9 @@ case class FPUParams(
   fLen: Int = 64,
   divSqrt: Boolean = true,
   sfmaLatency: Int = 3,
-  dfmaLatency: Int = 4
+  dfmaLatency: Int = 4,
+  fpmuLatency: Int = 2,
+  ifpuLatency: Int = 2
 )
 
 object FPConstants
@@ -879,12 +881,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     io.cp_resp.valid := true.B
   }
 
-  val ifpu = Module(new IntToFP(2))
+  val ifpu = Module(new IntToFP(cfg.ifpuLatency))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
   ifpu.io.in.bits := fpiu.io.in.bits
   ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
 
-  val fpmu = Module(new FPToFP(2))
+  val fpmu = Module(new FPToFP(cfg.fpmuLatency))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
   fpmu.io.in.bits := fpiu.io.in.bits
   fpmu.io.lt := fpiu.io.out.bits.lt
@@ -979,8 +981,12 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     io.cp_resp.bits.data := wdata
     io.cp_resp.valid := true.B
   }
+
+  assert(!io.cp_req.valid || pipes.forall(_.lat == pipes.head.lat).B,
+    s"FPU only supports coprocessor if FMA pipes have uniform latency ${pipes.map(_.lat)}")
   // Avoid structural hazards and nacking of external requests
-  io.cp_req.ready := !ex_reg_valid && !mem_reg_valid && !wb_reg_valid
+  // toint responds in the MEM stage, so an incoming toint can induce a structural hazard against inflight FMAs
+  io.cp_req.ready := !ex_reg_valid && !(cp_ctrl.toint && wen =/= 0.U) && !divSqrt_inFlight
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
@@ -992,7 +998,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   val divSqrt_write_port_busy = (mem_ctrl.div || mem_ctrl.sqrt) && wen.orR
   io.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_inFlight)
-  io.nack_mem := write_port_busy || divSqrt_write_port_busy || divSqrt_inFlight
+  io.nack_mem := (write_port_busy || divSqrt_write_port_busy || divSqrt_inFlight) && !mem_cp_valid
   io.dec <> id_ctrl
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(false.B)(_||_)
   io.sboard_set := wb_reg_valid && !wb_cp_valid && RegNext(useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt || mem_ctrl.vec)
