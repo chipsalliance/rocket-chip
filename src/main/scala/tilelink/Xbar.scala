@@ -179,8 +179,8 @@ object TLXbar
       }
 
       if (connectCIO(i).exists(x=>x)) {
-        in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
         in(i).c.bits.user := DontCare
+        in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
         in(i).c.bits.source := io_in(i).c.bits.source | r.start.U
       } else {
         in(i).c := DontCare
