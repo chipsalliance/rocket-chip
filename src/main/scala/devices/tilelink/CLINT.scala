@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util.ShiftRegister
+import chisel3.util.{ShiftRegister, ValidIO}
 import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.interrupts._
@@ -64,6 +64,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 
     val io = IO(new Bundle {
       val rtcTick = Input(Bool())
+      val time = Output(ValidIO(UInt(timeWidth.W)))
     })
 
     val time = RegInit(0.U(timeWidth.W))
@@ -78,6 +79,9 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       int(0) := ShiftRegister(ipi(i)(0), params.intStages) // msip
       int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
     }
+
+    io.time.valid := io.rtcTick
+    io.time.bits := time
 
     /* 0000 msip hart 0
      * 0004 msip hart 1
