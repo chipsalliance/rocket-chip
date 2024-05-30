@@ -21,6 +21,8 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
     override def circuitIdentity = edges.out.map(_.manager).forall(noChangeRequired)
   }
 
+  override lazy val desiredName = s"TLWidthWidget$innerBeatBytes"
+
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     def merge[T <: TLDataChannel](edgeIn: TLEdge, in: DecoupledIO[T], edgeOut: TLEdge, out: DecoupledIO[T]) = {

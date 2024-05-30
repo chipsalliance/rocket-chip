@@ -85,7 +85,7 @@ object BootROM {
       LazyModule(new TLROM(params.address, params.size, contents, true, tlbus.beatBytes))
     }
 
-    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus) := _ }
+    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus, Some("BootROM")) := _ }
     // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
     subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
     InModuleBody {

@@ -87,7 +87,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   lazy val debugOpt = p(DebugModuleKey).map { params =>
     val tlDM = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
-    tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
+    tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus.beatBytes, tlbus.blockBytes, nameSuffix = Some("Debug")) := _ }
     tlDM.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
 
     (apbDebugNodeOpt zip tlDM.apbNodeOpt) foreach { case (master, slave) =>

@@ -317,6 +317,7 @@ case class TLBConfig(
   * @param edge collect SoC metadata.
   */
 class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
+  override def desiredName = if (instruction) "ITLB" else "DTLB"
   val io = IO(new Bundle {
     /** request from Core */
     val req = Flipped(Decoupled(new TLBReq(lgMaxSize)))

@@ -671,7 +671,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
 
   val cfg = p(DebugModuleKey).get
 
-  val dmiXbar = LazyModule (new TLXbar())
+  val dmiXbar = LazyModule (new TLXbar(nameSuffix = Some("dmixbar")))
 
   val dmi2tlOpt = (!p(ExportDebug).apb).option({
     val dmi2tl = LazyModule(new DMIToTL())

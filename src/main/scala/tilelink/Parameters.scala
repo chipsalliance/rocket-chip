@@ -1311,6 +1311,9 @@ case class TLBundleParameters(
 
   val addrLoBits = log2Up(dataBits/8)
 
+  // Used to uniquify bus IP names
+  def shortName = s"a${addressBits}d${dataBits}s${sourceBits}k${sinkBits}z${sizeBits}" + (if (hasBCE) "c" else "u")
+
   def union(x: TLBundleParameters) =
     TLBundleParameters(
       max(addressBits, x.addressBits),

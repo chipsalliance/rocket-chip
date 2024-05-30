@@ -751,10 +751,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val dmem_resp_valid = io.dmem.resp.valid && io.dmem.resp.bits.has_data
   val dmem_resp_replay = dmem_resp_valid && io.dmem.resp.bits.replay
 
-  val ll_arb = Module(new Arbiter(new Bundle {
+  class LLWB extends Bundle {
     val data = UInt(xLen.W)
     val tag = UInt(5.W)
-  }, 3)) // div, rocc, vec
+  }
+
+  val ll_arb = Module(new Arbiter(new LLWB, 3)) // div, rocc, vec
   ll_arb.io.in.foreach(_.valid := false.B)
   ll_arb.io.in.foreach(_.bits := DontCare)
   val ll_wdata = WireInit(ll_arb.io.out.bits.data)

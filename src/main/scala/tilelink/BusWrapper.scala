@@ -95,11 +95,11 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
   def to[T](name: String)(body: => T): T = {
-    this { LazyScope(s"coupler_to_${name}", "TLInterconnectCoupler") { body } }
+    this { LazyScope(s"coupler_to_${name}", s"TLInterconnectCoupler_${busName}_to_${name}") { body } }
   }
 
   def from[T](name: String)(body: => T): T = {
-    this { LazyScope(s"coupler_from_${name}", "TLInterconnectCoupler") { body } }
+    this { LazyScope(s"coupler_from_${name}", s"TLInterconnectCoupler_${busName}_from_${name}") { body } }
   }
 
   def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
@@ -237,7 +237,7 @@ class TLBusWrapperTopology(
 }
 
 trait HasTLXbarPhy { this: TLBusWrapper =>
-  private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
+  private val xbar = LazyModule(new TLXbar(nameSuffix = Some(busName))).suggestName(busName + "_xbar")
 
   override def shouldBeInlined = xbar.node.circuitIdentity
   def inwardNode: TLInwardNode = xbar.node
