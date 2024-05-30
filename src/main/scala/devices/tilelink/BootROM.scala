@@ -72,7 +72,7 @@ object BootROM {
   def attach(params: BootROMParams, subsystem: BaseSubsystem with HasHierarchicalElements with HasTileInputConstants, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val tlbus = subsystem.locateTLBusWrapper(where)
-    val bootROMDomainWrapper = tlbus.generateSynchronousDomain.suggestName("bootrom_domain")
+    val bootROMDomainWrapper = tlbus.generateSynchronousDomain("BootROM").suggestName("bootrom_domain")
 
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
     lazy val contents = {

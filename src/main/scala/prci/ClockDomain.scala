@@ -34,6 +34,7 @@ class ClockSinkDomain(val clockSinkParams: ClockSinkParameters)(implicit p: Para
   def this(take: Option[ClockParameters] = None, name: Option[String] = None)(implicit p: Parameters) = this(ClockSinkParameters(take = take, name = name))
   val clockNode = ClockSinkNode(Seq(clockSinkParams))
   def clockBundle = clockNode.in.head._1
+  override lazy val desiredName = (clockSinkParams.name.toSeq :+ "ClockSinkDomain").mkString
 }
 
 class ClockSourceDomain(val clockSourceParams: ClockSourceParameters)(implicit p: Parameters) extends ClockDomain
@@ -41,6 +42,7 @@ class ClockSourceDomain(val clockSourceParams: ClockSourceParameters)(implicit p
   def this(give: Option[ClockParameters] = None, name: Option[String] = None)(implicit p: Parameters) = this(ClockSourceParameters(give = give, name = name))
   val clockNode = ClockSourceNode(Seq(clockSourceParams))
   def clockBundle = clockNode.out.head._1
+  override lazy val desiredName = (clockSourceParams.name.toSeq :+ "ClockSourceDomain").mkString
 }
 
 abstract class ResetDomain(implicit p: Parameters) extends Domain with HasResetDomainCrossing
