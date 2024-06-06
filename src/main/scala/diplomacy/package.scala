@@ -21,32 +21,6 @@ package object diplomacy {
     }
   }
 
-  implicit class BigIntHexContext(private val sc: StringContext) extends AnyVal {
-    def x(args: Any*): BigInt = {
-      val orig = sc.s(args: _*)
-      BigInt(orig.replace("_", ""), 16)
-    }
-  }
-
-  type PropertyOption = Option[(String, Seq[ResourceValue])]
-  type PropertyMap = Iterable[(String, Seq[ResourceValue])]
-
-  implicit class IntToProperty(x: Int) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceInt(BigInt(x)))
-  }
-
-  implicit class BigIntToProperty(x: BigInt) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceInt(x))
-  }
-
-  implicit class StringToProperty(x: String) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceString(x))
-  }
-
-  implicit class DeviceToProperty(x: Device) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
-  }
-
   // TODO - Remove compatibility layer for deprecated diplomacy api once all local references are moved to standalone diplomacy lib.
   // package.scala
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")

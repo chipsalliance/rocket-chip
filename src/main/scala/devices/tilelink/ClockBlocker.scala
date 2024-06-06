@@ -6,7 +6,8 @@ import chisel3._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, SimpleDevice}
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.prci.ClockAdapterNode
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
 import freechips.rocketchip.tilelink.TLRegisterNode

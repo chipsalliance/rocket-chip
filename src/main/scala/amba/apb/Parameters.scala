@@ -9,8 +9,8 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.nodes.BaseNode
 
-import freechips.rocketchip.diplomacy.{AddressSet, Resource, Device, RegionType, ResourceAddress, ResourcePermissions}
-
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
+import freechips.rocketchip.resources.{Resource, Device, ResourceAddress, ResourcePermissions}
 import freechips.rocketchip.util.{BundleField, BundleKeyBase, BundleFieldBase}
 
 import scala.math.max

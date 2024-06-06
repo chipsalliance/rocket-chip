@@ -8,7 +8,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.SimpleDevice
+import freechips.rocketchip.resources.SimpleDevice
 import freechips.rocketchip.tilelink.{TLArbiter, TLMessages, TLPermissions}
 
 /** Adds a /dev/null slave that generates TL error response messages */

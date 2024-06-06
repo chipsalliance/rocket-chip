@@ -10,9 +10,11 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.tilelink.{BasicBusBlockerParams, BasicBusBlocker}
 import freechips.rocketchip.diplomacy.{
-  AddressSet, DisableMonitors, SimpleDevice, Description,
+  AddressSet, DisableMonitors, BufferParams
+}
+import freechips.rocketchip.resources.{
+  SimpleDevice, Description,
   ResourceAnchors, ResourceBindings, ResourceBinding, Resource, ResourceAddress,
-  BufferParams
 }
 import freechips.rocketchip.interrupts.IntIdentityNode
 import freechips.rocketchip.tilelink.{TLIdentityNode, TLBuffer}

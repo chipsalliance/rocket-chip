@@ -15,6 +15,8 @@ import freechips.rocketchip.devices.tilelink.{
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.diplomacy.{
   AddressSet, MonitorsEnabled,
+}
+import freechips.rocketchip.resources.{
   DTSModel, DTSCompat, DTSTimebase, BigIntHexContext
 }
 import freechips.rocketchip.rocket.{PgLevels, RocketCoreParams, MulDivParams, DCacheParams, ICacheParams, BTBParams, DebugROBParams}

@@ -10,7 +10,8 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.amba.AMBACorrupt
-import freechips.rocketchip.diplomacy.{AddressSet, DiplomaticSRAM, HasJustOneSeqMem, RegionType, TransferSizes}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.util.{BundleMap, SeqMemToAugmentedSeqMem}
 
 /**

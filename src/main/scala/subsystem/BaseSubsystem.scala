@@ -8,11 +8,11 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{
+import freechips.rocketchip.diplomacy.{AddressRange}
+import freechips.rocketchip.resources.{
   BindingScope, DTS, DTB, ResourceBinding, JSON, ResourceInt,
   DTSModel, DTSCompat, DTSTimebase, ResourceString, Resource,
-  ResourceAnchors, AddressMapEntry, AddressRange
-}
+  ResourceAnchors, AddressMapEntry}
 import freechips.rocketchip.prci.{ClockGroupIdentityNode, ClockGroupAggregator, ClockGroupSourceNode, ClockGroupSourceParameters}
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util.{Location, ElaborationArtefacts, PlusArgArtefacts, RecordMap, Annotated}

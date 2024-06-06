@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.{AddressSet, Device, TransferSizes, Resource, ResourceBindings}
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
+import freechips.rocketchip.resources.{Device, Resource, ResourceBindings}
 import freechips.rocketchip.prci.{NoCrossing}
 import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperParams, RegMapperInput, RegisterRouter}
 import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, GenRegDescsAnno}
