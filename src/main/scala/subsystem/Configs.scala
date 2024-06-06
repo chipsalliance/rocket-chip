@@ -12,9 +12,10 @@ import freechips.rocketchip.devices.debug.{DebugModuleKey, DefaultDebugModulePar
 import freechips.rocketchip.devices.tilelink.{
   BuiltInErrorDeviceParams, BootROMLocated, BootROMParams, CLINTKey, DevNullDevice, CLINTParams, PLICKey, PLICParams, DevNullParams
 }
+import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.diplomacy.{
-  AddressSet, SynchronousCrossing, AsynchronousCrossing, RationalCrossing, MonitorsEnabled,
-  DTSModel, DTSCompat, DTSTimebase, ClockCrossingType, BigIntHexContext
+  AddressSet, MonitorsEnabled,
+  DTSModel, DTSCompat, DTSTimebase, BigIntHexContext
 }
 import freechips.rocketchip.rocket.{PgLevels, RocketCoreParams, MulDivParams, DCacheParams, ICacheParams, BTBParams, DebugROBParams}
 import freechips.rocketchip.tile.{

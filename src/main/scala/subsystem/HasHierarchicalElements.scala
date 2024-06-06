@@ -10,14 +10,13 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.debug.{TLDebugModule, HasPeripheryDebug}
 import freechips.rocketchip.devices.tilelink.{BasicBusBlocker, BasicBusBlockerParams, CLINT, TLPLIC, CLINTConsts}
-import freechips.rocketchip.diplomacy.ClockCrossingType
 import freechips.rocketchip.interrupts.{
   IntNode, IntSyncNode, IntEphemeralNode, NullIntSource, IntNexusNode, IntSourcePortParameters,
   IntSourceParameters, IntSinkPortParameters, IntSinkParameters, IntSyncIdentityNode, NullIntSyncSource
 }
 import freechips.rocketchip.tile.{TileParams, TilePRCIDomain, BaseTile, NMI, TraceBundle}
 import freechips.rocketchip.tilelink.{TLNode, TLBuffer, TLCacheCork, TLTempNode, TLFragmenter}
-import freechips.rocketchip.prci.{ClockGroup, ResetCrossingType, ClockGroupNode, ClockDomain}
+import freechips.rocketchip.prci.{ClockCrossingType, ClockGroup, ResetCrossingType, ClockGroupNode, ClockDomain}
 import freechips.rocketchip.rocket.TracedInstruction
 import freechips.rocketchip.util.TraceCoreInterface
 

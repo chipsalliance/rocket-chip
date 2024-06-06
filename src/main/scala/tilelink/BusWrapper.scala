@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.{AddressSet, ClockCrossingType, NoCrossing, NoHandle, NodeHandle, NodeBinding}
+import freechips.rocketchip.diplomacy.{AddressSet, NoHandle, NodeHandle, NodeBinding}
 
 // TODO This class should be moved to package subsystem to resolve
 //      the dependency awkwardness of the following imports
@@ -19,7 +19,7 @@ import freechips.rocketchip.devices.tilelink.{BuiltInDevices, CanHaveBuiltInDevi
 import freechips.rocketchip.prci.{
   ClockParameters, ClockDomain, ClockGroup, ClockGroupAggregator, ClockSinkNode,
   FixedClockBroadcast, ClockGroupEdgeParameters, ClockSinkParameters, ClockSinkDomain,
-  ClockGroupEphemeralNode, asyncMux
+  ClockGroupEphemeralNode, asyncMux, ClockCrossingType, NoCrossing
 }
 import freechips.rocketchip.subsystem.{
   HasTileLinkLocations, CanConnectWithinContextThatHasTileLinkLocations,

@@ -5,7 +5,7 @@ package freechips.rocketchip.subsystem
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.{ClockCrossingType, NoCrossing, SynchronousCrossing}
+import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, SynchronousCrossing}
 import freechips.rocketchip.tilelink.{TLBusWrapper, TLBusWrapperTopology, TLBusWrapperConnection}
 import freechips.rocketchip.util.Location
 

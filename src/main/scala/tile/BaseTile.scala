@@ -10,7 +10,7 @@ import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.bundlebridge._
 
 
-import freechips.rocketchip.diplomacy.{ClockCrossingType, PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
+import freechips.rocketchip.diplomacy.{PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
 import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, PgLevels, ASIdBits, VMIdBits, TraceAux, BPWatch}
 import freechips.rocketchip.subsystem.{
@@ -18,7 +18,7 @@ import freechips.rocketchip.subsystem.{
   CacheBlockBytes, SystemBusKey, BaseHierarchicalElement, InsertTimingClosureRegistersOnHartIds, BaseHierarchicalElementModuleImp
 }
 import freechips.rocketchip.tilelink.{TLEphemeralNode, TLOutwardNode, TLNode, TLFragmenter, EarlyAck, TLWidthWidget, TLManagerParameters, ManagerUnification}
-import freechips.rocketchip.prci.ClockSinkParameters
+import freechips.rocketchip.prci.{ClockCrossingType, ClockSinkParameters}
 import freechips.rocketchip.util.{TraceCoreParams, TraceCoreInterface}
 
 import freechips.rocketchip.diplomacy.BigIntToProperty

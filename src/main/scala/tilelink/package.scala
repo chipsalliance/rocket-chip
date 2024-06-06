@@ -5,8 +5,7 @@ package freechips.rocketchip
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.HasClockDomainCrossing
-import freechips.rocketchip.prci.HasResetDomainCrossing
+import freechips.rocketchip.prci.{HasResetDomainCrossing, HasClockDomainCrossing}
 
 package object tilelink
 {

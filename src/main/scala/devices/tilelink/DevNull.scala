@@ -5,7 +5,8 @@ package freechips.rocketchip.devices.tilelink
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, HasClockDomainCrossing, RegionType, SimpleDevice, TransferSizes}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, SimpleDevice, TransferSizes}
+import freechips.rocketchip.prci.{HasClockDomainCrossing}
 import freechips.rocketchip.tilelink.{TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
 
 import freechips.rocketchip.tilelink.TLClockDomainCrossing

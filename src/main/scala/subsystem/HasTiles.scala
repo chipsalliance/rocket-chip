@@ -9,11 +9,11 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.debug.TLDebugModule
-import freechips.rocketchip.diplomacy.{DisableMonitors, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing, FlipRendering}
+import freechips.rocketchip.diplomacy.{DisableMonitors, FlipRendering}
 import freechips.rocketchip.interrupts.{IntXbar, IntSinkNode, IntSinkPortSimple, IntSyncAsyncCrossingSink}
 import freechips.rocketchip.tile.{MaxHartIdBits, BaseTile, InstantiableTileParams, TileParams, TilePRCIDomain, TraceBundle, PriorityMuxHartIdFromSeq}
 import freechips.rocketchip.tilelink.TLWidthWidget
-import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset}
+import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing}
 import freechips.rocketchip.rocket.TracedInstruction
 import freechips.rocketchip.util.TraceCoreInterface
 

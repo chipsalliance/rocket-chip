@@ -47,8 +47,6 @@ package object diplomacy {
     def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
   }
 
-  implicit def noCrossing(value: NoCrossing.type): ClockCrossingType = SynchronousCrossing(BufferParams.none)
-
   // TODO - Remove compatibility layer for deprecated diplomacy api once all local references are moved to standalone diplomacy lib.
   // package.scala
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
