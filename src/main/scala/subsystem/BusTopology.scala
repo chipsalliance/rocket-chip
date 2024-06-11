@@ -121,7 +121,7 @@ case class ClusterBusTopologyParams(
 ) extends TLBusWrapperTopology(
   instantiations = List(
     (CSBUS(clusterId), csbus),
-    (CLBUS(clusterId), csbus), // TODO don't copy from csbus
+    (CLBUS(clusterId), csbus), // TODO don't copy from csbus params
     (CCBUS(clusterId), ccbus)) ++ (if (coherence.nBanks == 0) Nil else List(
     (CMBUS(clusterId), csbus),
     (CCOH (clusterId), CoherenceManagerWrapperParams(csbus.blockBytes, csbus.beatBytes, coherence.nBanks, CCOH(clusterId).name)(coherence.coherenceManager)))),
