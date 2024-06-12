@@ -87,9 +87,48 @@ final class MultiCreditedIO[T <: Data](gen: T, nChannels: Int) extends Bundle {
 
   def toReceivers(depth: Int, flow: Boolean = true): Seq[DecoupledIO[T]] =
     toReceivers(Seq.fill(nChannels)(depth), flow)
+
+  /** Add register stages to the sender and receiver paths.
+    * Apply this method to the producer/sender-facing bundle.
+    * The round-trip-time (RTT) is increased by sender+receiver.
+    */
+  def pipeline(debitDelay: Int, creditDelay: Int): MultiCreditedIO[T] = {
+    val res = Wire(MultiCreditedIO(genType, nChannels))
+    if (debitDelay <= 0) {
+      credits.valid := ShiftRegister(res.credits.valid, creditDelay, false.B, true.B)
+      credits.bits  := ShiftRegister(res.credits.bits , creditDelay, true.B)
+      res.debits := debits
+      res.bits   := bits
+    } else {
+      // We can't use ShiftRegister, because we want debit-gated enables
+      val out = pipeline(debitDelay-1, creditDelay)
+      out.credits       := res.credits
+      res.debits.valid  := RegNext(out.debits.valid, false.B)
+      res.debits.bits   := RegEnable(out.debits.bits, out.debits.valid)
+      res.bits          := RegEnable(out.bits       , out.debits.valid)
+    }
+    res
+  }
+
+  def pipeline(delay: CreditedDelay): MultiCreditedIO[T] =
+    pipeline(delay.debit, delay.credit)
 }
 
 object MultiCreditedIO
 {
   def apply[T <: Data](genType: T, nChannels: Int) = new MultiCreditedIO(genType, nChannels)
+
+  def fromSenders[T <: Data](x: Seq[ReadyValidIO[T]], depth: Int, pipe: Boolean = true): MultiCreditedIO[T] = {
+    val res = Wire(MultiCreditedIO(chiselTypeOf(x.head.bits), x.size))
+    val dec = res.toSenders(depth, pipe)
+    x.zip(dec).foreach(t => t._2 <> t._1)
+    res
+  }
+
+  def fromReceivers[T <: Data](x: Seq[ReadyValidIO[T]], depth: Int, flow: Boolean = true): MultiCreditedIO[T] = {
+    val res = Wire(MultiCreditedIO(chiselTypeOf(x.head.bits), x.size))
+    val dec = res.toReceivers(depth, flow)
+    x.zip(dec).foreach(t => t._1 <> t._2)
+    res
+  }
 }
