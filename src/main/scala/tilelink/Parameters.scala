@@ -1405,6 +1405,32 @@ case class TLCreditedEdgeParameters(client: TLCreditedClientPortParameters, mana
   def formatEdge = client.infoString + "\n" + manager.infoString
 }
 
+case class TLMergedCreditedDelay(
+  ace: CreditedDelay,
+  bd: CreditedDelay)
+{
+  def + (that: TLMergedCreditedDelay): TLMergedCreditedDelay = TLMergedCreditedDelay(
+    ace = ace + that.ace,
+    bd  = bd + that.bd)
+
+  override def toString = s"(${ace}, ${bd}"
+}
+
+object TLMergedCreditedDelay {
+  def apply(delay: CreditedDelay): TLMergedCreditedDelay = apply(delay, delay.flip)
+}
+
+case class TLMergedCreditedManagerPortParameters(delay: TLMergedCreditedDelay, base: TLSlavePortParameters) {def infoString = base.infoString}
+case class TLMergedCreditedClientPortParameters(delay: TLMergedCreditedDelay, base: TLMasterPortParameters) {def infoString = base.infoString}
+case class TLMergedCreditedEdgeParameters(client: TLMergedCreditedClientPortParameters, manager: TLMergedCreditedManagerPortParameters, params: Parameters, sourceInfo: SourceInfo) extends FormatEdge
+{
+  val delay = client.delay + manager.delay
+  val bundle = TLBundleParameters(client.base, manager.base)
+  def formatEdge = client.infoString + "\n" + manager.infoString
+}
+
+
+
 case class TLAsyncManagerPortParameters(async: AsyncQueueParams, base: TLSlavePortParameters) {def infoString = base.infoString}
 case class TLAsyncClientPortParameters(base: TLMasterPortParameters) {def infoString = base.infoString}
 case class TLAsyncBundleParameters(async: AsyncQueueParams, base: TLBundleParameters)

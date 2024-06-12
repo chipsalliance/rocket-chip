@@ -192,3 +192,42 @@ case class TLCreditedSinkNode(delay: TLCreditedDelay)(implicit valName: ValName)
   extends MixedAdapterNode(TLCreditedImp, TLImp)(
     dFn = { p => p.base.v1copy(minLatency = 1) },
     uFn = { p => TLCreditedManagerPortParameters(delay, p) }) with FormatNode[TLCreditedEdgeParameters, TLEdgeOut]
+
+// Merged Credited version of TileLink channels
+trait TLMergedCreditedFormatNode extends FormatNode[TLMergedCreditedEdgeParameters, TLMergedCreditedEdgeParameters]
+
+object TLMergedCreditedImp extends SimpleNodeImp[TLMergedCreditedClientPortParameters, TLMergedCreditedManagerPortParameters, TLMergedCreditedEdgeParameters, TLMergedCreditedBundle]
+{
+  def edge(pd: TLMergedCreditedClientPortParameters, pu: TLMergedCreditedManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = TLMergedCreditedEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: TLMergedCreditedEdgeParameters) = new TLMergedCreditedBundle(e.bundle)
+  def render(e: TLMergedCreditedEdgeParameters) = RenderedEdge(colour = "#ffff00" /* yellow */, e.delay.toString)
+
+  override def mixO(pd: TLMergedCreditedClientPortParameters, node: OutwardNode[TLMergedCreditedClientPortParameters, TLMergedCreditedManagerPortParameters, TLMergedCreditedBundle]): TLMergedCreditedClientPortParameters  =
+   pd.copy(base = pd.base.v1copy(clients  = pd.base.clients.map  { c => c.v1copy (nodePath = node +: c.nodePath) }))
+  override def mixI(pu: TLMergedCreditedManagerPortParameters, node: InwardNode[TLMergedCreditedClientPortParameters, TLMergedCreditedManagerPortParameters, TLMergedCreditedBundle]): TLMergedCreditedManagerPortParameters =
+   pu.copy(base = pu.base.v1copy(managers = pu.base.managers.map { m => m.v1copy (nodePath = node +: m.nodePath) }))
+}
+
+case class TLMergedCreditedAdapterNode(
+  clientFn:  TLMergedCreditedClientPortParameters  => TLMergedCreditedClientPortParameters  = { s => s },
+  managerFn: TLMergedCreditedManagerPortParameters => TLMergedCreditedManagerPortParameters = { s => s })(
+  implicit valName: ValName)
+  extends AdapterNode(TLMergedCreditedImp)(clientFn, managerFn) with TLMergedCreditedFormatNode
+
+case class TLMergedCreditedIdentityNode()(implicit valName: ValName) extends IdentityNode(TLMergedCreditedImp)() with TLMergedCreditedFormatNode
+
+object TLMergedCreditedNameNode {
+  def apply(name: ValName) = TLMergedCreditedIdentityNode()(name)
+  def apply(name: Option[String]): TLMergedCreditedIdentityNode = apply(ValName(name.getOrElse("with_no_name")))
+  def apply(name: String): TLMergedCreditedIdentityNode = apply(Some(name))
+}
+
+case class TLMergedCreditedSourceNode(delay: TLMergedCreditedDelay)(implicit valName: ValName)
+  extends MixedAdapterNode(TLImp, TLMergedCreditedImp)(
+    dFn = { p => TLMergedCreditedClientPortParameters(delay, p) },
+    uFn = { p => p.base.v1copy(minLatency = 1) }) with FormatNode[TLEdgeIn, TLMergedCreditedEdgeParameters] // discard cycles from other clock domain
+
+case class TLMergedCreditedSinkNode(delay: TLMergedCreditedDelay)(implicit valName: ValName)
+  extends MixedAdapterNode(TLMergedCreditedImp, TLImp)(
+    dFn = { p => p.base.v1copy(minLatency = 1) },
+    uFn = { p => TLMergedCreditedManagerPortParameters(delay, p) }) with FormatNode[TLMergedCreditedEdgeParameters, TLEdgeOut]
