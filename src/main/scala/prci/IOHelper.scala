@@ -6,8 +6,6 @@ import chisel3._
 
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{ClockCrossingType, SynchronousCrossing}
-
 object IOHelper {
 
   def forNonSynchronous[T <: Data](gen: => T, xs: Seq[ClockCrossingType], prefix: String): Seq[Option[ModuleValue[T]]] = {

@@ -7,7 +7,8 @@ import chisel3._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, AsynchronousCrossing, NodeHandle}
+import freechips.rocketchip.diplomacy.{AddressSet, NodeHandle}
+import freechips.rocketchip.prci.{AsynchronousCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util.{AsyncQueueParams, ToAsyncBundle, FromAsyncBundle, Pow2ClockDivider, property}
 

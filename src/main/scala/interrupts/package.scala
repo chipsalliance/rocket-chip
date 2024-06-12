@@ -7,8 +7,7 @@ import chisel3._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.HasClockDomainCrossing
-import freechips.rocketchip.prci.HasResetDomainCrossing
+import freechips.rocketchip.prci.{HasClockDomainCrossing, HasResetDomainCrossing}
 
 package object interrupts
 {

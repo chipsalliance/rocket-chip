@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, Device, DeviceRegName, DiplomaticSRAM, RegionType, TransferSizes, HasJustOneSeqMem}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{Device, DeviceRegName, DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.util.{CanHaveErrors, ECCParams, property, SECDEDCode}
 
 import freechips.rocketchip.util.DataToAugmentedData

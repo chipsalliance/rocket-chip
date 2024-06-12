@@ -5,8 +5,7 @@ package freechips.rocketchip.amba
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{SimpleNodeHandle, OutwardNodeHandle, InwardNodeHandle}
 
-import freechips.rocketchip.diplomacy.HasClockDomainCrossing
-import freechips.rocketchip.prci.HasResetDomainCrossing
+import freechips.rocketchip.prci.{HasClockDomainCrossing, HasResetDomainCrossing}
 
 /**
   * Provide bundles, adapters and devices etc for AMBA AXI4 protocol.

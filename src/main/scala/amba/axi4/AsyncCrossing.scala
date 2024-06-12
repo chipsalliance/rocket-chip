@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.nodes.{NodeHandle}
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
-import freechips.rocketchip.diplomacy.{AddressSet, AsynchronousCrossing}
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.prci.{AsynchronousCrossing}
 import freechips.rocketchip.tilelink.{TLRAMModel, TLFuzzer, TLToAXI4}
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util.{ToAsyncBundle, FromAsyncBundle, AsyncQueueParams, Pow2ClockDivider}

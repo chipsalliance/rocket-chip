@@ -8,7 +8,8 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, CreditedCrossing}
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.prci.{CreditedCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util.{CreditedDelay, CreditedIO}
 

@@ -6,8 +6,6 @@ import org.chipsalliance.cde.config._
 
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{HasClockDomainCrossing, HasDomainCrossing}
-
 abstract class Domain(implicit p: Parameters) extends LazyModule with HasDomainCrossing
 {
   def clockBundle: ClockBundle

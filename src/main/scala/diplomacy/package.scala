@@ -21,34 +21,6 @@ package object diplomacy {
     }
   }
 
-  implicit class BigIntHexContext(private val sc: StringContext) extends AnyVal {
-    def x(args: Any*): BigInt = {
-      val orig = sc.s(args: _*)
-      BigInt(orig.replace("_", ""), 16)
-    }
-  }
-
-  type PropertyOption = Option[(String, Seq[ResourceValue])]
-  type PropertyMap = Iterable[(String, Seq[ResourceValue])]
-
-  implicit class IntToProperty(x: Int) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceInt(BigInt(x)))
-  }
-
-  implicit class BigIntToProperty(x: BigInt) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceInt(x))
-  }
-
-  implicit class StringToProperty(x: String) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceString(x))
-  }
-
-  implicit class DeviceToProperty(x: Device) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
-  }
-
-  implicit def noCrossing(value: NoCrossing.type): ClockCrossingType = SynchronousCrossing(BufferParams.none)
-
   // TODO - Remove compatibility layer for deprecated diplomacy api once all local references are moved to standalone diplomacy lib.
   // package.scala
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
@@ -273,4 +245,66 @@ package object diplomacy {
   type BundleBridgeOutwardNode[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeOutwardNode[T]
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
   type BundleBridgeNode[T <: Data]        = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNode[T]
+
+// Resources.scala
+  @deprecated("Use freechips.rocketchip.resources.ResourcePermissions", "rocketchip 2.0.0")
+  type ResourcePermissions = freechips.rocketchip.resources.ResourcePermissions
+  @deprecated("Use freechips.rocketchip.resources.Resource", "rocketchip 2.0.0")
+  type Resource = freechips.rocketchip.resources.Resource
+  @deprecated("Use freechips.rocketchip.resources.Resource", "rocketchip 2.0.0")
+  val Resource = freechips.rocketchip.resources.Resource
+  @deprecated("Use freechips.rocketchip.resources.ResourceAnchors", "rocketchip 2.0.0")
+  val ResourceAnchors = freechips.rocketchip.resources.ResourceAnchors
+  @deprecated("Use freechips.rocketchip.resources.ResourceAlias", "rocketchip 2.0.0")
+  type ResourceAlias = freechips.rocketchip.resources.ResourceAlias
+  @deprecated("Use freechips.rocketchip.resources.ResourceAlias", "rocketchip 2.0.0")
+  val ResourceAlias = freechips.rocketchip.resources.ResourceAlias
+  @deprecated("Use freechips.rocketchip.resources.ResourceMapping", "rocketchip 2.0.0")
+  type ResourceMapping = freechips.rocketchip.resources.ResourceMapping
+  @deprecated("Use freechips.rocketchip.resources.ResourceMapping", "rocketchip 2.0.0")
+  val ResourceMapping = freechips.rocketchip.resources.ResourceMapping
+  @deprecated("Use freechips.rocketchip.resources.ResourceMap", "rocketchip 2.0.0")
+  type ResourceMap = freechips.rocketchip.resources.ResourceMap
+  @deprecated("Use freechips.rocketchip.resources.ResourceMap", "rocketchip 2.0.0")
+  val ResourceMap = freechips.rocketchip.resources.ResourceMap
+  @deprecated("Use freechips.rocketchip.resources.ResourceReference", "rocketchip 2.0.0")
+  type ResourceReference = freechips.rocketchip.resources.ResourceReference
+  @deprecated("Use freechips.rocketchip.resources.ResourceReference", "rocketchip 2.0.0")
+  val ResourceReference = freechips.rocketchip.resources.ResourceReference
+  @deprecated("Use freechips.rocketchip.resources.ResourceAddress", "rocketchip 2.0.e0")
+  type ResourceAddress = freechips.rocketchip.resources.ResourceAddress
+  @deprecated("Use freechips.rocketchip.resources.ResourceAddress", "rocketchip 2.0.0")
+  val ResourceAddress = freechips.rocketchip.resources.ResourceAddress
+  @deprecated("Use freechips.rocketchip.resources.ResourceValue", "rocketchip 2.0.0")
+  type ResourceValue = freechips.rocketchip.resources.ResourceValue
+  @deprecated("Use freechips.rocketchip.resources.ResourceBinding", "rocketchip 2.0.0")
+  val ResourceBinding = freechips.rocketchip.resources.ResourceBinding
+  @deprecated("Use freechips.rocketchip.resources.ResourceBindings", "rocketchip 2.0.0")
+  type ResourceBindings = freechips.rocketchip.resources.ResourceBindings
+  @deprecated("Use freechips.rocketchip.resources.BindingScope", "rocketchip 2.0.0")
+  type BindingScope = freechips.rocketchip.resources.BindingScope
+  @deprecated("Use freechips.rocketchip.resources.Binding", "rocketchip 2.0.0")
+  type Binding = freechips.rocketchip.resources.Binding
+  @deprecated("Use freechips.rocketchip.resources.Binding", "rocketchip 2.0.0")
+  val Binding = freechips.rocketchip.resources.Binding
+  @deprecated("Use freechips.rocketchip.resources.ResourceInt", "rocketchip 2.0.0")
+  type ResourceInt = freechips.rocketchip.resources.ResourceInt
+  @deprecated("Use freechips.rocketchip.resources.ResourceInt", "rocketchip 2.0.0")
+  val ResourceInt = freechips.rocketchip.resources.ResourceInt
+  @deprecated("Use freechips.rocketchip.resources.ResourceString", "rocketchip 2.0.0")
+  type ResourceString = freechips.rocketchip.resources.ResourceString
+  @deprecated("Use freechips.rocketchip.resources.ResourceString", "rocketchip 2.0.0")
+  val ResourceString = freechips.rocketchip.resources.ResourceString
+  @deprecated("Use freechips.rocketchip.resources.SimpleDevice", "rocketchip 2.0.0")
+  type SimpleDevice = freechips.rocketchip.resources.SimpleDevice
+  @deprecated("Use freechips.rocketchip.resources.MemoryDevice", "rocketchip 2.0.0")
+  type MemoryDevice = freechips.rocketchip.resources.MemoryDevice
+  @deprecated("Use freechips.rocketchip.resources.Device", "rocketchip 2.0.0")
+  type Device = freechips.rocketchip.resources.Device
+  @deprecated("Use freechips.rocketchip.resources.Description", "rocketchip 2.0.0")
+  type Description = freechips.rocketchip.resources.Description
+  @deprecated("Use freechips.rocketchip.resources.Description", "rocketchip 2.0.0")
+  val Description = freechips.rocketchip.resources.Description
+  @deprecated("Use freechips.rocketchip.resources.SimpleBus", "rocketchip 2.0.0")
+  type SimpleBus = freechips.rocketchip.resources.SimpleBus
 }

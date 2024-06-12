@@ -11,8 +11,9 @@ import org.chipsalliance.diplomacy.nodes._
 
 import freechips.rocketchip.diplomacy.{
   AddressDecoder, AddressSet, BufferParams, DirectedBuffers, IdMap, IdMapEntry,
-  IdRange, RegionType, Resource, ResourceAddress, ResourcePermissions, TransferSizes
+  IdRange, RegionType, TransferSizes
 }
+import freechips.rocketchip.resources.{Resource, ResourceAddress, ResourcePermissions}
 import freechips.rocketchip.util.{
   AsyncQueueParams, BundleField, BundleFieldBase, BundleKeyBase,
   CreditedDelay, groupByIntoSeq, RationalDirection, SimpleProduct

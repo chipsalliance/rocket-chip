@@ -9,7 +9,7 @@ import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.FixedClockResource
+import freechips.rocketchip.resources.FixedClockResource
 
 object ClockImp extends SimpleNodeImp[ClockSourceParameters, ClockSinkParameters, ClockEdgeParameters, ClockBundle]
 {

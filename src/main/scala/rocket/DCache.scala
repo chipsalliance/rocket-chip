@@ -9,7 +9,8 @@ import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config._
 
 import freechips.rocketchip.amba.AMBAProt
-import freechips.rocketchip.diplomacy.{ClockCrossingType, RationalCrossing, SynchronousCrossing, BufferParams, AsynchronousCrossing, CreditedCrossing}
+import freechips.rocketchip.diplomacy.{BufferParams}
+import freechips.rocketchip.prci.{ClockCrossingType, RationalCrossing, SynchronousCrossing, AsynchronousCrossing, CreditedCrossing}
 import freechips.rocketchip.tile.{CoreBundle, LookupByHartId}
 import freechips.rocketchip.tilelink.{TLFIFOFixer,ClientMetadata, TLBundleA, TLAtomics, TLBundleB, TLPermissions}
 import freechips.rocketchip.tilelink.TLMessages.{AccessAck, HintAck, AccessAckData, Grant, GrantData, ReleaseAck}

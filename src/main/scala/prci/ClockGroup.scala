@@ -6,7 +6,7 @@ import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.FixedClockResource
+import freechips.rocketchip.resources.FixedClockResource
 
 case class ClockGroupingNode(groupName: String)(implicit valName: ValName)
   extends MixedNexusNode(ClockGroupImp, ClockImp)(

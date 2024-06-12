@@ -6,7 +6,7 @@ import chisel3._
 
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.Resource
+import freechips.rocketchip.resources.Resource
 
 import freechips.rocketchip.regmapper._
 

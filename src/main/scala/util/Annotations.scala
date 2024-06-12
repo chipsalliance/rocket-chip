@@ -9,7 +9,8 @@ import firrtl.annotations._
 
 import org.chipsalliance.diplomacy
 
-import freechips.rocketchip.diplomacy.{AddressRange, AddressSet, AddressMapEntry, ResourcePermissions}
+import freechips.rocketchip.diplomacy.{AddressRange, AddressSet}
+import freechips.rocketchip.resources.{AddressMapEntry, ResourcePermissions}
 import freechips.rocketchip.regmapper.{RegField, RegFieldDescSer, RegistersSer}
 
 import org.json4s.JsonDSL._

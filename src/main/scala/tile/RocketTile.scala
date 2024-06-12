@@ -10,9 +10,11 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.tilelink.{BasicBusBlockerParams, BasicBusBlocker}
 import freechips.rocketchip.diplomacy.{
-  AddressSet, ClockCrossingType, DisableMonitors, SimpleDevice, Description,
+  AddressSet, DisableMonitors, BufferParams
+}
+import freechips.rocketchip.resources.{
+  SimpleDevice, Description,
   ResourceAnchors, ResourceBindings, ResourceBinding, Resource, ResourceAddress,
-  RationalCrossing, BufferParams
 }
 import freechips.rocketchip.interrupts.IntIdentityNode
 import freechips.rocketchip.tilelink.{TLIdentityNode, TLBuffer}
@@ -21,7 +23,7 @@ import freechips.rocketchip.rocket.{
   HasICacheFrontend, ScratchpadSlavePort, HasICacheFrontendModule, Rocket
 }
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
-import freechips.rocketchip.prci.ClockSinkParameters
+import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.util.{Annotated, InOrderArbiter}
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
