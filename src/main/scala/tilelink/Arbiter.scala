@@ -123,7 +123,7 @@ abstract class DecoupledArbiterTest(
     case (z, i) => (beatsLeftFromIdx(i), z)
   }:_*)
 
-  count := count + 1.U
+  when (!io.finished) { count := count + 1.U }
   io.finished := count >= txns.U
 }
 
