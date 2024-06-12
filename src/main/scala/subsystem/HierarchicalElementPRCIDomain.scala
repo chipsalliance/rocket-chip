@@ -11,7 +11,7 @@ import freechips.rocketchip.diplomacy.{DisableMonitors, FlipRendering}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
 import freechips.rocketchip.prci.{ClockCrossingType, ResetCrossingType, ResetDomain, ClockSinkNode, ClockSinkParameters, ClockIdentityNode, FixedClockBroadcast, ClockDomain}
 import freechips.rocketchip.tile.{RocketTile, TraceBundle}
-import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode}
+import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode, UseTLMergedCreditedCrossing}
 import freechips.rocketchip.util.TraceCoreInterface
 
 import freechips.rocketchip.tilelink.TLClockDomainCrossing
@@ -83,7 +83,9 @@ abstract class HierarchicalElementPRCIDomain[T <: BaseHierarchicalElement](
         element { element.makeSlaveBoundaryBuffers(crossingType) }
     }
     val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
-    tlSlaveClockXing(crossingType)
+    tlSlaveClockXing(crossingType)(p.alterPartial {
+      case UseTLMergedCreditedCrossing => crossingParams.forceMergedCreditedTLCrossings
+    })
   } } }
 
   /** External code looking to connect the ports where this tile masters an interconnect
@@ -95,6 +97,8 @@ abstract class HierarchicalElementPRCIDomain[T <: BaseHierarchicalElement](
         element_reset_domain.crossTLOut(element.masterNode)
     } }
     val tlMasterClockXing = this.crossOut(tlMasterResetXing)
-    tlMasterClockXing(crossingType)
+    tlMasterClockXing(crossingType)(p.alterPartial {
+      case UseTLMergedCreditedCrossing => crossingParams.forceMergedCreditedTLCrossings
+    })
   }
 }

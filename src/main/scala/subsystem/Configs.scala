@@ -12,7 +12,7 @@ import freechips.rocketchip.devices.debug.{DebugModuleKey, DefaultDebugModulePar
 import freechips.rocketchip.devices.tilelink.{
   BuiltInErrorDeviceParams, BootROMLocated, BootROMParams, CLINTKey, DevNullDevice, CLINTParams, PLICKey, PLICParams, DevNullParams
 }
-import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
+import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType, CreditedCrossing}
 import freechips.rocketchip.diplomacy.{
   AddressSet, MonitorsEnabled,
 }
@@ -513,6 +513,16 @@ class WithRationalRocketTiles extends Config((site, here, up) => {
   case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       crossingType = RationalCrossing()))
+    case t => t
+  }
+})
+
+class WithCreditedRocketTiles(mergedCredited: Boolean = false) extends Config((site, here, up) => {
+  case TilesLocated(location) => up(TilesLocated(location), site) map {
+    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
+      crossingType = CreditedCrossing(),
+      forceMergedCreditedTLCrossings = mergedCredited
+    ))
     case t => t
   }
 })

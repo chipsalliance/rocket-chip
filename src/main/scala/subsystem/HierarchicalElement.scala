@@ -35,6 +35,8 @@ trait HierarchicalElementCrossingParamsLike {
   def resetCrossingType: ResetCrossingType
   /** Keep the element clock separate from the interconnect clock (e.g. even if they are synchronous to one another) */
   def forceSeparateClockReset: Boolean
+  /** Used a MergedCreditedTLCrossing for credited TL crossings to save pins */
+  def forceMergedCreditedTLCrossings: Boolean
 }
 
 /** An interface for describing the parameterization of how a particular element port is connected to an interconnect */
