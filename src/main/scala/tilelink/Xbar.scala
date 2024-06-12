@@ -159,6 +159,12 @@ object TLXbar
       if (connectAIO(i).exists(x=>x)) {
         in(i).a.squeezeAll.waiveAll :<>= io_in(i).a.squeezeAll.waiveAll
         in(i).a.bits.user := DontCare
+        // If there are user defined bundles in both sides, connect them.
+        io_in(i).a.bits.user.keydata.foreach { case (io_in_key, io_in_bundle) =>
+          in(i).a.bits.user.lift(io_in_key).foreach { in_bundle =>
+            in_bundle <> io_in_bundle
+          }
+        }
         in(i).a.bits.source := io_in(i).a.bits.source | r.start.U
       } else {
         in(i).a := DontCare
@@ -180,6 +186,12 @@ object TLXbar
       if (connectCIO(i).exists(x=>x)) {
         in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
         in(i).c.bits.user := DontCare
+        // If there are user defined bundles in both sides, connect them.
+        io_in(i).c.bits.user.keydata.foreach { case (io_in_key, io_in_bundle) =>
+          in(i).c.bits.user.lift(io_in_key).foreach { in_bundle =>
+            in_bundle <> io_in_bundle
+          }
+        }
         in(i).c.bits.source := io_in(i).c.bits.source | r.start.U
       } else {
         in(i).c := DontCare
@@ -216,6 +228,12 @@ object TLXbar
       if (connectAOI(o).exists(x=>x)) {
         io_out(o).a.squeezeAll.waiveAll :<>= out(o).a.squeezeAll.waiveAll
         out(o).a.bits.user := DontCare
+        // If there are user defined bundles in both sides, connect them.
+        out(o).a.bits.user.keydata.foreach { case (out_key, out_bundle) =>
+          io_out(o).a.bits.user.lift(out_key).foreach { io_out_bundle =>
+            io_out_bundle <> out_bundle
+          }
+        }
       } else {
         out(o).a := DontCare
         io_out(o).a := DontCare
@@ -235,6 +253,12 @@ object TLXbar
       if (connectCOI(o).exists(x=>x)) {
         io_out(o).c.squeezeAll.waiveAll :<>= out(o).c.squeezeAll.waiveAll
         out(o).c.bits.user := DontCare
+        // If there are user defined bundles in both sides, connect them.
+        out(o).c.bits.user.keydata.foreach { case (out_key, out_bundle) =>
+          io_out(o).c.bits.user.lift(out_key).foreach { io_out_bundle =>
+            io_out_bundle <> out_bundle
+          }
+        }
       } else {
         out(o).c  := DontCare
         io_out(o).c  := DontCare
