@@ -63,6 +63,7 @@ class Cluster(
   def msipDomain = this
   def meipDomain = this
   def seipDomain = this
+  def toPlicDomain = this
   lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)

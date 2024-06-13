@@ -168,6 +168,7 @@ trait DefaultHierarchicalElementContextType
   val meipNodes: SortedMap[Int, IntNode]
   def seipDomain: LazyScope
   val seipNodes: SortedMap[Int, IntNode]
+  def toPlicDomain: LazyScope
   val tileToPlicNodes: SortedMap[Int, IntNode]
   val debugNodes: SortedMap[Int, IntSyncNode]
   val nmiNodes: SortedMap[Int, BundleBridgeNode[NMI]]
@@ -192,6 +193,7 @@ trait HasHierarchicalElementsRootContext
   def msipDomain = clintDomainOpt.getOrElse(this)
   def meipDomain = plicDomainOpt.getOrElse(this)
   def seipDomain = plicDomainOpt.getOrElse(this)
+  def toPlicDomain = plicDomainOpt.getOrElse(this)
 
   val msipNodes: SortedMap[Int, IntNode] = (0 until nTotalTiles).map { i =>
     (i, IntEphemeralNode())

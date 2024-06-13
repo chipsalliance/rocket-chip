@@ -238,7 +238,7 @@ trait CanAttachTile {
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.tileToPlicNodes.get(domain.element.tileId).foreach { node =>
       FlipRendering { implicit p => domain.element.intOutwardNode.foreach { out =>
-        node := domain.crossIntOut(crossingParams.crossingType, out)
+        context.toPlicDomain { node := domain.crossIntOut(crossingParams.crossingType, out) }
       }}
     }
 
