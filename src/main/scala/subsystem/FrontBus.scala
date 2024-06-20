@@ -4,10 +4,10 @@ package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Location
 
 import freechips.rocketchip.devices.tilelink.{BuiltInErrorDeviceParams, BuiltInZeroDeviceParams, BuiltInDevices, HasBuiltInDeviceParams}
 import freechips.rocketchip.tilelink.{HasTLBusParams, TLBusWrapper, TLBusWrapperInstantiationLike, HasTLXbarPhy}
-import freechips.rocketchip.util.{Location}
 
 case class FrontBusParams(
     beatBytes: Int,

@@ -4,6 +4,7 @@ package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Location
 
 import freechips.rocketchip.devices.tilelink.{
   BuiltInDevices, BuiltInZeroDeviceParams, BuiltInErrorDeviceParams, HasBuiltInDeviceParams
@@ -13,7 +14,6 @@ import freechips.rocketchip.tilelink.{
   TLBusWrapperInstantiationLike, TLXbar, TLEdge, TLInwardNode, TLOutwardNode,
   TLFIFOFixer, TLTempNode
 }
-import freechips.rocketchip.util.Location
 
 case class SystemBusParams(
     beatBytes: Int,

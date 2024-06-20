@@ -4,10 +4,10 @@ package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{Location, LocationMap}
 
 import freechips.rocketchip.prci.ClockGroupNode
 import freechips.rocketchip.tilelink.TLBusWrapper
-import freechips.rocketchip.util.{Location, LocationMap}
 
 /** These traits are intended to make it possible to configure to which
   * buses optional devices are attached, even after a subsystem has been instantiated.

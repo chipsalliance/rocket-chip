@@ -4,16 +4,18 @@ import chisel3._
 import chisel3.util._
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.FlipRendering
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.TraceCoreInterface
 
-import freechips.rocketchip.devices.debug.{TLDebugModule}
-import freechips.rocketchip.diplomacy.{FlipRendering}
+import freechips.rocketchip.devices.debug.TLDebugModule
 import freechips.rocketchip.interrupts.{IntIdentityNode, IntSyncIdentityNode, NullIntSource}
 import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, ClockSinkParameters, ClockGroupIdentityNode, BundleBridgeBlockDuringReset}
 import freechips.rocketchip.tile.{RocketTile, NMI, TraceBundle}
 import freechips.rocketchip.tilelink.TLWidthWidget
-import freechips.rocketchip.util.TraceCoreInterface
+
+import freechips.rocketchip.util.BlockableTrace.BlockableTraceBundle
 
 import scala.collection.immutable.SortedMap
 

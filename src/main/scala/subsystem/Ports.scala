@@ -25,7 +25,8 @@ import freechips.rocketchip.tilelink.{
   TLFIFOFixer, TLSlavePortParameters, TLManagerNode, TLSlaveParameters, TLClientNode,
   TLSourceShrinker, TLMasterParameters, TLMasterPortParameters
 }
-import freechips.rocketchip.util.StringToAugmentedString
+
+import org.chipsalliance.rocketutils.conversions.StringToAugmentedString
 
 import freechips.rocketchip.tilelink.TLClockDomainCrossing
 import freechips.rocketchip.tilelink.TLResetDomainCrossing
