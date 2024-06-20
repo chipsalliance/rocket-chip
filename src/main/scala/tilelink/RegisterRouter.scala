@@ -8,14 +8,16 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.nodes._
+import org.chipsalliance.rocketutils.{BundleField, ControlKey, ElaborationArtefacts}
 
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 import freechips.rocketchip.resources.{Device, Resource, ResourceBindings}
 import freechips.rocketchip.prci.{NoCrossing}
 import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperParams, RegMapperInput, RegisterRouter}
-import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, GenRegDescsAnno}
 
 import scala.math.min
+
+import freechips.rocketchip.util.GenRegDescsAnno
 
 class TLRegisterRouterExtraBundle(val sourceBits: Int, val sizeBits: Int) extends Bundle {
   val source = UInt((sourceBits max 1).W)

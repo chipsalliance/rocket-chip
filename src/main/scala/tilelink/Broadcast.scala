@@ -13,11 +13,10 @@ import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, IdRange, Regi
 import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.regmapper.RegField
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.leftOR
-
-import freechips.rocketchip.util.DataToAugmentedData
 
 import scala.math.{min,max}
+
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, leftOR}
 
 case class TLBroadcastControlParams(
   address:   AddressSet,

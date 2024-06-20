@@ -9,9 +9,10 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
-import freechips.rocketchip.util.leftOR
 
 import scala.math.{min,max}
+
+import org.chipsalliance.rocketutils.conversions.leftOR
 
 // Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.

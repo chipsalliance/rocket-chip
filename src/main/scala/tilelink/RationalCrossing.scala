@@ -13,11 +13,11 @@ import chisel3._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
-
-import freechips.rocketchip.diplomacy.{AddressSet, NodeHandle}
-import freechips.rocketchip.util.{
+import org.chipsalliance.rocketutils.{
   FromRational, ToRational, RationalDirection, Symmetric, FastToSlow, SlowToFast, Pow2ClockDivider, ClockDivider3
 }
+
+import freechips.rocketchip.diplomacy.{AddressSet, NodeHandle}
 
 
 class TLRationalCrossingSource(implicit p: Parameters) extends LazyModule

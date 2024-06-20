@@ -10,6 +10,7 @@ import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
+import org.chipsalliance.rocketutils.Location
 
 import freechips.rocketchip.diplomacy.{AddressSet, NoHandle, NodeHandle, NodeBinding}
 
@@ -25,7 +26,6 @@ import freechips.rocketchip.subsystem.{
   HasTileLinkLocations, CanConnectWithinContextThatHasTileLinkLocations,
   CanInstantiateWithinContextThatHasTileLinkLocations
 }
-import freechips.rocketchip.util.Location
 
 /** Specifies widths of various attachement points in the SoC */
 trait HasTLBusParams {

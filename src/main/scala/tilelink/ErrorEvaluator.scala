@@ -8,9 +8,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.AddressSet
-import freechips.rocketchip.util.UIntToOH1
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, UIntToOH1}
 
 // Check if a request satisfies some interesting property
 class RequestPattern(test: TLBundleA => Bool)

@@ -7,15 +7,15 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.IDPool
 
 import freechips.rocketchip.diplomacy.{IdRange, RegionType, TransferSizes}
 import freechips.rocketchip.tilelink.TLMessages.{
   AcquireBlock, AcquirePerm, Get, PutFullData, PutPartialData, Release,
   ReleaseData, Grant, GrantData, AccessAck, AccessAckData, ReleaseAck
 }
-import freechips.rocketchip.util.IDPool
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.DataToAugmentedData
 
 case class TLCacheCorkParams(
   unsafe: Boolean = false,

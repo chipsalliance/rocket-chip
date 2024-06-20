@@ -9,13 +9,13 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
+import org.chipsalliance.rocketutils.{BundleField, ControlKey, ElaborationArtefacts}
 
 import freechips.rocketchip.amba.{AMBACorrupt, AMBACorruptField, AMBAProt, AMBAProtField}
 import freechips.rocketchip.amba.axi4.{AXI4BundleARW, AXI4MasterParameters, AXI4MasterPortParameters, AXI4Parameters, AXI4Imp}
 import freechips.rocketchip.diplomacy.{IdMap, IdMapEntry, IdRange}
-import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, UIntToOH1}
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, UIntToOH1}
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)

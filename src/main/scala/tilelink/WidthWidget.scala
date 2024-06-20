@@ -7,9 +7,11 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Repeater
 
 import freechips.rocketchip.diplomacy.AddressSet
-import freechips.rocketchip.util.{Repeater, UIntToOH1}
+
+import org.chipsalliance.rocketutils.conversions.UIntToOH1
 
 // innBeatBytes => the new client-facing bus width
 class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyModule

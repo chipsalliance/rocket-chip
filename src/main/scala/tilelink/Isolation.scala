@@ -6,8 +6,8 @@ import chisel3._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.AsyncBundle
 
-import freechips.rocketchip.util.AsyncBundle
 
 // READ the comments in the TLIsolation object before you instantiate this module
 class TLIsolation(fOut: (Bool, UInt) => UInt, fIn: (Bool, UInt) => UInt)(implicit p: Parameters) extends LazyModule

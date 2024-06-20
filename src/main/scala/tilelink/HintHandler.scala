@@ -6,9 +6,9 @@ import chisel3._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Repeater
 
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, IdRange, TransferSizes}
-import freechips.rocketchip.util.Repeater
 import freechips.rocketchip.devices.tilelink.TLROM
 
 // Acks Hints for managers that don't support them or Acks all Hints if !passthrough

@@ -3,11 +3,14 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import freechips.rocketchip.util._
-import scala.collection.immutable.ListMap
-import chisel3.util.Decoupled
-import chisel3.util.DecoupledIO
+import chisel3.util._
 import chisel3.reflect.DataMirror
+
+import org.chipsalliance.rocketutils.{AsyncBundle, BundleMap, CreditedIO, RationalIO}
+
+import scala.collection.immutable.ListMap
+
+import org.chipsalliance.rocketutils.conversions.BooleanToAugmentedBoolean
 
 abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
 

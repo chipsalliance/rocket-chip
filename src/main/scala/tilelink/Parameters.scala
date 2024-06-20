@@ -8,18 +8,20 @@ import chisel3.experimental.SourceInfo
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.nodes._
+import org.chipsalliance.rocketutils.{
+  AsyncQueueParams, BundleField, BundleFieldBase, BundleKeyBase,
+  CreditedDelay, RationalDirection, SimpleProduct
+}
 
 import freechips.rocketchip.diplomacy.{
   AddressDecoder, AddressSet, BufferParams, DirectedBuffers, IdMap, IdMapEntry,
   IdRange, RegionType, TransferSizes
 }
 import freechips.rocketchip.resources.{Resource, ResourceAddress, ResourcePermissions}
-import freechips.rocketchip.util.{
-  AsyncQueueParams, BundleField, BundleFieldBase, BundleKeyBase,
-  CreditedDelay, groupByIntoSeq, RationalDirection, SimpleProduct
-}
 
 import scala.math.max
+
+import org.chipsalliance.rocketutils.conversions.groupByIntoSeq
 
 //These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel
 case class TLMasterToSlaveTransferSizes(

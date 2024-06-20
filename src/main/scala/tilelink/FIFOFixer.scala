@@ -8,9 +8,9 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
+import org.chipsalliance.rocketutils.property
 
 import freechips.rocketchip.diplomacy.RegionType
-import freechips.rocketchip.util.property
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
 {

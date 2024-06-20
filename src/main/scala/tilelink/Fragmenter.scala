@@ -8,13 +8,13 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Repeater
 
 import freechips.rocketchip.diplomacy.{AddressSet, BufferParams, IdRange, TransferSizes}
-import freechips.rocketchip.util.{Repeater, OH1ToUInt, UIntToOH1}
 
 import scala.math.min
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, OH1ToUInt, UIntToOH1}
 
 object EarlyAck {
   sealed trait T

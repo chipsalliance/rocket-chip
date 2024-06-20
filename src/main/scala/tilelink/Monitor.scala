@@ -8,10 +8,10 @@ import chisel3.experimental.SourceLine
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
+import org.chipsalliance.rocketutils.PlusArg
 
 import freechips.rocketchip.diplomacy.EnableMonitors
 import freechips.rocketchip.formal.{MonitorDirection, IfThen, Property, PropertyClass, TestplanTestType, TLMonitorStrictMode}
-import freechips.rocketchip.util.PlusArg
 
 case class TLMonitorArgs(edge: TLEdge)
 

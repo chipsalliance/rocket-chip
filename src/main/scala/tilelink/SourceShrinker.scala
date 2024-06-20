@@ -9,9 +9,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.IdRange
-import freechips.rocketchip.util.leftOR
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, leftOR}
 
 class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyModule
 {

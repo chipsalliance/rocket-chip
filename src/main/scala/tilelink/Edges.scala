@@ -6,7 +6,9 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util._
+import org.chipsalliance.rocketutils.MaskGen
+
+import org.chipsalliance.rocketutils.conversions.UIntToOH1
 
 class TLEdge(
   client:  TLClientPortParameters,
