@@ -6,11 +6,13 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+import org.chipsalliance.rocketutils.{MaskGen, PlusArg}
 
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
-import freechips.rocketchip.util.{MaskGen, DataToAugmentedData, SeqMemToAugmentedSeqMem, PlusArg}
+
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, SeqMemToAugmentedSeqMem}
 
 class AHBRAM(
     address: AddressSet,

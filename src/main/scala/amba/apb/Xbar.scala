@@ -9,8 +9,9 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
+import org.chipsalliance.rocketutils.BundleField
+
 import freechips.rocketchip.diplomacy.AddressDecoder
-import freechips.rocketchip.util.BundleField
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new APBNexusNode(

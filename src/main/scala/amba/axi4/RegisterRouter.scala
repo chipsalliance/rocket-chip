@@ -9,12 +9,12 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{SinkNode}
+import org.chipsalliance.rocketutils.{ControlKey, SimpleBundleField, BundleFieldBase, BundleMap, MaskGen}
 
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 import freechips.rocketchip.prci.{NoCrossing}
 import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperInput, RegMapperParams, RegisterRouter}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util._
 
 case object AXI4RRId extends ControlKey[UInt]("extra_id")
 case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(Output(UInt((1 max width).W)), 0.U)

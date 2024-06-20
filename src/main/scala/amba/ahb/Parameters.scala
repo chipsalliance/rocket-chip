@@ -8,10 +8,10 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.nodes.BaseNode
+import org.chipsalliance.rocketutils.{BundleField, BundleFieldBase, BundleKeyBase}
 
 import freechips.rocketchip.resources.{Resource, Device, ResourceAddress, ResourcePermissions}
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
-import freechips.rocketchip.util.{BundleField, BundleFieldBase, BundleKeyBase}
 
 import scala.math.{max, min}
 

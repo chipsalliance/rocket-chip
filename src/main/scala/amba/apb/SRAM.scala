@@ -12,7 +12,8 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
-import freechips.rocketchip.util.SeqMemToAugmentedSeqMem
+
+import org.chipsalliance.rocketutils.conversions.SeqMemToAugmentedSeqMem
 
 class APBRAM(
     address: AddressSet,

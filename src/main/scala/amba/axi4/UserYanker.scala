@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
-import freechips.rocketchip.util.BundleMap
+import org.chipsalliance.rocketutils.BundleMap
+
 
 /** This adapter prunes all user bit fields of the echo type from request messages,
   * storing them in queues and echoing them back when matching response messages are received.

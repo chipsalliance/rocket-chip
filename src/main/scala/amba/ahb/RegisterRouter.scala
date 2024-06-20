@@ -8,12 +8,13 @@ import chisel3.util.{log2Up, log2Ceil, Decoupled}
 import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.ValName
-import org.chipsalliance.diplomacy.nodes.{SinkNode}
+import org.chipsalliance.diplomacy.nodes.SinkNode
+
+import org.chipsalliance.rocketutils.MaskGen
 
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 import freechips.rocketchip.regmapper.{RegMapperParams, RegField, RegMapperInput, RegisterRouter, RegMapper}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.MaskGen
 
 import scala.math.min
 

@@ -11,7 +11,8 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.diplomacy.{BufferParams, TransferSizes}
-import freechips.rocketchip.util.leftOR
+
+import org.chipsalliance.rocketutils.conversions.leftOR
 
 /** This adapter deinterleaves read responses on the R channel.
   *

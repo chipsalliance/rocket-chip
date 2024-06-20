@@ -4,7 +4,7 @@ package freechips.rocketchip
 
 import chisel3._
 
-import freechips.rocketchip.util.{ControlKey, DataKey, BundleField}
+import org.chipsalliance.rocketutils.{ControlKey, DataKey, BundleField}
 
 package object amba {
   class AMBAProtBundle extends Bundle {

@@ -11,10 +11,13 @@ import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{MixedAdapterNode}
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
+import org.chipsalliance.rocketutils.{BundleMap, MaskGen}
+
 import freechips.rocketchip.amba.{AMBAProtField, AMBAProt}
 import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.tilelink.{TLImp, TLMasterPortParameters, TLMessages, TLMasterParameters, TLMasterToSlaveTransferSizes}
-import freechips.rocketchip.util.{BundleMap, MaskGen, DataToAugmentedData}
+
+import org.chipsalliance.rocketutils.conversions.DataToAugmentedData
 
 case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSlave, TLImp)(
   dFn = { case mp =>
