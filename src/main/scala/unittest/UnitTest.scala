@@ -3,9 +3,11 @@
 package freechips.rocketchip.unittest
 
 import chisel3._
-import chisel3.util._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.util._
+import chisel3.util.Enum
+
+import org.chipsalliance.cde.config.{Field, Parameters}
+
+import org.chipsalliance.rocketutils.{ElaborationArtefacts, PlusArgArtefacts, SimpleTimer}
 
 trait UnitTestIO {
   val finished = Output(Bool())
