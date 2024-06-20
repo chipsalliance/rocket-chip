@@ -5,8 +5,7 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
-
-import freechips.rocketchip.util.{AsyncResetReg, ResetCatchAndSync}
+import org.chipsalliance.rocketutils.{AsyncResetReg, ResetCatchAndSync}
 
 class ResetWrangler(debounceNs: Double = 100000)(implicit p: Parameters) extends LazyModule
 {

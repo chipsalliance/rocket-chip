@@ -6,8 +6,7 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
-
-import freechips.rocketchip.util.{ClockDivider3, Pow2ClockDivider}
+import org.chipsalliance.rocketutils.{ClockDivider3, Pow2ClockDivider}
 
 /* An example clock adapter that divides all clocks passed through this node by an integer factor
 */
