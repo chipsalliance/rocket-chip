@@ -5,8 +5,9 @@ package freechips.rocketchip.tile
 import chisel3._
 import chisel3.util.isPow2
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils.ParameterizedBundle
+
 import freechips.rocketchip.rocket._
-import freechips.rocketchip.util._
 
 case object XLen extends Field[Int]
 case object MaxHartIdBits extends Field[Int]

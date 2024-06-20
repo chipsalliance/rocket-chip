@@ -8,11 +8,14 @@ import chisel3.util._
 import chisel3.{DontCare, WireInit, withClock, withReset}
 import chisel3.experimental.SourceInfo
 import chisel3.experimental.dataview._
+
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.{ClockGate, CoreMonitorBundle, ShouldBeRetimed, property}
+
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.rocket.Instructions._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+
+import org.chipsalliance.rocketutils.conversions.{uintToBitPat, SeqToAugmentedSeq, UIntToAugmentedUInt, UIntIsOneOf, BooleanToAugmentedBoolean}
 
 case class FPUParams(
   minFLen: Int = 32,

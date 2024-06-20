@@ -6,13 +6,13 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
+import org.chipsalliance.rocketutils.CanHaveErrors
 
 import freechips.rocketchip.resources.{Device, DeviceSnippet, Description, ResourceBinding, ResourceInt}
 import freechips.rocketchip.interrupts.{IntIdentityNode, IntSinkNode, IntSinkPortSimple, IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.CanHaveErrors
 
 import freechips.rocketchip.resources.{IntToProperty, StringToProperty}
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import org.chipsalliance.rocketutils.conversions.BooleanToAugmentedBoolean
 
 class NMI(val w: Int) extends Bundle {
   val rnmi = Bool()

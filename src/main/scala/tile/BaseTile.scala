@@ -8,7 +8,7 @@ import chisel3.util.{log2Ceil, log2Up}
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy._
 import org.chipsalliance.diplomacy.bundlebridge._
-
+import org.chipsalliance.rocketutils.{TraceCoreParams, TraceCoreInterface}
 
 import freechips.rocketchip.resources.{PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
@@ -19,10 +19,9 @@ import freechips.rocketchip.subsystem.{
 }
 import freechips.rocketchip.tilelink.{TLEphemeralNode, TLOutwardNode, TLNode, TLFragmenter, EarlyAck, TLWidthWidget, TLManagerParameters, ManagerUnification}
 import freechips.rocketchip.prci.{ClockCrossingType, ClockSinkParameters}
-import freechips.rocketchip.util.{TraceCoreParams, TraceCoreInterface}
-
 import freechips.rocketchip.resources.{BigIntToProperty, IntToProperty, StringToProperty}
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
+
+import org.chipsalliance.rocketutils.conversions.BooleanToAugmentedBoolean
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
