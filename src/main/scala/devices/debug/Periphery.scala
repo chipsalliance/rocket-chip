@@ -8,6 +8,7 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{AsyncResetSynchronizerShiftReg, CanHavePSDTestModeIO, ClockGate, PSDTestMode, PlusArg, ResetSynchronizerShiftReg}
 
 import freechips.rocketchip.amba.apb.{APBBundle, APBBundleParameters, APBMasterNode, APBMasterParameters, APBMasterPortParameters}
 import freechips.rocketchip.interrupts.{IntSyncXbar, NullIntSyncSource}
@@ -15,9 +16,8 @@ import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.prci.{ClockSinkNode, ClockSinkParameters}
 import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, FBUS, ResetSynchronous, SubsystemResetSchemeKey, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLWidthWidget}
-import freechips.rocketchip.util.{AsyncResetSynchronizerShiftReg, CanHavePSDTestModeIO, ClockGate, PSDTestMode, PlusArg, ResetSynchronizerShiftReg}
 
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import org.chipsalliance.rocketutils.conversions.BooleanToAugmentedBoolean
 
 /** Protocols used for communicating with external debugging tools */
 sealed trait DebugExportProtocol

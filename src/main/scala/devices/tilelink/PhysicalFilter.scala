@@ -13,7 +13,7 @@ import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup, RegFieldWrType, RegReadFn, RegWriteFn}
 import freechips.rocketchip.tilelink.{TLAdapterNode, TLMessages, TLPermissions, TLRegisterNode}
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.DataToAugmentedData
 
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
 

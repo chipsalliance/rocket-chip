@@ -7,14 +7,14 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{ROMConfig, ROMGenerator}
 
 import freechips.rocketchip.diplomacy.{RegionType, AddressSet, TransferSizes}
 import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters, TLWidthWidget}
-import freechips.rocketchip.util.{ROMConfig, ROMGenerator}
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.DataToAugmentedData
 
 case class MaskROMParams(address: BigInt, name: String, depth: Int = 2048, width: Int = 32)
 

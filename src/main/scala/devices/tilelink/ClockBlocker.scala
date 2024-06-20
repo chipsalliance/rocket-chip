@@ -5,13 +5,13 @@ package freechips.rocketchip.devices.tilelink
 import chisel3._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.ClockGate
 
 import freechips.rocketchip.diplomacy.{AddressSet}
 import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.prci.ClockAdapterNode
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
 import freechips.rocketchip.tilelink.TLRegisterNode
-import freechips.rocketchip.util.ClockGate
 
 /** This device extends a basic bus blocker by allowing it to gate the clocks of the device
   * whose tilelink port is being blocked. For now it is only possible to block

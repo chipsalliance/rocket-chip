@@ -7,13 +7,13 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.property
 
 import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
 import freechips.rocketchip.devices.debug.{DebugModuleKey, RWNotify, SBCSFields, WNotifyVal}
 import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup, RegFieldWrType}
 import freechips.rocketchip.tilelink.{TLClientNode, TLMasterParameters, TLMasterPortParameters}
-import freechips.rocketchip.util.property
 
 object SystemBusAccessState extends scala.Enumeration {
    type SystemBusAccessState = Value
