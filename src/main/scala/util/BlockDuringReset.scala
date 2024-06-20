@@ -5,6 +5,8 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util.{Counter, RegEnable}
 
+import org.chipsalliance.rocketutils.Blockable
+
 /** Blocks transactions until the cycle after reset. */
 object BlockDuringReset
 {
