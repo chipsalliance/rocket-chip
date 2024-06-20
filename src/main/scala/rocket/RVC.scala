@@ -4,9 +4,12 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
+
 import org.chipsalliance.cde.config.Parameters
+
 import freechips.rocketchip.tile._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.conversions.SeqToAugmentedSeq
 
 class ExpandedInstruction extends Bundle {
   val bits = UInt(32.W)

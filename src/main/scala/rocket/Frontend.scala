@@ -10,12 +10,12 @@ import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{ClockGate, ShiftQueue, property}
 
 import freechips.rocketchip.tile.{CoreBundle, BaseTile}
 import freechips.rocketchip.tilelink.{TLWidthWidget, TLEdgeOut}
-import freechips.rocketchip.util.{ClockGate, ShiftQueue, property}
 
-import freechips.rocketchip.util.UIntToAugmentedUInt
+import org.chipsalliance.rocketutils.conversions.UIntToAugmentedUInt
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(vaddrBitsExtended.W)

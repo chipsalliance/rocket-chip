@@ -13,8 +13,7 @@ import freechips.rocketchip.resources.{SimpleDevice}
 
 import freechips.rocketchip.tilelink.{TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLBundleA, TLMessages, TLAtomics}
 
-import freechips.rocketchip.util.UIntIsOneOf
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{UIntIsOneOf, DataToAugmentedData}
 
 /* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
 class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {

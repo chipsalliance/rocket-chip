@@ -3,10 +3,14 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Decoupled,log2Ceil,Cat,UIntToOH,Fill}
+import chisel3.util._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.tile._
-import freechips.rocketchip.util._
+import org.chipsalliance.rocketutils.ParameterizedBundle
+
+import freechips.rocketchip.tile.{CoreModule, HasCoreParameters}
+
+import org.chipsalliance.rocketutils.conversions.{SeqToAugmentedSeq, UIntToAugmentedUInt}
 
 class Instruction(implicit val p: Parameters) extends ParameterizedBundle with HasCoreParameters {
   val xcpt0 = new FrontendExceptions // exceptions on first half of instruction

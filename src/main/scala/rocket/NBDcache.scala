@@ -6,9 +6,13 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.dataview._
+
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.{DescribedSRAM, IdentityCode}
+
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.conversions.{UIntIsOneOf, SeqToAugmentedSeq, SeqBoolBitwiseOps, UIntToAugmentedUInt}
 
 trait HasMissInfo extends Bundle with HasL1HellaCacheParameters {
   val tag_match = Bool()

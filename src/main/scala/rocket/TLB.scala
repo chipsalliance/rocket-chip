@@ -8,20 +8,17 @@ import chisel3.util._
 import chisel3.experimental.SourceInfo
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils.{SetAssocLRU, PseudoLRU, PopCountAtLeast, property}
 
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.{CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{OptimizationBarrier, SetAssocLRU, PseudoLRU, PopCountAtLeast, property}
 
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
-import freechips.rocketchip.util.IntToAugmentedInt
-import freechips.rocketchip.util.UIntToAugmentedUInt
-import freechips.rocketchip.util.UIntIsOneOf
-import freechips.rocketchip.util.SeqToAugmentedSeq
-import freechips.rocketchip.util.SeqBoolBitwiseOps
+import org.chipsalliance.rocketutils.conversions.{
+  BooleanToAugmentedBoolean, IntToAugmentedInt, UIntToAugmentedUInt,
+  UIntIsOneOf, SeqToAugmentedSeq, SeqBoolBitwiseOps, OptimizationBarrier}
 
 case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)

@@ -3,10 +3,13 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Cat}
+import chisel3.util.Cat
+
 import org.chipsalliance.cde.config.Parameters
+
 import freechips.rocketchip.tile.{CoreBundle, HasCoreParameters}
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.conversions.SeqToAugmentedSeq
 
 class BPControl(implicit p: Parameters) extends CoreBundle()(p) {
   val ttype = UInt(4.W)

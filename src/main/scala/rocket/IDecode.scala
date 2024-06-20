@@ -6,9 +6,11 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util._
-import Instructions._
-import CustomInstructions._
+
+import freechips.rocketchip.rocket.Instructions._
+import freechips.rocketchip.rocket.CustomInstructions._
+
+import org.chipsalliance.rocketutils.conversions.{uintToBitPat}
 
 abstract trait DecodeConstants
 {

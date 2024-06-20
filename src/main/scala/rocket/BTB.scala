@@ -5,10 +5,14 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
+
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.{Annotated, PopCountAtLeast, PseudoLRU}
+
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.HasCoreParameters
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.conversions.{SeqToAugmentedSeq, IntToAugmentedInt}
 
 case class BHTParams(
   nEntries: Int = 512,

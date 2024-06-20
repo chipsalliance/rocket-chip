@@ -11,18 +11,15 @@ import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{Code, CanHaveErrors, DescribedSRAM, RandomReplacement, Split, IdentityCode, property}
 
 import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
 import freechips.rocketchip.diplomacy.{IdRange, AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{SimpleDevice, ResourceBindings, Binding, ResourceAddress, Description, ResourceString, ResourceValue}
 import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, TileKey, LookupByHartId}
 import freechips.rocketchip.tilelink.{TLClientNode, TLMasterPortParameters, TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLMasterParameters, TLHints}
-import freechips.rocketchip.util.{Code, CanHaveErrors, DescribedSRAM, RandomReplacement, Split, IdentityCode, property}
 
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
-import freechips.rocketchip.util.UIntToAugmentedUInt
-import freechips.rocketchip.util.SeqToAugmentedSeq
-import freechips.rocketchip.util.OptionUIntToAugmentedOptionUInt
+import org.chipsalliance.rocketutils.conversions.{BooleanToAugmentedBoolean, UIntToAugmentedUInt, SeqToAugmentedSeq, OptionUIntToAugmentedOptionUInt}
 
 /** Parameter of [[ICache]].
   *
@@ -33,8 +30,8 @@ import freechips.rocketchip.util.OptionUIntToAugmentedOptionUInt
   * @param nTLBWays TLB ways
   * @param nTLBBasePageSectors TLB BasePageSectors
   * @param nTLBSuperpages TLB Superpages
-  * @param tagECC tag ECC, will be parsed to [[freechips.rocketchip.util.Code]].
-  * @param dataECC data ECC, will be parsed to [[freechips.rocketchip.util.Code]].
+  * @param tagECC tag ECC, will be parsed to [[org.chipsalliance.rocketutils.Code]].
+  * @param dataECC data ECC, will be parsed to [[org.chipsalliance.rocketutils.Code]].
   * @param itimAddr optional base ITIM address,
   *                 if None, ITIM won't be generated,
   *                 if Some, ITIM will be generated, with itimAddr as ITIM base address.
