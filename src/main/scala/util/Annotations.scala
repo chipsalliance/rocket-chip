@@ -7,8 +7,6 @@ import chisel3.experimental.{annotate, ChiselAnnotation}
 
 import firrtl.annotations._
 
-import org.chipsalliance.diplomacy
-
 import freechips.rocketchip.diplomacy.{AddressRange, AddressSet}
 import freechips.rocketchip.resources.{AddressMapEntry, ResourcePermissions}
 import freechips.rocketchip.regmapper.{RegField, RegFieldDescSer, RegistersSer}
