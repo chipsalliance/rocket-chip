@@ -4,7 +4,8 @@ package freechips.rocketchip.diplomacy
 
 import chisel3._
 import chisel3.util.{DecoupledIO, Queue, ReadyValidIO, isPow2, log2Ceil, log2Floor}
-import freechips.rocketchip.util.ShiftQueue
+
+import org.chipsalliance.rocketutils.ShiftQueue
 
 /** Options for describing the attributes of memory regions */
 object RegionType {
