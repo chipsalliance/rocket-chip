@@ -5,7 +5,7 @@ package freechips.rocketchip.regmapper
 import chisel3._
 import chisel3.util.{Decoupled, Irrevocable}
 
-import freechips.rocketchip.util.{AsyncQueue,AsyncQueueParams,AsyncResetRegVec}
+import org.chipsalliance.rocketutils.{AsyncQueue, AsyncQueueParams, AsyncResetRegVec}
 
 // A very simple flow control state machine, run in the specified clock domain
 class BusyRegisterCrossing extends Module {

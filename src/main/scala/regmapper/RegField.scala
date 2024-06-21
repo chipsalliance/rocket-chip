@@ -8,7 +8,7 @@ import chisel3.util.{DecoupledIO, ReadyValidIO}
 import org.json4s.JsonDSL._
 import org.json4s.JsonAST.JValue
 
-import freechips.rocketchip.util.{SimpleRegIO}
+import org.chipsalliance.rocketutils.SimpleRegIO
 
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn

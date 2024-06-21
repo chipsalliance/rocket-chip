@@ -2,7 +2,7 @@
 package freechips.rocketchip.regmapper
 
 import chisel3._
-import freechips.rocketchip.util.{AsyncResetRegVec, SimpleRegIO}
+import org.chipsalliance.rocketutils.{AsyncResetRegVec, SimpleRegIO}
 
 object DescribedReg {
   import freechips.rocketchip.regmapper.RegFieldAccessType._
