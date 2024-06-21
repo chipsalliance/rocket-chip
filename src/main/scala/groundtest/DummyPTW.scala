@@ -7,9 +7,10 @@ import chisel3._
 import chisel3.util._
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils.ParameterizedBundle
+
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile.CoreModule
-import freechips.rocketchip.util.ParameterizedBundle
 
 class DummyPTW(n: Int)(implicit p: Parameters) extends CoreModule()(p) {
   val io = IO(new Bundle {
