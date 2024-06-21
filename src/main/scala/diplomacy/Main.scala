@@ -5,8 +5,9 @@ import chisel3.stage.ChiselGeneratorAnnotation
 import chisel3.stage.phases.{Elaborate, Convert}
 import firrtl.AnnotationSeq
 import firrtl.options.TargetDirAnnotation
-import freechips.rocketchip.diplomacy.LazyModule
 import org.chipsalliance.cde.config.{Config, Parameters}
+import org.chipsalliance.diplomacy.lazymodule.LazyModule
+import org.chipsalliance.rocketutils.ElaborationArtefacts
 import mainargs._
 
 object Main {
@@ -48,7 +49,7 @@ object Main {
         case a => Some(a)
       }
     os.write(os.Path(dir) / s"$topName.anno.json", firrtl.annotations.JsonProtocol.serialize(annos))
-    freechips.rocketchip.util.ElaborationArtefacts.files.foreach{ case (ext, contents) => os.write.over(os.Path(dir) / s"${config.mkString("_")}.${ext}", contents()) }
+    ElaborationArtefacts.files.foreach{ case (ext, contents) => os.write.over(os.Path(dir) / s"${config.mkString("_")}.${ext}", contents()) }
   }
 
   def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
