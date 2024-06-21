@@ -8,7 +8,7 @@ import chisel3.util.{Cat, log2Ceil}
 import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
-import org.chipsalliance.rocketutils.{BundleMap, SeqMemToAugmentedSeqMem}
+import org.chipsalliance.rocketutils.BundleMap
 
 import freechips.rocketchip.amba.AMBACorrupt
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}

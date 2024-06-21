@@ -15,7 +15,7 @@ object JtagState {
   object State {
     import scala.language.implicitConversions
 
-    implicit def toInt(x: State) = x.id
+    implicit def toInt(x: State): Int = x.id
     implicit def toBigInt(x: State):BigInt = x.id
 
     // TODO: this could be automatically generated with macros and stuff
