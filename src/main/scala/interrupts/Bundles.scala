@@ -3,7 +3,6 @@
 package freechips.rocketchip.interrupts
 
 import chisel3._
-import freechips.rocketchip.util._
 
 class SyncInterrupts(val params: IntEdge) extends Bundle
 {
