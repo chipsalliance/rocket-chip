@@ -8,6 +8,7 @@ import chisel3.util._
 import chisel3.util.random.LFSR
 import freechips.rocketchip.util.property.cover
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class ReplacementPolicy {
   def nBits: Int
   def perSet: Boolean
@@ -24,6 +25,7 @@ abstract class ReplacementPolicy {
   def get_replace_way(state: UInt): UInt
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ReplacementPolicy {
   def fromString(s: String, n_ways: Int): ReplacementPolicy = s.toLowerCase match {
     case "random" => new RandomReplacement(n_ways)
@@ -33,6 +35,7 @@ object ReplacementPolicy {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class RandomReplacement(n_ways: Int) extends ReplacementPolicy {
   private val replace = Wire(Bool())
   replace := false.B
@@ -50,18 +53,21 @@ class RandomReplacement(n_ways: Int) extends ReplacementPolicy {
   def get_replace_way(state: UInt) = way
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class SeqReplacementPolicy {
   def access(set: UInt): Unit
   def update(valid: Bool, hit: Bool, set: UInt, way: UInt): Unit
   def way: UInt
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class SetAssocReplacementPolicy {
   def access(set: UInt, touch_way: UInt): Unit
   def access(sets: Seq[UInt], touch_ways: Seq[Valid[UInt]]): Unit
   def way(set: UInt): UInt
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
   val logic = new RandomReplacement(n_ways)
   def access(set: UInt) = { }
@@ -71,6 +77,7 @@ class SeqRandom(n_ways: Int) extends SeqReplacementPolicy {
   def way = logic.way
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   // True LRU replacement policy, using a triangular matrix to track which sets are more recently used than others.
   // The matrix is packed into a single UInt (or Bits).  Example 4-way (6-bits):
@@ -140,6 +147,7 @@ class TrueLRU(n_ways: Int) extends ReplacementPolicy {
   def replace: UInt = way
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
   // Pseudo-LRU tree algorithm: https://en.wikipedia.org/wiki/Pseudo-LRU#Tree-PLRU
   //
@@ -273,6 +281,7 @@ class PseudoLRU(n_ways: Int) extends ReplacementPolicy {
   def hit = {}
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
   val logic = new PseudoLRU(n_ways)
   val state = SyncReadMem(n_sets, UInt(logic.nBits.W))
@@ -294,6 +303,7 @@ class SeqPLRU(n_sets: Int, n_ways: Int) extends SeqReplacementPolicy {
 }
 
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SetAssocLRU(n_sets: Int, n_ways: Int, policy: String) extends SetAssocReplacementPolicy {
   val logic = policy.toLowerCase match {
     case "plru"  => new PseudoLRU(n_ways)

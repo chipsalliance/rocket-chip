@@ -8,22 +8,26 @@ import scala.math.min
 import scala.collection.{immutable, mutable}
 
 package object util {
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class UnzippableOption[S, T](val x: Option[(S, T)]) {
     def unzip = (x.map(_._1), x.map(_._2))
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class UIntIsOneOf(private val x: UInt) extends AnyVal {
     def isOneOf(s: Seq[UInt]): Bool = s.map(x === _).orR
   
     def isOneOf(u1: UInt, u2: UInt*): Bool = isOneOf(u1 +: u2.toSeq)
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class VecToAugmentedVec[T <: Data](private val x: Vec[T]) extends AnyVal {
 
     /** Like Vec.apply(idx), but tolerates indices of mismatched width */
     def extract(idx: UInt): T = x((idx | 0.U(log2Ceil(x.size).W)).extract(log2Ceil(x.size) - 1, 0))
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class SeqToAugmentedSeq[T <: Data](private val x: Seq[T]) extends AnyVal {
     def apply(idx: UInt): T = {
       if (x.size <= 1) {
@@ -70,6 +74,7 @@ package object util {
   }
 
   // allow bitwise ops on Seq[Bool] just like UInt
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class SeqBoolBitwiseOps(private val x: Seq[Bool]) extends AnyVal {
     def & (y: Seq[Bool]): Seq[Bool] = (x zip y).map { case (a, b) => a && b }
     def | (y: Seq[Bool]): Seq[Bool] = padZip(x, y).map { case (a, b) => a || b }
@@ -84,6 +89,7 @@ package object util {
     private def padZip(y: Seq[Bool], z: Seq[Bool]): Seq[(Bool, Bool)] = y.padTo(z.size, false.B) zip z.padTo(y.size, false.B)
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class DataToAugmentedData[T <: Data](private val x: T) extends AnyVal {
     def holdUnless(enable: Bool): T = Mux(enable, x, RegEnable(x, enable))
 
@@ -94,12 +100,15 @@ package object util {
   }
 
   /** Any Data subtype that has a Bool member named valid. */
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   type DataCanBeValid = Data { val valid: Bool }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class SeqMemToAugmentedSeqMem[T <: Data](private val x: SyncReadMem[T]) extends AnyVal {
     def readAndHold(addr: UInt, enable: Bool): T = x.read(addr, enable) holdUnless RegNext(enable)
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class StringToAugmentedString(private val x: String) extends AnyVal {
     /** converts from camel case to to underscores, also removing all spaces */
     def underscore: String = x.tail.foldLeft(x.headOption.map(_.toLower + "") getOrElse "") {
@@ -122,9 +131,12 @@ package object util {
     def named(name: String): String = named(Some(name))
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit def uintToBitPat(x: UInt): BitPat = BitPat(x)
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit def wcToUInt(c: WideCounter): UInt = c.value
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class UIntToAugmentedUInt(private val x: UInt) extends AnyVal {
     def sextTo(n: Int): UInt = {
       require(x.getWidth <= n)
@@ -218,11 +230,13 @@ package object util {
     def >== (y: UInt): Bool = x >= y || y === 0.U
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class OptionUIntToAugmentedOptionUInt(private val x: Option[UInt]) extends AnyVal {
     def ## (y: UInt): UInt = x.map(_ ## y).getOrElse(y)
     def ## (y: Option[UInt]): Option[UInt] = x.map(_ ## y)
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class BooleanToAugmentedBoolean(private val x: Boolean) extends AnyVal {
     def toInt: Int = if (x) 1 else 0
 
@@ -230,6 +244,7 @@ package object util {
     def option[T](z: => T): Option[T] = if (x) Some(z) else None
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   implicit class IntToAugmentedInt(private val x: Int) extends AnyVal {
     // exact log2
     def log2: Int = {
@@ -238,15 +253,22 @@ package object util {
     }
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def OH1ToOH(x: UInt): UInt = (x << 1 | 1.U) & ~Cat(0.U(1.W), x)
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def OH1ToUInt(x: UInt): UInt = OHToUInt(OH1ToOH(x))
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def UIntToOH1(x: UInt, width: Int): UInt = ~((-1).S(width.W).asUInt << x)(width-1, 0)
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def UIntToOH1(x: UInt): UInt = UIntToOH1(x, (1 << x.getWidth) - 1)
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def trailingZeros(x: Int): Option[Int] = if (x > 0) Some(log2Ceil(x & -x)) else None
 
   // Fill 1s from low bits to high bits
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def leftOR(x: UInt): UInt = leftOR(x, x.getWidth, x.getWidth)
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def leftOR(x: UInt, width: Integer, cap: Integer = 999999): UInt = {
     val stop = min(width, cap)
     def helper(s: Int, x: UInt): UInt =
@@ -255,7 +277,9 @@ package object util {
   }
 
   // Fill 1s form high bits to low bits
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def rightOR(x: UInt): UInt = rightOR(x, x.getWidth, x.getWidth)
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def rightOR(x: UInt, width: Integer, cap: Integer = 999999): UInt = {
     val stop = min(width, cap)
     def helper(s: Int, x: UInt): UInt =
@@ -263,6 +287,7 @@ package object util {
     helper(1, x)(width-1, 0)
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def OptimizationBarrier[T <: Data](in: T): T = {
     val barrier = Module(new Module {
       val io = IO(new Bundle {
@@ -279,6 +304,7 @@ package object util {
   /** Similar to Seq.groupBy except this returns a Seq instead of a Map
     * Useful for deterministic code generation
     */
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def groupByIntoSeq[A, K](xs: Seq[A])(f: A => K): immutable.Seq[(K, immutable.Seq[A])] = {
     val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
     for (x <- xs) {
@@ -289,6 +315,7 @@ package object util {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
+  @deprecated("moved to standalone rocketutils conversion library", "rocketchip 2.0.0")
   def heterogeneousOrGlobalSetting[T](in: Seq[T], n: Int): Seq[T] = in.size match {
     case 1 => List.fill(n)(in.head)
     case x if x == n => in

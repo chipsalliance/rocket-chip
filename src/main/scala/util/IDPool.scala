@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class IDPool(numIds: Int, lateValid: Boolean = false, revocableSelect: Boolean = false) extends Module {
   require (numIds > 0)
   val idWidth = log2Up(numIds)

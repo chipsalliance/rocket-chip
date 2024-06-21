@@ -15,6 +15,7 @@ import chisel3.util.HasBlackBoxResource
   * blocking assignments, it is impossible
   * to create a deterministic divided clock.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ClockDivider2 extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk_out = Output(Clock())
@@ -23,6 +24,7 @@ class ClockDivider2 extends BlackBox with HasBlackBoxResource {
 
   addResource("/vsrc/ClockDivider2.v")
 }
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ClockDivider3 extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk_out = Output(Clock())
@@ -34,6 +36,7 @@ class ClockDivider3 extends BlackBox with HasBlackBoxResource {
 
 /** Divide the clock by power of 2 times.
  *  @param pow2 divides the clock 2 ^ pow2 times */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class Pow2ClockDivider(pow2: Int) extends Module {
   val io = IO(new Bundle {
     val clock_out = Output(Clock())
@@ -53,6 +56,7 @@ class Pow2ClockDivider(pow2: Int) extends Module {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Pow2ClockDivider {
   def apply(pow2: Int): Clock = Module(new Pow2ClockDivider(pow2)).io.clock_out
   def apply(clock_in: Clock, pow2: Int): Clock = withClock(clock_in) { apply(pow2) }

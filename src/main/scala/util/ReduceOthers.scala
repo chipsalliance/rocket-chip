@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import chisel3._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ReduceOthers {
   // Given a list of bools, create this output:
   //   out[i] = AND[j=0..out.size, j!=i] in[j]

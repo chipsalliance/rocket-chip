@@ -6,6 +6,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.unittest.UnitTest
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class MultiWidthFifo(inW: Int, outW: Int, n: Int) extends Module {
   val io = IO(new Bundle {
     val in = Flipped(Decoupled(Bits(inW.W)))

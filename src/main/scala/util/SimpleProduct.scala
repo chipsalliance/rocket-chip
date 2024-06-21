@@ -11,6 +11,7 @@ package freechips.rocketchip.util
 //   def equals(that: Any): Boolean = same type and same fields
 //   def hashCode: Int = hash of all fields (and productPrefix)
 //   def toString: String = formats as "productPrefix(field1, field2, ...)"
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait SimpleProduct extends Product with Equals {
   override def equals(other: Any): Boolean = other match {
     case that: SimpleProduct =>

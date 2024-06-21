@@ -23,6 +23,7 @@ import scala.collection.immutable.HashMap
  * case class MyBundleDataField(width: Int) extends SimpleBundleField(MyBundleData)(Output(UInt(width.W)), 0.U)
  */
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait BundleFieldBase {
   def key: BundleKeyBase
   def data: Data // the field's chisel type with a direction
@@ -36,6 +37,7 @@ sealed trait BundleFieldBase {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class BundleField[T <: Data](val key: BundleKey[T], typeT: => T, val default: T => Unit) extends BundleFieldBase {
   def data: T = typeT
   def defaultFlip(x: T): Unit = {}
@@ -43,8 +45,10 @@ abstract class BundleField[T <: Data](val key: BundleKey[T], typeT: => T, val de
   def setDataDefaultFlip(x: Data): Unit = defaultFlip(x.asInstanceOf[T])
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class SimpleBundleField[T <: Data](key: BundleKey[T])(typeT: => T, defaultT: => T) extends BundleField(key, typeT, { x: T => x := defaultT })
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object BundleField {
   /* Consider an arbiter that receives two request streams A and B and combines them to C.
    * The output stream C should have the union of all keys from A and B.
@@ -62,6 +66,7 @@ object BundleField {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait BundleKeyBase {
   def name: String
 
@@ -80,11 +85,16 @@ sealed trait BundleKeyBase {
  *  - data fields (which are per-beat/byte and should be widened by bus-width adapters)
  *  - control fields (which are per-burst and are unaffected by width adapters)
  */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait IsDataKey    extends BundleKeyBase
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait IsControlKey extends BundleKeyBase
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed class BundleKey[T <: Data](val name: String) extends BundleKeyBase
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class ControlKey[T <: Data](name: String) extends BundleKey[T](name) with IsControlKey
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) with IsDataKey
 
 /* Signals can be further categorized in a request-response protocol:
@@ -94,6 +104,7 @@ abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) wi
  * Generally, this categorization belongs in different BundleMaps
  */
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
   // All fields must have distinct key.names
   require(fields.map(_.key.name).distinct.size == fields.size)
@@ -117,6 +128,7 @@ class BundleMap(val fields: Seq[BundleFieldBase]) extends Record {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object BundleMap {
   def apply(fields: Seq[BundleFieldBase] = Nil) = new BundleMap(fields)
   /** Sets the default values of all bundle map elements that are aligned w.r.t. d */

@@ -15,6 +15,7 @@ import chisel3.util._
   * @param timer            cycle count timer
   * @param entries          cycle delay
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class DelayQueue[T <: Data](gen: T, entries: Int, width: Int) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(DecoupledIO(gen))
@@ -44,6 +45,7 @@ class DelayQueue[T <: Data](gen: T, entries: Int, width: Int) extends Module {
   q.io.deq.ready := io.deq.fire
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object DelayQueue {
   /** Helper to connect a delay queue.
    *

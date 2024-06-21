@@ -6,17 +6,20 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util.{DecoupledIO, Mux1H, OHToUInt, PriorityEncoder, PriorityEncoderOH}
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ReorderQueueWrite[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val data = dType.cloneType
   val tag = UInt(tagWidth.W)
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ReorderEnqueueIO[T <: Data](dType: T, tagWidth: Int)
   extends DecoupledIO(new ReorderQueueWrite(dType, tagWidth)) {
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
   val valid = Input(Bool())
   val tag = Input(UInt(tagWidth.W))
@@ -25,6 +28,7 @@ class ReorderDequeueIO[T <: Data](dType: T, tagWidth: Int) extends Bundle {
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ReorderQueue[T <: Data](dType: T, tagWidth: Int, size: Option[Int] = None)
     extends Module {
   val io = IO(new Bundle {

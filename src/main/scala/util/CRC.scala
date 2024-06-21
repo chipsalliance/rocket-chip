@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object CRC
 {
   // A divisor is interpretted using an explicit+1 CRC notation where bit 0 is required to be one.

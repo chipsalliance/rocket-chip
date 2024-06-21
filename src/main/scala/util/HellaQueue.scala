@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val io = IO(new QueueIO(data, entries))
   require(entries > 1)
@@ -41,6 +42,7 @@ class HellaFlowQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   io.count := DontCare
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   val io = IO(new QueueIO(data, entries))
 
@@ -50,6 +52,7 @@ class HellaQueue[T <: Data](val entries: Int)(data: => T) extends Module {
   io.count := fq.io.count
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object HellaQueue {
   def apply[T <: Data](enq: DecoupledIO[T], entries: Int) = {
     val q = Module((new HellaQueue(entries)) { enq.bits })

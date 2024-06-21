@@ -22,6 +22,7 @@ import scala.collection.mutable
   * FIXME: tokens should be [[List[Token]]] but JSON serialization fails with
   *        "no usable constructor for Token"
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ElaborationArtefactAnnotation(outputFile: String, tokens: List[Any]) extends Annotation with HasSerializationHints {
   def update(renames: RenameMap): Seq[Annotation] = {
     Seq(this.copy(tokens = tokens.collect {
@@ -38,6 +39,7 @@ case class ElaborationArtefactAnnotation(outputFile: String, tokens: List[Any]) 
   )
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ElaborationArtefactAnnotation {
   /** Emits [[ElaborationArtefactAnnotation]] for the given filename extension and tokens.
     */
@@ -49,14 +51,17 @@ object ElaborationArtefactAnnotation {
 }
 
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait Token {
   def update(renames: RenameMap): Seq[Token]
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class StringToken(value: String) extends Token {
   def update(renames: RenameMap) = Seq(this)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ModulePathToken(target: IsModule) extends Token {
   def update(renames: RenameMap) = {
     renames.get(target) match {
@@ -67,6 +72,7 @@ case class ModulePathToken(target: IsModule) extends Token {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class MemoryPathToken(target: ReferenceTarget) extends Token {
   def update(renames: RenameMap) = {
     renames.get(target) match {
@@ -81,6 +87,7 @@ case class MemoryPathToken(target: ReferenceTarget) extends Token {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ReferencePathToken(target: ReferenceTarget) extends Token {
   def update(renames: RenameMap) = {
     renames.get(target) match {
@@ -91,6 +98,7 @@ case class ReferencePathToken(target: ReferenceTarget) extends Token {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Token {
   /** An interpolator that generates tokens. Arguments for which a
     * [[Tokenizer]] instance is defined will be turned into a [[Token]] using
@@ -137,10 +145,12 @@ object Token {
 }
 
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait Tokenizer[T] {
   def toToken(t: T): Token
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Tokenizer {
   def apply[T: Tokenizer] = implicitly[Tokenizer[T]]
 

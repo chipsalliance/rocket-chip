@@ -9,6 +9,7 @@ import chisel3.util._
 /** Takes in data on one decoupled interface and broadcasts it
   * to N decoupled output interfaces.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class Broadcaster[T <: Data](typ: T, n: Int) extends Module {
   val io = IO(new Bundle {
     val in = Flipped(Decoupled(typ))
@@ -40,6 +41,7 @@ class Broadcaster[T <: Data](typ: T, n: Int) extends Module {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Broadcaster {
   def apply[T <: Data](in: DecoupledIO[T], n: Int): Vec[DecoupledIO[T]] = {
     val split = Module(new Broadcaster(in.bits, n))

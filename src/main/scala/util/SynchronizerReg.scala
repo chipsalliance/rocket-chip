@@ -27,6 +27,7 @@ import chisel3.util.{RegEnable, Cat}
   *                                         Clock Domains.
 */
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object SynchronizerResetType extends Enumeration {
   val NonSync, Inferred, Sync, Async = Value
 }
@@ -34,6 +35,7 @@ object SynchronizerResetType extends Enumeration {
 
 // Note: this should not be used directly.
 // Use the companion object to generate this with the correct reset type mixin.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 private class SynchronizerPrimitiveShiftReg(
   sync: Int,
   init: Boolean,
@@ -59,6 +61,7 @@ private class SynchronizerPrimitiveShiftReg(
   io.q := chain.head.asUInt
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 private object SynchronizerPrimitiveShiftReg {
   def apply (in: Bool, sync: Int, init: Boolean, resetType: SynchronizerResetType.Value): Bool = {
     val gen: () => SynchronizerPrimitiveShiftReg = resetType match {
@@ -77,6 +80,7 @@ private object SynchronizerPrimitiveShiftReg {
 
 // Note: This module may end up with a non-AsyncReset type reset.
 // But the Primitives within will always have AsyncReset type.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int)
     extends AbstractPipelineReg(w) {
   require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
@@ -90,6 +94,7 @@ class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int)
   io.q := Cat(output.reverse)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object AsyncResetSynchronizerShiftReg {
   def apply [T <: Data](in: T, sync: Int, init: Int, name: Option[String] = None): T =
     AbstractPipelineReg(new AsyncResetSynchronizerShiftReg(in.getWidth, sync, init), in, name)
@@ -122,6 +127,7 @@ class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int) extends Ab
   io.q := Cat(output.reverse)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object SyncResetSynchronizerShiftReg {
   def apply [T <: Data](in: T, sync: Int, init: Int, name: Option[String] = None): T =
     if (sync == 0) in else AbstractPipelineReg(new SyncResetSynchronizerShiftReg(in.getWidth, sync, init), in, name)
@@ -139,6 +145,7 @@ object SyncResetSynchronizerShiftReg {
     apply (in, sync, init.litValue.toInt, None)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int) extends AbstractPipelineReg(w) {
   require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
   override def desiredName = s"ResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
@@ -149,6 +156,7 @@ class ResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int) extends Abstra
   io.q := Cat(output.reverse)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ResetSynchronizerShiftReg {
   def apply [T <: Data](in: T, sync: Int, init: Int, name: Option[String] = None): T =
     AbstractPipelineReg(new ResetSynchronizerShiftReg(in.getWidth, sync, init), in, name)
@@ -166,6 +174,7 @@ object ResetSynchronizerShiftReg {
     apply (in, sync, init.litValue.toInt, None)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
   require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
   override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
@@ -175,6 +184,7 @@ class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineRe
   io.q := Cat(output.reverse)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object SynchronizerShiftReg {
   def apply [T <: Data](in: T, sync: Int, name: Option[String] = None): T =
     if (sync == 0) in else AbstractPipelineReg(new SynchronizerShiftReg(in.getWidth, sync), in, name)
@@ -188,6 +198,7 @@ object SynchronizerShiftReg {
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ClockCrossingReg(w: Int = 1, doInit: Boolean) extends Module {
 
   override def desiredName = s"ClockCrossingReg_w${w}"
@@ -202,6 +213,7 @@ class ClockCrossingReg(w: Int = 1, doInit: Boolean) extends Module {
   io.q := cdc_reg
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ClockCrossingReg {
   def apply [T <: Data](in: T, en: Bool, doInit: Boolean, name: Option[String] = None): T = {
     val cdc_reg = Module(new ClockCrossingReg(in.getWidth, doInit))

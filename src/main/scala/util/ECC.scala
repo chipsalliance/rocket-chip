@@ -6,6 +6,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.random.LFSR
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class Decoding
 {
   def uncorrected: UInt
@@ -15,6 +16,7 @@ abstract class Decoding
   def error = correctable || uncorrectable
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class Code
 {
   def canDetect: Boolean
@@ -42,6 +44,7 @@ abstract class Code
   def swizzle(x: UInt): UInt
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class IdentityCode extends Code
 {
   def canDetect = false
@@ -62,6 +65,7 @@ class IdentityCode extends Code
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ParityCode extends Code
 {
   def canDetect = true
@@ -79,6 +83,7 @@ class ParityCode extends Code
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SECCode extends Code
 {
   def canDetect = true
@@ -163,6 +168,7 @@ class SECCode extends Code
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SECDEDCode extends Code
 {
   def canDetect = true
@@ -199,6 +205,7 @@ class SECDEDCode extends Code
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ErrGen
 {
   // generate a 1-bit error with approximate probability 2^-f
@@ -209,17 +216,20 @@ object ErrGen
   def apply(x: UInt, f: Int): UInt = x ^ apply(x.getWidth, f)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait CanHaveErrors extends Bundle {
   val correctable: Option[ValidIO[UInt]]
   val uncorrectable: Option[ValidIO[UInt]]
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ECCParams(
   bytes: Int = 1,
   code: Code = new IdentityCode,
   notifyErrors: Boolean = false,
 )
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Code {
   def fromString(s: Option[String]): Code = fromString(s.getOrElse("none"))
   def fromString(s: String): Code = s.toLowerCase match {

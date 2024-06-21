@@ -9,6 +9,7 @@ import scala.reflect.ClassTag
 /* MuxLiteral creates a lookup table from a key to a list of values.
  * Unlike MuxLookup, the table keys must be exclusive literals.
  */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MuxLiteral
 {
   def apply[T <: Data:ClassTag](index: UInt, default: T, first: (UInt, T), rest: (UInt, T)*): T = 
@@ -17,6 +18,7 @@ object MuxLiteral
     MuxTable(index, default, cases.map { case (k, v) => (k.litValue, v) })
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MuxSeq
 {
   def apply[T <: Data:ClassTag](index: UInt, default: T, first: T, rest: T*): T =
@@ -25,6 +27,7 @@ object MuxSeq
     MuxTable(index, default, cases.zipWithIndex.map { case (v, i) => (BigInt(i), v) })
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MuxTable
 {
   def apply[T <: Data:ClassTag](index: UInt, default: T, first: (BigInt, T), rest: (BigInt, T)*): T =

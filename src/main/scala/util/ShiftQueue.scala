@@ -9,6 +9,7 @@ import chisel3.util._
   * register internally.  It is less energy efficient whenever the queue
   * has more than one entry populated, but is faster on the dequeue side.
   * It is efficient for usually-empty flow-through queues. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ShiftQueue[T <: Data](gen: T,
                             val entries: Int,
                             pipe: Boolean = false,
@@ -54,6 +55,7 @@ class ShiftQueue[T <: Data](gen: T,
   io.count := PopCount(io.mask)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ShiftQueue
 {
   def apply[T <: Data](enq: DecoupledIO[T], entries: Int = 2, pipe: Boolean = false, flow: Boolean = false): DecoupledIO[T] = {

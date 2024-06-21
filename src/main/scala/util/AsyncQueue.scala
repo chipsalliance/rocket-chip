@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class AsyncQueueParams(
   depth:  Int     = 8,
   sync:   Int     = 3,
@@ -23,11 +24,13 @@ case class AsyncQueueParams(
   val wires = if (narrow) 1 else depth
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object AsyncQueueParams {
   // When there is only one entry, we don't need narrow.
   def singleton(sync: Int = 3, safe: Boolean = true) = AsyncQueueParams(1, sync, safe, false)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncBundleSafety extends Bundle {
   val ridx_valid     = Input (Bool())
   val widx_valid     = Output(Bool())
@@ -35,6 +38,7 @@ class AsyncBundleSafety extends Bundle {
   val sink_reset_n   = Input (Bool())
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncBundle[T <: Data](private val gen: T, val params: AsyncQueueParams = AsyncQueueParams()) extends Bundle {
   // Data-path synchronization
   val mem   = Output(Vec(params.wires, gen))
@@ -46,6 +50,7 @@ class AsyncBundle[T <: Data](private val gen: T, val params: AsyncQueueParams = 
   val safe = params.safe.option(new AsyncBundleSafety)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object GrayCounter {
   def apply(bits: Int, increment: Bool = true.B, clear: Bool = false.B, name: String = "binary"): UInt = {
     val incremented = Wire(UInt(bits.W))
@@ -55,6 +60,7 @@ object GrayCounter {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncValidSync(sync: Int, desc: String) extends RawModule {
   val io = IO(new Bundle {
     val in = Input(Bool())
@@ -67,6 +73,7 @@ class AsyncValidSync(sync: Int, desc: String) extends RawModule {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Module {
   val io = IO(new Bundle {
     // These come from the source domain
@@ -131,6 +138,7 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Module {
   val io = IO(new Bundle {
     // These come from the sink domain
@@ -199,6 +207,7 @@ class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueuePar
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object FromAsyncBundle
 {
   // Sometimes it makes sense for the sink to have different sync than the source
@@ -210,6 +219,7 @@ object FromAsyncBundle
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ToAsyncBundle
 {
   def apply[T <: Data](x: ReadyValidIO[T], params: AsyncQueueParams = AsyncQueueParams()): AsyncBundle[T] = {
@@ -219,6 +229,7 @@ object ToAsyncBundle
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncQueue[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Crossing[T] {
   val io = IO(new CrossingIO(gen))
   val source = withClockAndReset(io.enq_clock, io.enq_reset) { Module(new AsyncQueueSource(gen, params)) }

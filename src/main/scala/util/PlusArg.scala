@@ -16,11 +16,13 @@ case class PlusArgInfo(default: BigInt, docstring: String)
   * @param docstring text to include in the help
   * @param doctype description of the Verilog type of the PlusArg value (e.g. STRING, INT)
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 private case class PlusArgContainer[A](default: Option[A], docstring: String, doctype: String)
 
 /** Typeclass for converting a type to a doctype string
   * @tparam A some type
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait Doctypeable[A] {
 
   /** Return the doctype string for some option */
@@ -29,6 +31,7 @@ trait Doctypeable[A] {
 }
 
 /** Object containing implementations of the Doctypeable typeclass */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Doctypes {
 
   /** Converts an Int => "INT" */
@@ -42,6 +45,7 @@ object Doctypes {
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class plusarg_reader(val format: String, val default: BigInt, val docstring: String, val width: Int) extends BlackBox(Map(
     "FORMAT"  -> StringParam(format),
     "DEFAULT" -> IntParam(default),
@@ -55,6 +59,7 @@ class plusarg_reader(val format: String, val default: BigInt, val docstring: Str
 }
 
 /* This wrapper class has no outputs, making it clear it is a simulation-only construct */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class PlusArgTimeout(val format: String, val default: BigInt, val docstring: String, val width: Int) extends Module {
   val io = IO(new Bundle {
     val count = Input(UInt(width.W))
@@ -67,6 +72,7 @@ class PlusArgTimeout(val format: String, val default: BigInt, val docstring: Str
 
 import Doctypes._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object PlusArg
 {
   /** PlusArg("foo") will return 42.U if the simulation is run with +foo=42
@@ -90,6 +96,7 @@ object PlusArg
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object PlusArgArtefacts {
   private var artefacts: Map[String, PlusArgContainer[_]] = Map.empty
 

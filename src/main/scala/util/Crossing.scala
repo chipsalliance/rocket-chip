@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class CrossingIO[T <: Data](gen: T) extends Bundle {
   // Enqueue clock domain
   val enq_clock = Input(Clock())
@@ -16,6 +17,7 @@ class CrossingIO[T <: Data](gen: T) extends Bundle {
   val deq = Decoupled(gen)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class Crossing[T <: Data] extends RawModule {
   val io: CrossingIO[T]
 }

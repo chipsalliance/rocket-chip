@@ -30,6 +30,7 @@ import chisel3._
   *  
   */
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncResetReg(resetValue: Int = 0) extends RawModule {
   val io = IO(new Bundle {
     val d = Input(Bool())
@@ -47,12 +48,14 @@ class AsyncResetReg(resetValue: Int = 0) extends RawModule {
   io.q := reg
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SimpleRegIO(val w: Int) extends Bundle{
   val d = Input(UInt(w.W))
   val q = Output(UInt(w.W))
   val en = Input(Bool())
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
   override def desiredName = s"AsyncResetRegVec_w${w}_i${init}"
 
@@ -65,6 +68,7 @@ class AsyncResetRegVec(val w: Int, val init: BigInt) extends Module {
   io.q := reg
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object AsyncResetReg {
   // Create Single Registers
   def apply(d: Bool, clk: Clock, rst: Bool, init: Boolean, name: Option[String]): Bool = {

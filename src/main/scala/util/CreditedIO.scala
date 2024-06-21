@@ -11,6 +11,7 @@ import chisel3.util._
   * round trip / total delay is the sum of debit and credit delay.
   * The system must have a positive total delay, otherwise you have a combinational loop.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class CreditedDelay(debit: Int, credit: Int)
 {
   val total = debit + credit
@@ -35,6 +36,7 @@ case class CreditedDelay(debit: Int, credit: Int)
   * WARNING: The user must ensure the round trip time is > 0.
   * Failure to comply will result in a combinational loop!
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 final class CreditedIO[T <: Data](gen: T) extends Bundle
 {
   def genType: T = gen
@@ -102,6 +104,7 @@ final class CreditedIO[T <: Data](gen: T) extends Bundle
     pipeline(delay.debit, delay.credit)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object CreditedIO
 {
   def apply[T <: Data](genType: T) = new CreditedIO(genType)
@@ -125,6 +128,7 @@ object CreditedIO
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class CreditedIOCounter(val init: Int, val depth: Int) {
   require (0 <= init)
   require (init <= depth)

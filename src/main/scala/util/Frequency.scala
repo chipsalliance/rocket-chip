@@ -10,6 +10,7 @@ import chisel3.util._
   * according to the frequency distribution.  The sum of the
   * frequencies in the distribution must be a power of two.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Frequency {
   def apply(dist : List[(Int, Bits)]) : Bits = {
     // Distribution must be non-empty

@@ -7,6 +7,7 @@ import chisel3._
 // Similar to the Chisel ShiftRegister but allows the user to suggest a
 // name to the registers that get instantiated, and
 // to provide a reset value.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ShiftRegInit {
   def apply[T <: Data](in: T, n: Int, init: T, name: Option[String] = None): T =
 
@@ -32,6 +33,7 @@ object ShiftRegInit {
   *                                    but only used for timing applications
   */
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class AbstractPipelineReg(w: Int = 1) extends Module {
   val io = IO(new Bundle {
     val d = Input(UInt(w.W))
@@ -40,6 +42,7 @@ abstract class AbstractPipelineReg(w: Int = 1) extends Module {
   )
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object AbstractPipelineReg {
   def apply [T <: Data](gen: => AbstractPipelineReg, in: T, name: Option[String] = None): T = {
     val chain = Module(gen)
@@ -49,6 +52,7 @@ object AbstractPipelineReg {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String = "pipe") extends AbstractPipelineReg(w) {
   require(depth > 0, "Depth must be greater than 0.")
 
@@ -68,6 +72,7 @@ class AsyncResetShiftReg(w: Int = 1, depth: Int = 1, init: Int = 0, name: String
   io.q := chain.head.io.q
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object AsyncResetShiftReg {
   def apply [T <: Data](in: T, depth: Int, init: Int  = 0, name: Option[String] = None): T =
     AbstractPipelineReg(new AsyncResetShiftReg(in.getWidth, depth, init), in, name)

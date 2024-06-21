@@ -7,6 +7,7 @@ import chisel3.util._
 
 /////////////////////////////// Abstract API for the Queue /////////////////////////
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LanePositionedDecoupledIO[T <: Data](private val gen: T, val maxValid: Int, val maxReady: Int) extends Bundle {
   val validBits1 = log2Ceil(maxValid+1) // [0, maxValid]
   val readyBits1 = log2Ceil(maxReady+1) // [0, maxReady]
@@ -62,6 +63,7 @@ class LanePositionedDecoupledIO[T <: Data](private val gen: T, val maxValid: Int
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class LanePositionedQueueArgs(
   lanes:  Int,
   rows:   Int,
@@ -76,6 +78,7 @@ case class LanePositionedQueueArgs(
   require (!abort  || commit)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LanePositionedQueueIO[T <: Data](private val gen: T, val args: LanePositionedQueueArgs) extends Bundle {
   val lanes = args.lanes
   val depth = args.rows * lanes
@@ -111,10 +114,12 @@ class LanePositionedQueueIO[T <: Data](private val gen: T, val args: LanePositio
   def driveWith(x: LanePositionedQueueIO[T]): Unit = { enq.driveWith(x.deq, enq_0_lane, x.deq_0_lane) }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait LanePositionedQueueModule[T <: Data] extends Module {
   val io: LanePositionedQueueIO[T]
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait LanePositionedQueue {
   def apply[T <: Data](gen: T, args: LanePositionedQueueArgs): LanePositionedQueueModule[T]
   def apply[T <: Data](
@@ -133,6 +138,7 @@ trait LanePositionedQueue {
 /////////////////////////////// Index math implementation //////////////////////////
 
 // A shared base class that keeps track of the indexing and flow control
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueArgs) extends Module with LanePositionedQueueModule[T] {
   val LanePositionedQueueArgs(lanes, rows, flow, pipe, free, commit, rewind, abort) = args
 
@@ -280,6 +286,7 @@ class LanePositionedQueueBase[T <: Data](val gen: T, args: LanePositionedQueueAr
 
 /////////////////////////////// Registered implementation //////////////////////////
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class FloppedLanePositionedQueueModule[T <: Data](gen: T, args: LanePositionedQueueArgs)
   extends LanePositionedQueueBase(gen, args) {
 
@@ -303,6 +310,7 @@ class FloppedLanePositionedQueueModule[T <: Data](gen: T, args: LanePositionedQu
   bank(1).write(b1_row, io.enq.bits, b1_mask)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object FloppedLanePositionedQueue extends LanePositionedQueue {
   def apply[T <: Data](gen: T, args: LanePositionedQueueArgs) =
     new FloppedLanePositionedQueueModule(gen, args)
@@ -310,6 +318,7 @@ object FloppedLanePositionedQueue extends LanePositionedQueue {
 
 /////////////////////////////// One port implementation ////////////////////////////
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LanePositionedQueueArgs)
     extends LanePositionedQueueBase(gen, args) {
 
@@ -502,6 +511,7 @@ class OnePortLanePositionedQueueModule[T <: Data](ecc: Code)(gen: T, args: LaneP
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class OnePortLanePositionedQueue(ecc: Code) extends LanePositionedQueue {
   def apply[T <: Data](gen: T, args: LanePositionedQueueArgs) =
     new OnePortLanePositionedQueueModule(ecc)(gen, args)
