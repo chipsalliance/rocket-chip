@@ -8,7 +8,7 @@ import chisel3.internal.firrtl.KnownWidth
 import chisel3.util.{Cat, Valid}
 
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util.property
+import org.chipsalliance.rocketutils.property
 
 /** Base JTAG shifter IO, viewed from input to shift register chain.
   * Can be chained together.

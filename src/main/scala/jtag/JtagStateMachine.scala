@@ -5,7 +5,7 @@ package freechips.rocketchip.jtag
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util.property
+import org.chipsalliance.rocketutils.property
 
 object JtagState {
   sealed abstract class State(val id: Int) {
