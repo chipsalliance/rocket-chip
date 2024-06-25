@@ -38,6 +38,8 @@ class TLBuffer(
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    def headBundle = node.out.head._2.bundle
+    override def desiredName = (Seq("TLBuffer") ++ node.out.headOption.map(_._2.bundle.shortName)).mkString("_")
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.a <> a(in .a)
       in .d <> d(out.d)

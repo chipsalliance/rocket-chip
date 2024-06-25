@@ -68,6 +68,8 @@ class AsyncValidSync(sync: Int, desc: String) extends RawModule {
 }
 
 class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Module {
+  override def desiredName = s"AsyncQueueSource_${gen.typeName}"
+
   val io = IO(new Bundle {
     // These come from the source domain
     val enq = Flipped(Decoupled(gen))
@@ -132,6 +134,8 @@ class AsyncQueueSource[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueP
 }
 
 class AsyncQueueSink[T <: Data](gen: T, params: AsyncQueueParams = AsyncQueueParams()) extends Module {
+  override def desiredName = s"AsyncQueueSink_${gen.typeName}"
+
   val io = IO(new Bundle {
     // These come from the sink domain
     val deq = Decoupled(gen)

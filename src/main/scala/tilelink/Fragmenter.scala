@@ -28,10 +28,11 @@ object EarlyAck {
 // alwaysMin: fragment all requests down to minSize (else fragment to maximum supported by manager)
 // earlyAck: should a multibeat Put should be acknowledged on the first beat or last beat
 // holdFirstDeny: allow the Fragmenter to unsafely combine multibeat Gets by taking the first denied for the whole burst
+// nameSuffix: appends a suffix to the module name
 // Fragmenter modifies: PutFull, PutPartial, LogicalData, Get, Hint
 // Fragmenter passes: ArithmeticData (truncated to minSize if alwaysMin)
 // Fragmenter cannot modify acquire (could livelock); thus it is unsafe to put caches on both sides
-class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None, val holdFirstDeny: Boolean = false)(implicit p: Parameters) extends LazyModule
+class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = false, val earlyAck: EarlyAck.T = EarlyAck.None, val holdFirstDeny: Boolean = false, val nameSuffix: Option[String] = None)(implicit p: Parameters) extends LazyModule
 {
   require(isPow2 (maxSize), s"TLFragmenter expects pow2(maxSize), but got $maxSize")
   require(isPow2 (minSize), s"TLFragmenter expects pow2(minSize), but got $minSize")
@@ -89,6 +90,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    override def desiredName = (Seq("TLFragmenter") ++ nameSuffix).mkString("_")
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       if (noChangeRequired) {
         out <> in
@@ -337,15 +339,17 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
 object TLFragmenter
 {
-  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false)(implicit p: Parameters): TLNode =
+  def apply(minSize: Int, maxSize: Int, alwaysMin: Boolean = false, earlyAck: EarlyAck.T = EarlyAck.None, holdFirstDeny: Boolean = false, nameSuffix: Option[String] = None)(implicit p: Parameters): TLNode =
   {
     if (minSize <= maxSize) {
-      val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny))
+      val fragmenter = LazyModule(new TLFragmenter(minSize, maxSize, alwaysMin, earlyAck, holdFirstDeny, nameSuffix))
       fragmenter.node
     } else { TLEphemeralNode()(ValName("no_fragmenter")) }
   }
 
-  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes)
+  def apply(wrapper: TLBusWrapper, nameSuffix: Option[String])(implicit p: Parameters): TLNode = apply(wrapper.beatBytes, wrapper.blockBytes, nameSuffix = nameSuffix)
+
+  def apply(wrapper: TLBusWrapper)(implicit p: Parameters): TLNode = apply(wrapper, None)
 }
 
 // Synthesizable unit tests

@@ -44,7 +44,7 @@ class MemoryBus(params: MemoryBusParams, name: String = "memory_bus")(implicit p
     addressPrefixNexusNode
   }
 
-  private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
+  private val xbar = LazyModule(new TLXbar(nameSuffix = Some(name))).suggestName(busName + "_xbar")
   val inwardNode: TLInwardNode =
     replicator.map(xbar.node :*=* TLFIFOFixer(TLFIFOFixer.all) :*=* _.node)
         .getOrElse(xbar.node :*=* TLFIFOFixer(TLFIFOFixer.all))

@@ -365,7 +365,7 @@ trait CanHavePeripheryPLIC { this: BaseSubsystem =>
     val plicDomainWrapper = tlbus.generateSynchronousDomain("PLIC").suggestName("plic_domain")
 
     val plic = plicDomainWrapper { LazyModule(new TLPLIC(params, tlbus.beatBytes)) }
-    plicDomainWrapper { plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus) := _ } }
+    plicDomainWrapper { plic.node := tlbus.coupleTo("plic") { TLFragmenter(tlbus, Some("PLIC")) := _ } }
     plicDomainWrapper { plic.intnode :=* ibus.toPLIC }
 
     (plic, plicDomainWrapper)

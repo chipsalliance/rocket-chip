@@ -270,7 +270,7 @@ package object util {
         val y = Output(chiselTypeOf(in))
       })
       io.y := io.x
-      override def desiredName = "OptimizationBarrier"
+      override def desiredName = s"OptimizationBarrier_${in.typeName}"
     })
     barrier.io.x := in
     barrier.io.y

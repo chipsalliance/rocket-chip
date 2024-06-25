@@ -52,8 +52,8 @@ abstract class BaseHierarchicalElement (val crossing: ClockCrossingType)(implici
   def module: BaseHierarchicalElementModuleImp[BaseHierarchicalElement]
 
   protected val tlOtherMastersNode = TLIdentityNode()
-  protected val tlMasterXbar = LazyModule(new TLXbar)
-  protected val tlSlaveXbar = LazyModule(new TLXbar)
+  protected val tlMasterXbar = LazyModule(new TLXbar(nameSuffix = Some(s"MasterXbar_$desiredName")))
+  protected val tlSlaveXbar = LazyModule(new TLXbar(nameSuffix = Some(s"SlaveXbar_$desiredName")))
   protected val intXbar = LazyModule(new IntXbar)
 
   def masterNode: TLOutwardNode
