@@ -15,7 +15,10 @@ import freechips.rocketchip.amba.axi4.{
   AXI4Fragmenter, AXI4MasterParameters
 }
 import freechips.rocketchip.diplomacy.{
-  MemoryDevice, AddressSet, RegionType, TransferSizes, SimpleBus, IdRange, BufferParams
+  AddressSet, RegionType, TransferSizes, IdRange, BufferParams
+}
+import freechips.rocketchip.resources.{
+  MemoryDevice, SimpleBus
 }
 import freechips.rocketchip.tilelink.{
   TLXbar, RegionReplicator, ReplicatedRegion, TLWidthWidget, TLFilter, TLToAXI4, TLBuffer,

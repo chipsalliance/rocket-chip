@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.nodes.BaseNode
 
-import freechips.rocketchip.diplomacy.{AddressSet, Resource, RegionType, TransferSizes, Device, ResourceAddress, ResourcePermissions, IdRange, BufferParams, IdMap, IdMapEntry, DirectedBuffers}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes, IdRange, BufferParams, IdMap, IdMapEntry, DirectedBuffers}
+import freechips.rocketchip.resources.{Resource, Device, ResourceAddress, ResourcePermissions}
 import freechips.rocketchip.util.{BundleField, BundleFieldBase, BundleKeyBase, AsyncQueueParams, CreditedDelay}
 
 import scala.math.max

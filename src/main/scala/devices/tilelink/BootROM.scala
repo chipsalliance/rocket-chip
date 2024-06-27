@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, RegionType, Resource, SimpleDevice, TransferSizes}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{Resource, SimpleDevice}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
 
@@ -72,7 +73,7 @@ object BootROM {
   def attach(params: BootROMParams, subsystem: BaseSubsystem with HasHierarchicalElements with HasTileInputConstants, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val tlbus = subsystem.locateTLBusWrapper(where)
-    val bootROMDomainWrapper = tlbus.generateSynchronousDomain.suggestName("bootrom_domain")
+    val bootROMDomainWrapper = tlbus.generateSynchronousDomain("BootROM").suggestName("bootrom_domain")
 
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
     lazy val contents = {
@@ -85,7 +86,7 @@ object BootROM {
       LazyModule(new TLROM(params.address, params.size, contents, true, tlbus.beatBytes))
     }
 
-    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus) := _ }
+    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus, Some("BootROM")) := _ }
     // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
     subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
     InModuleBody {

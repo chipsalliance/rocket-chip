@@ -58,7 +58,7 @@ class APBToTL()(implicit p: Parameters) extends LazyModule
 
       val beat = TransferSizes(beatBytes, beatBytes)
       //TODO: The double negative here is to work around Chisel's broken implementation of widening ~x.
-      val aligned_addr =  ~in.paddr
+      val aligned_addr = ~(~in.paddr | (beatBytes-1).U)
       require(beatBytes == in.params.dataBits/8,
               s"TL beatBytes(${beatBytes}) doesn't match expected APB data width(${in.params.dataBits})")
       val data_size = (log2Ceil(beatBytes)).U

@@ -39,11 +39,15 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
   lazy val module = if (alreadyRegistered) (new ImplRegistered) else (new Impl)
 
   class Impl extends LazyModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.sync.size).getOrElse(0)
+    override def desiredName = s"IntSyncCrossingSource_n${node.out.size}x${outSize}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.sync := AsyncResetReg(Cat(in.reverse)).asBools
     }
   }
   class ImplRegistered extends LazyRawModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.sync.size).getOrElse(0)
+    override def desiredName = s"IntSyncCrossingSource_n${node.out.size}x${outSize}_Registered"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.sync := in
     }
@@ -68,6 +72,7 @@ class IntSyncAsyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends La
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    override def desiredName = s"IntSyncAsyncCrossingSink_n${node.out.size}x${node.out.head._1.size}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := SynchronizerShiftReg(in.sync, sync)
     }
@@ -89,6 +94,8 @@ class IntSyncSyncCrossingSink()(implicit p: Parameters) extends LazyModule
 
   lazy val module = new Impl
   class Impl extends LazyRawModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.size).getOrElse(0)
+    override def desiredName = s"IntSyncSyncCrossingSink_n${node.out.size}x${outSize}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := in.sync
     }
@@ -110,6 +117,8 @@ class IntSyncRationalCrossingSink()(implicit p: Parameters) extends LazyModule
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.size).getOrElse(0)
+    override def desiredName = s"IntSyncRationalCrossingSink_n${node.out.size}x${outSize}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := RegNext(in.sync)
     }

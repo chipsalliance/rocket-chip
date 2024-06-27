@@ -1,10 +1,11 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.diplomacy
+package freechips.rocketchip.resources
 
 import org.chipsalliance.cde.config.Field
 import sys.process._
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import freechips.rocketchip.diplomacy.{AddressRange}
 
 case object DTSModel    extends Field[String]
 case object DTSCompat   extends Field[Seq[String]] // -dev, -soc

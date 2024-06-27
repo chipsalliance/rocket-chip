@@ -11,8 +11,9 @@ import org.chipsalliance.diplomacy.nodes._
 
 import freechips.rocketchip.diplomacy.{
   AddressDecoder, AddressSet, BufferParams, DirectedBuffers, IdMap, IdMapEntry,
-  IdRange, RegionType, Resource, ResourceAddress, ResourcePermissions, TransferSizes
+  IdRange, RegionType, TransferSizes
 }
+import freechips.rocketchip.resources.{Resource, ResourceAddress, ResourcePermissions}
 import freechips.rocketchip.util.{
   AsyncQueueParams, BundleField, BundleFieldBase, BundleKeyBase,
   CreditedDelay, groupByIntoSeq, RationalDirection, SimpleProduct
@@ -1310,6 +1311,9 @@ case class TLBundleParameters(
   echoFields.foreach { f => require (f.key.isControl, s"${f} is not a legal echo field") }
 
   val addrLoBits = log2Up(dataBits/8)
+
+  // Used to uniquify bus IP names
+  def shortName = s"a${addressBits}d${dataBits}s${sourceBits}k${sinkBits}z${sizeBits}" + (if (hasBCE) "c" else "u")
 
   def union(x: TLBundleParameters) =
     TLBundleParameters(

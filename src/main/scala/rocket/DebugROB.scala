@@ -29,7 +29,6 @@ class WidenedTracedInstruction extends Bundle {
 // These is not synthesizable, they use a C++ blackbox to implement the
 // write-back reordering
 class DebugROBPushTrace(implicit val p: Parameters) extends BlackBox with HasBlackBoxResource with HasCoreParameters {
-  require(traceHasWdata && (vLen max xLen) <= 512)
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())
@@ -45,7 +44,6 @@ class DebugROBPushTrace(implicit val p: Parameters) extends BlackBox with HasBla
 
 class DebugROBPushWb(implicit val p: Parameters) extends BlackBox
     with HasBlackBoxResource with HasCoreParameters {
-  require(traceHasWdata && (vLen max xLen) <= 512)
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())
@@ -59,7 +57,6 @@ class DebugROBPushWb(implicit val p: Parameters) extends BlackBox
 }
 
 class DebugROBPopTrace(implicit val p: Parameters) extends BlackBox with HasBlackBoxResource with HasCoreParameters {
-  require(traceHasWdata && (vLen max xLen) <= 512)
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())

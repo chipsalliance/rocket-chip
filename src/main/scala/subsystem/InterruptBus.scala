@@ -7,9 +7,9 @@ import chisel3._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{ClockCrossingType, AsynchronousCrossing, RationalCrossing, Device, DeviceInterrupts, Description, ResourceBindings}
+import freechips.rocketchip.resources.{Device, DeviceInterrupts, Description, ResourceBindings}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode, IntXbar, IntNameNode, IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.prci.ClockSinkDomain
+import freechips.rocketchip.prci.{ClockCrossingType, AsynchronousCrossing, RationalCrossing, ClockSinkDomain}
 
 import freechips.rocketchip.interrupts.IntClockDomainCrossing
 

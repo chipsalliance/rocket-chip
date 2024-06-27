@@ -13,7 +13,8 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
-import freechips.rocketchip.diplomacy.{IdRange, SimpleDevice, ResourceBindings, Description, AddressSet, Binding, ResourceAddress, ResourceString, ResourceValue, RegionType, TransferSizes}
+import freechips.rocketchip.diplomacy.{IdRange, AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{SimpleDevice, ResourceBindings, Binding, ResourceAddress, Description, ResourceString, ResourceValue}
 import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, TileKey, LookupByHartId}
 import freechips.rocketchip.tilelink.{TLClientNode, TLMasterPortParameters, TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLMasterParameters, TLHints}
 import freechips.rocketchip.util.{Code, CanHaveErrors, DescribedSRAM, RandomReplacement, Split, IdentityCode, property}
@@ -417,7 +418,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
  *   content with `refillError ## tag[19:0]` after ECC
  * */
   val tag_array  = DescribedSRAM(
-    name = "tag_array",
+    name = s"${tileParams.baseName}_icache_tag_array",
     desc = "ICache Tag Array",
     size = nSets,
     data = Vec(nWays, UInt(tECC.width(1 + tagBits).W))
@@ -551,7 +552,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
     i =>
       DescribedSRAM(
-        name = s"data_arrays_${i}",
+        name = s"${tileParams.baseName}_icache_data_arrays_${i}",
         desc = "ICache Data Array",
         size = nSets * refillCycles,
         data = Vec(nWays, UInt(dECC.width(wordBits).W))

@@ -7,9 +7,9 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.debug.TLDebugModule
-import freechips.rocketchip.diplomacy.{ClockCrossingType, DisableMonitors, FlipRendering}
+import freechips.rocketchip.diplomacy.{DisableMonitors, FlipRendering}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
-import freechips.rocketchip.prci.{ResetCrossingType, ResetDomain, ClockSinkNode, ClockSinkParameters, ClockIdentityNode, FixedClockBroadcast, ClockDomain}
+import freechips.rocketchip.prci.{ClockCrossingType, ResetCrossingType, ResetDomain, ClockSinkNode, ClockSinkParameters, ClockIdentityNode, FixedClockBroadcast, ClockDomain}
 import freechips.rocketchip.tile.{RocketTile, TraceBundle}
 import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode}
 import freechips.rocketchip.util.TraceCoreInterface

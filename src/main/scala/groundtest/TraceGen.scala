@@ -24,13 +24,12 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 
-import freechips.rocketchip.diplomacy.ClockCrossingType
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, CanAttachTile}
 import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters}
+import freechips.rocketchip.prci.{ClockSinkParameters, ClockCrossingType}
 
 // =======
 // Outline

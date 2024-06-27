@@ -33,7 +33,7 @@ object ForceFanout
 private case class ForceFanoutParams(a: Boolean, b: Boolean, c: Boolean, d: Boolean, e: Boolean)
 private case object ForceFanoutKey extends Field(ForceFanoutParams(false, false, false, false, false))
 
-class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
+class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin, nameSuffix: Option[String] = None)(implicit p: Parameters) extends LazyModule
 {
   val node = new TLNexusNode(
     clientFn  = { seq =>
@@ -77,7 +77,8 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parame
       println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
       println (s"!!! WARNING !!!")
     }
-
+    val wide_bundle = TLBundleParameters.union((node.in ++ node.out).map(_._2.bundle))
+    override def desiredName = (Seq("TLXbar") ++ nameSuffix ++ Seq(s"i${node.in.size}_o${node.out.size}_${wide_bundle.shortName}")).mkString("_")
     TLXbar.circuit(policy, node.in, node.out)
   }
 }
@@ -340,9 +341,9 @@ object TLXbar
     }
   }
 
-  def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters): TLNode =
+  def apply(policy: TLArbiter.Policy = TLArbiter.roundRobin, nameSuffix: Option[String] = None)(implicit p: Parameters): TLNode =
   {
-    val xbar = LazyModule(new TLXbar(policy))
+    val xbar = LazyModule(new TLXbar(policy, nameSuffix))
     xbar.node
   }
 

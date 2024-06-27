@@ -8,7 +8,8 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
-import freechips.rocketchip.diplomacy.{AddressSet, CreditedCrossing}
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.prci.{CreditedCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._

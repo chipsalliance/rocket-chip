@@ -7,9 +7,9 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.debug.TLDebugModule
-import freechips.rocketchip.diplomacy.{BufferParams, ClockCrossingType}
+import freechips.rocketchip.diplomacy.{BufferParams}
 import freechips.rocketchip.interrupts.IntXbar
-import freechips.rocketchip.prci.{ClockSinkParameters, ResetCrossingType}
+import freechips.rocketchip.prci.{ClockSinkParameters, ResetCrossingType, ClockCrossingType}
 import freechips.rocketchip.tile.{LookupByHartIdImpl, TraceBundle}
 import freechips.rocketchip.tilelink.{TLNode, TLIdentityNode, TLXbar, TLBuffer, TLInwardNode, TLOutwardNode}
 
@@ -52,8 +52,8 @@ abstract class BaseHierarchicalElement (val crossing: ClockCrossingType)(implici
   def module: BaseHierarchicalElementModuleImp[BaseHierarchicalElement]
 
   protected val tlOtherMastersNode = TLIdentityNode()
-  protected val tlMasterXbar = LazyModule(new TLXbar)
-  protected val tlSlaveXbar = LazyModule(new TLXbar)
+  protected val tlMasterXbar = LazyModule(new TLXbar(nameSuffix = Some(s"MasterXbar_$desiredName")))
+  protected val tlSlaveXbar = LazyModule(new TLXbar(nameSuffix = Some(s"SlaveXbar_$desiredName")))
   protected val intXbar = LazyModule(new IntXbar)
 
   def masterNode: TLOutwardNode

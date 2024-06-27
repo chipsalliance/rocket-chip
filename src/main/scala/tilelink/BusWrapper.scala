@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.{AddressSet, ClockCrossingType, NoCrossing, NoHandle, NodeHandle, NodeBinding}
+import freechips.rocketchip.diplomacy.{AddressSet, NoHandle, NodeHandle, NodeBinding}
 
 // TODO This class should be moved to package subsystem to resolve
 //      the dependency awkwardness of the following imports
@@ -19,7 +19,7 @@ import freechips.rocketchip.devices.tilelink.{BuiltInDevices, CanHaveBuiltInDevi
 import freechips.rocketchip.prci.{
   ClockParameters, ClockDomain, ClockGroup, ClockGroupAggregator, ClockSinkNode,
   FixedClockBroadcast, ClockGroupEdgeParameters, ClockSinkParameters, ClockSinkDomain,
-  ClockGroupEphemeralNode, asyncMux
+  ClockGroupEphemeralNode, asyncMux, ClockCrossingType, NoCrossing
 }
 import freechips.rocketchip.subsystem.{
   HasTileLinkLocations, CanConnectWithinContextThatHasTileLinkLocations,
@@ -85,20 +85,21 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def unifyManagers: List[TLManagerParameters] = ManagerUnification(busView.manager.managers)
   def crossOutHelper = this.crossOut(outwardNode)(ValName("bus_xing"))
   def crossInHelper = this.crossIn(inwardNode)(ValName("bus_xing"))
-  def generateSynchronousDomain: ClockSinkDomain = {
-    val domain = LazyModule(new ClockSinkDomain(take = fixedClockOpt))
+  def generateSynchronousDomain(domainName: String): ClockSinkDomain = {
+    val domain = LazyModule(new ClockSinkDomain(take = fixedClockOpt, name = Some(domainName)))
     domain.clockNode := fixedClockNode
     domain
   }
+  def generateSynchronousDomain: ClockSinkDomain = generateSynchronousDomain("")
 
   protected val addressPrefixNexusNode = BundleBroadcast[UInt](registered = false, default = Some(() => 0.U(1.W)))
 
   def to[T](name: String)(body: => T): T = {
-    this { LazyScope(s"coupler_to_${name}", "TLInterconnectCoupler") { body } }
+    this { LazyScope(s"coupler_to_${name}", s"TLInterconnectCoupler_${busName}_to_${name}") { body } }
   }
 
   def from[T](name: String)(body: => T): T = {
-    this { LazyScope(s"coupler_from_${name}", "TLInterconnectCoupler") { body } }
+    this { LazyScope(s"coupler_from_${name}", s"TLInterconnectCoupler_${busName}_from_${name}") { body } }
   }
 
   def coupleTo[T](name: String)(gen: TLOutwardNode => T): T =
@@ -236,7 +237,7 @@ class TLBusWrapperTopology(
 }
 
 trait HasTLXbarPhy { this: TLBusWrapper =>
-  private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
+  private val xbar = LazyModule(new TLXbar(nameSuffix = Some(busName))).suggestName(busName + "_xbar")
 
   override def shouldBeInlined = xbar.node.circuitIdentity
   def inwardNode: TLInwardNode = xbar.node

@@ -6,8 +6,7 @@ import org.chipsalliance.cde.config._
 
 import freechips.rocketchip.devices.debug.HasPeripheryDebug
 import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CanHavePeripheryPLIC}
-import freechips.rocketchip.diplomacy.{SynchronousCrossing, ClockCrossingType}
-import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing}
+import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, SynchronousCrossing, ClockCrossingType}
 import freechips.rocketchip.tile.{RocketTile, RocketTileParams}
 import freechips.rocketchip.util.HasCoreMonitorBundles
 

@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, Device, DeviceRegName, DiplomaticSRAM, RegionType, TransferSizes, HasJustOneSeqMem}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{Device, DeviceRegName, DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.util.{CanHaveErrors, ECCParams, property, SECDEDCode}
 
 import freechips.rocketchip.util.DataToAugmentedData
@@ -50,7 +51,7 @@ class TLRAM(
       supportsPutFull    = TransferSizes(1, beatBytes),
       supportsArithmetic = if (atomics) TransferSizes(1, beatBytes) else TransferSizes.none,
       supportsLogical    = if (atomics) TransferSizes(1, beatBytes) else TransferSizes.none,
-      fifoId             = Some(0))), // requests are handled in order
+      fifoId             = Some(0)).v2copy(name=devName)), // requests are handled in order
     beatBytes  = beatBytes,
     minLatency = 1))) // no bypass needed for this device
 

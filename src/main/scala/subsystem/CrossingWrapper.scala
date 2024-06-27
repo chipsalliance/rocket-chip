@@ -6,7 +6,7 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.amba.axi4.{AXI4InwardNode, AXI4OutwardNode}
-import freechips.rocketchip.diplomacy.{ClockCrossingType, HasClockDomainCrossing}
+import freechips.rocketchip.prci.{ClockCrossingType, HasClockDomainCrossing}
 import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
 import freechips.rocketchip.prci.{HasResetDomainCrossing, ResetCrossingType}

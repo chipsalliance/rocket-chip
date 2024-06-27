@@ -284,9 +284,11 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
 object TLAtomicAutomata
 {
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true, nameSuffix: Option[String] = None)(implicit p: Parameters): TLNode =
   {
-    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
+    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough) {
+      override lazy val desiredName = (Seq("TLAtomicAutomata") ++ nameSuffix).mkString("_")
+    })
     atomics.node
   }
 

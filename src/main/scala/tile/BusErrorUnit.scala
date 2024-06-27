@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.rocket.{DCacheErrors, ICacheErrors}
-import freechips.rocketchip.diplomacy.{AddressSet, SimpleDevice}
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.regmapper.{DescribedReg, RegField, RegFieldDesc, RegFieldGroup}
 import freechips.rocketchip.tilelink.TLRegisterNode
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}

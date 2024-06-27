@@ -8,7 +8,8 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.{AddressSet, MemoryDevice, RegionType, TransferSizes}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{MemoryDevice}
 import freechips.rocketchip.tilelink.{TLDelayer, TLFuzzer, TLManagerNode, TLMessages, TLRAMModel, TLSlaveParameters, TLSlavePortParameters}
 
 // Do not use this for synthesis! Only for simulation.

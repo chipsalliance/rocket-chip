@@ -7,7 +7,7 @@ import chisel3.util._
 
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.diplomacy.DTSTimebase
+import freechips.rocketchip.resources.DTSTimebase
 import freechips.rocketchip.devices.tilelink.{CLINTAttachKey, CanHavePeripheryCLINT}
 
 trait HasRTCModuleImp extends LazyRawModuleImp {

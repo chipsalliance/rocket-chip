@@ -9,7 +9,8 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
-import freechips.rocketchip.diplomacy.{AddressSet, DiplomaticSRAM, HasJustOneSeqMem, RegionType}
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
+import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
 import freechips.rocketchip.util.SeqMemToAugmentedSeqMem
 

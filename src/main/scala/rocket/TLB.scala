@@ -72,7 +72,7 @@ class TLBExceptions extends Bundle {
   val inst = Bool()
 }
 
-class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
+class TLBResp(lgMaxSize: Int = 3)(implicit p: Parameters) extends CoreBundle()(p) {
   // lookup responses
   val miss = Bool()
   /** physical address */
@@ -93,6 +93,10 @@ class TLBResp(implicit p: Parameters) extends CoreBundle()(p) {
   val must_alloc = Bool()
   /** if this address is prefetchable for caches*/
   val prefetchable = Bool()
+  /** size/cmd of request that generated this response*/
+  val size = UInt(log2Ceil(lgMaxSize + 1).W)
+  val cmd = UInt(M_SZ.W)
+
 }
 
 class TLBEntryData(implicit p: Parameters) extends CoreBundle()(p) {
@@ -313,11 +317,12 @@ case class TLBConfig(
   * @param edge collect SoC metadata.
   */
 class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(p) {
+  override def desiredName = if (instruction) "ITLB" else "DTLB"
   val io = IO(new Bundle {
     /** request from Core */
     val req = Flipped(Decoupled(new TLBReq(lgMaxSize)))
     /** response to Core */
-    val resp = Output(new TLBResp())
+    val resp = Output(new TLBResp(lgMaxSize))
     /** SFence Input */
     val sfence = Flipped(Valid(new SFenceReq))
     /** IO to PTW */
@@ -646,6 +651,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.prefetchable := (prefetchable_array & hits).orR && edge.manager.managers.forall(m => !m.supportsAcquireB || m.supportsHint).B
   io.resp.miss := do_refill || vsatp_mode_mismatch || tlb_miss || multipleHits
   io.resp.paddr := Cat(ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
+  io.resp.size := io.req.bits.size
+  io.resp.cmd := io.req.bits.cmd
   io.resp.gpa_is_pte := vstage1_en && r_gpa_is_pte
   io.resp.gpa := {
     val page = Mux(!vstage1_en, Cat(bad_gpa, vpn), r_gpa >> pgIdxBits)

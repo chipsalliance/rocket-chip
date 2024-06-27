@@ -10,7 +10,8 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{SinkNode}
 
-import freechips.rocketchip.diplomacy.{AddressSet, NoCrossing, TransferSizes}
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
+import freechips.rocketchip.prci.{NoCrossing}
 import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperInput, RegMapperParams, RegisterRouter}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util._

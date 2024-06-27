@@ -9,7 +9,8 @@ import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config._
 
 import freechips.rocketchip.amba.AMBAProt
-import freechips.rocketchip.diplomacy.{ClockCrossingType, RationalCrossing, SynchronousCrossing, BufferParams, AsynchronousCrossing, CreditedCrossing}
+import freechips.rocketchip.diplomacy.{BufferParams}
+import freechips.rocketchip.prci.{ClockCrossingType, RationalCrossing, SynchronousCrossing, AsynchronousCrossing, CreditedCrossing}
 import freechips.rocketchip.tile.{CoreBundle, LookupByHartId}
 import freechips.rocketchip.tilelink.{TLFIFOFixer,ClientMetadata, TLBundleA, TLAtomics, TLBundleB, TLPermissions}
 import freechips.rocketchip.tilelink.TLMessages.{AccessAck, HintAck, AccessAckData, Grant, GrantData, ReleaseAck}
@@ -59,7 +60,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val data_arrays = Seq.tabulate(rowBits / subWordBits) {
     i =>
       DescribedSRAM(
-        name = s"data_arrays_${i}",
+        name = s"${tileParams.baseName}_dcache_data_arrays_${i}",
         desc = "DCache Data Array",
         size = nSets * cacheBlockBytes / rowBytes,
         data = Vec(nWays * (subWordBits / eccBits), UInt(encBits.W))
@@ -93,7 +94,7 @@ class DCache(staticIdForMetadataUseOnly: Int, val crossing: ClockCrossingType)(i
 
 class DCacheTLBPort(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Flipped(Decoupled(new TLBReq(coreDataBytes.log2)))
-  val s1_resp = Output(new TLBResp)
+  val s1_resp = Output(new TLBResp(coreDataBytes.log2))
   val s2_kill = Input(Bool())
 }
 
@@ -134,7 +135,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val tag_array = DescribedSRAM(
-    name = "tag_array",
+    name = s"${tileParams.baseName}_dcache_tag_array",
     desc = "DCache Tag Array",
     size = nSets,
     data = Vec(nWays, chiselTypeOf(metaArb.io.out.bits.data))
@@ -926,6 +927,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_isSlavePortAccess = s1_req.no_xcpt
   val s2_isSlavePortAccess = s2_req.no_xcpt
   io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
+  io.cpu.store_pending := (cached_grant_wait && isWrite(s2_req.cmd)) || uncachedInFlight.asUInt.orR
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))
