@@ -10,7 +10,7 @@ import chisel3.experimental.SourceInfo
 import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink.{TLWidthWidget}
+import freechips.rocketchip.tilelink.{TLEdgeOut, TLWidthWidget}
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 
@@ -80,7 +80,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     with HasL1ICacheParameters {
   val io = IO(new FrontendBundle(outer))
   val io_reset_vector = outer.resetVectorSinkNode.bundle
-  implicit val edge = outer.masterNode.edges.out(0)
+  implicit val edge: TLEdgeOut = outer.masterNode.edges.out(0)
   val icache = outer.icache.module
   require(fetchWidth*coreInstBytes == outer.icacheParams.fetchBytes)
 

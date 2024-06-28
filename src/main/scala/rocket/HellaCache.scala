@@ -229,7 +229,7 @@ class HellaCacheBundle(val outer: HellaCache)(implicit p: Parameters) extends Co
 
 class HellaCacheModule(outer: HellaCache) extends LazyModuleImp(outer)
     with HasL1HellaCacheParameters {
-  implicit val edge = outer.node.edges.out(0)
+  implicit val edge: TLEdgeOut = outer.node.edges.out(0)
   val (tl_out, _) = outer.node.out(0)
   val io = IO(new HellaCacheBundle(outer))
   val io_hartid = outer.hartIdSinkNodeOpt.map(_.bundle)

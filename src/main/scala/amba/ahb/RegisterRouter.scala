@@ -84,7 +84,7 @@ case class AHBRegBundleArg()(implicit val p: Parameters)
 @deprecated("AHBRegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 class AHBRegBundleBase(arg: AHBRegBundleArg) extends Bundle
 {
-  implicit val p = arg.p
+  implicit val p: Parameters = arg.p
 }
 
 @deprecated("Use HasAHBControlRegMap+HasInterruptSources traits in place of AHBRegisterRouter+AHBRegBundle+AHBRegModule", "rocket-chip 1.3")

@@ -65,7 +65,7 @@ case class APBRegBundleArg()(implicit val p: Parameters)
 @deprecated("AXI4RegBundleBase is no longer necessary, use IO(...) to make any additional IOs", "rocket-chip 1.3")
 class APBRegBundleBase(arg: APBRegBundleArg) extends Bundle
 {
-  implicit val p = arg.p
+  implicit val p: Parameters = arg.p
 }
 
 @deprecated("Use HasAPBControlRegMap+HasInterruptSources traits in place of APBRegisterRouter+APBRegBundle+APBRegModule", "rocket-chip 1.3")

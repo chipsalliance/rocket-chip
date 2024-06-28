@@ -119,7 +119,7 @@ object TransferSizes {
   def mincover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ mincover _)
   def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
-  implicit def asBool(x: TransferSizes) = !x.none
+  implicit def asBool(x: TransferSizes): Boolean = !x.none
 }
 
 // AddressSets specify the address space managed by the manager
