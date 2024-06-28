@@ -63,9 +63,11 @@ trait CoreParams {
   def dcacheReqTagBits: Int = 6
 
   def minFLen: Int = 32
+
   def vLen: Int = 0
-  def sLen: Int = 0
-  def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
+  def eLen: Int = 0
+  def vfLen: Int = 0
+  def hasV: Boolean = vLen >= 128 && eLen >= 64 && vfLen >= 64
   def vMemDataBits: Int = 0
 }
 
@@ -106,14 +108,16 @@ trait HasCoreParameters extends HasTileParameters {
   val traceHasWdata = coreParams.traceHasWdata
 
   def vLen = coreParams.vLen
-  def sLen = coreParams.sLen
-  def eLen = coreParams.eLen(xLen, fLen)
+  def eLen = coreParams.eLen
+  def vfLen = coreParams.vfLen
   def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
   def maxVLMax = vLen
 
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
+    require(eLen == 32 || eLen == 64)
+    require(vfLen <= eLen)
   }
 
   lazy val hartIdLen: Int = p(MaxHartIdBits)

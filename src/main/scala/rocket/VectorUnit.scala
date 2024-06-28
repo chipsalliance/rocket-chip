@@ -10,6 +10,8 @@ import freechips.rocketchip.tilelink._
 case class RocketCoreVectorParams(
   build: Parameters => RocketVectorUnit,
   vLen: Int,
+  eLen: Int,
+  vfLen: Int,
   vMemDataBits: Int,
   decoder: Parameters => RocketVectorDecoder,
   useDCache: Boolean,

@@ -66,6 +66,8 @@ case class RocketCoreParams(
   override val useVector = vector.isDefined
   override val vectorUseDCache = vector.map(_.useDCache).getOrElse(false)
   override def vLen = vector.map(_.vLen).getOrElse(0)
+  override def eLen = vector.map(_.eLen).getOrElse(0)
+  override def vfLen = vector.map(_.vfLen).getOrElse(0)
   override def vMemDataBits = vector.map(_.vMemDataBits).getOrElse(0)
   override val customIsaExt = Option.when(haveCease)("xrocket") // CEASE instruction
   override def minFLen: Int = fpu.map(_.minFLen).getOrElse(32)
