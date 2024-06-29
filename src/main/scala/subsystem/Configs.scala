@@ -309,6 +309,133 @@ class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
   }
 })
 
+class WithL1ICacheECC(dataECC: String, tagECC: String) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(dataECC = Some(dataECC), tagECC = Some(tagECC)))))
+    case t => t
+  }
+})
+
+class WithL1DCacheECC(dataECC: String, tagECC: String) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(dataECC = Some(dataECC), tagECC = Some(tagECC), dataECCBytes=8))))
+    case t => t
+  }
+})
+
+class WithL1ICacheTLBSets(tlbsets: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(nTLBSets = tlbsets))))
+    case t => t
+  }
+})
+
+class WithL1DCacheTLBSets(tlbsets: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(nTLBSets = tlbsets))))
+    case t => t
+  }
+})
+
+class WithL1ICacheTLBWays(tlbways: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(nTLBWays = tlbways))))
+    case t => t
+  }
+})
+
+class WithL1DCacheTLBWays(tlbways: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(nTLBWays = tlbways))))
+    case t => t
+  }
+})
+
+class WithL1ICacheTLBBasePageSectors(pagesectors: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(nTLBBasePageSectors = pagesectors))))
+    case t => t
+  }
+})
+
+class WithL1DCacheTLBBasePageSectors(pagesectors: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(nTLBBasePageSectors = pagesectors))))
+    case t => t
+  }
+})
+
+class WithL1ICacheTLBSuperpages(superpages: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(nTLBSuperpages = superpages))))
+    case t => t
+  }
+})
+
+class WithL1DCacheTLBSuperpages(superpages: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(nTLBSuperpages = superpages))))
+    case t => t
+  }
+})
+
+class WithRocketICacheRowBits(n: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(rowBits = n))))
+    case t => t
+  }
+})
+
+class WithRocketDCacheRowBits(n: Int) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(rowBits = n))))
+    case t => t
+  }
+})
+
+class WithL1ICacheBlockBytes(bytes: Int = 64) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      icache = tp.tileParams.icache.map(_.copy(blockBytes = bytes))))
+    case t => t
+  }
+})
+
+class WithL1DCacheBlockBytes(bytes: Int = 64) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(blockBytes = bytes))))
+    case t => t
+  }
+})
+
+class WithoutVM extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(useVM = false)))
+    case t => t
+  }
+})
+
+class WithCFlushEnabled extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(haveCFlush = true)))
+    case t => t
+  }
+})
 
 class WithRocketCacheRowBits(n: Int) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
@@ -427,11 +554,28 @@ class WithDefaultBtb extends Config((site, here, up) => {
   }
 })
 
+class WithNoBtb extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      btb = None))
+    case t => t
+  }
+})
+
 class WithFastMulDiv extends Config((site, here, up) => {
   case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(mulDiv = Some(
         MulDivParams(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true)))))
+    case t => t
+  }
+})
+
+class WithCustomFastMulDiv(mUnroll: Int = 8, mEarlyOut: Boolean = true, dUnroll: Int = 1, dEarlyOut: Boolean = true, dEarlyOutGranularity: Int = 1) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(mulDiv = Some(
+        MulDivParams(mulUnroll = mUnroll, mulEarlyOut = mEarlyOut, divUnroll = dUnroll, divEarlyOut = dEarlyOut, divEarlyOutGranularity = dEarlyOutGranularity)))))
     case t => t
   }
 })
@@ -460,6 +604,32 @@ class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
   }
 })
 
+class WithBEU(addr: BigInt) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(beuAddr = Some(addr)))
+    case t => t
+  }
+})
+
+class WithRocketTileCDC(crossingType: ClockCrossingType = SynchronousCrossing()) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
+      crossingType = crossingType
+    ))
+    case other => other
+  }
+})
+
+class WithSeperateClockReset extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
+      forceSeparateClockReset = true
+    ))
+    case other => other
+  }
+})
+
+
 class WithRocketDebugROB(enable: Boolean = true, size: Int = 0) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
     case tp: RocketTileAttachParams if (enable) =>
@@ -474,6 +644,23 @@ class WithRocketCease(enable: Boolean = true) extends Config((site, here, up) =>
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(haveCease = enable)
     ))
+  }
+})
+
+class WithCoreClockGatingEnabled extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      core = tp.tileParams.core.copy(clockGate = true)
+    ))
+    case t => t
+  }
+})
+
+class WithDCacheClockGatingEnabled extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
+      dcache = tp.tileParams.dcache.map(_.copy(clockGate = true))))
+    case t => t
   }
 })
 
@@ -576,6 +763,15 @@ class WithDefaultMemPort extends Config((site, here, up) => {
                       idBits = 4), 1))
 })
 
+class WithCustomMemPort (base_addr: BigInt, base_size: BigInt, data_width: Int, id_bits: Int, maxXferBytes: Int) extends Config((site, here, up) => {
+  case ExtMem => Some(MemoryPortParams(MasterPortParams(
+                      base = base_addr,
+                      size = base_size,
+                      beatBytes = data_width/8,
+                      idBits = id_bits, 
+                      maxXferBytes = maxXferBytes), 1))
+})
+
 class WithNoMemPort extends Config((site, here, up) => {
   case ExtMem => None
 })
@@ -588,12 +784,25 @@ class WithDefaultMMIOPort extends Config((site, here, up) => {
                       idBits = 4))
 })
 
+class WithCustomMMIOPort (base_addr: BigInt, base_size: BigInt, data_width: Int, id_bits: Int, maxXferBytes: Int) extends Config((site, here, up) => {
+  case ExtBus => Some(MasterPortParams(
+                      base = base_addr,
+                      size = base_size,
+                      beatBytes = data_width/8,
+                      idBits = id_bits, 
+                      maxXferBytes = maxXferBytes))
+})
+
 class WithNoMMIOPort extends Config((site, here, up) => {
   case ExtBus => None
 })
 
 class WithDefaultSlavePort extends Config((site, here, up) => {
   case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
+})
+
+class WithCustomSlavePort (data_width: Int, id_bits: Int) extends Config((site, here, up) => {
+  case ExtIn  => Some(SlavePortParams(beatBytes = data_width/8, idBits = id_bits, sourceBits = 4))
 })
 
 class WithNoSlavePort extends Config((site, here, up) => {
