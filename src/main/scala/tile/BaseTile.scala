@@ -104,8 +104,17 @@ trait HasNonDiplomaticTileParameters {
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
-    val v = if (tileParams.core.useVector) "v" else ""
+    val v = if (tileParams.core.useVector && tileParams.core.vLen >= 128 && tileParams.core.eLen == 64 && tileParams.core.vfLen == 64) "v" else ""
     val h = if (usingHypervisor) "h" else ""
+    val zvl = Option.when(tileParams.core.useVector) { Seq(s"zvl${tileParams.core.vLen}b") }
+    val zve = Option.when(tileParams.core.useVector) {
+      val c = tileParams.core.vfLen match {
+        case 64 => "d"
+        case 32 => "f"
+        case 0 => "x"
+      }
+      Seq(s"zve${tileParams.core.eLen}$c")
+    }
     val multiLetterExt = (
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
@@ -114,6 +123,8 @@ trait HasNonDiplomaticTileParameters {
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
+      zvl ++
+      zve ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
