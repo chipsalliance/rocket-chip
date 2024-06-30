@@ -36,14 +36,14 @@ class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors
 
 case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
 
-class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit p: Parameters) extends LazyModule {
+class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule {
   val regWidth = 64
   val device = new SimpleDevice("bus-error-unit", Seq("sifive,buserror0"))
   val intNode = IntSourceNode(IntSourcePortSimple(resources = device.int))
   val node = TLRegisterNode(
     address   = Seq(AddressSet(params.addr, params.size-1)),
     device    = device,
-    beatBytes = p(XLen)/8)
+    beatBytes = beatBytes)
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {

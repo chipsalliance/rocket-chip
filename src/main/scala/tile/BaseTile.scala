@@ -12,7 +12,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 
 import freechips.rocketchip.resources.{PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
-import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, PgLevels, ASIdBits, VMIdBits, TraceAux, BPWatch}
+import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, ASIdBits, VMIdBits, TraceAux, BPWatch}
 import freechips.rocketchip.subsystem.{
   HierarchicalElementParams, InstantiableHierarchicalElementParams, HierarchicalElementCrossingParamsLike,
   CacheBlockBytes, SystemBusKey, BaseHierarchicalElement, InsertTimingClosureRegistersOnHartIds, BaseHierarchicalElementModuleImp
@@ -61,12 +61,12 @@ trait HasNonDiplomaticTileParameters {
   def usingPTW: Boolean = usingVM
   def usingDataScratchpad: Boolean = tileParams.dcache.flatMap(_.scratch).isDefined
 
-  def xLen: Int = p(XLen)
+  def xLen: Int = tileParams.core.xLen
   def xBytes: Int = xLen / 8
   def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
-  def pgLevels: Int = p(PgLevels)
+  def pgLevels: Int = tileParams.core.pgLevels
   def maxSVAddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
   def maxHypervisorExtraAddrBits: Int = 2
   def hypervisorExtraAddrBits: Int = {
@@ -128,7 +128,7 @@ trait HasNonDiplomaticTileParameters {
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
-    s"rv${p(XLen)}$ie$m$a$f$d$c$v$h$multiLetterString"
+    s"rv$xLen$ie$m$a$f$d$c$v$h$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {

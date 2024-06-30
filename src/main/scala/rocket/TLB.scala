@@ -23,7 +23,6 @@ import freechips.rocketchip.util.UIntIsOneOf
 import freechips.rocketchip.util.SeqToAugmentedSeq
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 
-case object PgLevels extends Field[Int](2)
 case object ASIdBits extends Field[Int](0)
 case object VMIdBits extends Field[Int](0)
 

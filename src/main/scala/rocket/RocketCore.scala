@@ -13,6 +13,8 @@ import freechips.rocketchip.util.property
 import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(
+  xLen: Int = 64,
+  pgLevels: Int = 3, // sv39 default
   bootFreqHz: BigInt = 0,
   useVM: Boolean = true,
   useUser: Boolean = false,
