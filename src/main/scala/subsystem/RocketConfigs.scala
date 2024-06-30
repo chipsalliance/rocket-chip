@@ -7,9 +7,9 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
-import freechips.rocketchip.rocket.{PgLevels, RocketCoreParams, MulDivParams, DCacheParams, ICacheParams, BTBParams, DebugROBParams}
+import freechips.rocketchip.rocket.{RocketCoreParams, MulDivParams, DCacheParams, ICacheParams, BTBParams, DebugROBParams}
 import freechips.rocketchip.tile.{
-  XLen, MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
+  MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
 }
 
 class WithNBigCores(
@@ -48,8 +48,6 @@ class WithNBigCores(
     }
   ))
 }
-
-
 
 class WithNMedCores(
   n: Int,
@@ -118,10 +116,11 @@ class WithNSmallCores(
 })
 
 class With1TinyCore extends Config((site, here, up) => {
-  case XLen => 32
   case TilesLocated(InSubsystem) => {
     val tiny = RocketTileParams(
       core = RocketCoreParams(
+        xLen = 32,
+        pgLevels = 2, // sv32
         useVM = false,
         fpu = None,
         mulDiv = Some(MulDivParams(mulUnroll = 8))),
@@ -326,10 +325,11 @@ class WithRocketCacheRowBits(n: Int) extends Config((site, here, up) => {
 })
 
 class WithRV32 extends Config((site, here, up) => {
-  case XLen => 32
   case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(
+        xLen = 32,
+        pgLevels = 2, // sv32
         fpu = tp.tileParams.core.fpu.map(_.copy(fLen = 32)),
         mulDiv = Some(MulDivParams(mulUnroll = 8)))))
     case t => t
@@ -411,7 +411,7 @@ class WithFastMulDiv extends Config((site, here, up) => {
   case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
       core = tp.tileParams.core.copy(mulDiv = Some(
-        MulDivParams(mulUnroll = 8, mulEarlyOut = (site(XLen) > 32), divEarlyOut = true)))))
+        MulDivParams(mulUnroll = 8, mulEarlyOut = tp.tileParams.core.xLen > 32, divEarlyOut = true)))))
     case t => t
   }
 })

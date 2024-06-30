@@ -19,42 +19,44 @@ import freechips.rocketchip.diplomacy.{
 import freechips.rocketchip.resources.{
   DTSModel, DTSCompat, DTSTimebase, BigIntHexContext
 }
-import freechips.rocketchip.rocket.{PgLevels}
 import freechips.rocketchip.tile.{
-  XLen, MaxHartIdBits, RocketTileParams
+  MaxHartIdBits, RocketTileParams
 }
 import freechips.rocketchip.util.ClockGateModelFile
+import scala.reflect.ClassTag
+
+case object MaxXLen extends Field[Int]
 
 class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters
-  case PgLevels => if (site(XLen) == 64) 3 /* Sv39 */ else 2 /* Sv32 */
-  case XLen => 64 // Applies to all cores
+  case MaxXLen => (site(PossibleTileLocations).flatMap(loc => site(TilesLocated(loc)))
+    .map(_.tileParams.core.xLen) :+ 32).max
   case MaxHartIdBits => log2Up((site(PossibleTileLocations).flatMap(loc => site(TilesLocated(loc)))
       .map(_.tileParams.tileId) :+ 0).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
-    beatBytes = site(XLen)/8,
+    beatBytes = site(MaxXLen)/8,
     blockBytes = site(CacheBlockBytes))
   case ControlBusKey => PeripheryBusParams(
-    beatBytes = site(XLen)/8,
+    beatBytes = site(MaxXLen)/8,
     blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000), // Default to 100 MHz cbus clock
     errorDevice = Some(BuiltInErrorDeviceParams(
-      errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096))))
+      errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(MaxXLen)/8, maxTransfer=4096))))
   case PeripheryBusKey => PeripheryBusParams(
-    beatBytes = site(XLen)/8,
+    beatBytes = site(MaxXLen)/8,
     blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000)) // Default to 100 MHz pbus clock
   case MemoryBusKey => MemoryBusParams(
-    beatBytes = site(XLen)/8,
+    beatBytes = site(MaxXLen)/8,
     blockBytes = site(CacheBlockBytes))
   case FrontBusKey => FrontBusParams(
-    beatBytes = site(XLen)/8,
+    beatBytes = site(MaxXLen)/8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
   case HasTilesExternalResetVectorKey => false
-  case DebugModuleKey => Some(DefaultDebugModuleParams(site(XLen)))
+  case DebugModuleKey => Some(DefaultDebugModuleParams(site(MaxXLen)))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
   case TilesLocated(InSubsystem) => Nil

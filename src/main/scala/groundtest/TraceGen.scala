@@ -62,11 +62,11 @@ import freechips.rocketchip.prci.{ClockSinkParameters, ClockCrossingType}
 //     to repeatedly recompile with a different address bag.)
 
 case class TraceGenParams(
-    wordBits: Int, // p(XLen) 
-    addrBits: Int, // p(PAddrBits)
-    addrBag: List[BigInt], // p(AddressBag)
+    wordBits: Int,
+    addrBits: Int,
+    addrBag: List[BigInt],
     maxRequests: Int,
-    memStart: BigInt, //p(ExtMem).base
+    memStart: BigInt,
     numGens: Int,
     dcache: Option[DCacheParams] = Some(DCacheParams()),
     tileId: Int = 0
