@@ -35,28 +35,28 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
       .map(_.tileParams.tileId) :+ 0).max+1)
   // Interconnect parameters
   case SystemBusKey => SystemBusParams(
-    beatBytes = site(MaxXLen)/8,
+    beatBytes = 8,
     blockBytes = site(CacheBlockBytes))
   case ControlBusKey => PeripheryBusParams(
-    beatBytes = site(MaxXLen)/8,
+    beatBytes = 8,
     blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000), // Default to 100 MHz cbus clock
     errorDevice = Some(BuiltInErrorDeviceParams(
-      errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(MaxXLen)/8, maxTransfer=4096))))
+      errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=8, maxTransfer=4096))))
   case PeripheryBusKey => PeripheryBusParams(
-    beatBytes = site(MaxXLen)/8,
+    beatBytes = 8,
     blockBytes = site(CacheBlockBytes),
     dtsFrequency = Some(100000000)) // Default to 100 MHz pbus clock
   case MemoryBusKey => MemoryBusParams(
-    beatBytes = site(MaxXLen)/8,
+    beatBytes = 8,
     blockBytes = site(CacheBlockBytes))
   case FrontBusKey => FrontBusParams(
-    beatBytes = site(MaxXLen)/8,
+    beatBytes = 8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
   case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
   case HasTilesExternalResetVectorKey => false
-  case DebugModuleKey => Some(DefaultDebugModuleParams(site(MaxXLen)))
+  case DebugModuleKey => Some(DefaultDebugModuleParams(64))
   case CLINTKey => Some(CLINTParams())
   case PLICKey => Some(PLICParams())
   case TilesLocated(InSubsystem) => Nil

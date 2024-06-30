@@ -14,7 +14,7 @@ import scala.collection.mutable.ArrayBuffer
 
 case class RocketCoreParams(
   xLen: Int = 64,
-  pgLevels: Int = 32, // sv39 default
+  pgLevels: Int = 3, // sv39 default
   bootFreqHz: BigInt = 0,
   useVM: Boolean = true,
   useUser: Boolean = false,

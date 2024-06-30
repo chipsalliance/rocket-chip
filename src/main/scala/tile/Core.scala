@@ -121,6 +121,14 @@ trait HasCoreParameters extends HasTileParameters {
     require(vfLen <= eLen)
   }
 
+  if (coreParams.useVM) {
+    if (coreParams.xLen == 32) {
+      require(coreParams.pgLevels == 2)
+    } else {
+      require(coreParams.pgLevels >= 3)
+    }
+  }
+
   lazy val hartIdLen: Int = p(MaxHartIdBits)
   lazy val resetVectorLen: Int = {
     val externalLen = paddrBits
