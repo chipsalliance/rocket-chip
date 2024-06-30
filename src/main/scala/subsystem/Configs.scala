@@ -143,25 +143,21 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
   case BroadcastKey => up(BroadcastKey, site).copy(bufferless = true)
 })
 
-class TileAttachConfig[T <: CanAttachTile](f: T => T, locationOpt: Option[HierarchicalLocation])(implicit tag: ClassTag[T])
-  extends Config((site, here, up) => locationOpt match {
-    case Some(loc) => {
-      case TilesLocated(`loc`) => up(TilesLocated(loc)) map {
-        case tp: T => f(tp)
-        case t => t
-      }
-    }
-    case None => {
-      case TilesLocated(loc) => up(TilesLocated(loc)) map {
-        case tp: T => f(tp)
-        case t => t
-      }
+class TileAttachConfig[T <: CanAttachTile](f: T => T, locationOpt: Option[HierarchicalLocation], tileIdOpt: Seq[Int])(implicit tag: ClassTag[T])
+  extends Config((site, here, up) => {
+    val partialFn: PartialFunction[CanAttachTile, CanAttachTile] = { case tp: T => if (tileIdOpt.contains(tp.tileParams.tileId) || tileIdOpt.isEmpty) f(tp) else tp }
+    val alterFn: CanAttachTile => CanAttachTile = x => partialFn.applyOrElse(x, identity[CanAttachTile])
+    locationOpt match {
+      case Some(loc) => { case TilesLocated(`loc`) => up(TilesLocated(loc)) map { alterFn(_) } }
+      case None      => { case TilesLocated(loc)   => up(TilesLocated(loc)) map { alterFn(_) } }
     }
   }) {
   // The default constructor applies the modification to all locations
-  def this(f: T => T)(implicit tag: ClassTag[T]) = this(f, None)
+  def this(f: T => T)(implicit tag: ClassTag[T]) = this(f, None, Nil)
   // The atLocation method applies the modification to only the provided location
-  def atLocation(loc: HierarchicalLocation) = new TileAttachConfig(f, Some(loc))
+  def atLocation(loc: HierarchicalLocation) = new TileAttachConfig(f, Some(loc), tileIdOpt)
+  // The atTileIds method applies the modification only to specified tileIds
+  def atTileIds(ids: Int*) = new TileAttachConfig(f, locationOpt, tileIdOpt ++ ids)
 }
 
 class WithRoccExample extends Config((site, here, up) => {
