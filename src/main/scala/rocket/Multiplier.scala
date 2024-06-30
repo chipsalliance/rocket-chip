@@ -4,8 +4,11 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
-import freechips.rocketchip.util._
+import chisel3.util._
+
+import org.chipsalliance.rocketutils.ShouldBeRetimed
+
+import org.chipsalliance.rocketutils.conversions.{BooleanToAugmentedBoolean, UIntToAugmentedUInt}
 
 class MultiplierReq(dataBits: Int, tagBits: Int, aluFn: ALUFN = new ALUFN) extends Bundle {
   val fn = Bits(aluFn.SZ_ALU_FN.W)

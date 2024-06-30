@@ -3,7 +3,8 @@
 package freechips.rocketchip.amba.ahb
 
 import chisel3._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.BundleMap
 
 // Signal directions are from the master's point-of-view
 class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle

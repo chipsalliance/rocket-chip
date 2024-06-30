@@ -5,8 +5,10 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
+
+import org.chipsalliance.rocketutils.MuxTLookup
+
 import freechips.rocketchip.rocket.constants.MemoryOpConstants
-import freechips.rocketchip.util._
 
 object ClientStates {
   val width = 2

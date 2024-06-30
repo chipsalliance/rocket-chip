@@ -2,7 +2,7 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import freechips.rocketchip.util.RecordMap
+import org.chipsalliance.rocketutils.RecordMap
 
 
 class ClockBundle(val params: ClockBundleParameters = ClockBundleParameters()) extends Bundle

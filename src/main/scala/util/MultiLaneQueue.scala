@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, val flow: Boolean = false, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val laneBits1 = log2Ceil(lanes+1) // [0, lanes]
 
@@ -29,6 +30,7 @@ class MultiLaneQueue[T <: Data](gen: T, val lanes: Int, val rows: Int, val flow:
   io.deq_bits := RotateVector.right(queue.io.deq.bits, queue.io.deq_0_lane)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object RotateVector {
   def left[T <: Data](input: Seq[T], shift: UInt): Vec[T] = {
     val bools = shift.asBools.toVector

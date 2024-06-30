@@ -2,6 +2,7 @@
 
 package freechips.rocketchip.util
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ElaborationArtefacts {
   var files: Seq[(String, () => String)] = Nil
 

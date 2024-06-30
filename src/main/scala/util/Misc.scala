@@ -9,17 +9,21 @@ import chisel3.util.random.LFSR
 import org.chipsalliance.cde.config.Parameters
 import scala.math._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ParameterizedBundle(implicit p: Parameters) extends Bundle
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait Clocked extends Bundle {
   val clock = Clock()
   val reset = Bool()  
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object DecoupledHelper {
   def apply(rvs: Bool*) = new DecoupledHelper(rvs)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class DecoupledHelper(val rvs: Seq[Bool]) {
   def fire(exclude: Bool, includes: Bool*) = {
     require(rvs.contains(exclude), "Excluded Bool not present in DecoupledHelper! Note that DecoupledHelper uses referential equality for exclusion! If you don't want to exclude anything, use fire()!")
@@ -30,6 +34,7 @@ class DecoupledHelper(val rvs: Seq[Bool]) {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MuxT {
   def apply[T <: Data, U <: Data](cond: Bool, con: (T, U), alt: (T, U)): (T, U) =
     (Mux(cond, con._1, alt._1), Mux(cond, con._2, alt._2))
@@ -42,6 +47,7 @@ object MuxT {
 }
 
 /** Creates a cascade of n MuxTs to search for a key value. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MuxTLookup {
   def apply[S <: UInt, T <: Data, U <: Data](key: S, default: (T, U), mapping: Seq[(S, (T, U))]): (T, U) = {
     var res = default
@@ -58,6 +64,7 @@ object MuxTLookup {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ValidMux {
   def apply[T <: Data](v1: ValidIO[T], v2: ValidIO[T]*): ValidIO[T] = {
     apply(v1 +: v2.toSeq)
@@ -71,6 +78,7 @@ object ValidMux {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Str
 {
   def apply(s: String): UInt = {
@@ -127,6 +135,7 @@ object Str
   private def validChar(x: Char) = x == (x & 0xFF)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Split
 {
   def apply(x: UInt, n0: Int) = {
@@ -143,6 +152,7 @@ object Split
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Random
 {
   def apply(mod: Int, random: UInt): UInt = {
@@ -161,6 +171,7 @@ object Random
     Seq.tabulate(slices)(i => value < (((i + 1) << value.getWidth) / slices).U)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Majority {
   def apply(in: Set[Bool]): Bool = {
     val n = (in.size >> 1) + 1
@@ -173,6 +184,7 @@ object Majority {
   def apply(in: UInt): Bool = apply(in.asBools.toSet)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object PopCountAtLeast {
   private def two(x: UInt): (Bool, Bool) = x.getWidth match {
     case 1 => (x.asBool, false.B)
@@ -194,6 +206,7 @@ object PopCountAtLeast {
 // Given an address and size, create a mask of beatBytes size
 // eg: (0x3, 0, 4) => 0001, (0x3, 1, 4) => 0011, (0x3, 2, 4) => 1111
 // groupBy applies an interleaved OR reduction; groupBy=2 take 0010 => 01
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MaskGen {
   def apply(addr_lo: UInt, lgSize: UInt, beatBytes: Int, groupBy: Int = 1): UInt = {
     require (groupBy >= 1 && beatBytes >= groupBy)

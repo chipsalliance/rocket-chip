@@ -6,11 +6,17 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util._
 import chisel3.withClock
+
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.{PlusArg, CoreMonitorBundle}
+
 import freechips.rocketchip.tile._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+
+import org.chipsalliance.rocketutils.{ClockGate, property}
+
 import scala.collection.mutable.ArrayBuffer
+
+import org.chipsalliance.rocketutils.conversions.{BooleanToAugmentedBoolean, UIntToAugmentedUInt, UIntIsOneOf, SeqBoolBitwiseOps, SeqToAugmentedSeq}
 
 case class RocketCoreParams(
   bootFreqHz: BigInt = 0,

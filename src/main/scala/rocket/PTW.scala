@@ -3,18 +3,20 @@
 
 package freechips.rocketchip.rocket
 
-import chisel3._
-import chisel3.util.{Arbiter, Cat, Decoupled, Enum, Mux1H, OHToUInt, PopCount, PriorityEncoder, PriorityEncoderOH, RegEnable, UIntToOH, Valid, is, isPow2, log2Ceil, switch}
-import chisel3.withClock
+import chisel3.{withClock, _}
+import chisel3.util._
 import chisel3.experimental.SourceInfo
+
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.{ClockGate, DescribedSRAM, ParityCode, PseudoLRU, SetAssocLRU, Split, property}
+
 import freechips.rocketchip.subsystem.CacheBlockBytes
-import freechips.rocketchip.tile._
+import freechips.rocketchip.tile.{BaseTile, CoreBundle, CoreModule, HasCoreParameters, HasTileParameters}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
 
 import scala.collection.mutable.ListBuffer
+
+import org.chipsalliance.rocketutils.conversions.{BooleanToAugmentedBoolean, SeqBoolBitwiseOps, IntToAugmentedInt, OptimizationBarrier, SeqToAugmentedSeq, UIntToAugmentedUInt}
 
 /** PTE request from TLB to PTW
   *

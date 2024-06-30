@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LatencyPipe[T <: Data](typ: T, latency: Int) extends Module {
   val io = IO(new Bundle {
     val in = Flipped(Decoupled(typ))
@@ -17,6 +18,7 @@ class LatencyPipe[T <: Data](typ: T, latency: Int) extends Module {
   io.out <> doN(latency, (last: DecoupledIO[T]) => Queue(last, 1, true), io.in)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object LatencyPipe {
   def apply[T <: Data](in: DecoupledIO[T], latency: Int): DecoupledIO[T] = {
     val pipe = Module(new LatencyPipe(chiselTypeOf(in.bits), latency))

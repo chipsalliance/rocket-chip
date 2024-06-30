@@ -8,7 +8,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.DataToAugmentedData
 
 trait Pattern {
   def address: BigInt

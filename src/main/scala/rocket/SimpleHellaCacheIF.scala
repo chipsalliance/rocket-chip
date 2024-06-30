@@ -4,10 +4,10 @@
 package freechips.rocketchip.rocket
 
 import chisel3._
-import chisel3.util.{Valid,Decoupled,Queue,log2Up,OHToUInt,UIntToOH,PriorityEncoderOH,Arbiter,RegEnable,Cat}
+import chisel3.util._
 
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util._
+import org.chipsalliance.rocketutils.DecoupledHelper
 
 /**
  * This module buffers requests made by the SimpleHellaCacheIF in case they

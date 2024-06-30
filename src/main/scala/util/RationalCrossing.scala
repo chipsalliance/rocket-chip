@@ -12,6 +12,7 @@ import chisel3.util._
 // A rational crossing must put registers on the slow side.
 // This trait covers the options of how/where to put the registers.
 // BEWARE: the source+sink must agree on the direction!
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed trait RationalDirection {
   def flip: RationalDirection
 }
@@ -21,6 +22,7 @@ sealed trait RationalDirection {
 // a Queue into flow and pipe parts on either side. This is safe
 // for all possible clock ratios, but has the downside that the
 // timing must be met for the least-common-multiple of the clocks.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case object Symmetric extends RationalDirection {
   def flip = Symmetric
 }
@@ -30,6 +32,7 @@ case object Symmetric extends RationalDirection {
 // a full flow+pipe buffer on both sides of the crossing. This
 // ends up costing potentially two cycles of delay, but gives
 // both clock domains a full clock period to close timing.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case object Flexible extends RationalDirection {
   def flip = Flexible
 }
@@ -37,6 +40,7 @@ case object Flexible extends RationalDirection {
 // If the source is N:1 of the sink, place the registers at the sink.
 // This imposes only a single clock cycle of delay and both side of
 // the crossing have a full clock period to close timing.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case object FastToSlow extends RationalDirection {
   def flip = SlowToFast
 }
@@ -44,10 +48,12 @@ case object FastToSlow extends RationalDirection {
 // If the source is 1:N of the sink, place the registers at the source.
 // This imposes only a single clock cycle of delay and both side of
 // the crossing have a full clock period to close timing.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case object SlowToFast extends RationalDirection {
   def flip = FastToSlow
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 final class RationalIO[T <: Data](gen: T) extends Bundle
 {
   val bits0  = Output(gen)
@@ -59,11 +65,13 @@ final class RationalIO[T <: Data](gen: T) extends Bundle
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object RationalIO
 {
   def apply[T <: Data](gen: T) = new RationalIO(gen)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = Symmetric) extends Module
 {
   val io = IO(new Bundle {
@@ -100,6 +108,7 @@ class RationalCrossingSource[T <: Data](gen: T, direction: RationalDirection = S
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Symmetric) extends Module
 {
   val io = IO(new Bundle {
@@ -135,6 +144,7 @@ class RationalCrossingSink[T <: Data](gen: T, direction: RationalDirection = Sym
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class RationalCrossingFull[T <: Data](gen: T, direction: RationalDirection = Symmetric) extends Module
 {
   val io = IO(new CrossingIO(gen))
@@ -151,6 +161,7 @@ class RationalCrossingFull[T <: Data](gen: T, direction: RationalDirection = Sym
   io.deq <> sink.io.deq
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ToRational
 {
   def apply[T <: Data](x: DecoupledIO[T], direction: RationalDirection = Symmetric): RationalIO[T] = {
@@ -160,6 +171,7 @@ object ToRational
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object FromRational
 {
   def apply[T <: Data](x: RationalIO[T], direction: RationalDirection = Symmetric): DecoupledIO[T] = {

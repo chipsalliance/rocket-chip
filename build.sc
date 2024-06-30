@@ -6,6 +6,7 @@ import $file.dependencies.hardfloat.common
 import $file.dependencies.cde.common
 import $file.dependencies.diplomacy.common
 import $file.dependencies.chisel.build
+import $file.rocketutils.{common => utilsCommon}
 import $file.common
 
 object v {
@@ -23,6 +24,29 @@ object v {
   val sonatypesSnapshots = Seq(
     MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
   )
+}
+
+object rocketutils extends Module {
+
+  object rocketutils extends Cross[rocketutils](v.chiselCrossVersions.view.filterKeys(_ != "source").keys.toSeq)
+
+  trait rocketutils extends utilsCommon.ChiselCrossModule with RocketChipPublishModule{
+    def scalaVersion = T(v.scala)
+
+    def moduleDeps = super.moduleDeps ++ Seq(cde, diplomacy(crossValue))
+    def ivyDeps = T(super.ivyDeps() ++ Agg(v.json4sJackson))
+  }
+
+  object rocketutilsSourceMod extends utilsCommon.ChiselSourceModule with RocketChipPublishModule {
+    def millSourcePath = millOuterCtx.millSourcePath / "rocketutils"
+
+    def scalaVersion = T(v.scala)
+
+    def chiselModule = chisel
+    def chiselPluginJar = T(chiselModule.pluginModule.jar())
+
+    def moduleDeps = super.moduleDeps ++ Seq(cde, diplomacy("source"))
+  }
 }
 
 // Build form source only for dev
@@ -130,6 +154,14 @@ trait RocketChip
   def hardfloatModule = hardfloat(crossValue)
 
   def cdeModule = cde
+
+  def rocketUtilsModule = {
+    if (crossValue == "source") {
+      rocketutils.rocketutilsSourceMod
+    } else {
+      rocketutils.rocketutils(crossValue)
+    }
+  }
 
   def diplomacyModule = diplomacy(crossValue)
 

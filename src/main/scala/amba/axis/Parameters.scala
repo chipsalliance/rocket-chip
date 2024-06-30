@@ -6,10 +6,10 @@ import chisel3.util.{isPow2, log2Ceil}
 
 import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.nodes.BaseNode
+import org.chipsalliance.rocketutils.{BundleFieldBase, BundleField}
 
 import freechips.rocketchip.diplomacy.{TransferSizes, IdRange}
 import freechips.rocketchip.resources.{Resource}
-import freechips.rocketchip.util.{BundleFieldBase, BundleField}
 
 
 class AXISSlaveParameters private (

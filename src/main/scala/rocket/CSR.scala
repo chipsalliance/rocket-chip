@@ -5,11 +5,14 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{BitPat, Cat, Fill, Mux1H, PopCount, PriorityMux, RegEnable, UIntToOH, Valid, log2Ceil, log2Up}
+
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.{property, WideCounter}
+
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.tile._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+
+import org.chipsalliance.rocketutils.conversions.{BooleanToAugmentedBoolean, SeqToAugmentedSeq, IntToAugmentedInt, UIntToAugmentedUInt, UIntIsOneOf, wcToUInt}
 
 import scala.collection.mutable.LinkedHashMap
 import Instructions._

@@ -23,12 +23,12 @@ import chisel3._
 import chisel3.util._
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils._
 
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, CanAttachTile}
-import freechips.rocketchip.util._
 import freechips.rocketchip.prci.{ClockSinkParameters, ClockCrossingType}
 
 // =======

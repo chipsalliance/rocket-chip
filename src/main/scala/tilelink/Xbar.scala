@@ -7,9 +7,9 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.BundleField
 
 import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, RegionType, IdRange, TriStateValue}
-import freechips.rocketchip.util.BundleField
 
 // Trades off slave port proximity against routing resource cost
 object ForceFanout

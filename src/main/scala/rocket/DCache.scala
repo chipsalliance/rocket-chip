@@ -7,6 +7,7 @@ import chisel3.util._
 import chisel3.experimental.SourceInfo
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils.{CanHaveErrors, ClockGate, IdentityCode, ReplacementPolicy, DescribedSRAM, property}
 
 import freechips.rocketchip.amba.AMBAProt
 import freechips.rocketchip.diplomacy.{BufferParams}
@@ -14,14 +15,10 @@ import freechips.rocketchip.prci.{ClockCrossingType, RationalCrossing, Synchrono
 import freechips.rocketchip.tile.{CoreBundle, LookupByHartId}
 import freechips.rocketchip.tilelink.{TLFIFOFixer,ClientMetadata, TLBundleA, TLAtomics, TLBundleB, TLPermissions}
 import freechips.rocketchip.tilelink.TLMessages.{AccessAck, HintAck, AccessAckData, Grant, GrantData, ReleaseAck}
-import freechips.rocketchip.util.{CanHaveErrors, ClockGate, IdentityCode, ReplacementPolicy, DescribedSRAM, property}
 
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
-import freechips.rocketchip.util.UIntToAugmentedUInt
-import freechips.rocketchip.util.UIntIsOneOf
-import freechips.rocketchip.util.IntToAugmentedInt
-import freechips.rocketchip.util.SeqToAugmentedSeq
-import freechips.rocketchip.util.SeqBoolBitwiseOps
+import org.chipsalliance.rocketutils.conversions.{
+  BooleanToAugmentedBoolean, UIntToAugmentedUInt, UIntIsOneOf,
+  IntToAugmentedInt, SeqToAugmentedSeq, SeqBoolBitwiseOps}
 
 // TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
 trait InlineInstance { self: chisel3.experimental.BaseModule =>

@@ -7,6 +7,7 @@ import chisel3._
 
 // this bundle is used to expose some internal core signals
 // to verification monitors which sample instruction commits
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class CoreMonitorBundle(val xLen: Int, val fLen: Int) extends Bundle with Clocked {
   val excpt = Bool()
   val priv_mode = UInt(width = 3.W)
@@ -28,6 +29,7 @@ class CoreMonitorBundle(val xLen: Int, val fLen: Int) extends Bundle with Clocke
 }
 
 // mark a module that has cores with CoreMonitorBundles
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait HasCoreMonitorBundles {
     def coreMonitorBundles: List[CoreMonitorBundle]
 }

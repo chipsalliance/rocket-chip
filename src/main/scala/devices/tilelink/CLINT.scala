@@ -7,6 +7,7 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Annotated
 
 import freechips.rocketchip.diplomacy.{AddressSet}
 import freechips.rocketchip.resources.{Resource, SimpleDevice}
@@ -14,7 +15,6 @@ import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSink
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup}
 import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
-import freechips.rocketchip.util.Annotated
 
 object CLINTConsts
 {

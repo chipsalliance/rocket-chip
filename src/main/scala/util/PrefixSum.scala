@@ -4,6 +4,7 @@ package freechips.rocketchip.util
 
 import chisel3.util.{log2Ceil, log2Floor}
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait PrefixSum {
   // out[0] = summands[0]
   // out[1] = summands[0] + summands[1]
@@ -17,6 +18,7 @@ trait PrefixSum {
 }
 
 // N-1 area, N-1 depth
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object RipplePrefixSum extends PrefixSum {
   def layers(size: Int) = if (size == 0) 1 else size
   def apply[T](summands: Seq[T])(associativeOp: (T, T) => T, layerOp: (Int, Vector[T]) => Vector[T]): Vector[T] = {
@@ -38,6 +40,7 @@ object RipplePrefixSum extends PrefixSum {
 }
 
 // O(NlogN) area, logN depth
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object DensePrefixSum extends PrefixSum {
   def layers(size: Int) = if (size == 0) 1 else 1+log2Ceil(size)
   def apply[T](summands: Seq[T])(associativeOp: (T, T) => T, layerOp: (Int, Vector[T]) => Vector[T]): Vector[T] = {
@@ -59,6 +62,7 @@ object DensePrefixSum extends PrefixSum {
 }
 
 // 2N area, 2logN depth
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object SparsePrefixSum extends PrefixSum {
   def layers(size: Int) = if (size <= 1) 1 else 2*log2Floor(size) +
                             (if (2*size >= (3 << log2Floor(size))) 1 else 0)
@@ -99,6 +103,7 @@ object SparsePrefixSum extends PrefixSum {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object TestPrefixSums {
   def testSize(size: Int): Unit = {
     val input = Seq.tabulate(size) { i => Seq(i) }

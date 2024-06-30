@@ -14,7 +14,8 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.amba.{AMBACorrupt, AMBAProt, AMBAProtField}
 import freechips.rocketchip.diplomacy.{IdRange, IdMapEntry, TransferSizes}
 import freechips.rocketchip.tilelink.{TLImp, TLMasterParameters, TLMasterPortParameters, TLArbiter}
-import freechips.rocketchip.util.{OH1ToUInt, UIntToOH1}
+
+import org.chipsalliance.rocketutils.conversions.{OH1ToUInt, UIntToOH1}
 
 case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
   extends IdMapEntry

@@ -7,7 +7,8 @@ import org.chipsalliance.diplomacy.nodes._
 
 import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, SynchronousCrossing}
 import freechips.rocketchip.tilelink.{TLBusWrapper, TLBusWrapperTopology, TLBusWrapperConnection}
-import freechips.rocketchip.util.Location
+
+import org.chipsalliance.rocketutils.Location
 
 // These fields control parameters of the five traditional tilelink bus wrappers.
 //   They continue to exist for backwards compatiblity reasons but could eventually be retired.

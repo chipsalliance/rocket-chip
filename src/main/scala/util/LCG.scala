@@ -12,6 +12,7 @@ import chisel3.util.Cat
   * random initial value for each uninitialised register, effectively
   * seeding each LCG16 instance with a different seed.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LCG16 extends Module { 
   val io = IO(new Bundle {
     val out = Output(UInt(16.W))
@@ -27,6 +28,7 @@ class LCG16 extends Module {
 /** An n-bit psuedo-random generator made from many instances of a
   * 16-bit LCG.  Parameter 'width' must be larger than 0.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LCG(val w: Int) extends Module {
   val io = IO(new Bundle {
     val out = Output(UInt(w.W))
@@ -38,6 +40,7 @@ class LCG(val w: Int) extends Module {
   io.out := Cat(outs)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object LCG16 {
   def apply(inc: Bool = true.B): UInt = {
     val lcg = Module(new LCG16)
@@ -46,6 +49,7 @@ object LCG16 {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object LCG {
   def apply(w: Int, inc: Bool = true.B): UInt = {
     val lcg = Module(new LCG(w))

@@ -8,6 +8,7 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{Annotated, MuxT, property}
 
 import freechips.rocketchip.diplomacy.{AddressSet}
 import freechips.rocketchip.resources.{Description, Resource, ResourceBinding, ResourceBindings, ResourceInt, SimpleDevice}
@@ -15,12 +16,10 @@ import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSink
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldRdAction, RegFieldWrType, RegReadFn, RegWriteFn}
 import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
-import freechips.rocketchip.util.{Annotated, MuxT, property}
 
 import scala.math.min
 
-import freechips.rocketchip.util.UIntToAugmentedUInt
-import freechips.rocketchip.util.SeqToAugmentedSeq
+import org.chipsalliance.rocketutils.conversions.{UIntToAugmentedUInt, SeqToAugmentedSeq}
 
 class GatewayPLICIO extends Bundle {
   val valid = Output(Bool())

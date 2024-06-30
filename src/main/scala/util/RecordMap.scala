@@ -7,6 +7,7 @@ import scala.collection.immutable.ListMap
 import chisel3.experimental.requireIsChiselType
 import chisel3.reflect.DataMirror.internal.chiselTypeClone
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 final class RecordMap[T <: Data] (eltMap: ListMap[String, T])
     extends Record {
   
@@ -22,6 +23,7 @@ final class RecordMap[T <: Data] (eltMap: ListMap[String, T])
 
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object RecordMap {
 
   def apply[T <: Data](eltMap: ListMap[String, T]) = new RecordMap(eltMap)

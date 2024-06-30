@@ -6,8 +6,10 @@ import chisel3._
 import chisel3.util.log2Ceil
 import scala.collection.mutable.{HashMap}
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ROMConfig(name: String, depth: Int, width: Int)
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class BlackBoxedROM(c: ROMConfig) extends BlackBox {
   val io = IO(new Bundle {
     val clock = Input(Clock())
@@ -20,6 +22,7 @@ class BlackBoxedROM(c: ROMConfig) extends BlackBox {
   override def desiredName: String = c.name
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ROMGenerator {
   private var finalized = false
   private val roms = HashMap[BlackBoxedROM, ROMConfig]()

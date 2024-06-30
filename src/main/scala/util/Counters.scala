@@ -7,6 +7,7 @@ import chisel3._
 import chisel3.util._
 
 // Produces 0-width value when counting to 1
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ZCounter(val n: Int) {
   val value = RegInit(0.U(log2Ceil(n).W))
   def inc(): Bool = {
@@ -19,6 +20,7 @@ class ZCounter(val n: Int) {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ZCounter {
   def apply(n: Int) = new ZCounter(n)
   def apply(cond: Bool, n: Int): (UInt, Bool) = {
@@ -29,6 +31,7 @@ object ZCounter {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object TwoWayCounter {
   def apply(up: Bool, down: Bool, max: Int): UInt = {
     val cnt = RegInit(0.U(log2Up(max + 1).W))
@@ -39,6 +42,7 @@ object TwoWayCounter {
 }
 
 // a counter that clock gates most of its MSBs using the LSB carry-out
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class WideCounter(width: Int, inc: UInt = 1.U, reset: Boolean = true, inhibit: Bool = false.B) {
   private val isWide = width > (2 * inc.getWidth)
   private val smallWidth = if (isWide) inc.getWidth max log2Up(width) else width

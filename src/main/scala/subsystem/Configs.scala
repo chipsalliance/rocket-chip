@@ -7,6 +7,7 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.ClockGateModelFile
 
 import freechips.rocketchip.devices.debug.{DebugModuleKey, DefaultDebugModuleParams, ExportDebug, JTAG, APB}
 import freechips.rocketchip.devices.tilelink.{
@@ -23,7 +24,6 @@ import freechips.rocketchip.rocket.{PgLevels, RocketCoreParams, MulDivParams, DC
 import freechips.rocketchip.tile.{
   XLen, MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
 }
-import freechips.rocketchip.util.ClockGateModelFile
 
 class BaseSubsystemConfig extends Config ((site, here, up) => {
   // Tile parameters

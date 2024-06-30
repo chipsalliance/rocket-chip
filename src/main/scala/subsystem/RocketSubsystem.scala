@@ -3,12 +3,12 @@
 package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils.HasCoreMonitorBundles
 
 import freechips.rocketchip.devices.debug.HasPeripheryDebug
 import freechips.rocketchip.devices.tilelink.{CanHavePeripheryCLINT, CanHavePeripheryPLIC}
 import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, SynchronousCrossing, ClockCrossingType}
 import freechips.rocketchip.tile.{RocketTile, RocketTileParams}
-import freechips.rocketchip.util.HasCoreMonitorBundles
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),

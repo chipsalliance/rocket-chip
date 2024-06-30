@@ -10,7 +10,7 @@ import org.chipsalliance.cde.config.{Parameters, Field}
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{SimpleNodeImp, RenderedEdge, OutwardNode, InwardNode, SourceNode, SinkNode, NexusNode, AdapterNode, IdentityNode, MixedAdapterNode}
 
-import freechips.rocketchip.util.AsyncQueueParams
+import org.chipsalliance.rocketutils.AsyncQueueParams
 
 case object AXI4MonitorBuilder extends Field[AXI4MonitorArgs => AXI4MonitorBase]
 

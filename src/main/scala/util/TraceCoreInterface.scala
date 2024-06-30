@@ -6,6 +6,7 @@ package freechips.rocketchip.util
 import chisel3._
 
 // Definitions for Trace core Interface defined in RISC-V Processor Trace Specification V1.0
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object TraceItype extends ChiselEnum {
   val ITNothing   = Value(0.U)
   val ITException = Value(1.U)
@@ -25,6 +26,7 @@ object TraceItype extends ChiselEnum {
   val ITInJump    = Value(15.U)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class TraceCoreParams (
   val nGroups: Int = 1,
   val iretireWidth: Int = 1,
@@ -32,6 +34,7 @@ class TraceCoreParams (
   val iaddrWidth: Int = 32
 )
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class TraceCoreGroup (val params: TraceCoreParams) extends Bundle {
   val iretire = UInt(params.iretireWidth.W)
   val iaddr = UInt(params.iaddrWidth.W)
@@ -39,6 +42,7 @@ class TraceCoreGroup (val params: TraceCoreParams) extends Bundle {
   val ilastsize = UInt(1.W)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class TraceCoreInterface (val params: TraceCoreParams) extends Bundle {
   val group = Vec(params.nGroups, new TraceCoreGroup(params))
   val priv = UInt(4.W)

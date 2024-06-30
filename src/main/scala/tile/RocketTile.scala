@@ -7,6 +7,7 @@ import chisel3._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{Annotated, InOrderArbiter}
 
 import freechips.rocketchip.devices.tilelink.{BasicBusBlockerParams, BasicBusBlocker}
 import freechips.rocketchip.diplomacy.{
@@ -24,9 +25,8 @@ import freechips.rocketchip.rocket.{
 }
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
-import freechips.rocketchip.util.{Annotated, InOrderArbiter}
 
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import org.chipsalliance.rocketutils.conversions.BooleanToAugmentedBoolean
 
 case class RocketTileBoundaryBufferParams(force: Boolean = false)
 

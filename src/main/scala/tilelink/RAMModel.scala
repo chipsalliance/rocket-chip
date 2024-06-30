@@ -7,10 +7,9 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.CRC
 
-import freechips.rocketchip.util.{CRC, UIntToOH1}
-
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, UIntToOH1}
 
 // We detect concurrent puts that put memory into an undefined state.
 // put0, put0Ack, put1, put1Ack => ok: defined

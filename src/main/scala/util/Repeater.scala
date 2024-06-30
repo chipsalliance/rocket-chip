@@ -7,6 +7,7 @@ import chisel3.util.{Decoupled, DecoupledIO}
 
 // A Repeater passes its input to its output, unless repeat is asserted.
 // When repeat is asserted, the Repeater copies the input and repeats it next cycle.
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class Repeater[T <: Data](gen: T) extends Module
 {
   override def desiredName = s"Repeater_${gen.typeName}"
@@ -30,6 +31,7 @@ class Repeater[T <: Data](gen: T) extends Module
   when (io.deq.fire && !io.repeat) { full := false.B }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Repeater
 {
   def apply[T <: Data](enq: DecoupledIO[T], repeat: Bool): DecoupledIO[T] = {

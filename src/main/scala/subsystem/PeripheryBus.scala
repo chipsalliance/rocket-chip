@@ -4,6 +4,7 @@ package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Location
 
 import freechips.rocketchip.devices.tilelink.{BuiltInZeroDeviceParams, BuiltInErrorDeviceParams, HasBuiltInDeviceParams, BuiltInDevices}
 import freechips.rocketchip.diplomacy.BufferParams
@@ -12,7 +13,6 @@ import freechips.rocketchip.tilelink.{
   TLBusWrapperInstantiationLike, TLFIFOFixer, TLNode, TLXbar, TLInwardNode, TLOutwardNode,
   TLBuffer, TLWidthWidget, TLAtomicAutomata, TLEdge
 }
-import freechips.rocketchip.util.Location
 
 case class BusAtomics(
   arithmetic: Boolean = true,

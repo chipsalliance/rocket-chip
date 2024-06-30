@@ -8,6 +8,7 @@ import org.chipsalliance.cde.config.Parameters
 
 /** A generalized locking RR arbiter that addresses the limitations of the
  *  version in the Chisel standard library */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class HellaLockingArbiter[T <: Data](typ: T, arbN: Int, rr: Boolean = false)
     extends Module {
 
@@ -46,6 +47,7 @@ abstract class HellaLockingArbiter[T <: Data](typ: T, arbN: Int, rr: Boolean = f
 
 /** This locking arbiter determines when it is safe to unlock
  *  by peeking at the data */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class HellaPeekingArbiter[T <: Data](
       typ: T, arbN: Int,
       canUnlock: T => Bool,
@@ -69,6 +71,7 @@ class HellaPeekingArbiter[T <: Data](
 }
 
 /** This arbiter determines when it is safe to unlock by counting transactions */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class HellaCountingArbiter[T <: Data](
       typ: T, arbN: Int, count: Int,
       val needsLock: Option[T => Bool] = None,
@@ -97,6 +100,7 @@ class HellaCountingArbiter[T <: Data](
 }
 
 /** This arbiter preserves the order of responses */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class InOrderArbiter[T <: Data, U <: Data](reqTyp: T, respTyp: U, n: Int)
     (implicit p: Parameters) extends Module {
   val io = IO(new Bundle {

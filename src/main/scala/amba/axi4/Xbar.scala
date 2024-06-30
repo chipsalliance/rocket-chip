@@ -9,10 +9,11 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
+import org.chipsalliance.rocketutils.BundleField
+
 import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, BufferParams}
 import freechips.rocketchip.tilelink.{TLArbiter, TLXbar, TLFilter, TLFuzzer, TLToAXI4, TLRAMModel}
 import freechips.rocketchip.unittest.{UnitTest, UnitTestModule}
-import freechips.rocketchip.util.BundleField
 
 /**
   * AXI4 Crossbar. It connects multiple AXI4 masters to slaves.

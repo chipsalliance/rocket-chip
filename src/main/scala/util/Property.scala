@@ -6,16 +6,19 @@ import chisel3._
 import chisel3.experimental.SourceInfo
 import chisel3.util.{ReadyValidIO}
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 sealed abstract class PropertyType(name: String) {
   override def toString: String = name
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object PropertyType {
   object Assert extends PropertyType("Assert")
   object Assume extends PropertyType("Assume")
   object Cover extends PropertyType("Cover")
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait BasePropertyParameters {
   val pType: PropertyType
   val cond: Bool
@@ -23,6 +26,7 @@ trait BasePropertyParameters {
   val message: String
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class CoverPropertyParameters(
     cond: Bool,
     label: String = "",
@@ -30,10 +34,12 @@ case class CoverPropertyParameters(
   val pType = PropertyType.Cover
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class BasePropertyLibrary {
   def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo): Unit
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class DefaultPropertyLibrary extends BasePropertyLibrary {
   def generateProperty(prop_param: BasePropertyParameters)(implicit sourceInfo: SourceInfo): Unit = {
     // default is to do nothing
@@ -41,10 +47,12 @@ class DefaultPropertyLibrary extends BasePropertyLibrary {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class BaseProperty {
   def generateProperties(): Seq[BasePropertyParameters]
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class CoverBoolean(cond: Bool, labels: Seq[String]) {
 }
 
@@ -72,6 +80,7 @@ case class CoverBoolean(cond: Bool, labels: Seq[String]) {
 
 //  Each boolean expression can be associated with more than one label
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], message: String) extends BaseProperty {
   def listProperties(c1: CoverBoolean, c2: Seq[CoverBoolean]): Seq[CoverBoolean] = {
     if (c2.isEmpty) {
@@ -124,6 +133,7 @@ class CrossProperty(cond: Seq[Seq[CoverBoolean]], exclude: Seq[Seq[String]], mes
 
 // The implementation using a setable global is bad, but removes dependence on Parameters
 // This change was made in anticipation of a proper cover library
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object cover {
   private var propLib: BasePropertyLibrary = new DefaultPropertyLibrary
   def setPropLib(lib: BasePropertyLibrary): Unit = this.synchronized {

@@ -4,9 +4,12 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{Cat, log2Ceil}
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.util._
+import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.rocketutils.property
+
+import freechips.rocketchip.tile.{CoreBundle, HasCoreParameters}
+
+import org.chipsalliance.rocketutils.conversions.{IntToAugmentedInt, UIntToOH1, SeqToAugmentedSeq}
 
 class PMPConfig extends Bundle {
   val l = Bool()

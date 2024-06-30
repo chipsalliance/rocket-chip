@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Gather {
   // Compress all the valid data to the lowest indices
   def apply[T <: Data](data: Seq[ValidIO[T]]): Vec[T] = apply(data, DensePrefixSum)
@@ -37,6 +38,7 @@ object Gather {
   def idLayer[T](layer: Int, data: Seq[T], holeSum: Seq[UInt]) = (data, holeSum)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Scatter {
   def apply[T <: Data](data: Seq[ValidIO[T]]): Vec[T] = apply(data, DensePrefixSum)
   def apply[T <: Data](data: Seq[ValidIO[T]], prefixSum: PrefixSum): Vec[T] = {

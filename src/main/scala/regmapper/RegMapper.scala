@@ -6,9 +6,9 @@ import chisel3._
 import chisel3.experimental.SourceInfo
 import chisel3.util._
 
-import freechips.rocketchip.diplomacy.AddressDecoder
+import org.chipsalliance.rocketutils.{BundleFieldBase, BundleMap, MuxSeq, ReduceOthers, property}
 
-import freechips.rocketchip.util.{BundleFieldBase, BundleMap, MuxSeq, ReduceOthers, property}
+import freechips.rocketchip.diplomacy.AddressDecoder
 
 // A bus agnostic register interface to a register-based device
 case class RegMapperParams(indexBits: Int, maskBits: Int, extraFields: Seq[BundleFieldBase] = Nil)

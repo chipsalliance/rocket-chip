@@ -4,7 +4,8 @@ package freechips.rocketchip.amba.axi4
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.{AsyncBundle, BundleMap, CreditedIO}
 
 abstract class AXI4BundleBase(val params: AXI4BundleParameters) extends Bundle
 

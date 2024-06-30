@@ -5,8 +5,10 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.log2Ceil
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+
+import org.chipsalliance.rocketutils.property
+
+import org.chipsalliance.rocketutils.conversions.SeqToAugmentedSeq
 
 class EventSet(val gate: (UInt, UInt) => Bool, val events: Seq[(String, () => Bool)]) {
   def size = events.size

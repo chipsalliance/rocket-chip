@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import scala.language.dynamics
 import scala.collection.mutable.Map
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class Location[T](val name: String) extends Dynamic {
   def selectDynamic[A](portname: String): Location[A] = new Location[A](s"${name}_${portname}")
   def applyDynamic[A](portname: String)(args: A*): (Location[A], A) = {
@@ -14,10 +15,12 @@ class Location[T](val name: String) extends Dynamic {
   override def toString = s"Location($name)"
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object Location {
   def apply[T](name: String): Location[T] = new Location[T](name)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class LocationMap[T] private (val internalMap: Map[String, T]) extends Map[Location[_], T] {
   def addOne(kv: (Location[_], T)) = { (internalMap += (kv._1.name -> kv._2)); this }
   def subtractOne(key: Location[_]) = { (internalMap -= key.name); this }
@@ -30,6 +33,7 @@ class LocationMap[T] private (val internalMap: Map[String, T]) extends Map[Locat
   def optional[L <: T](key: Location[_]): Option[L] = internalMap.lift(key.name).map(_.asInstanceOf[L])
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object LocationMap {
   def apply[T](lm: Map[String, T]): LocationMap[T] = new LocationMap(lm)
   def empty[T]: LocationMap[T] = new LocationMap(Map.empty[String, T])

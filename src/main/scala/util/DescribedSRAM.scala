@@ -6,6 +6,7 @@ package freechips.rocketchip.util
 import chisel3.{Data, SyncReadMem, Vec}
 import chisel3.util.log2Ceil
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object DescribedSRAM {
   def apply[T <: Data](
     name: String,

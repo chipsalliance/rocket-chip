@@ -6,12 +6,11 @@ import chisel3.util.{isPow2, log2Up}
 import chisel3.experimental.SourceInfo
 
 import org.chipsalliance.cde.config.Parameters
-
 import org.chipsalliance.diplomacy.nodes.BaseNode
+import org.chipsalliance.rocketutils.{BundleField, BundleKeyBase, BundleFieldBase}
 
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType}
 import freechips.rocketchip.resources.{Resource, Device, ResourceAddress, ResourcePermissions}
-import freechips.rocketchip.util.{BundleField, BundleKeyBase, BundleFieldBase}
 
 import scala.math.max
 

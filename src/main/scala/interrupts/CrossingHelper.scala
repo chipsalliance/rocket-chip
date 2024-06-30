@@ -4,9 +4,9 @@ package freechips.rocketchip.interrupts
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.CreditedDelay
 
 import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing, CrossingType, ClockCrossingType, NoCrossing, AsynchronousCrossing, RationalCrossing, SynchronousCrossing, CreditedCrossing}
-import freechips.rocketchip.util.CreditedDelay
 
 trait IntOutwardCrossingHelper {
   type HelperCrossingType <: CrossingType

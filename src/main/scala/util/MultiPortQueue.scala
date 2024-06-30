@@ -5,6 +5,7 @@ package freechips.rocketchip.util
 import chisel3._
 import chisel3.util._
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class MultiPortQueue[T <: Data](gen: T, val enq_lanes: Int, val deq_lanes: Int, val lanes: Int, val rows: Int, val flow: Boolean = false, storage: LanePositionedQueue = FloppedLanePositionedQueue) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(Vec(enq_lanes, Decoupled(gen)))
@@ -18,6 +19,7 @@ class MultiPortQueue[T <: Data](gen: T, val enq_lanes: Int, val deq_lanes: Int, 
   MultiPortQueue.scatter(io.deq, queue.io.deq, queue.io.deq_0_lane)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object MultiPortQueue {
   def gather[T <: Data](sparse: Seq[DecoupledIO[T]], dense: LanePositionedDecoupledIO[T], offset: UInt = 0.U): Unit = {
     // Compute per-enq-port ready

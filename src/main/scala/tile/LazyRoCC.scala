@@ -17,7 +17,7 @@ import freechips.rocketchip.rocket.{
 import freechips.rocketchip.tilelink.{
   TLNode, TLIdentityNode, TLClientNode, TLMasterParameters, TLMasterPortParameters
 }
-import freechips.rocketchip.util.InOrderArbiter
+import org.chipsalliance.rocketutils.InOrderArbiter
 
 case object BuildRoCC extends Field[Seq[Parameters => LazyRoCC]](Nil)
 

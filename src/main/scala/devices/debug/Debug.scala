@@ -8,6 +8,7 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{Annotated, AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
 
 import freechips.rocketchip.amba.apb.{APBFanout, APBToTL}
 import freechips.rocketchip.devices.debug.systembusaccess.{SBToTL, SystemBusAccessModule}
@@ -19,11 +20,8 @@ import freechips.rocketchip.regmapper.{RegField, RegFieldAccessType, RegFieldDes
 import freechips.rocketchip.rocket.{CSRs, Instructions}
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink.{TLAsyncCrossingSink, TLAsyncCrossingSource, TLBuffer, TLRegisterNode, TLXbar}
-import freechips.rocketchip.util.{Annotated, AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
 
-import freechips.rocketchip.util.SeqBoolBitwiseOps
-import freechips.rocketchip.util.SeqToAugmentedSeq
-import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import org.chipsalliance.rocketutils.conversions.{SeqBoolBitwiseOps, SeqToAugmentedSeq, BooleanToAugmentedBoolean}
 
 object DsbBusConsts {
   def sbAddrWidth = 12

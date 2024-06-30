@@ -4,7 +4,8 @@ package freechips.rocketchip.rocket.constants
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.conversions.UIntIsOneOf
 
 trait ScalarOpConstants {
   val SZ_BR = 3

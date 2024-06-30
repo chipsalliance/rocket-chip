@@ -9,14 +9,14 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.{Code, RandomReplacement, ParameterizedBundle}
 
 import freechips.rocketchip.amba.AMBAProtField
 import freechips.rocketchip.diplomacy.{IdRange, TransferSizes, RegionType}
 import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, HasNonDiplomaticTileParameters, BaseTile, HasTileParameters}
 import freechips.rocketchip.tilelink.{TLMasterParameters, TLClientNode, TLMasterPortParameters, TLEdgeOut, TLWidthWidget, TLFIFOFixer, ClientMetadata}
-import freechips.rocketchip.util.{Code, RandomReplacement, ParameterizedBundle}
 
-import freechips.rocketchip.util.{BooleanToAugmentedBoolean, IntToAugmentedInt}
+import org.chipsalliance.rocketutils.conversions.{BooleanToAugmentedBoolean, IntToAugmentedInt}
 
 import scala.collection.mutable.ListBuffer
 

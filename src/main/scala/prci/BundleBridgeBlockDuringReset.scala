@@ -7,10 +7,9 @@ import chisel3._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
-
 import org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNexus.fillN
 
-import freechips.rocketchip.util.{BlockDuringReset, Blockable}
+import org.chipsalliance.rocketutils.{Blockable, BlockDuringReset}
 
 object BundleBridgeBlockDuringReset {
   def apply[T <: Data : Blockable](

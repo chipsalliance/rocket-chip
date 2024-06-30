@@ -10,6 +10,7 @@ import chisel3.{withClockAndReset, withReset}
   *
   */
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class ResetCatchAndSync (sync: Int = 3) extends Module {
 
   override def desiredName = s"ResetCatchAndSync_d${sync}"
@@ -30,6 +31,7 @@ class ResetCatchAndSync (sync: Int = 3) extends Module {
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ResetCatchAndSync {
 
   def apply(clk: Clock, rst: Bool, sync: Int = 3, name: Option[String] = None,

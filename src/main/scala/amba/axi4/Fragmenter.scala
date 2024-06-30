@@ -9,8 +9,11 @@ import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
+import org.chipsalliance.rocketutils.{ControlKey, SimpleBundleField}
+
 import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, TransferSizes}
-import freechips.rocketchip.util.{ControlKey, SimpleBundleField, rightOR, leftOR, OH1ToOH, UIntToOH1}
+
+import org.chipsalliance.rocketutils.conversions.{rightOR, leftOR, OH1ToOH, UIntToOH1}
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)

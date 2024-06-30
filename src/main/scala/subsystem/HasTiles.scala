@@ -7,6 +7,7 @@ import chisel3._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.TraceCoreInterface
 
 import freechips.rocketchip.devices.debug.TLDebugModule
 import freechips.rocketchip.diplomacy.{DisableMonitors, FlipRendering}
@@ -15,7 +16,8 @@ import freechips.rocketchip.tile.{MaxHartIdBits, BaseTile, InstantiableTileParam
 import freechips.rocketchip.tilelink.TLWidthWidget
 import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing}
 import freechips.rocketchip.rocket.TracedInstruction
-import freechips.rocketchip.util.TraceCoreInterface
+
+import freechips.rocketchip.util.BlockableTrace.BlockableTraceBundle
 
 import scala.collection.immutable.SortedMap
 

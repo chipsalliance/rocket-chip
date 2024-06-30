@@ -3,9 +3,11 @@
 package freechips.rocketchip.system
 
 import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.rocketutils.DontTouch
+
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.util.DontTouch
 
 /** Example Top with periphery devices and ports, and a Rocket subsystem */
 class ExampleRocketSystem(implicit p: Parameters) extends RocketSubsystem

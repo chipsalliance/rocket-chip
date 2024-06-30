@@ -3,7 +3,8 @@ package freechips.rocketchip.amba.axis
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.rocketutils.{BundleField, BundleFieldBase, BundleMap, ControlKey, DataKey, SimpleBundleField}
 
 sealed trait AXISKey
 case object AXISLast extends ControlKey[Bool]("last") with AXISKey

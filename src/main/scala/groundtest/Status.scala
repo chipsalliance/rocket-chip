@@ -4,7 +4,8 @@ package freechips.rocketchip.groundtest
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.util.ValidMux
+
+import org.chipsalliance.rocketutils.ValidMux
 
 class GroundTestStatus extends Bundle {
   val timeout = Valid(UInt(4.W))

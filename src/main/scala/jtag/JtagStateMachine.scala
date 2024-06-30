@@ -5,7 +5,7 @@ package freechips.rocketchip.jtag
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.util.property
+import org.chipsalliance.rocketutils.property
 
 object JtagState {
   sealed abstract class State(val id: Int) {
@@ -15,7 +15,7 @@ object JtagState {
   object State {
     import scala.language.implicitConversions
 
-    implicit def toInt(x: State) = x.id
+    implicit def toInt(x: State): Int = x.id
     implicit def toBigInt(x: State):BigInt = x.id
 
     // TODO: this could be automatically generated with macros and stuff

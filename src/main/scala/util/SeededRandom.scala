@@ -6,6 +6,7 @@ package freechips.rocketchip.util
   * which is almost certainly undesirable. Use LCG to increment random numbers in HW,
   * or use this SeededRandom.fromSeed to make reproducible Scala PRNGs.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object SeededRandom {
   val fromSeed = new scala.util.Random(42)
 }

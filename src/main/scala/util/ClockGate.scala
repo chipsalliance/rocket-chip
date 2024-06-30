@@ -8,9 +8,12 @@ import org.chipsalliance.cde.config.{Field, Parameters}
 
 import java.nio.file.{Files, Paths}
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case object ClockGateImpl extends Field[() => ClockGate](() => new EICG_wrapper)
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case object ClockGateModelFile extends Field[Option[String]](None)
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 abstract class ClockGate extends BlackBox
   with HasBlackBoxResource with HasBlackBoxPath {
   val io = IO(new Bundle{
@@ -28,6 +31,7 @@ abstract class ClockGate extends BlackBox
   }
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object ClockGate {
   def apply[T <: ClockGate](
       in: Clock,
@@ -51,4 +55,5 @@ object ClockGate {
 }
 
 // behavioral model of Integrated Clock Gating cell
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class EICG_wrapper extends ClockGate

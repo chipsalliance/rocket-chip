@@ -4,6 +4,7 @@ package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.Location
 
 import freechips.rocketchip.devices.tilelink.{BuiltInDevices, HasBuiltInDeviceParams, BuiltInErrorDeviceParams, BuiltInZeroDeviceParams}
 import freechips.rocketchip.tilelink.{
@@ -11,7 +12,6 @@ import freechips.rocketchip.tilelink.{
   TLBusWrapperInstantiationLike, RegionReplicator, TLXbar, TLInwardNode,
   TLOutwardNode, ProbePicker, TLEdge, TLFIFOFixer
 }
-import freechips.rocketchip.util.Location
 
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(

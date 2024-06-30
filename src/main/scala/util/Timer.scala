@@ -10,6 +10,7 @@ import chisel3.util.{PriorityEncoder, Valid, log2Up}
   * Can take multiple inflight start-stop events with ID
   * Will continue to count down as long as at least one event is inflight
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class Timer(initCount: Int, maxInflight: Int) extends Module {
   val io = IO(new Bundle {
     val start = Flipped(Valid(UInt(log2Up(maxInflight).W)))
@@ -40,6 +41,7 @@ class Timer(initCount: Int, maxInflight: Int) extends Module {
 /** Simplified Timer with a statically-specified period.
   * Can be stopped repeatedly, even when not active.
   */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class SimpleTimer(initCount: Int) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -62,6 +64,7 @@ class SimpleTimer(initCount: Int) extends Module {
   io.timeout := countdown === 0.U && active
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 object SimpleTimer {
   def apply(initCount: Int, start: Bool, stop: Bool): Bool = {
     val timer = Module(new SimpleTimer(initCount))
@@ -72,6 +75,7 @@ object SimpleTimer {
 }
 
 /** Timer with a dynamically-specified period.  */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 class DynamicTimer(w: Int) extends Module {
   val io = IO(new Bundle {
     val start   = Input(Bool())

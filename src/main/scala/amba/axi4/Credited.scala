@@ -5,14 +5,13 @@ package freechips.rocketchip.amba.axi4
 import chisel3._
 
 import org.chipsalliance.cde.config.Parameters
-
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+import org.chipsalliance.rocketutils.{CreditedDelay, CreditedIO}
 
 import freechips.rocketchip.diplomacy.{AddressSet}
 import freechips.rocketchip.prci.{CreditedCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
 
 class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) extends LazyModule
 {

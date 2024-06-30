@@ -9,9 +9,8 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.{AddressSet, IdRange}
-import freechips.rocketchip.util.{leftOR, UIntToOH1}
 
-import freechips.rocketchip.util.DataToAugmentedData
+import org.chipsalliance.rocketutils.conversions.{DataToAugmentedData, leftOR, UIntToOH1}
 
 class IDMapGenerator(numIds: Int) extends Module {
   require (numIds > 0)

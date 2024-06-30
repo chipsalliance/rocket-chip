@@ -7,8 +7,6 @@ import chisel3.experimental.{annotate, ChiselAnnotation}
 
 import firrtl.annotations._
 
-import org.chipsalliance.diplomacy
-
 import freechips.rocketchip.diplomacy.{AddressRange, AddressSet}
 import freechips.rocketchip.resources.{AddressMapEntry, ResourcePermissions}
 import freechips.rocketchip.regmapper.{RegField, RegFieldDescSer, RegistersSer}
@@ -17,6 +15,7 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
 /** Record a sram. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class SRAMAnnotation(target: Named,
   address_width: Int,
   name: String,
@@ -28,24 +27,29 @@ case class SRAMAnnotation(target: Named,
 }
 
 /** Record a set of interrupts. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class InterruptsPortAnnotation(target: Named, name: String, interruptIndexes: Seq[Int]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
 /** Record a case class that was used to parameterize this target. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class GlobalConstantsAnnotation(target: Named, xLen: Int) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class GlobalConstantsChiselAnnotation[T <: Product](target: InstanceId, xLen: Int) extends ChiselAnnotation {
   def toFirrtl = GlobalConstantsAnnotation(target.toNamed, xLen)
 }
 
 /** Record a case class that was used to parameterize this target. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ParamsAnnotation(target: Named, paramsClassName: String, params: Map[String,Any]) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(n)
 }
 
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ParamsChiselAnnotation[T <: Product](target: InstanceId, params: T) extends ChiselAnnotation {
   private val paramMap = params.getClass.getDeclaredFields.map(_.getName).zip(params.productIterator).toMap
   def toFirrtl = ParamsAnnotation(target.toNamed, params.getClass.getName, paramMap)
@@ -66,6 +70,7 @@ case class AddressMapAnnotation(target: Named, mapping: Seq[AddressMapEntry], la
 }
 
 /** Marks this module as a candidate for register retiming */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class RetimeModuleAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName) = this.copy(n)
 }
@@ -94,13 +99,15 @@ case class TopLevelPortAnnotation(
 }
 
 /** Record the resetVector. */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 case class ResetVectorAnnotation(target: Named, resetVec: BigInt) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named): ResetVectorAnnotation = this.copy(n)
 }
 
 /** Helper object containing methods for applying annotations to targets */
 object Annotated {
-
+  
+  @deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
   def srams(
     component: InstanceId,
     name: String,
@@ -119,6 +126,7 @@ object Annotated {
       write_mask_granularity = write_mask_granularity
     )})}
 
+  @deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
   def interrupts(component: InstanceId, name: String, interrupts: Seq[Int]): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = InterruptsPortAnnotation(
       component.toNamed,
@@ -127,14 +135,17 @@ object Annotated {
     )})
   }
 
+  @deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
   def resetVector(component: InstanceId, resetVec: BigInt): Unit = {
     annotate(new ChiselAnnotation {def toFirrtl: Annotation = ResetVectorAnnotation(component.toNamed, resetVec)})
   }
 
+  @deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
   def constants(component: InstanceId, xLen: Int): Unit = {
     annotate(GlobalConstantsChiselAnnotation(component, xLen ))
   }
 
+  @deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
   def params[T <: Product](component: InstanceId, params: T): T = {
     annotate(ParamsChiselAnnotation(component, params))
     params
@@ -145,6 +156,7 @@ object Annotated {
     mapping
   }
 
+  @deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
   def port[T <: Data](
     data: T,
     protocol: String,
@@ -158,6 +170,7 @@ object Annotated {
 }
 
 /** Mix this into a Module class or instance to mark its ports as untouchable */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait DontTouch { self: RawModule =>
   // TODO: replace this with an implicit class from UserModule that uses getPorts
   // TODO: this is a workaround for firrtl #756
@@ -183,6 +196,7 @@ trait DontTouch { self: RawModule =>
 }
 
 /** Mix this into a Module class or instance to mark it for register retiming */
+@deprecated("moved to standalone rocketutils library", "rocketchip 2.0.0")
 trait ShouldBeRetimed { self: RawModule =>
   chisel3.experimental.annotate(new ChiselAnnotation { def toFirrtl: RetimeModuleAnnotation = RetimeModuleAnnotation(self.toNamed) })
 }

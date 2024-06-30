@@ -6,8 +6,9 @@ import chisel3._
 import chisel3.util._
 
 import org.chipsalliance.cde.config._
+import org.chipsalliance.rocketutils.property
+
 import freechips.rocketchip.jtag._
-import freechips.rocketchip.util.property
 
 
 case class JtagDTMConfig (

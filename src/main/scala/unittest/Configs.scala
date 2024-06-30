@@ -3,14 +3,18 @@
 package freechips.rocketchip.unittest
 
 import chisel3._
+
+import org.chipsalliance.cde.config.{Config, Field, Parameters}
+import org.chipsalliance.rocketutils.{FloppedLanePositionedQueue, OnePortLanePositionedQueue, IdentityCode}
+
 import freechips.rocketchip.amba.ahb._
 import freechips.rocketchip.amba.apb._
 import freechips.rocketchip.amba.axi4._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.subsystem.{BaseSubsystemConfig}
+import freechips.rocketchip.subsystem.BaseSubsystemConfig
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+
+import freechips.rocketchip.unittest.hwtests.{ECCTest, GatherTest, ScatterTest, PLRUTest, PositionedQueueTest, MultiPortQueueTest, MultiLaneQueueTest}
 
 case object TestDurationMultiplier extends Field[Int]
 

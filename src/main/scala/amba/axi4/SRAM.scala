@@ -8,11 +8,13 @@ import chisel3.util.{Cat, log2Ceil}
 import org.chipsalliance.cde.config.Parameters
 
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+import org.chipsalliance.rocketutils.BundleMap
 
 import freechips.rocketchip.amba.AMBACorrupt
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
-import freechips.rocketchip.util.{BundleMap, SeqMemToAugmentedSeqMem}
+
+import org.chipsalliance.rocketutils.conversions.SeqMemToAugmentedSeqMem
 
 /**
   * AXI4 slave device to provide a RAM storage

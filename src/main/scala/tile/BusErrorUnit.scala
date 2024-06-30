@@ -7,14 +7,14 @@ import chisel3.util._
 
 import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.rocketutils.property
 
 import freechips.rocketchip.rocket.{DCacheErrors, ICacheErrors}
-import freechips.rocketchip.diplomacy.{AddressSet}
-import freechips.rocketchip.resources.{SimpleDevice}
+import freechips.rocketchip.diplomacy.AddressSet
+import freechips.rocketchip.resources.SimpleDevice
 import freechips.rocketchip.regmapper.{DescribedReg, RegField, RegFieldDesc, RegFieldGroup}
 import freechips.rocketchip.tilelink.TLRegisterNode
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
-import freechips.rocketchip.util.property
 
 trait BusErrors extends Bundle {
   def toErrorList: List[Option[(Valid[UInt], String, String)]]
