@@ -20,7 +20,7 @@ import freechips.rocketchip.resources.{
   DTSModel, DTSCompat, DTSTimebase, BigIntHexContext
 }
 import freechips.rocketchip.tile.{
-  MaxHartIdBits, RocketTileParams
+  MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
 }
 import freechips.rocketchip.util.ClockGateModelFile
 import scala.reflect.ClassTag
@@ -141,6 +141,47 @@ class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
 
 class WithBufferlessBroadcastHub extends Config((site, here, up) => {
   case BroadcastKey => up(BroadcastKey, site).copy(bufferless = true)
+})
+
+class TileAttachConfig[T <: CanAttachTile](f: T => T, locationOpt: Option[HierarchicalLocation])(implicit tag: ClassTag[T])
+  extends Config((site, here, up) => locationOpt match {
+    case Some(loc) => {
+      case TilesLocated(`loc`) => up(TilesLocated(loc)) map {
+        case tp: T => f(tp)
+        case t => t
+      }
+    }
+    case None => {
+      case TilesLocated(loc) => up(TilesLocated(loc)) map {
+        case tp: T => f(tp)
+        case t => t
+      }
+    }
+  }) {
+  // The default constructor applies the modification to all locations
+  def this(f: T => T)(implicit tag: ClassTag[T]) = this(f, None)
+  // The atLocation method applies the modification to only the provided location
+  def atLocation(loc: HierarchicalLocation) = new TileAttachConfig(f, Some(loc))
+}
+
+class WithRoccExample extends Config((site, here, up) => {
+  case BuildRoCC => List(
+    (p: Parameters) => {
+        val accumulator = LazyModule(new AccumulatorExample(OpcodeSet.custom0, n = 4)(p))
+        accumulator
+    },
+    (p: Parameters) => {
+        val translator = LazyModule(new TranslatorExample(OpcodeSet.custom1)(p))
+        translator
+    },
+    (p: Parameters) => {
+        val counter = LazyModule(new CharacterCountExample(OpcodeSet.custom2)(p))
+        counter
+    },
+    (p: Parameters) => {
+      val blackbox = LazyModule(new BlackBoxExample(OpcodeSet.custom3, "RoccBlackBox")(p))
+      blackbox
+    })
 })
 
 /**

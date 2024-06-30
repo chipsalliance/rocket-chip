@@ -8,9 +8,9 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.rocket.{RocketCoreParams, MulDivParams, DCacheParams, ICacheParams, BTBParams, DebugROBParams}
-import freechips.rocketchip.tile.{
-  MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
-}
+import freechips.rocketchip.tile.{RocketTileParams}
+import scala.reflect.ClassTag
+
 
 class WithNBigCores(
   n: Int,
@@ -153,416 +153,110 @@ class With1TinyCore extends Config((site, here, up) => {
   case ClustersLocated(_) => Nil
 })
 
-// This is the number of icache sets for all Rocket tiles
-class WithL1ICacheSets(sets: Int) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(nSets = sets))))
-    case t => t
-  }
-})
+class RocketTileAttachConfig(f: RocketTileAttachParams => RocketTileAttachParams) extends TileAttachConfig[RocketTileAttachParams](f)
 
-// This is the number of icache sets for all Rocket tiles
-class WithL1DCacheSets(sets: Int) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nSets = sets))))
-    case t => t
-  }
-})
+class RocketTileConfig(f: RocketTileParams => RocketTileParams) extends RocketTileAttachConfig(tp => tp.copy(
+  tileParams = f(tp.tileParams)
+))
 
-class WithL1ICacheWays(ways: Int) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(nWays = ways))))
-    case t => t
-  }
-})
+class RocketCrossingConfig(f: RocketCrossingParams => RocketCrossingParams) extends RocketTileAttachConfig(tp => tp.copy(
+  crossingParams = f(tp.crossingParams)
+))
 
-class WithL1DCacheWays(ways: Int) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nWays = ways))))
-    case t => t
-  }
-})
+class RocketCoreConfig(f: RocketCoreParams => RocketCoreParams) extends RocketTileConfig(tp => tp.copy(
+  core = f(tp.core)
+))
 
-class WithL1ICacheECC(dataECC: String, tagECC: String) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(dataECC = Some(dataECC), tagECC = Some(tagECC)))))
-    case t => t
-  }
-})
+class RocketICacheConfig(f: ICacheParams => ICacheParams) extends RocketTileConfig(tp => tp.copy(
+  icache = tp.icache.map(ic => f(ic))
+))
 
-class WithL1DCacheECC(dataECC: String, tagECC: String) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(dataECC = Some(dataECC), tagECC = Some(tagECC), dataECCBytes=8))))
-    case t => t
-  }
-})
+class RocketDCacheConfig(f: DCacheParams => DCacheParams) extends RocketTileConfig(tp => tp.copy(
+  dcache = tp.dcache.map(dc => f(dc))
+))
 
-class WithL1ICacheTLBSets(tlbsets: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(nTLBSets = tlbsets))))
-    case t => t
-  }
-})
+class WithL1ICacheSets(sets: Int)                      extends RocketICacheConfig(_.copy(nSets=sets))
+class WithL1ICacheWays(ways: Int)                      extends RocketICacheConfig(_.copy(nWays=ways))
+class WithL1ICacheECC(dataECC: String, tagECC: String) extends RocketICacheConfig(_.copy(dataECC = Some(dataECC), tagECC = Some(tagECC)))
+class WithL1ICacheRowBits(n: Int)                      extends RocketICacheConfig(_.copy(rowBits = n))
+class WithL1ICacheTLBSets(sets: Int)                   extends RocketICacheConfig(_.copy(nTLBSets = sets))
+class WithL1ICacheTLBWays(ways: Int)                   extends RocketICacheConfig(_.copy(nTLBWays = ways))
+class WithL1ICacheTLBBasePageSectors(sectors: Int)     extends RocketICacheConfig(_.copy(nTLBBasePageSectors = sectors))
+class WithL1ICacheTLBSuperpages(superpages: Int)       extends RocketICacheConfig(_.copy(nTLBSuperpages = superpages))
+class WithL1ICacheBlockBytes(bytes: Int = 64)          extends RocketICacheConfig(_.copy(blockBytes = bytes))
 
-class WithL1DCacheTLBSets(tlbsets: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nTLBSets = tlbsets))))
-    case t => t
-  }
-})
+class WithL1DCacheSets(sets: Int)                      extends RocketDCacheConfig(_.copy(nSets=sets))
+class WithL1DCacheWays(ways: Int)                      extends RocketDCacheConfig(_.copy(nWays=ways))
+class WithL1DCacheECC(dataECC: String, tagECC: String) extends RocketDCacheConfig(_.copy(dataECC = Some(dataECC), tagECC = Some(tagECC)))
+class WithL1DCacheRowBits(n: Int)                      extends RocketDCacheConfig(_.copy(rowBits = n))
+class WithL1DCacheTLBSets(sets: Int)                   extends RocketDCacheConfig(_.copy(nTLBSets = sets))
+class WithL1DCacheTLBWays(ways: Int)                   extends RocketDCacheConfig(_.copy(nTLBWays = ways))
+class WithL1DCacheTLBBasePageSectors(sectors: Int)     extends RocketDCacheConfig(_.copy(nTLBBasePageSectors = sectors))
+class WithL1DCacheTLBSuperpages(superpages: Int)       extends RocketDCacheConfig(_.copy(nTLBSuperpages = superpages))
+class WithL1DCacheBlockBytes(bytes: Int = 64)          extends RocketDCacheConfig(_.copy(blockBytes = bytes))
+class WithL1DCacheNonblocking(nMSHRs: Int)             extends RocketDCacheConfig(_.copy(nMSHRs = nMSHRs))
+class WithL1DCacheClockGating                          extends RocketDCacheConfig(_.copy(clockGate = true))
+class WithL1DCacheDTIMAddress(address: BigInt)         extends RocketDCacheConfig(_.copy(scratch = Some(address)))
 
-class WithL1ICacheTLBWays(tlbways: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(nTLBWays = tlbways))))
-    case t => t
-  }
-})
+class WithScratchpadsOnly extends RocketTileConfig(tp => tp.copy(
+  core = tp.core.copy(useVM = false),
+  dcache = tp.dcache.map(_.copy(
+    nSets = 256, // 16Kb scratchpad
+    nWays = 1,
+    scratch = Some(0x80000000L)))
+))
 
-class WithL1DCacheTLBWays(tlbways: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nTLBWays = tlbways))))
-    case t => t
-  }
-})
+class WithCacheRowBits(n: Int) extends RocketTileConfig(tp => tp.copy(
+  dcache = tp.dcache.map(_.copy(rowBits = n)),
+  icache = tp.icache.map(_.copy(rowBits = n))
+))
 
-class WithL1ICacheTLBBasePageSectors(pagesectors: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(nTLBBasePageSectors = pagesectors))))
-    case t => t
-  }
-})
+class WithBEU(addr: BigInt) extends RocketTileConfig(_.copy(beuAddr = Some(addr)))
 
-class WithL1DCacheTLBBasePageSectors(pagesectors: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nTLBBasePageSectors = pagesectors))))
-    case t => t
-  }
-})
+class WithRV32 extends RocketCoreConfig(c => c.copy(
+  xLen =32,
+  pgLevels = 2, // sv32
+  fpu = c.fpu.map(_.copy(fLen = 32)),
+  mulDiv = Some(MulDivParams(mulUnroll = 8))
+))
 
-class WithL1ICacheTLBSuperpages(superpages: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(nTLBSuperpages = superpages))))
-    case t => t
-  }
-})
+class WithoutVM                                           extends RocketCoreConfig(_.copy(useVM = false))
+class WithCFlushEnabled                                   extends RocketCoreConfig(_.copy(haveCFlush = true))
+class WithNBreakpoints(hwbp: Int)                         extends RocketCoreConfig(_.copy(nBreakpoints = hwbp))
+class WithHypervisor(hext: Boolean = true)                extends RocketCoreConfig(_.copy(useHypervisor = hext))
+class WithCease(enable: Boolean = true)                   extends RocketCoreConfig(_.copy(haveCease = enable))
+class WithCoreClockGatingEnabled                          extends RocketCoreConfig(_.copy(clockGate = true))
 
-class WithL1DCacheTLBSuperpages(superpages: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nTLBSuperpages = superpages))))
-    case t => t
-  }
-})
+// Simulation-only configs
+class WithNoSimulationTimeout extends RocketCoreConfig(_.copy(haveSimTimeout = false))
+class WithDebugROB(enable: Boolean = true, size: Int = 0) extends RocketCoreConfig(_.copy(debugROB = Option.when(enable)(DebugROBParams(size))))
 
-class WithRocketICacheRowBits(n: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(rowBits = n))))
-    case t => t
-  }
-})
+// FPU configs
+class WithoutFPU            extends RocketCoreConfig(_.copy(fpu = None))
+class WithFP16              extends RocketCoreConfig(c => c.copy(fpu = c.fpu.map(_.copy(minFLen = 16))))
+class WithFPUWithoutDivSqrt extends RocketCoreConfig(c => c.copy(fpu = c.fpu.map(_.copy(divSqrt = false))))
 
-class WithRocketDCacheRowBits(n: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(rowBits = n))))
-    case t => t
-  }
-})
+// mul-div configs
+class WithFastMulDiv extends RocketCoreConfig(c => c.copy(mulDiv = Some(
+  MulDivParams(mulUnroll = 8, mulEarlyOut = c.xLen > 32, divEarlyOut = true)
+)))
+class WithCustomFastMulDiv(mUnroll: Int = 8, mEarlyOut: Boolean = true, dUnroll: Int = 1, dEarlyOut: Boolean = true, dEarlyOutGranularity: Int = 1) extends RocketCoreConfig(_.copy(mulDiv = Some(
+  MulDivParams(mulUnroll = mUnroll, mulEarlyOut = mEarlyOut, divUnroll = dUnroll, divEarlyOut = dEarlyOut, divEarlyOutGranularity = dEarlyOutGranularity)
+)))
+class WithoutMulDiv extends RocketCoreConfig(_.copy(mulDiv = None))
 
-class WithL1ICacheBlockBytes(bytes: Int = 64) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      icache = tp.tileParams.icache.map(_.copy(blockBytes = bytes))))
-    case t => t
-  }
-})
+// Branch-prediction configs
+class WithDefaultBtb extends RocketTileConfig(t => t.copy(btb = Some(BTBParams())))
+class WithNoBtb      extends RocketTileConfig(_.copy(btb = None))
 
-class WithL1DCacheBlockBytes(bytes: Int = 64) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(blockBytes = bytes))))
-    case t => t
-  }
-})
-
-class WithoutVM extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useVM = false)))
-    case t => t
-  }
-})
-
-class WithCFlushEnabled extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(haveCFlush = true)))
-    case t => t
-  }
-})
-
-class WithRocketCacheRowBits(n: Int) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(rowBits = n)),
-      icache = tp.tileParams.icache.map(_.copy(rowBits = n))))
-    case t => t
-  }
-})
-
-class WithRV32 extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(
-        xLen = 32,
-        pgLevels = 2, // sv32
-        fpu = tp.tileParams.core.fpu.map(_.copy(fLen = 32)),
-        mulDiv = Some(MulDivParams(mulUnroll = 8)))))
-    case t => t
-  }
-})
-
-class WithFP16 extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(
-        fpu = tp.tileParams.core.fpu.map(_.copy(minFLen = 16))
-      )
-    ))
-    case t => t
-  }
-})
-
-class WithNonblockingL1(nMSHRs: Int) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(nMSHRs = nMSHRs))))
-    case t => t
-  }
-})
-
-class WithNBreakpoints(hwbp: Int) extends Config ((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(nBreakpoints = hwbp)))
-    case t => t
-  }
-})
-
-class WithHypervisor(hext: Boolean = true) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useHypervisor = hext)))
-    case t => t
-  }
-})
-
-class WithRoccExample extends Config((site, here, up) => {
-  case BuildRoCC => List(
-    (p: Parameters) => {
-        val accumulator = LazyModule(new AccumulatorExample(OpcodeSet.custom0, n = 4)(p))
-        accumulator
-    },
-    (p: Parameters) => {
-        val translator = LazyModule(new TranslatorExample(OpcodeSet.custom1)(p))
-        translator
-    },
-    (p: Parameters) => {
-        val counter = LazyModule(new CharacterCountExample(OpcodeSet.custom2)(p))
-        counter
-    },
-    (p: Parameters) => {
-      val blackbox = LazyModule(new BlackBoxExample(OpcodeSet.custom3, "RoccBlackBox")(p))
-      blackbox
-    })
-})
-
-class WithDefaultBtb extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      btb = Some(BTBParams())))
-    case t => t
-  }
-})
-
-class WithNoBtb extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      btb = None))
-    case t => t
-  }
-})
-
-class WithFastMulDiv extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(mulDiv = Some(
-        MulDivParams(mulUnroll = 8, mulEarlyOut = tp.tileParams.core.xLen > 32, divEarlyOut = true)))))
-    case t => t
-  }
-})
-
-class WithCustomFastMulDiv(mUnroll: Int = 8, mEarlyOut: Boolean = true, dUnroll: Int = 1, dEarlyOut: Boolean = true, dEarlyOutGranularity: Int = 1) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(mulDiv = Some(
-        MulDivParams(mulUnroll = mUnroll, mulEarlyOut = mEarlyOut, divUnroll = dUnroll, divEarlyOut = dEarlyOut, divEarlyOutGranularity = dEarlyOutGranularity)))))
-    case t => t
-  }
-})
-
-class WithoutMulDiv extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(mulDiv = None)))
-    case t => t
-  }
-})
-
-class WithoutFPU extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(fpu = None)))
-    case t => t
-  }
-})
-
-class WithFPUWithoutDivSqrt extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(fpu = tp.tileParams.core.fpu.map(_.copy(divSqrt = false)))))
-    case t => t
-  }
-})
-
-class WithBEU(addr: BigInt) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(beuAddr = Some(addr)))
-    case t => t
-  }
-})
-
-class WithRocketTileCDC(crossingType: ClockCrossingType = SynchronousCrossing()) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
-      crossingType = crossingType
-    ))
-    case other => other
-  }
-})
-
-class WithSeperateClockReset extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
-      forceSeparateClockReset = true
-    ))
-    case other => other
-  }
-})
+// Tile CDC configs
+class WithCDC(crossingType: ClockCrossingType = SynchronousCrossing()) extends RocketCrossingConfig(_.copy(crossingType = crossingType))
+class WithSeperateClockReset                                           extends RocketCrossingConfig(_.copy(forceSeparateClockReset = true))
+class WithSynchronousCDCs                                              extends WithCDC(SynchronousCrossing())
+class WithAsynchronouCDCs(depth: Int, sync: Int)                       extends WithCDC(AsynchronousCrossing(depth, sync))
+class WithRationalCDCs                                                 extends WithCDC(RationalCrossing())
 
 
-class WithRocketDebugROB(enable: Boolean = true, size: Int = 0) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams if (enable) =>
-      tp.copy(tileParams = tp.tileParams.copy(
-        core = tp.tileParams.core.copy(debugROB = Some(DebugROBParams(size)))
-      ))
-  }
-})
-
-class WithRocketCease(enable: Boolean = true) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(haveCease = enable)
-    ))
-  }
-})
-
-class WithCoreClockGatingEnabled extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(clockGate = true)
-    ))
-    case t => t
-  }
-})
-
-class WithDCacheClockGatingEnabled extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(_.copy(clockGate = true))))
-    case t => t
-  }
-})
-
-class WithNoSimulationTimeout extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(haveSimTimeout = false)))
-    case t => t
-  }
-})
-
-class WithSynchronousRocketTiles extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
-      crossingType = SynchronousCrossing()))
-    case t => t
-  }
-})
-
-class WithAsynchronousRocketTiles(depth: Int, sync: Int) extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
-      crossingType = AsynchronousCrossing()))
-    case t => t
-  }
-})
-
-class WithRationalRocketTiles extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
-      crossingType = RationalCrossing()))
-    case t => t
-  }
-})
-
-class WithScratchpadsBaseAddress(address: BigInt) extends Config((site, here, up) => {
-  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      dcache = tp.tileParams.dcache.map(
-        _.copy(scratch = Some(address))
-      )
-    ))
-    case t => t
-  }
-})
-
-class WithScratchpadsOnly extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
-    case tp: RocketTileAttachParams => tp.copy(tileParams = tp.tileParams.copy(
-      core = tp.tileParams.core.copy(useVM = false),
-      dcache = tp.tileParams.dcache.map(_.copy(
-        nSets = 256, // 16Kb scratchpad
-        nWays = 1,
-        scratch = Some(0x80000000L)))))
-    case t => t
-  }
-})
 
 class WithCloneRocketTiles(
   n: Int = 1,
