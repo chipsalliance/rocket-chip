@@ -7,7 +7,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.subsystem.{TilesLocated, NumTiles, HierarchicalLocation, RocketCrossingParams, SystemBusKey, CacheBlockBytes, RocketTileAttachParams, InSubsystem, InCluster, HierarchicalElementMasterPortParams, HierarchicalElementSlavePortParams, CBUS, CCBUS, ClustersLocated, TileAttachConfig, CloneTileAttachParams}
-import freechips.rocketchip.tile.{RocketTileParams}
+import freechips.rocketchip.tile.{RocketTileParams, RocketTileBoundaryBufferParams}
 import scala.reflect.ClassTag
 
 
@@ -211,9 +211,10 @@ class WithCacheRowBits(n: Int) extends RocketTileConfig(tp => tp.copy(
 ))
 
 class WithBEU(addr: BigInt) extends RocketTileConfig(_.copy(beuAddr = Some(addr)))
+class WithBoundaryBuffers(buffers: Option[RocketTileBoundaryBufferParams] = Some(RocketTileBoundaryBufferParams(true))) extends RocketTileConfig(_.copy(boundaryBuffers = buffers))
 
 class WithRV32 extends RocketCoreConfig(c => c.copy(
-  xLen =32,
+  xLen = 32,
   pgLevels = 2, // sv32
   fpu = c.fpu.map(_.copy(fLen = 32)),
   mulDiv = Some(MulDivParams(mulUnroll = 8))
@@ -225,6 +226,9 @@ class WithNBreakpoints(hwbp: Int)                         extends RocketCoreConf
 class WithHypervisor(hext: Boolean = true)                extends RocketCoreConfig(_.copy(useHypervisor = hext))
 class WithCease(enable: Boolean = true)                   extends RocketCoreConfig(_.copy(haveCease = enable))
 class WithCoreClockGatingEnabled                          extends RocketCoreConfig(_.copy(clockGate = true))
+class WithPgLevels(n: Int)                                extends RocketCoreConfig(_.copy(pgLevels = n))
+class WithSV48                                            extends WithPgLevels(4)
+class WithSV39                                            extends WithPgLevels(3)
 
 // Simulation-only configs
 class WithNoSimulationTimeout extends RocketCoreConfig(_.copy(haveSimTimeout = false))
@@ -252,7 +256,7 @@ class WithNoBtb      extends RocketTileConfig(_.copy(btb = None))
 class WithCDC(crossingType: ClockCrossingType = SynchronousCrossing()) extends RocketCrossingConfig(_.copy(crossingType = crossingType))
 class WithSeperateClockReset                                           extends RocketCrossingConfig(_.copy(forceSeparateClockReset = true))
 class WithSynchronousCDCs                                              extends WithCDC(SynchronousCrossing())
-class WithAsynchronouCDCs(depth: Int, sync: Int)                       extends WithCDC(AsynchronousCrossing(depth, sync))
+class WithAsynchronousCDCs(depth: Int, sync: Int)                      extends WithCDC(AsynchronousCrossing(depth, sync))
 class WithRationalCDCs                                                 extends WithCDC(RationalCrossing())
 
 
