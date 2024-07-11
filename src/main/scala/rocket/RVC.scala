@@ -197,12 +197,12 @@ class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) ext
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= 3.U
-    val decoder = new RVCDecoder(io.in, p(XLen), fLen, useAddiForMv)
+    val decoder = new RVCDecoder(io.in, xLen, fLen, useAddiForMv)
     io.out := decoder.decode
     io.ill := decoder.ill
   } else {
     io.rvc := false.B
-    io.out := new RVCDecoder(io.in, p(XLen), fLen, useAddiForMv).passthrough
+    io.out := new RVCDecoder(io.in, xLen, fLen, useAddiForMv).passthrough
     io.ill := false.B // only used for RVC
   }
 }

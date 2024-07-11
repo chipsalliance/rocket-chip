@@ -8,7 +8,6 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
-case object XLen extends Field[Int]
 case object MaxHartIdBits extends Field[Int]
 
 // These parameters can be varied per-core
@@ -51,6 +50,8 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val traceHasWdata: Boolean
+  val xLen: Int
+  val pgLevels: Int
   def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
@@ -118,6 +119,14 @@ trait HasCoreParameters extends HasTileParameters {
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
     require(eLen == 32 || eLen == 64)
     require(vfLen <= eLen)
+  }
+
+  if (coreParams.useVM) {
+    if (coreParams.xLen == 32) {
+      require(coreParams.pgLevels == 2)
+    } else {
+      require(coreParams.pgLevels >= 3)
+    }
   }
 
   lazy val hartIdLen: Int = p(MaxHartIdBits)

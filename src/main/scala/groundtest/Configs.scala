@@ -10,7 +10,6 @@ import freechips.rocketchip.devices.debug.{DebugModuleKey}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.system.BaseConfig
 import freechips.rocketchip.rocket.{DCacheParams}
-import freechips.rocketchip.tile.{XLen}
 
 /** Actual testing target Configs */
 
@@ -39,7 +38,8 @@ class WithTraceGen(
   n: Int = 2,
   overrideMemOffset: Option[BigInt] = None)(
   params: Seq[DCacheParams] = List.fill(n){ DCacheParams(nSets = 16, nWays = 1) },
-  nReqs: Int = 8192
+  nReqs: Int = 8192,
+  wordBits: Int = 32
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
@@ -50,7 +50,7 @@ class WithTraceGen(
         tileParams = TraceGenParams(
           tileId = i + idOffset,
           dcache = Some(dcp),
-          wordBits = site(XLen),
+          wordBits = wordBits,
           addrBits = 32,
           addrBag = {
             val nSets = dcp.nSets
