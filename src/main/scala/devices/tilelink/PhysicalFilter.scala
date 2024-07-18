@@ -235,7 +235,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
 
       // Frame an appropriate deny message
       val denyValid = RegInit(false.B)
-      val deny = Reg(in.d.bits)
+      val deny = Reg(chiselTypeOf(in.d.bits))
       val d_opcode = TLMessages.adResponse(in.a.bits.opcode)
       val d_grant = edgeIn.manager.anySupportAcquireB.B && deny.opcode === TLMessages.Grant
       when (in.a.valid && !allow && deny_ready && a_first) {
@@ -257,7 +257,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
         }
       }
 
-      val out_d = Wire(in.d.bits)
+      val out_d = Wire(chiselTypeOf(in.d.bits))
       out_d := out.d.bits
 
       // Deny can have unconditional priority, because the only out.d message possible is
