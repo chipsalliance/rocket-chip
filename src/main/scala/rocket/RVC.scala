@@ -131,7 +131,13 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
           def not = Cat(0xFFF.U, rs1p, 4.U(3.W), rs1p, 0x13.U(7.W))
           def sextb = Cat(0x604.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W))
           def sexth = Cat(0x605.U, rs1p, 1.U(3.W), rs1p, 0x13.U(7.W))
-          def zextw = Cat(4.U, x0, rs1p, 0.U(3.W), rs1p, 0x3B.U(7.W))
+          def zextw = {
+            if (xLen == 32) {
+              unimp // Illegal instruction in RV32
+            } else {
+              Cat(4.U, x0, rs1p, 0.U(3.W), rs1p, 0x3B.U(7.W))
+            }
+          }
           def zexth = {
             val zexth_common = Cat(0x80.U, rs1p, 4.U(3.W), rs1p)
             if (xLen == 32) Cat(zexth_common, 0x33.U(7.W))
