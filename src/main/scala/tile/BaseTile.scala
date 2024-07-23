@@ -115,7 +115,7 @@ trait HasNonDiplomaticTileParameters {
       }
       Seq(s"zve${tileParams.core.eLen}$c")
     }
-    val zvfh = Option.when(tileParams.core.useVector && tileParams.core.vfh) { Seq("Zvfh") }
+    val zvfh = Option.when(tileParams.core.useVector && tileParams.core.vfh) { Seq("zvfh") }
 
     val multiLetterExt = (
       // rdcycle[h], rdinstret[h] is implemented
