@@ -9,17 +9,17 @@ import $file.dependencies.chisel.build
 import $file.common
 
 object v {
-  val scala = "2.13.12"
+  val scala = "2.13.14"
   // the first version in this Map is the mainly supported version which will be used to run tests
   val chiselCrossVersions = Map(
-    "5.1.0" -> (ivy"org.chipsalliance::chisel:5.1.0", ivy"org.chipsalliance:::chisel-plugin:5.1.0"),
+    "7.0.0-M2" -> (ivy"org.chipsalliance::chisel:7.0.0-M2", ivy"org.chipsalliance:::chisel-plugin:7.0.0-M2"),
     // build from project from source
     "source" -> (ivy"org.chipsalliance::chisel:99", ivy"org.chipsalliance:::chisel-plugin:99"),
   )
-  val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
+  val mainargs = ivy"com.lihaoyi::mainargs:0.7.1"
   val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
   val scalaReflect = ivy"org.scala-lang:scala-reflect:${scala}"
-  val sourcecode = ivy"com.lihaoyi::sourcecode:0.3.1"
+  val sourcecode = ivy"com.lihaoyi::sourcecode:0.4.2"
   val sonatypesSnapshots = Seq(
     MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
   )
@@ -191,7 +191,6 @@ trait Emulator extends Cross.Module2[String, String] {
         generator.chirrtl().path,
         s"--annotation-file=${generator.chiselAnno().path}",
         "--disable-annotation-unknown",
-        "-dedup",
         "-O=debug",
         "--split-verilog",
         "--preserve-values=named",
