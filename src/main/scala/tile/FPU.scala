@@ -477,7 +477,7 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
 
   val toint = WireDefault(toint_ieee)
   val intType = WireDefault(in.fmt(0))
-  io.out.bits.store := (floatTypes.map(t => Fill(fLen / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1))): Seq[UInt])(tag)
+  io.out.bits.store := (floatTypes.map(t => Fill(fLen / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1, 0))): Seq[UInt])(tag)
   io.out.bits.toint := ((0 until nIntTypes).map(i => toint((minXLen << i) - 1, 0).sextTo(xLen)): Seq[UInt])(intType)
   io.out.bits.exc := 0.U
 
