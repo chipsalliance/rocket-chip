@@ -68,6 +68,7 @@ trait CoreParams {
   def vLen: Int = 0
   def eLen: Int = 0
   def vfLen: Int = 0
+  def vfh: Boolean = false
   def hasV: Boolean = vLen >= 128 && eLen >= 64 && vfLen >= 64
   def vMemDataBits: Int = 0
 }
@@ -119,6 +120,7 @@ trait HasCoreParameters extends HasTileParameters {
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
     require(eLen == 32 || eLen == 64)
     require(vfLen <= eLen)
+    require(!coreParams.vfh || (vfLen >= 32 && coreParams.minFLen <= 16))
   }
 
   if (coreParams.useVM) {

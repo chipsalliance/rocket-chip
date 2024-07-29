@@ -12,6 +12,7 @@ case class RocketCoreVectorParams(
   vLen: Int,
   eLen: Int,
   vfLen: Int,
+  vfh: Boolean,
   vMemDataBits: Int,
   decoder: Parameters => RocketVectorDecoder,
   useDCache: Boolean,
