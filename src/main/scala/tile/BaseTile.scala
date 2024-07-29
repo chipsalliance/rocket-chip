@@ -115,6 +115,8 @@ trait HasNonDiplomaticTileParameters {
       }
       Seq(s"zve${tileParams.core.eLen}$c")
     }
+    val zvfh = Option.when(tileParams.core.useVector && tileParams.core.vfh) { Seq("zvfh") }
+
     val multiLetterExt = (
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
@@ -123,8 +125,7 @@ trait HasNonDiplomaticTileParameters {
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
-      zvl ++
-      zve ++
+      zvl ++ zve ++ zvfh ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")

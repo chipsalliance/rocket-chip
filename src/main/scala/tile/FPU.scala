@@ -472,23 +472,23 @@ class FPToInt(implicit p: Parameters) extends FPUModule()(p) with ShouldBeRetime
   dcmp.io.signaling := !in.rm(1)
 
   val tag = in.typeTagOut
-  val store = (floatTypes.map(t => if (t == FType.H) Fill(maxType.ieeeWidth / minXLen,   ieee(in.in1)(15, 0).sextTo(minXLen))
-                                   else              Fill(maxType.ieeeWidth / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1, 0))): Seq[UInt])(tag)
+  val toint_ieee = (floatTypes.map(t => if (t == FType.H) Fill(maxType.ieeeWidth / minXLen,   ieee(in.in1)(15, 0).sextTo(minXLen))
+                                        else              Fill(maxType.ieeeWidth / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1, 0))): Seq[UInt])(tag)
 
-  val toint = WireDefault(store)
+  val toint = WireDefault(toint_ieee)
   val intType = WireDefault(in.fmt(0))
-  io.out.bits.store := store
+  io.out.bits.store := (floatTypes.map(t => Fill(fLen / t.ieeeWidth, ieee(in.in1)(t.ieeeWidth - 1))): Seq[UInt])(tag)
   io.out.bits.toint := ((0 until nIntTypes).map(i => toint((minXLen << i) - 1, 0).sextTo(xLen)): Seq[UInt])(intType)
   io.out.bits.exc := 0.U
 
   when (in.rm(0)) {
     val classify_out = (floatTypes.map(t => t.classify(maxType.unsafeConvert(in.in1, t))): Seq[UInt])(tag)
-    toint := classify_out | (store >> minXLen << minXLen)
+    toint := classify_out | (toint_ieee >> minXLen << minXLen)
     intType := false.B
   }
 
   when (in.wflags) { // feq/flt/fle, fcvt
-    toint := (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR | (store >> minXLen << minXLen)
+    toint := (~in.rm & Cat(dcmp.io.lt, dcmp.io.eq)).orR | (toint_ieee >> minXLen << minXLen)
     io.out.bits.exc := dcmp.io.exceptionFlags
     intType := false.B
 
