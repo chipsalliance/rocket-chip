@@ -69,6 +69,7 @@ trait CoreParams {
   def eLen: Int = 0
   def vfLen: Int = 0
   def vfh: Boolean = false
+  def vExts: Seq[String] = Nil
   def hasV: Boolean = vLen >= 128 && eLen >= 64 && vfLen >= 64
   def vMemDataBits: Int = 0
 }

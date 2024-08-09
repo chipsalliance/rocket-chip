@@ -125,7 +125,7 @@ trait HasNonDiplomaticTileParameters {
       Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
-      zvl ++ zve ++ zvfh ++
+      zvl ++ zve ++ zvfh ++ Some(tileParams.core.vExts) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
