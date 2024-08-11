@@ -104,28 +104,35 @@ trait HasNonDiplomaticTileParameters {
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
+    val b = if (tileParams.core.useBitmanip) "b" else ""
     val v = if (tileParams.core.useVector && tileParams.core.vLen >= 128 && tileParams.core.eLen == 64 && tileParams.core.vfLen == 64) "v" else ""
     val h = if (usingHypervisor) "h" else ""
-    val zvl = Option.when(tileParams.core.useVector) { Seq(s"zvl${tileParams.core.vLen}b") }
-    val zve = Option.when(tileParams.core.useVector) {
-      val c = tileParams.core.vfLen match {
-        case 64 => "d"
-        case 32 => "f"
-        case 0 => "x"
-      }
-      Seq(s"zve${tileParams.core.eLen}$c")
-    }
-    val zvfh = Option.when(tileParams.core.useVector && tileParams.core.vfh) { Seq("zvfh") }
+
+    val ext_strs = Seq(
+      (tileParams.core.useVector) -> s"zvl${tileParams.core.vLen}b",
+      (tileParams.core.useVector) -> {
+        val c = tileParams.core.vfLen match {
+          case 64 => "d"
+          case 32 => "f"
+          case 0 => "x"
+        }
+        s"zve${tileParams.core.eLen}$c"
+      },
+      (tileParams.core.useVector && tileParams.core.vfh) -> "zvfh",
+      (tileParams.core.fpu.map(_.fLen >= 16).getOrElse(false) && tileParams.core.minFLen <= 16) -> "zfh",
+      (tileParams.core.useZba) -> "zba",
+      (tileParams.core.useZbb) -> "zbb",
+      (tileParams.core.useZbs) -> "zbs",
+      (tileParams.core.useConditionalZero) -> "zicond"
+    ).filter(_._1).map(_._2)
 
     val multiLetterExt = (
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
       //Some(Seq("zicntr")) ++
-      Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
-      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
-      zvl ++ zve ++ zvfh ++ Some(tileParams.core.vExts) ++
+      Some(ext_strs) ++ Some(tileParams.core.vExts) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
