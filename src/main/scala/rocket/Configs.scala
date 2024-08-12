@@ -228,6 +228,7 @@ class WithCease(enable: Boolean = true)                   extends RocketCoreConf
 class WithCoreClockGatingEnabled                          extends RocketCoreConfig(_.copy(clockGate = true))
 class WithPgLevels(n: Int)                                extends RocketCoreConfig(_.copy(pgLevels = n))
 class WithZba                                             extends RocketCoreConfig(_.copy(useZba = true))
+class WithZbb                                             extends RocketCoreConfig(_.copy(useZbb = true))
 class WithSV48                                            extends WithPgLevels(4)
 class WithSV39                                            extends WithPgLevels(3)
 
