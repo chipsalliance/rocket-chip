@@ -136,7 +136,7 @@ trait HasNonDiplomaticTileParameters {
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
-    s"rv$xLen$ie$m$a$f$d$c$v$h$multiLetterString"
+    s"rv$xLen$ie$m$a$f$d$c$b$v$h$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {
