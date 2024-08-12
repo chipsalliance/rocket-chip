@@ -159,7 +159,7 @@ object DefaultTestSuites {
   val rv64uzfhNames = rv64ufNames
   val rv64uzfh = new AssemblyTestSuite("rv64uzfh", rv64uzfhNames)(_)
 
-  val rv32uzbaNames = LinkedHashSet("sh1add", "sh2add", "sh3add", "add_uw", "slli_uw")
+  val rv32uzbaNames = LinkedHashSet("sh1add", "sh2add", "sh3add")
   val rv32uzba = new AssemblyTestSuite("rv32uzba", rv32uzbaNames)(_)
 
   val rv64uzbaNames = rv32uzbaNames + "add_uw" + "slli_uw"
