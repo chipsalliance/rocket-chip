@@ -316,6 +316,7 @@ object emulator extends Cross[Emulator](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBufferlessConfig"),
   // RocketSuiteC
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig"),
+
   // Unittest
   ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.AMBAUnitTestConfig"),
   ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.TLSimpleUnitTestConfig"),
@@ -343,6 +344,9 @@ object emulator extends Cross[Emulator](
   //
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig"),
+
 )
 
 object `runnable-riscv-test` extends mill.Cross[RiscvTest](
@@ -422,6 +426,12 @@ object `runnable-riscv-test` extends mill.Cross[RiscvTest](
 
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-v", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig", "rv64uzba-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig", "rv64uzbb-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig", "rv64uzbs-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig", "rv32uzba-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig", "rv32uzbb-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig", "rv32uzbs-p", "none"),
 )
 
 object `runnable-arch-test` extends mill.Cross[ArchTest](
