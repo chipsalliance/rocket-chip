@@ -162,7 +162,7 @@ object DefaultTestSuites {
   val rv32uzbaNames = LinkedHashSet("sh1add", "sh2add", "sh3add")
   val rv32uzba = new AssemblyTestSuite("rv32uzba", rv32uzbaNames)(_)
 
-  val rv64uzbaNames = rv32uzbaNames + "add_uw" + "slli_uw"
+  val rv64uzbaNames = rv32uzbaNames ++ rv32uzbaNames.map(_ + "_uw") + "add_uw" + "slli_uw"
   val rv64uzba = new AssemblyTestSuite("rv64uzba", rv64uzbaNames)(_)
 
   val rv32uzbbNames = LinkedHashSet("andn", "clz", "cpop", "ctz", "max", "maxu", "min", "minu", "orc_b", "orn", "rev8", "rol", "ror", "rori", "sext_b", "sext_h", "xnor", "zext_h")

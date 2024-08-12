@@ -227,6 +227,7 @@ class WithHypervisor(hext: Boolean = true)                extends RocketCoreConf
 class WithCease(enable: Boolean = true)                   extends RocketCoreConfig(_.copy(haveCease = enable))
 class WithCoreClockGatingEnabled                          extends RocketCoreConfig(_.copy(clockGate = true))
 class WithPgLevels(n: Int)                                extends RocketCoreConfig(_.copy(pgLevels = n))
+class WithZba                                             extends RocketCoreConfig(_.copy(useZba = true))
 class WithSV48                                            extends WithPgLevels(4)
 class WithSV39                                            extends WithPgLevels(3)
 

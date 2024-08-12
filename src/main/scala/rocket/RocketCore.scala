@@ -26,6 +26,7 @@ case class RocketCoreParams(
   useCompressed: Boolean = true,
   useRVE: Boolean = false,
   useConditionalZero: Boolean = false,
+  useZba: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -65,7 +66,6 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = debugROB.isDefined // ooo wb, so no wdata in trace
-  val useZba: Boolean = false
   val useZbb: Boolean = false
   val useZbs: Boolean = false
   override val useVector = vector.isDefined
@@ -234,6 +234,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine)) ++:
     rocketParams.haveCease.option(new CeaseDecode) ++:
     usingVector.option(new VCFGDecode) ++:
+    (if (coreParams.useZba) new ZbaDecode +: (xLen > 32).option(new Zba64Decode).toSeq else Nil) ++:
     Seq(new IDecode)
   } flatMap(_.table)
 
@@ -465,9 +466,12 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ex_rs = for (i <- 0 until id_raddr.size)
     yield Mux(ex_reg_rs_bypass(i), bypass_mux(ex_reg_rs_lsb(i)), Cat(ex_reg_rs_msb(i), ex_reg_rs_lsb(i)))
   val ex_imm = ImmGen(ex_ctrl.sel_imm, ex_reg_inst)
+  val ex_rs1shl = Mux(ex_reg_inst(3), ex_rs(0)(31,0), ex_rs(0)) << ex_reg_inst(14,13)
   val ex_op1 = MuxLookup(ex_ctrl.sel_alu1, 0.S)(Seq(
     A1_RS1 -> ex_rs(0).asSInt,
-    A1_PC -> ex_reg_pc.asSInt))
+    A1_PC -> ex_reg_pc.asSInt,
+    A1_RS1SHL -> (if (rocketParams.useZba) ex_rs1shl.asSInt else 0.S)
+  ))
   val ex_op2 = MuxLookup(ex_ctrl.sel_alu2, 0.S)(Seq(
     A2_RS2 -> ex_rs(1).asSInt,
     A2_IMM -> ex_imm,

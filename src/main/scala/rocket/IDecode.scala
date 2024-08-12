@@ -443,6 +443,25 @@ class VCFGDecode(implicit val p: Parameters) extends DecodeConstants
     VSETVL   -> List(Y,N,N,N,N,N,Y,Y,A2_X,   A1_X,   IMM_X, DW_X,  FN_X,     N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N))
 }
 
+class ZbaDecode(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    SH1ADD   -> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X,DW_XPR,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH2ADD   -> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X,DW_XPR,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH3ADD   -> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X,DW_XPR,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+  )
+}
+
+class Zba64Decode(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    SH1ADD_UW-> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X, DW_64,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH2ADD_UW-> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X, DW_64,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SH3ADD_UW-> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X, DW_64,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    ADD_UW   -> List(Y,N,N,N,N,N,Y,Y,A2_RS2,A1_RS1SHL,IMM_X, DW_64,FN_ADD,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    SLLI_UW  -> List(Y,N,N,N,N,N,Y,Y,A2_IMM,A1_RS1SHL,IMM_I, DW_64,FN_SL ,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+  )
+}
 
 class RoCCDecode(implicit val p: Parameters) extends DecodeConstants
 {
