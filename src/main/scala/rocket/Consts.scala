@@ -37,7 +37,9 @@ trait ScalarOpConstants {
   def A2_SIZE   = 1.U(3.W)
   def A2_RS2    = 2.U(3.W)
   def A2_IMM    = 3.U(3.W)
-  def A2_RS2INV = 4.U(3.W)
+  def A2_RS2OH  = 4.U(3.W)
+  def A2_IMMOH  = 5.U(3.W)
+
 
   def X = BitPat("b?")
   def N = BitPat("b0")

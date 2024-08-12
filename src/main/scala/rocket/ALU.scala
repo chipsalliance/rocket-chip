@@ -31,6 +31,11 @@ object ALU {
   def FN_UNARY = 16.U
   def FN_ROL  = 17.U
   def FN_ROR  = 18.U
+  def FN_BEXT = 19.U
+
+  def FN_ANDN = 24.U
+  def FN_ORN  = 25.U
+  def FN_XNOR = 26.U
 
   def FN_MAX  = 28.U
   def FN_MIN  = 29.U
@@ -56,10 +61,11 @@ object ALU {
   def cmpUnsigned(cmd: UInt) = cmd(1)
   def cmpInverted(cmd: UInt) = cmd(0)
   def cmpEq(cmd: UInt) = !cmd(3)
-  def shiftReverse(cmd: UInt) = !cmd.isOneOf(FN_SR, FN_SRA, FN_ROR)
+  def shiftReverse(cmd: UInt) = !cmd.isOneOf(FN_SR, FN_SRA, FN_ROR, FN_BEXT)
+  def bwInvRs2(cmd: UInt) = cmd.isOneOf(FN_ANDN, FN_ORN, FN_XNOR)
 }
 
-  import ALU._
+import ALU._
 
 
 abstract class AbstractALU(implicit p: Parameters) extends CoreModule()(p) {
@@ -78,6 +84,7 @@ class ALU(implicit p: Parameters) extends AbstractALU()(p) {
   // ADD, SUB
   val in2_inv = Mux(isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv
+  val in1_and_in2 = io.in1 & in2_inv
   io.adder_out := io.in1 + in2_inv + isSub(io.fn)
 
   // SLT, SLTU
@@ -99,8 +106,8 @@ class ALU(implicit p: Parameters) extends AbstractALU()(p) {
   val shin = Mux(shiftReverse(io.fn), Reverse(shin_r), shin_r)
   val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
-  val shout = Mux(io.fn === FN_SR || io.fn === FN_SRA, shout_r, 0.U) |
-              Mux(io.fn === FN_SL,                     shout_l, 0.U)
+  val shout = Mux(io.fn === FN_SR || io.fn === FN_SRA || io.fn === FN_BEXT, shout_r, 0.U) |
+              Mux(io.fn === FN_SL,                                          shout_l, 0.U)
 
   // CZEQZ, CZNEZ
   val in2_not_zero = io.in2.orR
@@ -109,10 +116,11 @@ class ALU(implicit p: Parameters) extends AbstractALU()(p) {
   )
 
   // AND, OR, XOR
-  val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR, in1_xor_in2, 0.U) |
-              Mux(io.fn === FN_OR || io.fn === FN_AND, io.in1 & io.in2, 0.U)
+  val logic = Mux(io.fn === FN_XOR || io.fn === FN_OR || io.fn === FN_ORN || io.fn === FN_XNOR, in1_xor_in2, 0.U) |
+              Mux(io.fn === FN_OR || io.fn === FN_AND || io.fn === FN_ORN || io.fn === FN_ANDN, in1_and_in2, 0.U)
 
-  val shift_logic = (isCmp (io.fn) && slt) | logic | shout
+  val bext_mask = Mux(coreParams.useZbs.B && io.fn === FN_BEXT, 1.U, ~(0.U(xLen.W)))
+  val shift_logic = (isCmp (io.fn) && slt) | logic | (shout & bext_mask)
   val shift_logic_cond = cond_out match {
     case Some(co) => shift_logic | co
     case _ => shift_logic

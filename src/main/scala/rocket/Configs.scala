@@ -229,6 +229,8 @@ class WithCoreClockGatingEnabled                          extends RocketCoreConf
 class WithPgLevels(n: Int)                                extends RocketCoreConfig(_.copy(pgLevels = n))
 class WithZba                                             extends RocketCoreConfig(_.copy(useZba = true))
 class WithZbb                                             extends RocketCoreConfig(_.copy(useZbb = true))
+class WithZbs                                             extends RocketCoreConfig(_.copy(useZbs = true))
+class WithB                                               extends RocketCoreConfig(_.copy(useZba = true, useZbb = true, useZbs = true))
 class WithSV48                                            extends WithPgLevels(4)
 class WithSV39                                            extends WithPgLevels(3)
 

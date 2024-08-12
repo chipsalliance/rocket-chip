@@ -28,6 +28,7 @@ case class RocketCoreParams(
   useConditionalZero: Boolean = false,
   useZba: Boolean = false,
   useZbb: Boolean = false,
+  useZbs: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -67,7 +68,6 @@ case class RocketCoreParams(
   val instBits: Int = if (useCompressed) 16 else 32
   val lrscCycles: Int = 80 // worst case is 14 mispredicted branches + slop
   val traceHasWdata: Boolean = debugROB.isDefined // ooo wb, so no wdata in trace
-  val useZbs: Boolean = false
   override val useVector = vector.isDefined
   override val vectorUseDCache = vector.map(_.useDCache).getOrElse(false)
   override def vLen = vector.map(_.vLen).getOrElse(0)
@@ -236,6 +236,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     usingVector.option(new VCFGDecode) ++:
     (if (coreParams.useZba) new ZbaDecode +: (xLen > 32).option(new Zba64Decode).toSeq else Nil) ++:
     (if (coreParams.useZbb) Seq(new ZbbDecode, if (xLen == 32) new Zbb32Decode else new Zbb64Decode) else Nil) ++:
+    coreParams.useZbs.option(new ZbsDecode) ++:
     Seq(new IDecode)
   } flatMap(_.table)
 
@@ -473,12 +474,15 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A1_PC -> ex_reg_pc.asSInt,
     A1_RS1SHL -> (if (rocketParams.useZba) ex_rs1shl.asSInt else 0.S)
   ))
+  val ex_op2_oh = UIntToOH(Mux(ex_ctrl.sel_alu2(0), (ex_reg_inst >> 20).asUInt, ex_rs(1))(log2Ceil(xLen)-1,0)).asSInt
   val ex_op2 = MuxLookup(ex_ctrl.sel_alu2, 0.S)(Seq(
     A2_RS2 -> ex_rs(1).asSInt,
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S),
-    A2_RS2INV -> (if (rocketParams.useZbb) (~ex_rs(1)).asSInt else 0.S)
-  ))
+  ) ++ (if (coreParams.useZbs) Seq(
+    A2_RS2OH -> ex_op2_oh,
+    A2_IMMOH -> ex_op2_oh,
+  ) else Nil))
 
   val (ex_new_vl, ex_new_vconfig) = if (usingVector) {
     val ex_new_vtype = VType.fromUInt(MuxCase(ex_rs(1), Seq(

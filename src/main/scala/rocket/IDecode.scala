@@ -466,9 +466,9 @@ class Zba64Decode(implicit val p: Parameters) extends DecodeConstants
 class ZbbDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
-    ANDN     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2INV,A1_RS1,IMM_X,DW_XPR,FN_AND,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ORN      -> List(Y,N,N,N,N,N,Y,Y,A2_RS2INV,A1_RS1,IMM_X,DW_XPR,FN_OR ,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    XNOR     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2INV,A1_RS1,IMM_X,DW_XPR,FN_XOR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    ANDN     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_XPR,FN_ANDN,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    ORN      -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_XPR,FN_ORN,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    XNOR     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_XPR,FN_XNOR,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     CLZ      -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     CPOP     -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     CTZ      -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
@@ -507,6 +507,21 @@ class Zbb32Decode(implicit val p: Parameters) extends DecodeConstants
                 List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
   )
 }
+
+class ZbsDecode(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    BCLR     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2OH ,A1_RS1,IMM_X,DW_XPR,FN_ANDN,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BCLRI    -> List(Y,N,N,N,N,N,N,Y,A2_IMMOH ,A1_RS1,IMM_I,DW_XPR,FN_ANDN,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BEXT     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_XPR,FN_BEXT,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BEXTI    -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_BEXT,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BINV     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2OH ,A1_RS1,IMM_X,DW_XPR,FN_XOR ,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BINVI    -> List(Y,N,N,N,N,N,N,Y,A2_IMMOH ,A1_RS1,IMM_I,DW_XPR,FN_XOR ,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BSET     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2OH ,A1_RS1,IMM_X,DW_XPR,FN_OR  ,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    BSETI    -> List(Y,N,N,N,N,N,N,Y,A2_IMMOH ,A1_RS1,IMM_I,DW_XPR,FN_OR  ,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+  )
+}
+
 
 
 class RoCCDecode(implicit val p: Parameters) extends DecodeConstants
