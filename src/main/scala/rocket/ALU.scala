@@ -135,7 +135,7 @@ class ALU(implicit p: Parameters) extends AbstractALU()(p) {
   ))
   val popc_in = Mux(io.in2(1),
     Mux(io.dw === DW_32, io.in1(31,0), io.in1),
-    PriorityEncoderOH(1.U ## tz_in) - 1.U)
+    PriorityEncoderOH(1.U ## tz_in) - 1.U)(xLen-1,0)
   val count = PopCount(popc_in)
   val in1_bytes = io.in1.asTypeOf(Vec(xLen / 8, UInt(8.W)))
   val orcb = VecInit(in1_bytes.map(b => Fill(8, b =/= 0.U))).asUInt
@@ -152,7 +152,7 @@ class ALU(implicit p: Parameters) extends AbstractALU()(p) {
   val maxmin_out = Mux(io.cmp_out, io.in2, io.in1)
 
   // ROL, ROR
-  val rot_shamt = Mux(io.dw === DW_32, 32.U, 64.U) - shamt
+  val rot_shamt = Mux(io.dw === DW_32, 32.U, xLen.U) - shamt
   val rotin = Mux(io.fn(0), shin_r, Reverse(shin_r))
   val rotout_r = (rotin >> rot_shamt)(xLen-1,0)
   val rotout_l = Reverse(rotout_r)

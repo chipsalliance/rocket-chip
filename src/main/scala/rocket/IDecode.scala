@@ -480,7 +480,6 @@ class ZbbDecode(implicit val p: Parameters) extends DecodeConstants
     ROL      -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_XPR,FN_ROL,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     ROR      -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_XPR,FN_ROR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     RORI     -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_ROR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
-    ZEXT_H   -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     SEXT_B   -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     SEXT_H   -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
   )
@@ -496,14 +495,16 @@ class Zbb64Decode(implicit val p: Parameters) extends DecodeConstants
     ROLW     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_32 ,FN_ROL,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     RORW     -> List(Y,N,N,N,N,N,Y,Y,A2_RS2   ,A1_RS1,IMM_X,DW_32 ,FN_ROR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
     RORIW    -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_32 ,FN_ROR,   N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    ZEXT_H   -> List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
   )
 }
-
 
 class Zbb32Decode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(
     Instructions32.REV8     ->
+                List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
+    Instructions32.ZEXT_H   ->
                 List(Y,N,N,N,N,N,N,Y,A2_IMM   ,A1_RS1,IMM_I,DW_XPR,FN_UNARY, N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
   )
 }
@@ -521,8 +522,6 @@ class ZbsDecode(implicit val p: Parameters) extends DecodeConstants
     BSETI    -> List(Y,N,N,N,N,N,N,Y,A2_IMMOH ,A1_RS1,IMM_I,DW_XPR,FN_OR  ,  N,M_X,        N,N,N,N,N,N,Y,CSR.N,N,N,N,N),
   )
 }
-
-
 
 class RoCCDecode(implicit val p: Parameters) extends DecodeConstants
 {
