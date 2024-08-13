@@ -159,6 +159,23 @@ object DefaultTestSuites {
   val rv64uzfhNames = rv64ufNames
   val rv64uzfh = new AssemblyTestSuite("rv64uzfh", rv64uzfhNames)(_)
 
+  val rv32uzbaNames = LinkedHashSet("sh1add", "sh2add", "sh3add")
+  val rv32uzba = new AssemblyTestSuite("rv32uzba", rv32uzbaNames)(_)
+
+  val rv64uzbaNames = rv32uzbaNames ++ rv32uzbaNames.map(_ + "_uw") + "add_uw" + "slli_uw"
+  val rv64uzba = new AssemblyTestSuite("rv64uzba", rv64uzbaNames)(_)
+
+  val rv32uzbbNames = LinkedHashSet("andn", "clz", "cpop", "ctz", "max", "maxu", "min", "minu", "orc_b", "orn", "rev8", "rol", "ror", "rori", "sext_b", "sext_h", "xnor", "zext_h")
+  val rv32uzbb = new AssemblyTestSuite("rv32uzbb", rv32uzbbNames)(_)
+
+  val rv64uzbbNames = rv32uzbbNames + "clzw" + "cpopw" + "ctzw" + "rolw" + "roriw"
+  val rv64uzbb = new AssemblyTestSuite("rv64uzbb", rv64uzbbNames)(_)
+
+  val rv32uzbsNames = LinkedHashSet("bclr", "bclri", "bext", "bexti", "binv", "binvi", "bset", "bseti")
+  val rv32uzbs = new AssemblyTestSuite("rv32uzbs", rv32uzbsNames)(_)
+
+  val rv64uzbsNames = rv32uzbsNames
+  val rv64uzbs = new AssemblyTestSuite("rv64uzbs", rv64uzbsNames)(_)
 
   val rv64siNames = rv32siNames + "icache-alias"
   val rv64si = new AssemblyTestSuite("rv64si", rv64siNames)(_)
