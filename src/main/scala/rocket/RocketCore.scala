@@ -490,7 +490,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       !ex_reg_inst(31)        -> ex_reg_inst(30,20))))
     val ex_avl = Mux(ex_ctrl.rxs1,
       Mux(ex_reg_inst(19,15) === 0.U,
-        Mux(ex_reg_inst(11,6) === 0.U, csr.io.vector.get.vconfig.vl, ex_new_vtype.vlMax),
+        Mux(ex_reg_inst(11,7) === 0.U, csr.io.vector.get.vconfig.vl, ex_new_vtype.vlMax),
         ex_rs(0)
       ),
       ex_reg_inst(19,15))
