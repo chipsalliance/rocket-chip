@@ -65,6 +65,8 @@ abstract class AbstractALU[T <: ALUFN](val aluFn: T)(implicit p: Parameters) ext
 }
 
 class ALU(implicit p: Parameters) extends AbstractALU(new ALUFN)(p) {
+  override def desiredName = "RocketALU"
+
   // ADD, SUB
   val in2_inv = Mux(aluFn.isSub(io.fn), ~io.in2, io.in2)
   val in1_xor_in2 = io.in1 ^ in2_inv
