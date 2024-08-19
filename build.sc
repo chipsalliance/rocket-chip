@@ -185,6 +185,35 @@ trait Emulator extends Cross.Module2[String, String] {
     }
   }
 
+  object litexgenerate extends Module {
+    def compile = T {
+      os.proc("firtool",
+        generator.chirrtl().path,
+        s"--annotation-file=${generator.chiselAnno().path}",
+        "--disable-annotation-unknown",
+        "-dedup",
+        "-O=debug",
+        "--split-verilog",
+        "--preserve-values=named",
+        "--output-annotation-file=mfc.anno.json",
+        "--lowering-options=disallowLocalVariables",
+        s"-o=${T.dest}"
+      ).call(T.dest)
+      PathRef(T.dest)
+    }
+
+    def rtls = T {
+      os.read(compile().path / "filelist.f").split("\n").map(str =>
+        try {
+          os.Path(str)
+        } catch {
+          case e: IllegalArgumentException if e.getMessage.contains("is not an absolute path") =>
+            compile().path / str.stripPrefix("./")
+        }
+      ).filter(p => p.ext == "v" || p.ext == "sv").map(PathRef(_)).toSeq
+    }
+  }
+
   object mfccompiler extends Module {
     def compile = T {
       os.proc("firtool",
@@ -233,7 +262,7 @@ trait Emulator extends Cross.Module2[String, String] {
         "debug_rob.cc",
         "emulator.cc",
         "remote_bitbang.cc",
-        ).map(c => PathRef(csrcDir().path / c))
+      ).map(c => PathRef(csrcDir().path / c))
     }
 
     def CMakeListsString = T {
@@ -347,6 +376,39 @@ object emulator extends Cross[Emulator](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig"),
 
+  // Litex
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall1x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall1x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall1x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall1x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall2x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall2x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall2x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall2x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall4x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall4x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall4x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall4x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall8x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall8x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall8x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigSmall8x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig1x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig1x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig1x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig1x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig2x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig2x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig2x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig2x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig4x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig4x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig4x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig4x8"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig8x1"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig8x2"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig8x4"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.LitexConfigBig8x8"),
 )
 
 object `runnable-riscv-test` extends mill.Cross[RiscvTest](
