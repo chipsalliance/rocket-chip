@@ -4,9 +4,13 @@ package freechips.rocketchip.devices.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{MemoryDevice}
+import freechips.rocketchip.tilelink.{TLDelayer, TLFuzzer, TLManagerNode, TLMessages, TLRAMModel, TLSlaveParameters, TLSlavePortParameters}
 
 // Do not use this for synthesis! Only for simulation.
 class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, trackCorruption: Boolean = true)(implicit p: Parameters) extends LazyModule

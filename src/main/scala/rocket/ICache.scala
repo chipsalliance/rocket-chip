@@ -3,18 +3,26 @@
 
 package freechips.rocketchip.rocket
 
-import chisel3._
-import chisel3.util.{Cat, Decoupled, Mux1H, OHToUInt, RegEnable, Valid, isPow2, log2Ceil, log2Up, PopCount}
-import freechips.rocketchip.amba._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{DescribedSRAM, _}
-import freechips.rocketchip.util.property
-import chisel3.experimental.SourceInfo
-import chisel3.dontTouch
+import chisel3.{dontTouch, _}
+import chisel3.util._
 import chisel3.util.random.LFSR
+import chisel3.experimental.SourceInfo
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
+import freechips.rocketchip.diplomacy.{IdRange, AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{SimpleDevice, ResourceBindings, Binding, ResourceAddress, Description, ResourceString, ResourceValue}
+import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, TileKey, LookupByHartId}
+import freechips.rocketchip.tilelink.{TLClientNode, TLMasterPortParameters, TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLMasterParameters, TLHints}
+import freechips.rocketchip.util.{Code, CanHaveErrors, DescribedSRAM, RandomReplacement, Split, IdentityCode, property}
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.util.UIntToAugmentedUInt
+import freechips.rocketchip.util.SeqToAugmentedSeq
+import freechips.rocketchip.util.OptionUIntToAugmentedOptionUInt
 
 /** Parameter of [[ICache]].
   *
@@ -410,7 +418,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
  *   content with `refillError ## tag[19:0]` after ECC
  * */
   val tag_array  = DescribedSRAM(
-    name = "tag_array",
+    name = s"${tileParams.baseName}_icache_tag_array",
     desc = "ICache Tag Array",
     size = nSets,
     data = Vec(nWays, UInt(tECC.width(1 + tagBits).W))
@@ -497,7 +505,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         // @todo Accessing ITIM correspond address will be able to read cacheline?
         //       is this desired behavior?
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i.U)
-    val s1_vb = vb_array(Cat(i.U, s1_idx)) && !s1_slaveValid
+    val s1_vb = vb_array(Cat(i.U, s1_idx).pad(log2Ceil(nSets*nWays))) && !s1_slaveValid
     val enc_tag = tECC.decode(tag_rdata(i))
     /** [[tl_error]] ECC error bit.
       * [[tag]] of [[tag_array]] access.
@@ -544,7 +552,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val data_arrays = Seq.tabulate(tl_out.d.bits.data.getWidth / wordBits) {
     i =>
       DescribedSRAM(
-        name = s"data_arrays_${i}",
+        name = s"${tileParams.baseName}_icache_data_arrays_${i}",
         desc = "ICache Data Array",
         size = nSets * refillCycles,
         data = Vec(nWays, UInt(dECC.width(wordBits).W))

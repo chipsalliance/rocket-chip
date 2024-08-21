@@ -2,11 +2,17 @@
 
 package freechips.rocketchip.subsystem
 
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.tilelink.{BuiltInZeroDeviceParams, BuiltInErrorDeviceParams, HasBuiltInDeviceParams, BuiltInDevices}
+import freechips.rocketchip.diplomacy.BufferParams
+import freechips.rocketchip.tilelink.{
+  RegionReplicator, ReplicatedRegion, HasTLBusParams, HasRegionReplicatorParams, TLBusWrapper,
+  TLBusWrapperInstantiationLike, TLFIFOFixer, TLNode, TLXbar, TLInwardNode, TLOutwardNode,
+  TLBuffer, TLWidthWidget, TLAtomicAutomata, TLEdge
+}
+import freechips.rocketchip.util.Location
 
 case class BusAtomics(
   arithmetic: Boolean = true,
@@ -38,6 +44,7 @@ case class PeripheryBusParams(
 class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Parameters)
     extends TLBusWrapper(params, name)
 {
+  override lazy val desiredName = s"PeripheryBus_$name"
   private val replicator = params.replication.map(r => LazyModule(new RegionReplicator(r)))
   val prefixNode = replicator.map { r =>
     r.prefix := addressPrefixNexusNode
@@ -46,15 +53,15 @@ class PeripheryBus(params: PeripheryBusParams, name: String)(implicit p: Paramet
 
   private val fixer = LazyModule(new TLFIFOFixer(TLFIFOFixer.all))
   private val node: TLNode = params.atomics.map { pa =>
-    val in_xbar = LazyModule(new TLXbar)
-    val out_xbar = LazyModule(new TLXbar)
+    val in_xbar = LazyModule(new TLXbar(nameSuffix = Some(s"${name}_in")))
+    val out_xbar = LazyModule(new TLXbar(nameSuffix = Some(s"${name}_out")))
     val fixer_node = replicator.map(fixer.node :*= _.node).getOrElse(fixer.node)
     (out_xbar.node
       :*= fixer_node
       :*= TLBuffer(pa.buffer)
       :*= (pa.widenBytes.filter(_ > beatBytes).map { w =>
-          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic)
-        } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic) })
+          TLWidthWidget(w) :*= TLAtomicAutomata(arithmetic = pa.arithmetic, nameSuffix = Some(name))
+        } .getOrElse { TLAtomicAutomata(arithmetic = pa.arithmetic, nameSuffix = Some(name)) })
       :*= in_xbar.node)
   } .getOrElse { TLXbar() :*= fixer.node }
 

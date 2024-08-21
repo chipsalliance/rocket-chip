@@ -3,12 +3,19 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.amba._
-import chisel3.util.{log2Ceil, UIntToOH, Queue, Decoupled, Cat}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.amba.{AMBACorrupt, AMBACorruptField, AMBAProt, AMBAProtField}
+import freechips.rocketchip.amba.axi4.{AXI4BundleARW, AXI4MasterParameters, AXI4MasterPortParameters, AXI4Parameters, AXI4Imp}
+import freechips.rocketchip.diplomacy.{IdMap, IdMapEntry, IdRange}
+import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, UIntToOH1}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)
@@ -145,8 +152,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       val depth = if (combinational) 1 else 2
       val out_arw = Wire(Decoupled(new AXI4BundleARW(out.params)))
       val out_w = Wire(chiselTypeOf(out.w))
-      out.w :<>= Queue.irrevocable(out_w, entries=depth, combinational)
-      val queue_arw = Queue.irrevocable(out_arw, entries=depth, combinational)
+      out.w :<>= Queue.irrevocable(out_w, entries=depth, flow=combinational)
+      val queue_arw = Queue.irrevocable(out_arw, entries=depth, flow=combinational)
 
       // Fan out the ARW channel to AR and AW
       out.ar.bits := queue_arw.bits

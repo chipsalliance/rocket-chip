@@ -4,8 +4,12 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.util.property
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
@@ -33,12 +37,14 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
     (fixMap, splatMap)
   }
 
-  val node = TLAdapterNode(
-    clientFn  = { cp => cp },
-    managerFn = { mp =>
+  val node = new AdapterNode(TLImp)(
+    { cp => cp },
+    { mp =>
       val (fixMap, _) = fifoMap(mp.managers)
       mp.v1copy(managers = (fixMap zip mp.managers) map { case (id, m) => m.v1copy(fifoId = id) })
-    })
+    }) with TLFormatNode {
+    override def circuitIdentity = edges.in.map(_.client.clients.filter(c => c.requestFifo && c.sourceId.size > 1).size).sum == 0
+  }
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {

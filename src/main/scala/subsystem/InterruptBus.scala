@@ -3,10 +3,15 @@
 package freechips.rocketchip.subsystem
 
 import chisel3._
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.prci.{ClockSinkDomain}
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.resources.{Device, DeviceInterrupts, Description, ResourceBindings}
+import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode, IntXbar, IntNameNode, IntSourceNode, IntSourcePortSimple}
+import freechips.rocketchip.prci.{ClockCrossingType, AsynchronousCrossing, RationalCrossing, ClockSinkDomain}
+
+import freechips.rocketchip.interrupts.IntClockDomainCrossing
 
 /** Collects interrupts from internal and external devices and feeds them into the PLIC */ 
 class InterruptBusWrapper(implicit p: Parameters) extends ClockSinkDomain {
@@ -45,7 +50,7 @@ abstract trait HasExtInterrupts { this: BaseSubsystem =>
   */
 trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
-    ibus.fromAsync := extInterrupts
+    ibus { ibus.fromAsync := extInterrupts }
   }
 }
 
@@ -54,7 +59,7 @@ trait HasAsyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   */
 trait HasSyncExtInterrupts extends HasExtInterrupts { this: BaseSubsystem =>
   if (nExtInterrupts > 0) {
-    ibus.fromSync := extInterrupts
+    ibus { ibus.fromSync := extInterrupts }
   }
 }
 
@@ -70,7 +75,7 @@ trait HasExtInterruptsBundle {
 /** This trait performs the translation from a UInt IO into Diplomatic Interrupts.
   * The wiring must be done in the concrete LazyModuleImp. 
   */
-trait HasExtInterruptsModuleImp extends LazyModuleImp with HasExtInterruptsBundle {
+trait HasExtInterruptsModuleImp extends LazyRawModuleImp with HasExtInterruptsBundle {
   val outer: HasExtInterrupts
   val interrupts = IO(Input(UInt(outer.nExtInterrupts.W)))
 

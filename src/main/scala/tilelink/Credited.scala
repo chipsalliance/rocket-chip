@@ -3,11 +3,15 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import chisel3.util.Decoupled
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.prci.{CreditedCrossing}
 import freechips.rocketchip.subsystem.CrossingWrapper
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.{CreditedDelay, CreditedIO}
 
 class TLCreditedBuffer(delay: TLCreditedDelay)(implicit p: Parameters) extends LazyModule
 {

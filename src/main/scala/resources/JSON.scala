@@ -1,8 +1,9 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.diplomacy
+package freechips.rocketchip.resources
 
 import scala.collection.immutable.SortedMap
+import freechips.rocketchip.diplomacy.{AddressRange}
 
 object JSON
 {

@@ -2,20 +2,37 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
-import $file.hardfloat.common
-import $file.cde.common
+import $file.dependencies.hardfloat.common
+import $file.dependencies.cde.common
+import $file.dependencies.diplomacy.common
+import $file.dependencies.chisel.build
 import $file.common
 
 object v {
-  val scala = "2.13.10"
+  val scala = "2.13.12"
   // the first version in this Map is the mainly supported version which will be used to run tests
   val chiselCrossVersions = Map(
-    "3.6.0" -> (ivy"edu.berkeley.cs::chisel3:3.6.0", ivy"edu.berkeley.cs:::chisel3-plugin:3.6.0"),
-    "5.0.0" -> (ivy"org.chipsalliance::chisel:5.0.0", ivy"org.chipsalliance:::chisel-plugin:5.0.0"),
+    "5.1.0" -> (ivy"org.chipsalliance::chisel:5.1.0", ivy"org.chipsalliance:::chisel-plugin:5.1.0"),
+    // build from project from source
+    "source" -> (ivy"org.chipsalliance::chisel:99", ivy"org.chipsalliance:::chisel-plugin:99"),
   )
   val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
   val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
   val scalaReflect = ivy"org.scala-lang:scala-reflect:${scala}"
+  val sourcecode = ivy"com.lihaoyi::sourcecode:0.3.1"
+  val sonatypesSnapshots = Seq(
+    MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
+  )
+}
+
+// Build form source only for dev
+object chisel extends Chisel
+
+trait Chisel
+  extends millbuild.dependencies.chisel.build.Chisel {
+  def crossValue = v.scala
+  override def millSourcePath = os.pwd / "dependencies" / "chisel"
+  def scalaVersion = T(v.scala)
 }
 
 object macros extends Macros
@@ -33,33 +50,60 @@ trait Macros
 object hardfloat extends mill.define.Cross[Hardfloat](v.chiselCrossVersions.keys.toSeq)
 
 trait Hardfloat
-  extends millbuild.hardfloat.common.HardfloatModule
+  extends millbuild.dependencies.hardfloat.common.HardfloatModule
     with RocketChipPublishModule
     with Cross.Module[String] {
 
   def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "hardfloat" / "hardfloat"
+  override def millSourcePath = os.pwd / "dependencies" / "hardfloat" / "hardfloat"
 
-  def chiselModule = None
+  def chiselModule = Option.when(crossValue == "source")(chisel)
 
-  def chiselPluginJar = None
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
 
-  def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
 
-  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
+
+  def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
 }
 
 object cde extends CDE
 
 trait CDE
-  extends millbuild.cde.common.CDEModule
+  extends millbuild.dependencies.cde.common.CDEModule
     with RocketChipPublishModule
     with ScalaModule {
 
   def scalaVersion: T[String] = T(v.scala)
 
-  override def millSourcePath = os.pwd / "cde" / "cde"
+  override def millSourcePath = os.pwd / "dependencies" / "cde" / "cde"
+}
+
+object diplomacy extends mill.define.Cross[Diplomacy](v.chiselCrossVersions.keys.toSeq)
+
+trait Diplomacy
+    extends millbuild.dependencies.diplomacy.common.DiplomacyModule
+    with RocketChipPublishModule
+    with Cross.Module[String] {
+
+  override def scalaVersion: T[String] = T(v.scala)
+
+  override def millSourcePath = os.pwd / "dependencies" / "diplomacy" / "diplomacy"
+
+  // dont use chisel from source
+  def chiselModule = Option.when(crossValue == "source")(chisel)
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
+
+  // use chisel from ivy
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
+
+  // use CDE from source until published to sonatype
+  def cdeModule = cde
+
+  def sourcecodeIvy = v.sourcecode
 }
 
 object rocketchip extends Cross[RocketChip](v.chiselCrossVersions.keys.toSeq)
@@ -73,13 +117,13 @@ trait RocketChip
 
   override def millSourcePath = super.millSourcePath / os.up
 
-  def chiselModule = None
+  def chiselModule = Option.when(crossValue == "source")(chisel)
 
-  def chiselPluginJar = None
+  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
 
-  def chiselIvy = Some(v.chiselCrossVersions(crossValue)._1)
+  def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
 
-  def chiselPluginIvy = Some(v.chiselCrossVersions(crossValue)._2)
+  def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
 
   def macrosModule = macros
 
@@ -87,9 +131,15 @@ trait RocketChip
 
   def cdeModule = cde
 
+  def diplomacyModule = diplomacy(crossValue)
+
+  def diplomacyIvy = None
+
   def mainargsIvy = v.mainargs
 
   def json4sJacksonIvy = v.json4sJackson
+
+  def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
 }
 
 trait RocketChipPublishModule
@@ -107,7 +157,6 @@ trait RocketChipPublishModule
 
   override def publishVersion: T[String] = T("1.6-SNAPSHOT")
 }
-
 
 // Tests
 trait Emulator extends Cross.Module2[String, String] {
@@ -267,6 +316,7 @@ object emulator extends Cross[Emulator](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBufferlessConfig"),
   // RocketSuiteC
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig"),
+
   // Unittest
   ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.AMBAUnitTestConfig"),
   ("freechips.rocketchip.unittest.TestHarness", "freechips.rocketchip.unittest.TLSimpleUnitTestConfig"),
@@ -294,6 +344,9 @@ object emulator extends Cross[Emulator](
   //
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig"),
+
 )
 
 object `runnable-riscv-test` extends mill.Cross[RiscvTest](
@@ -355,8 +408,8 @@ object `runnable-riscv-test` extends mill.Cross[RiscvTest](
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uc-v", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uf-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32uf-v", "none"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ui-p", "none"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ui-v", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ui-p", "ma_data"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32ui-v", "ma_data"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32um-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32Config", "rv32um-v", "none"),
 
@@ -368,11 +421,17 @@ object `runnable-riscv-test` extends mill.Cross[RiscvTest](
   // lsrc is not implemented if usingDataScratchpad
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig", "rv32ua-p", "lrsc"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig", "rv32uc-p", "none"),
-  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig", "rv32ui-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig", "rv32ui-p", "ma_data"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.TinyConfig", "rv32um-p", "none"),
 
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-p", "none"),
   ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultFP16Config", "rv64uzfh-v", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig", "rv64uzba-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig", "rv64uzbb-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultBConfig", "rv64uzbs-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig", "rv32uzba-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig", "rv32uzbb-p", "none"),
+  ("freechips.rocketchip.system.TestHarness", "freechips.rocketchip.system.DefaultRV32BConfig", "rv32uzbs-p", "none"),
 )
 
 object `runnable-arch-test` extends mill.Cross[ArchTest](

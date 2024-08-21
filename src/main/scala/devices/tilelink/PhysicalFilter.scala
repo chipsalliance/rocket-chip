@@ -4,11 +4,16 @@ package freechips.rocketchip.devices.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.resources.{SimpleDevice}
+import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup, RegFieldWrType, RegReadFn, RegWriteFn}
+import freechips.rocketchip.tilelink.{TLAdapterNode, TLMessages, TLPermissions, TLRegisterNode}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 case class DevicePMPParams(addressBits: Int, pageBits: Int)
 
@@ -235,7 +240,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
 
       // Frame an appropriate deny message
       val denyValid = RegInit(false.B)
-      val deny = Reg(in.d.bits)
+      val deny = Reg(chiselTypeOf(in.d.bits))
       val d_opcode = TLMessages.adResponse(in.a.bits.opcode)
       val d_grant = edgeIn.manager.anySupportAcquireB.B && deny.opcode === TLMessages.Grant
       when (in.a.valid && !allow && deny_ready && a_first) {
@@ -257,7 +262,7 @@ class PhysicalFilter(params: PhysicalFilterParams)(implicit p: Parameters) exten
         }
       }
 
-      val out_d = Wire(in.d.bits)
+      val out_d = Wire(chiselTypeOf(in.d.bits))
       out_d := out.d.bits
 
       // Deny can have unconditional priority, because the only out.d message possible is

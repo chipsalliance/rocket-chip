@@ -1,9 +1,9 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.diplomacy
+package freechips.rocketchip.prci
+import org.chipsalliance.diplomacy.lazymodule.{LazyScope, LazyModule}
+import freechips.rocketchip.diplomacy.{BufferParams}
 import freechips.rocketchip.util.{RationalDirection, FastToSlow, AsyncQueueParams, CreditedDelay}
-
-// TODO this should all be moved to package freechips.rocketchip.prci now that it exists
 
 trait CrossingType
 

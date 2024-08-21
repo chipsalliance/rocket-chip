@@ -522,6 +522,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   io.mem.req.bits.dprv := PRV.S.U   // PTW accesses are S-mode by definition
   io.mem.req.bits.dv := do_both_stages && !stage2
   io.mem.req.bits.tag := DontCare
+  io.mem.req.bits.no_resp := false.B
   io.mem.req.bits.no_alloc := DontCare
   io.mem.req.bits.no_xcpt := DontCare
   io.mem.req.bits.data := DontCare
@@ -540,7 +541,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       require(TLBPageLookup.homogeneous(edge.manager.managers, pgSize), s"All memory regions must be $pgSize-byte aligned")
       true.B
     } else {
-      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize)(r_pte.ppn << pgIdxBits).homogeneous
+      TLBPageLookup(edge.manager.managers, xLen, p(CacheBlockBytes), pgSize, xLen/8)(r_pte.ppn << pgIdxBits).homogeneous
     }
   }
   val pmaHomogeneous = pmaPgLevelHomogeneous(count)
@@ -694,7 +695,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (do_both_stages && !stage2) { do_switch := true.B }
       count := count + 1.U
     }.otherwise {
-      val gf = stage2 && !stage2_final && !pte.ur()
+      val gf = (stage2 && !stage2_final && !pte.ur()) || (pte.leaf() && pte.reserved_for_future === 0.U && invalid_gpa)
       val ae = pte.v && invalid_paddr
       val pf = pte.v && pte.reserved_for_future =/= 0.U
       val success = pte.v && !ae && !pf && !gf
@@ -722,7 +723,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         }
 
         resp_ae_ptw := ae && count < (pgLevels-1).U && pte.table()
-        resp_ae_final := ae
+        resp_ae_final := ae && pte.leaf()
         resp_pf := pf && !stage2
         resp_gf := gf || (pf && stage2)
         resp_hr := !stage2 || (!pf && !gf && pte.ur())

@@ -3,13 +3,13 @@
 
 package freechips.rocketchip.groundtest
 
-import org.chipsalliance.cde.config.Config
+import org.chipsalliance.cde.config._
+
 import freechips.rocketchip.devices.tilelink.{CLINTKey, PLICKey}
 import freechips.rocketchip.devices.debug.{DebugModuleKey}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.system.BaseConfig
 import freechips.rocketchip.rocket.{DCacheParams}
-import freechips.rocketchip.tile.{XLen}
 
 /** Actual testing target Configs */
 
@@ -30,27 +30,27 @@ class GroundTestBaseConfig extends Config(
     case DebugModuleKey => None
     case CLINTKey => None
     case PLICKey => None
-    case SubsystemExternalResetVectorKey => true
+    case HasTilesExternalResetVectorKey => true
   })
 )
 
 class WithTraceGen(
   n: Int = 2,
-  overrideIdOffset: Option[Int] = None,
   overrideMemOffset: Option[BigInt] = None)(
   params: Seq[DCacheParams] = List.fill(n){ DCacheParams(nSets = 16, nWays = 1) },
-  nReqs: Int = 8192
+  nReqs: Int = 8192,
+  wordBits: Int = 32
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
-    val idOffset = overrideIdOffset.getOrElse(prev.size)
+    val idOffset = up(NumTiles)
     val memOffset: BigInt = overrideMemOffset.orElse(site(ExtMem).map(_.master.base)).getOrElse(0x0L)
     params.zipWithIndex.map { case (dcp, i) =>
       TraceGenTileAttachParams(
         tileParams = TraceGenParams(
-          hartId = i + idOffset,
+          tileId = i + idOffset,
           dcache = Some(dcp),
-          wordBits = site(XLen),
+          wordBits = wordBits,
           addrBits = 32,
           addrBag = {
             val nSets = dcp.nSets
@@ -68,4 +68,5 @@ class WithTraceGen(
       )
     } ++ prev
   }
+  case NumTiles => up(NumTiles) + n
 })

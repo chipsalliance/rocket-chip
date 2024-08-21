@@ -3,10 +3,12 @@
 package freechips.rocketchip.examples
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.amba.ahb.HasAHBControlRegMap
 import freechips.rocketchip.amba.axi4.HasAXI4ControlRegMap
-import freechips.rocketchip.diplomacy.LazyModuleImp
 import freechips.rocketchip.interrupts.HasInterruptSources
 import freechips.rocketchip.tilelink.HasTLControlRegMap
 import freechips.rocketchip.regmapper.{IORegisterRouter, RegisterRouterParams, RegField, RegFieldDesc}

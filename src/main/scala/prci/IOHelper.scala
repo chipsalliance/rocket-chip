@@ -3,7 +3,8 @@
 package freechips.rocketchip.prci
 
 import chisel3._
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.diplomacy.lazymodule._
 
 object IOHelper {
 

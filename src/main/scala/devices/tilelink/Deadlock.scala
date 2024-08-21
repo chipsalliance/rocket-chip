@@ -5,6 +5,7 @@ package freechips.rocketchip.devices.tilelink
 import chisel3._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
+import freechips.rocketchip.resources.{SimpleDevice}
 
 /** Adds a /dev/null slave that does not raise ready for any incoming traffic.
   * !!! WARNING: This device WILL cause your bus to deadlock for as long as you

@@ -3,8 +3,12 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.BufferParams
 
 class TLBufferNode (
   a: BufferParams,
@@ -34,6 +38,8 @@ class TLBuffer(
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    def headBundle = node.out.head._2.bundle
+    override def desiredName = (Seq("TLBuffer") ++ node.out.headOption.map(_._2.bundle.shortName)).mkString("_")
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out.a <> a(in .a)
       in .d <> d(out.d)

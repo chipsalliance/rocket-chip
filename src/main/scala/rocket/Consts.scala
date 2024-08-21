@@ -22,6 +22,7 @@ trait ScalarOpConstants {
   def A1_ZERO = 0.U(2.W)
   def A1_RS1  = 1.U(2.W)
   def A1_PC   = 2.U(2.W)
+  def A1_RS1SHL = 3.U(2.W)
 
   def IMM_X  = BitPat("b???")
   def IMM_S  = 0.U(3.W)
@@ -31,11 +32,14 @@ trait ScalarOpConstants {
   def IMM_I  = 4.U(3.W)
   def IMM_Z  = 5.U(3.W)
 
-  def A2_X    = BitPat("b??")
-  def A2_ZERO = 0.U(2.W)
-  def A2_SIZE = 1.U(2.W)
-  def A2_RS2  = 2.U(2.W)
-  def A2_IMM  = 3.U(2.W)
+  def A2_X      = BitPat("b???")
+  def A2_ZERO   = 0.U(3.W)
+  def A2_SIZE   = 1.U(3.W)
+  def A2_RS2    = 2.U(3.W)
+  def A2_IMM    = 3.U(3.W)
+  def A2_RS2OH  = 4.U(3.W)
+  def A2_IMMOH  = 5.U(3.W)
+
 
   def X = BitPat("b?")
   def N = BitPat("b0")

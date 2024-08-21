@@ -3,11 +3,16 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
+import chisel3.util.{Cat, log2Ceil}
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.amba._
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.amba.AMBACorrupt
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
+import freechips.rocketchip.util.{BundleMap, SeqMemToAugmentedSeqMem}
 
 /**
   * AXI4 slave device to provide a RAM storage

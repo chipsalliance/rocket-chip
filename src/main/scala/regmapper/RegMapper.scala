@@ -4,13 +4,13 @@ package freechips.rocketchip.regmapper
 
 import chisel3._
 import chisel3.experimental.SourceInfo
-import chisel3.util.{DecoupledIO, Decoupled, Queue, Cat, FillInterleaved, UIntToOH}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
+import chisel3.util._
+
+import freechips.rocketchip.diplomacy.AddressDecoder
+
+import freechips.rocketchip.util.{BundleFieldBase, BundleMap, MuxSeq, ReduceOthers, property}
 
 // A bus agnostic register interface to a register-based device
-
 case class RegMapperParams(indexBits: Int, maskBits: Int, extraFields: Seq[BundleFieldBase] = Nil)
 
 class RegMapperInput(val params: RegMapperParams) extends Bundle
@@ -67,7 +67,13 @@ object RegMapper
     val depth = concurrency
     require (depth >= 0)
     require (!pipelined || depth > 0, "Register-based device with request/response handshaking needs concurrency > 0")
-    val back = if (depth > 0) Queue(front, depth) else front
+    val back = if (depth > 0) {
+      val front_q = Module(new Queue(new RegMapperInput(inParams), depth) {
+        override def desiredName = s"Queue${depth}_${front.bits.typeName}_i${inParams.indexBits}_m${inParams.maskBits}"
+      })
+      front_q.io.enq <> front
+      front_q.io.deq
+    } else front
 
     // Convert to and from Bits
     def toBits(x: Int, tail: List[Boolean] = List.empty): List[Boolean] =

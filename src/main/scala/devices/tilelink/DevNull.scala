@@ -2,9 +2,15 @@
 
 package freechips.rocketchip.devices.tilelink
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{SimpleDevice}
+import freechips.rocketchip.prci.{HasClockDomainCrossing}
+import freechips.rocketchip.tilelink.{TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
+
+import freechips.rocketchip.tilelink.TLClockDomainCrossing
 
 case class DevNullParams(
   address: Seq[AddressSet],

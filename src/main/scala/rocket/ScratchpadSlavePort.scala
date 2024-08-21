@@ -4,10 +4,17 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{SimpleDevice}
+
+import freechips.rocketchip.tilelink.{TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLBundleA, TLMessages, TLAtomics}
+
+import freechips.rocketchip.util.UIntIsOneOf
+import freechips.rocketchip.util.DataToAugmentedData
 
 /* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
 class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
@@ -57,16 +64,16 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
 
     def formCacheReq(a: TLBundleA) = {
       val req = Wire(new HellaCacheReq)
-      req.cmd := MuxLookup(a.opcode, M_XRD, Array(
+      req.cmd := MuxLookup(a.opcode, M_XRD)(Array(
         TLMessages.PutFullData    -> M_XWR,
         TLMessages.PutPartialData -> M_PWR,
-        TLMessages.ArithmeticData -> MuxLookup(a.param, M_XRD, Array(
+        TLMessages.ArithmeticData -> MuxLookup(a.param, M_XRD)(Array(
           TLAtomics.MIN           -> M_XA_MIN,
           TLAtomics.MAX           -> M_XA_MAX,
           TLAtomics.MINU          -> M_XA_MINU,
           TLAtomics.MAXU          -> M_XA_MAXU,
           TLAtomics.ADD           -> M_XA_ADD)),
-        TLMessages.LogicalData    -> MuxLookup(a.param, M_XRD, Array(
+        TLMessages.LogicalData    -> MuxLookup(a.param, M_XRD)(Array(
           TLAtomics.XOR           -> M_XA_XOR,
           TLAtomics.OR            -> M_XA_OR,
           TLAtomics.AND           -> M_XA_AND,
@@ -89,6 +96,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       req.tag := 0.U
       req.phys := true.B
       req.no_xcpt := true.B
+      req.no_resp := false.B
       req.data := 0.U
       req.no_alloc := false.B
       req.mask := 0.U

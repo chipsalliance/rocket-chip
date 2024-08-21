@@ -8,7 +8,6 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 
-case object XLen extends Field[Int]
 case object MaxHartIdBits extends Field[Int]
 
 // These parameters can be varied per-core
@@ -26,6 +25,9 @@ trait CoreParams {
   val vectorUseDCache: Boolean = false
   val useRVE: Boolean
   val useConditionalZero: Boolean
+  val useZba: Boolean
+  val useZbb: Boolean
+  val useZbs: Boolean
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
@@ -51,6 +53,8 @@ trait CoreParams {
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   val traceHasWdata: Boolean
+  val xLen: Int
+  val pgLevels: Int
   def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
@@ -63,10 +67,16 @@ trait CoreParams {
   def dcacheReqTagBits: Int = 6
 
   def minFLen: Int = 32
+
   def vLen: Int = 0
-  def sLen: Int = 0
-  def eLen(xLen: Int, fLen: Int): Int = xLen max fLen
+  def eLen: Int = 0
+  def vfLen: Int = 0
+  def vfh: Boolean = false
+  def vExts: Seq[String] = Nil
+  def hasV: Boolean = vLen >= 128 && eLen >= 64 && vfLen >= 64
   def vMemDataBits: Int = 0
+
+  def useBitmanip = useZba && useZbb && useZbs
 }
 
 trait HasCoreParameters extends HasTileParameters {
@@ -106,14 +116,25 @@ trait HasCoreParameters extends HasTileParameters {
   val traceHasWdata = coreParams.traceHasWdata
 
   def vLen = coreParams.vLen
-  def sLen = coreParams.sLen
-  def eLen = coreParams.eLen(xLen, fLen)
+  def eLen = coreParams.eLen
+  def vfLen = coreParams.vfLen
   def vMemDataBits = if (usingVector) coreParams.vMemDataBits else 0
   def maxVLMax = vLen
 
   if (usingVector) {
     require(isPow2(vLen), s"vLen ($vLen) must be a power of 2")
     require(eLen >= 32 && vLen % eLen == 0, s"eLen must divide vLen ($vLen) and be no less than 32")
+    require(eLen == 32 || eLen == 64)
+    require(vfLen <= eLen)
+    require(!coreParams.vfh || (vfLen >= 32 && coreParams.minFLen <= 16))
+  }
+
+  if (coreParams.useVM) {
+    if (coreParams.xLen == 32) {
+      require(coreParams.pgLevels == 2)
+    } else {
+      require(coreParams.pgLevels >= 3)
+    }
   }
 
   lazy val hartIdLen: Int = p(MaxHartIdBits)
@@ -136,33 +157,9 @@ abstract class CoreModule(implicit val p: Parameters) extends Module
 abstract class CoreBundle(implicit val p: Parameters) extends ParameterizedBundle()(p)
   with HasCoreParameters
 
-class CoreInterrupts(implicit p: Parameters) extends TileInterrupts()(p) {
-  val buserror = tileParams.beuAddr.map(a => Bool())
-}
-
 // This is a raw commit trace from the core, not the TraceCoreInterface
 class TraceBundle(implicit val p: Parameters) extends Bundle with HasCoreParameters {
   val insns = Vec(coreParams.retireWidth, new TracedInstruction)
   val time = UInt(64.W)
   val custom = coreParams.traceCustom
-}
-
-trait HasCoreIO extends HasTileParameters {
-  implicit val p: Parameters
-  def nTotalRoCCCSRs: Int
-  val io = IO(new CoreBundle()(p) {
-    val hartid = Input(UInt(hartIdLen.W))
-    val reset_vector = Input(UInt(resetVectorLen.W))
-    val interrupts = Input(new CoreInterrupts())
-    val imem  = new FrontendIO
-    val dmem = new HellaCacheIO
-    val ptw = Flipped(new DatapathPTWIO())
-    val fpu = Flipped(new FPUCoreIO())
-    val rocc = Flipped(new RoCCCoreIO(nTotalRoCCCSRs))
-    val trace = Output(new TraceBundle)
-    val bpwatch = Output(Vec(coreParams.nBreakpoints, new BPWatch(coreParams.retireWidth)))
-    val cease = Output(Bool())
-    val wfi = Output(Bool())
-    val traceStall = Input(Bool())
-  })
 }

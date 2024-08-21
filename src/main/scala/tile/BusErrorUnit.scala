@@ -3,17 +3,17 @@
 package freechips.rocketchip.tile
 
 import chisel3._
-import chisel3.util.log2Ceil
-// TODO: remove this import
-import chisel3.util.ImplicitConversions._
-import chisel3.util.Valid
-import chisel3.DontCare
+import chisel3.util._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.rocket._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.rocket.{DCacheErrors, ICacheErrors}
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.resources.{SimpleDevice}
+import freechips.rocketchip.regmapper.{DescribedReg, RegField, RegFieldDesc, RegFieldGroup}
+import freechips.rocketchip.tilelink.TLRegisterNode
+import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import freechips.rocketchip.util.property
 
 trait BusErrors extends Bundle {
@@ -36,14 +36,14 @@ class L1BusErrors(implicit p: Parameters) extends CoreBundle()(p) with BusErrors
 
 case class BusErrorUnitParams(addr: BigInt, size: Int = 4096)
 
-class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit p: Parameters) extends LazyModule {
+class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams, beatBytes: Int)(implicit p: Parameters) extends LazyModule {
   val regWidth = 64
   val device = new SimpleDevice("bus-error-unit", Seq("sifive,buserror0"))
   val intNode = IntSourceNode(IntSourcePortSimple(resources = device.int))
   val node = TLRegisterNode(
     address   = Seq(AddressSet(params.addr, params.size-1)),
     device    = device,
-    beatBytes = p(XLen)/8)
+    beatBytes = beatBytes)
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -95,17 +95,17 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
     new_value := DontCare
     for ((((s, en), acc), i) <- (sources zip enable zip accrued).zipWithIndex; if s.nonEmpty) {
       when (s.get.valid) {
-        acc := true
+        acc := true.B
         when (en) {
-          cause_wen := true
-          new_cause := i
+          cause_wen := true.B
+          new_cause := i.asUInt
           new_value := s.get.bits
         }
         property.cover(en, s"BusErrorCause_$i", s"Core;;BusErrorCause $i covered")
       }
     }
 
-    when (cause === 0 && cause_wen) {
+    when (cause === 0.asUInt && cause_wen) {
       cause := new_cause
       value := new_value
     }
@@ -129,10 +129,10 @@ class BusErrorUnit[T <: BusErrors](t: => T, params: BusErrorUnitParams)(implicit
 
     // hardwire mask bits for unsupported sources to 0
     for ((s, i) <- sources.zipWithIndex; if s.isEmpty) {
-      enable(i) := false
-      global_interrupt(i) := false
-      accrued(i) := false
-      local_interrupt(i) := false
+      enable(i) := false.B
+      global_interrupt(i) := false.B
+      accrued(i) := false.B
+      local_interrupt(i) := false.B
     }
   }
 }

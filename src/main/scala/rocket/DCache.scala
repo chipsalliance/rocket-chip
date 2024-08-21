@@ -4,16 +4,24 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.amba._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tile.{CoreBundle, LookupByHartId}
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.util.property
-import chisel3.{DontCare, WireInit, dontTouch, withClock}
 import chisel3.experimental.SourceInfo
-import TLMessages._
+
+import org.chipsalliance.cde.config._
+
+import freechips.rocketchip.amba.AMBAProt
+import freechips.rocketchip.diplomacy.{BufferParams}
+import freechips.rocketchip.prci.{ClockCrossingType, RationalCrossing, SynchronousCrossing, AsynchronousCrossing, CreditedCrossing}
+import freechips.rocketchip.tile.{CoreBundle, LookupByHartId}
+import freechips.rocketchip.tilelink.{TLFIFOFixer,ClientMetadata, TLBundleA, TLAtomics, TLBundleB, TLPermissions}
+import freechips.rocketchip.tilelink.TLMessages.{AccessAck, HintAck, AccessAckData, Grant, GrantData, ReleaseAck}
+import freechips.rocketchip.util.{CanHaveErrors, ClockGate, IdentityCode, ReplacementPolicy, DescribedSRAM, property}
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.util.UIntToAugmentedUInt
+import freechips.rocketchip.util.UIntIsOneOf
+import freechips.rocketchip.util.IntToAugmentedInt
+import freechips.rocketchip.util.SeqToAugmentedSeq
+import freechips.rocketchip.util.SeqBoolBitwiseOps
 
 // TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
 trait InlineInstance { self: chisel3.experimental.BaseModule =>
@@ -52,7 +60,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val data_arrays = Seq.tabulate(rowBits / subWordBits) {
     i =>
       DescribedSRAM(
-        name = s"data_arrays_${i}",
+        name = s"${tileParams.baseName}_dcache_data_arrays_${i}",
         desc = "DCache Data Array",
         size = nSets * cacheBlockBytes / rowBytes,
         data = Vec(nWays * (subWordBits / eccBits), UInt(encBits.W))
@@ -86,13 +94,11 @@ class DCache(staticIdForMetadataUseOnly: Int, val crossing: ClockCrossingType)(i
 
 class DCacheTLBPort(implicit p: Parameters) extends CoreBundle()(p) {
   val req = Flipped(Decoupled(new TLBReq(coreDataBytes.log2)))
-  val s1_resp = Output(new TLBResp)
+  val s1_resp = Output(new TLBResp(coreDataBytes.log2))
   val s2_kill = Input(Bool())
 }
 
 class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
-  val tlb_port = IO(new DCacheTLBPort)
-
   val tECC = cacheParams.tagCode
   val dECC = cacheParams.dataCode
   require(subWordBits % eccBits == 0, "subWordBits must be a multiple of eccBits")
@@ -115,10 +121,21 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // tags
   val replacer = ReplacementPolicy.fromString(cacheParams.replacementPolicy, nWays)
+
+  /** Metadata Arbiter:
+    * 0: Tag update on reset
+    * 1: Tag update on ECC error
+    * 2: Tag update on hit
+    * 3: Tag update on refill
+    * 4: Tag update on release
+    * 5: Tag update on flush
+    * 6: Tag update on probe
+    * 7: Tag update on CPU request
+    */
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val tag_array = DescribedSRAM(
-    name = "tag_array",
+    name = s"${tileParams.baseName}_dcache_tag_array",
     desc = "DCache Tag Array",
     size = nSets,
     data = Vec(nWays, chiselTypeOf(metaArb.io.out.bits.data))
@@ -126,6 +143,12 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // data
   val data = Module(new DCacheDataArray)
+  /** Data Arbiter
+    * 0: data from pending store buffer
+    * 1: data from TL-D refill
+    * 2: release to TL-A
+    * 3: hit path to CPU
+    */
   val dataArb = Module(new Arbiter(new DCacheDataReq, 4) with InlineInstance)
   dataArb.io.in.tail.foreach(_.bits.wdata := dataArb.io.in.head.bits.wdata) // tie off write ports by default
   data.io.req.bits <> dataArb.io.out.bits
@@ -162,7 +185,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_nack = WireDefault(false.B)
   val s1_valid_masked = s1_valid && !io.cpu.s1_kill
   val s1_valid_not_nacked = s1_valid && !s1_nack
-  val s1_tlb_req_valid = RegNext(tlb_port.req.fire, false.B)
+  val s1_tlb_req_valid = RegNext(io.tlb_port.req.fire, false.B)
   val s2_tlb_req_valid = RegNext(s1_tlb_req_valid, false.B)
   val s0_clk_en = metaArb.io.out.valid && !metaArb.io.out.bits.write
 
@@ -173,8 +196,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_req = RegEnable(s0_req, s0_clk_en)
   val s1_vaddr = Cat(s1_req.idx.getOrElse(s1_req.addr) >> tagLSB, s1_req.addr(tagLSB-1, 0))
 
-  val s0_tlb_req = WireInit(tlb_port.req.bits)
-  when (!tlb_port.req.fire) {
+  val s0_tlb_req = WireInit(io.tlb_port.req.bits)
+  when (!io.tlb_port.req.fire) {
     s0_tlb_req.passthrough := s0_req.phys
     s0_tlb_req.vaddr := s0_req.addr
     s0_tlb_req.size := s0_req.size
@@ -182,7 +205,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     s0_tlb_req.prv := s0_req.dprv
     s0_tlb_req.v := s0_req.dv
   }
-  val s1_tlb_req = RegEnable(s0_tlb_req, s0_clk_en || tlb_port.req.valid)
+  val s1_tlb_req = RegEnable(s0_tlb_req, s0_clk_en || io.tlb_port.req.valid)
 
   val s1_read = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
@@ -246,7 +269,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // address translation
   val s1_cmd_uses_tlb = s1_readwrite || s1_flush_line || s1_req.cmd === M_WOK
   io.ptw <> tlb.io.ptw
-  tlb.io.kill := io.cpu.s2_kill || s2_tlb_req_valid && tlb_port.s2_kill
+  tlb.io.kill := io.cpu.s2_kill || s2_tlb_req_valid && io.tlb_port.s2_kill
   tlb.io.req.valid := s1_tlb_req_valid || s1_valid && !io.cpu.s1_kill && s1_cmd_uses_tlb
   tlb.io.req.bits := s1_tlb_req
   when (!tlb.io.req.ready && !tlb.io.ptw.resp.valid && !io.cpu.req.bits.phys) { io.cpu.req.ready := false.B }
@@ -260,8 +283,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.sfence.bits.hv := s1_req.cmd === M_HFENCEV
   tlb.io.sfence.bits.hg := s1_req.cmd === M_HFENCEG
 
-  tlb_port.req.ready := clock_en_reg
-  tlb_port.s1_resp := tlb.io.resp
+  io.tlb_port.req.ready := clock_en_reg
+  io.tlb_port.s1_resp := tlb.io.resp
   when (s1_tlb_req_valid && s1_valid && !(s1_req.phys && s1_req.no_xcpt)) { s1_nack := true.B }
 
   pma_checker.io <> DontCare
@@ -561,7 +584,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val put     = edge.Put(a_source, access_address, a_size, a_data)._2
   val putpartial = edge.Put(a_source, access_address, a_size, a_data, a_mask)._2
   val atomics = if (edge.manager.anySupportLogical) {
-    MuxLookup(s2_req.cmd, WireDefault(0.U.asTypeOf(new TLBundleA(edge.bundle))), Array(
+    MuxLookup(s2_req.cmd, WireDefault(0.U.asTypeOf(new TLBundleA(edge.bundle))))(Array(
       M_XA_SWAP -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.SWAP)._2,
       M_XA_XOR  -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.XOR) ._2,
       M_XA_OR   -> edge.Logical(a_source, access_address, a_size, a_data, TLAtomics.OR)  ._2,
@@ -904,6 +927,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s1_isSlavePortAccess = s1_req.no_xcpt
   val s2_isSlavePortAccess = s2_req.no_xcpt
   io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
+  io.cpu.store_pending := (cached_grant_wait && isWrite(s2_req.cmd)) || uncachedInFlight.asUInt.orR
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))
@@ -1039,7 +1063,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     metaArb.io.out.valid || // subsumes resetting || flushing
     s1_probe || s2_probe ||
     s1_valid || s2_valid ||
-    tlb_port.req.valid ||
+    io.tlb_port.req.valid ||
     s1_tlb_req_valid || s2_tlb_req_valid ||
     pstore1_held || pstore2_valid ||
     release_state =/= s_ready ||

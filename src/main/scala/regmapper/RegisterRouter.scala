@@ -3,9 +3,16 @@
 package freechips.rocketchip.regmapper
 
 import chisel3._
-import chisel3.util.{isPow2}
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.resources.{Description, Device, SimpleDevice, ResourceBindings, ResourceValue}
+import freechips.rocketchip.prci.{HasClockDomainCrossing}
+
 
 /** Parameters which apply to any RegisterRouter. */
 case class RegisterRouterParams(

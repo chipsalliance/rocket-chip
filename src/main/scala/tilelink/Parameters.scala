@@ -5,9 +5,20 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.SourceInfo
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.diplomacy.{
+  AddressDecoder, AddressSet, BufferParams, DirectedBuffers, IdMap, IdMapEntry,
+  IdRange, RegionType, TransferSizes
+}
+import freechips.rocketchip.resources.{Resource, ResourceAddress, ResourcePermissions}
+import freechips.rocketchip.util.{
+  AsyncQueueParams, BundleField, BundleFieldBase, BundleKeyBase,
+  CreditedDelay, groupByIntoSeq, RationalDirection, SimpleProduct
+}
+
 import scala.math.max
 
 //These transfer sizes describe requests issued from masters on the A channel that will be responded by slaves on the D channel
@@ -177,6 +188,7 @@ class TLSlaveParameters private(
                                    // ReleaseAck may NEVER be denied
   extends SimpleProduct
 {
+  def sortedAddress = address.sorted
   override def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlaveParameters]
   override def productPrefix = "TLSlaveParameters"
   // We intentionally omit nodePath for equality testing / formatting
@@ -516,6 +528,7 @@ class TLSlavePortParameters private(
   val responseFields: Seq[BundleFieldBase],
   val requestKeys:    Seq[BundleKeyBase]) extends SimpleProduct
 {
+  def sortedSlaves = slaves.sortBy(_.sortedAddress.head)
   override def canEqual(that: Any): Boolean = that.isInstanceOf[TLSlavePortParameters]
   override def productPrefix = "TLSlavePortParameters"
   def productArity: Int = 6
@@ -596,16 +609,16 @@ class TLSlavePortParameters private(
   def find(address: BigInt) = slaves.find(_.address.exists(_.contains(address)))
 
   // The safe version will check the entire address
-  def findSafe(address: UInt) = VecInit(slaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
+  def findSafe(address: UInt) = VecInit(sortedSlaves.map(_.address.map(_.contains(address)).reduce(_ || _)))
   // The fast version assumes the address is valid (you probably want fastProperty instead of this function)
   def findFast(address: UInt) = {
     val routingMask = AddressDecoder(slaves.map(_.address))
-    VecInit(slaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
+    VecInit(sortedSlaves.map(_.address.map(_.widen(~routingMask)).distinct.map(_.contains(address)).reduce(_ || _)))
   }
 
   // Compute the simplest AddressSets that decide a key
   def fastPropertyGroup[K](p: TLSlaveParameters => K): Seq[(K, Seq[AddressSet])] = {
-    val groups = groupByIntoSeq(slaves.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
+    val groups = groupByIntoSeq(sortedSlaves.map(m => (p(m), m.address)))( _._1).map { case (k, vs) =>
       k -> vs.flatMap(_._2)
     }
     val reductionMask = AddressDecoder(groups.map(_._2))
@@ -1298,6 +1311,9 @@ case class TLBundleParameters(
   echoFields.foreach { f => require (f.key.isControl, s"${f} is not a legal echo field") }
 
   val addrLoBits = log2Up(dataBits/8)
+
+  // Used to uniquify bus IP names
+  def shortName = s"a${addressBits}d${dataBits}s${sourceBits}k${sinkBits}z${sizeBits}" + (if (hasBCE) "c" else "u")
 
   def union(x: TLBundleParameters) =
     TLBundleParameters(

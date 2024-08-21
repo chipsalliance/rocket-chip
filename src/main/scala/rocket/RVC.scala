@@ -16,7 +16,7 @@ class ExpandedInstruction extends Bundle {
   val rs3 = UInt(5.W)
 }
 
-class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
+class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
   def inst(bits: UInt, rd: UInt = x(11,7), rs1: UInt = x(19,15), rs2: UInt = x(24,20), rs3: UInt = x(31,27)) = {
     val res = Wire(new ExpandedInstruction)
     res.bits := bits
@@ -153,6 +153,38 @@ class RVCDecoder(x: UInt, xLen: Int, useAddiForMv: Boolean = false) {
     val s = q0 ++ q1 ++ q2 ++ q3
     s(Cat(x(1,0), x(15,13)))
   }
+
+  def q0_ill = {
+    def allz = !(x(12, 2).orR)
+    def fld = if (fLen >= 64) false.B else true.B
+    def flw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
+    def fsd = if (fLen >= 64) false.B else true.B
+    def fsw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
+    Seq(allz, fld, false.B, flw32, true.B, fsd, false.B, fsw32)
+  }
+
+  def q1_ill = {
+    def rd0 = if (xLen == 32) false.B else rd === 0.U
+    def immz = !(x(12) | x(6, 2).orR)
+    def arith_res = x(12, 10).andR && (if (xLen == 32) true.B else x(6) === 1.U)
+    Seq(false.B, rd0, false.B, immz, arith_res, false.B, false.B, false.B)
+  }
+
+  def q2_ill = {
+    def fldsp = if (fLen >= 64) false.B else true.B
+    def rd0 = rd === 0.U
+    def flwsp = if (xLen == 64) rd0 else if (fLen >= 32) false.B else true.B
+    def jr_res = !(x(12 ,2).orR)
+    def fsdsp = if (fLen >= 64) false.B else true.B
+    def fswsp32 = if (xLen == 64) false.B else if (fLen >= 32) false.B else true.B
+    Seq(false.B, fldsp, rd0, flwsp, jr_res, fsdsp, false.B, fswsp32)
+  }
+  def q3_ill = Seq.fill(8)(false.B)
+
+  def ill = {
+    val s = q0_ill ++ q1_ill ++ q2_ill ++ q3_ill
+    s(Cat(x(1,0), x(15,13)))
+  }
 }
 
 class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) extends Module with HasCoreParameters {
@@ -160,13 +192,17 @@ class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) ext
     val in = Input(UInt(32.W))
     val out = Output(new ExpandedInstruction)
     val rvc = Output(Bool())
+    val ill = Output(Bool())
   })
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= 3.U
-    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv).decode
+    val decoder = new RVCDecoder(io.in, xLen, fLen, useAddiForMv)
+    io.out := decoder.decode
+    io.ill := decoder.ill
   } else {
     io.rvc := false.B
-    io.out := new RVCDecoder(io.in, p(XLen), useAddiForMv).passthrough
+    io.out := new RVCDecoder(io.in, xLen, fLen, useAddiForMv).passthrough
+    io.ill := false.B // only used for RVC
   }
 }

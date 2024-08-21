@@ -4,13 +4,17 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.amba._
-import freechips.rocketchip.amba.ahb._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import AHBParameters._
-import chisel3.util.{RegEnable, Queue, Cat, log2Ceil}
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
+import freechips.rocketchip.amba.ahb.{AHBImpMaster, AHBParameters, AHBMasterParameters, AHBMasterPortParameters}
+import freechips.rocketchip.amba.ahb.AHBParameters.{BURST_INCR, BURST_SINGLE, TRANS_NONSEQ, TRANS_SEQ, TRANS_IDLE, TRANS_BUSY, PROT_DEFAULT}
+import freechips.rocketchip.diplomacy.TransferSizes
+import freechips.rocketchip.util.{BundleMap, UIntToOH1}
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { cp =>

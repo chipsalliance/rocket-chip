@@ -38,7 +38,7 @@ behavior of typical Chisel width inference.
 ```scala mdoc:invisible
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.stage.ChiselStage
 import chisel3.util.random.FibonacciLFSR
 import freechips.rocketchip.diplomacy.{SimpleNodeImp, RenderedEdge, ValName, SourceNode,

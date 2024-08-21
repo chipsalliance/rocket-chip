@@ -2,9 +2,13 @@
 
 package freechips.rocketchip.tilelink
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.prci.{
+  AsynchronousCrossing, CrossingType, ClockCrossingType, NoCrossing,
+  RationalCrossing, CreditedCrossing, SynchronousCrossing,
+  ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
 
 trait TLOutwardCrossingHelper {
   type HelperCrossingType <: CrossingType

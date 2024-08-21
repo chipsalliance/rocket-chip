@@ -3,12 +3,16 @@
 package freechips.rocketchip.devices.tilelink
 
 import chisel3._
-import chisel3.util.log2Ceil
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.subsystem.{BaseSubsystem, HierarchicalLocation, HasTiles, TLBusWrapperLocation}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.prci.{ClockSinkDomain}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.bundlebridge._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{Resource, SimpleDevice}
+import freechips.rocketchip.subsystem._
+import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
 
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
@@ -66,11 +70,10 @@ object BootROM {
     *    at a configurable location, but also drives the tiles' reset vectors to point
     *    at its 'hang' address parameter value.
     */
-  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasTiles, where: TLBusWrapperLocation)
+  def attach(params: BootROMParams, subsystem: BaseSubsystem with HasHierarchicalElements with HasTileInputConstants, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val tlbus = subsystem.locateTLBusWrapper(where)
-    val bootROMDomainWrapper = LazyModule(new ClockSinkDomain(take = None))
-    bootROMDomainWrapper.clockNode := tlbus.fixedClockNode
+    val bootROMDomainWrapper = tlbus.generateSynchronousDomain("BootROM").suggestName("bootrom_domain")
 
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
     lazy val contents = {
@@ -83,7 +86,7 @@ object BootROM {
       LazyModule(new TLROM(params.address, params.size, contents, true, tlbus.beatBytes))
     }
 
-    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus) := _ }
+    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus, Some("BootROM")) := _ }
     // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
     subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
     InModuleBody {

@@ -2,9 +2,12 @@
 
 package freechips.rocketchip
 
-import chisel3.{Bool, Vec}
-import freechips.rocketchip.diplomacy.{HasClockDomainCrossing, _}
-import freechips.rocketchip.prci.{HasResetDomainCrossing}
+import chisel3._
+
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.prci.{HasClockDomainCrossing, HasResetDomainCrossing}
 
 package object interrupts
 {

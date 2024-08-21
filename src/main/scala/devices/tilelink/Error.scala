@@ -4,9 +4,12 @@ package freechips.rocketchip.devices.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.resources.SimpleDevice
+import freechips.rocketchip.tilelink.{TLArbiter, TLMessages, TLPermissions}
 
 /** Adds a /dev/null slave that generates TL error response messages */
 class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters)
@@ -57,7 +60,7 @@ class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)
 
       // ReleaseAck is not allowed to report failure
       dc.bits.opcode  := ReleaseAck
-      dc.bits.param   := VecInit(toB, toN, toN)(c.bits.param)
+      dc.bits.param   := VecInit(toB, toN, toN)(c.bits.param(1,0))
       dc.bits.size    := c.bits.size
       dc.bits.source  := c.bits.source
       dc.bits.sink    := 0.U

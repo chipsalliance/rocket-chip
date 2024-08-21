@@ -2,190 +2,15 @@
 
 package freechips.rocketchip
 
-import chisel3.experimental.{SourceInfo, SourceLine}
 import chisel3.Data
+import chisel3.experimental.{SourceInfo, SourceLine}
 import org.chipsalliance.cde.config.Parameters
+
 import scala.language.implicitConversions
 
-
-/** Diplomacy is a set of abstractions for describing directed, acyclic graphs
-  * where parameters will be negotiated between nodes. These abstractions are
-  * expressed in the form of abstract classes, traits, and type parameters, which
-  * comprises nearly all of the types defined in this package.
-  *
-  * The [[NodeImp]] ("node implementation") is the main abstract type that associates
-  * the type parameters of all other abstract types. Defining a concrete
-  * implementation of [[NodeImp]] will therefore determine concrete types for all
-  * type parameters. For example, passing in a concrete instance of NodeImp to a
-  * SourceNode will fully determine concrete types for all of a SourceNode's type
-  * parameters.
-  *
-  * Specific applications of Diplomacy are expected to either extend these types
-  * or to specify concrete types for the type parameters. This allows for
-  * creating and associating application-specific node, edge, parameter, and bundle types.
-  *
-  *
-  * =Concepts, metaphors, and mnemonics to help with understanding Diplomacy code=
-  *
-  * ==Parameter Types==
-  *  
-  *  There are several types of parameters involved in diplomacy code.
-  *  
-  *  - Upward-flowing/Downward-flowing Parameters: These parameter types flow along edges and can be considered as the
-  *    pre-negotiated, unresolved parameters.
-  *  - Edge Parameters: These parameters are the result of the diplomatic negotiation and that is resolved for each edge.
-  *    They are metadata, or an abstract concept of the connection represented by their edge, and contain any sort.
-  *    These are an abstract concept which carry any sort of conceptual information that is useful to pass along the graph edge.
-  *    For example, the full address map visible from a given edge and the supported access types for each memory region.
-  *  - "p" Parameters: These are parameters of type [[Parameters]] which are implicit and generally available
-  *    in various stages of the diplomacy codebase.
-  *    Often they are captured from the context in which a particular diplomatic node or edge is created or bound.
-  *  - Bundle Parameters: These parameters are used for actual hardware generation of the [[chisel3.Data]]s which connect
-  *    diplomatic components. In contrast to edge parameters, this may carry information like the width of an address
-  *    or opcode field.
-  *    While they are derived from Edge parameters holding all metadata computed over an edge,
-  *    Bundle parameters often contain only concrete information required to create the hardware type,
-  *    such as [[freechips.rocketchip.tilelink.TLBundleParameters]] and [[freechips.rocketchip.amba.axi4.AXI4BundleParameters]]
-  *  
-  * ==Inward/Outward vs. Upward/Downward==
-  *
-  * Diplomacy defines two dimensions: inward/outward and upward/downward.
-  *
-  * Inward/outward refer to the direction of edges from the perspective of a given node.
-  * For a given node:
-  * - Inward refers to edges that point into itself.
-  * - Outward refers to edges that point out from itself.
-  *  
-  * Therefore, a given edge is always described as inward to one node and as outward from another.
-  *
-  * Upward/downward refer to the direction of the overall directed acyclic graph.
-  * Because each each edge is directed, we say that the directions flow from sources (nodes that only have outward edges)
-  * downwards to sinks (nodes that only have inward edges), or from sinks upwards to sources.
-  * These terms are used in parameter negotiation, where parameters flow both 
-  * upwards and downwards on edges. Note that diplomacy avoids terms like "master/slave",
-  * "producer/consumer", though these can be defined by the concrete implementations of diplomatic systems.
-  * Such terms imply something about the transactional behavior of agents within a protocol,
-  * whereas source/sink and up/down refer only to the structure of the graph and the flow of parameters.
-  * - Upward refers to the flow of parameters along edges in the upwards direction.
-  * - Downward refers to a flow of parameters along edges in the downwards direction.
-  *
-  * A useful mnemonic for distinguishing between upward and downward is to imagine
-  * a diplomatic graph as a literal network of rivers where water flows in the direction of the edges,
-  * and parameters that move in the upstream direction,
-  * while downward refers to parameters that move in the downstream direction.
-  *
-  * ==Acronyms==
-  *  
-  * Diplomacy has some commonly used acronyms described below:
-  *   D[IO], U[IO], E[IO], B[IO] are the types of parameters which will be propagated.
-  *   D: Downwards -- parameters passed in the same direction as the edge.
-  *   U: Upwards -- parameters passed in the opposite direction as the edge.
-  *   E: Edge -- resolved (negotiated) parameters describing conceptual information on graph edges.
-  *   B: Bundle should extends from [[chisel3.Data]].
-  *
-  *  {{{
-  *
-  *
-  *         Upwards (a.k.a. towards Sources)          ↓
-  *                                                   ↓
-  *         inward edge of (parameter) type EI        ↓
-  *         created from parameters of type UI and DI ↓
-  *         will result in a Bundle of type BI        ↓
-  *                                                   ↓
-  *                                                ^  ↓  *
-  *                                                .  ↓  *
-  *                ┌───────────────────────────────.──↓──*───────────────────────────────┐
-  *                │                               .  ↓  *                    BaseNode   │
-  *                │                               .  ↓  *                    (NodeImp)  │
-  *                │                               .  ↓  *                               │
-  *                │  ┌────────────────────────────.──↓──*────────────────────────────┐  │
-  *                │  │                            .  ↓  *  InwardNode (InwardNodeImp)│  │
-  *                │  │                         (mixI)↓  *                            │  │
-  *                │  │                            .  ↓  *                            │  │
-  *                │  │  Upward-flowing inwards    .  ↓  * Downward-Flowing inwards   │  │
-  *                │  │  parameters of type UI     .  ↓  * parameters of type DI      │  │
-  *                │  └────────────────────────────.──↓──*────────────────────────────┘  │
-  *                │                               .  ↓  *                               │
-  *                │                               .  I  v                               │
-  *                │                     (mapParamsU)    (mapParamsD)                    │
-  *                │                               ^  O  +                               │
-  *                │                               :  ↓  +                               │
-  *                │  ┌────────────────────────────:──↓──+────────────────────────────┐  │
-  *                │  │                            :  ↓  + OutwardNode(OutwardNodeImp)│  │
-  *                │  │                            :  ↓ (mixO)                        │  │
-  *                │  │                            :  ↓  +                            │  │
-  *                │  │  Upward-flowing outwards   :  ↓  + Downward-Flowing outward   │  │
-  *                │  │    parameters of type UO   :  ↓  + parameters of type DO      │  │
-  *                │  └────────────────────────────:──↓──+────────────────────────────┘  │
-  *                │                               :  ↓  +                               │
-  *                │                               :  ↓  +                               │
-  *                └───────────────────────────────.──↓──*───────────────────────────────┘
-  *                                                :  ↓  *
-  *                                                :  ↓  v
-  *                                                   ↓ outward edge of (parameter) type EO
-  *                                                   ↓ created from parameters of type UO and DO
-  *                                                   ↓ will result in a Bundle of type BO
-  *                                                   ↓
-  *                                                   ↓ Downwards (a.k.a. towards Sinks)
-  *
-  * }}}
-  * 
-  * == Handles ==
-  *
-  * Two Diplomatic nodes can be bound together using the `:=` operator or one of
-  * its sibling operators. Binding is asymmetric, and the binding operation will
-  * connect the outward of one node to the inward of the other.
-  *
-  * For example, the expression `a := b` will connect the outward of `b` to the
-  * inward of `a`.
-  *
-  * We would like the `:=` operator to have additional properties that make it
-  * intuitive to use:
-  *
-  * 1. It should be chainable, so that `a := b := c` will have the intuitive effect
-  *    of binding c to b and b to a. This requires that the return type of `:=` be the
-  *    same as its arguments, because the result of one `:=` operation must be
-  *    valid as an argument to other `:=` operations.
-  *
-  * 2. It should be associative, so that `(a := b) := c` is equivalent to `a := (b := c).`
-  *    This means that the order in which the bind operations execute does
-  *    not matter, even if split across multiple files.
-  *
-  * 3. `a := b` should only be allowed if and only if `b` allows outward edges and `a`
-  *    allows inward edges. This should be preserved even when chaining
-  *    operations, and it should ideally be enforced at compile time.
-  *
-  * [[NodeHandle]] are a way of satisfying all of these properties. A Handle represents
-  * the aggregation of a chain of Nodes, and it preserves information about
-  * the connectability of the innermost and the outermost sides of the chain.
-  *
-  * If `b` supports inward edges, then `a := b` returns a [[NodeHandle]] that supports inward
-  * edges that go into `b`. If `a` supports outward edges, then `a := b` returns a
-  * [[NodeHandle]] that supports outward edges coming out of `a`.
-  *
-  * ==Node Terms==
-  *
-  * These are some conventionally used terms for diplomatic Nodes,
-  * which describe different common subtypes that certain protocol implementation might utilize:
-  *   - Mixed: implies that the inward and outward NodeImp are not the same (some sort of protocol conversion is occurring between the two implementations).
-  *   - Adapter: the number of inward and outward edges must be the same.
-  *   - Nexus: the number of nodes connecting from either side are unknown until the graph is constructed and can differ from one another.
-  *   - Identity: modifies neither the parameters nor the protocol-specific circuitry for the edges that pass through it.
-  *   - Source: cannot have inward edges.
-  *   - Sink: cannot have outward edges.
-  *   - Junction: the number of inward and outward edges must have a fixed ratio to one another
-  *   - Ephemeral: a temporary placeholder used for connectivity operations
+/** Rocketchip Specific Diplomacy code. All other Diplomacy core functionality has been moved to standalone diplomacy
   */
-package object diplomacy
-{
-  type SimpleNodeHandle[D, U, E, B <: Data] = NodeHandle[D, U, E, B, D, U, E, B]
-  type AnyMixedNode = MixedNode[_, _, _, _ <: Data, _, _, _, _ <: Data]
-
-  def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
-    case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
-    case _ => ""
-  }
-
+package object diplomacy {
   def bitIndexes(x: BigInt, tail: Seq[Int] = Nil): Seq[Int] = {
     require (x >= 0)
     if (x == 0) {
@@ -196,47 +21,290 @@ package object diplomacy
     }
   }
 
-  implicit class BigIntHexContext(private val sc: StringContext) extends AnyVal {
-    def x(args: Any*): BigInt = {
-      val orig = sc.s(args: _*)
-      BigInt(orig.replace("_", ""), 16)
-    }
+  // TODO - Remove compatibility layer for deprecated diplomacy api once all local references are moved to standalone diplomacy lib.
+  // package.scala
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def sourceLine(sourceInfo: SourceInfo, prefix: String = " (", suffix: String = ")") = sourceInfo match {
+    case SourceLine(filename, line, col) => s"$prefix$filename:$line:$col$suffix"
+    case _                               => ""
   }
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def EnableMonitors[T](
+    body:       Parameters => T
+  )(
+    implicit p: Parameters
+  ) = _root_.org.chipsalliance.diplomacy.EnableMonitors(body)(p)
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def DisableMonitors[T](
+    body:       Parameters => T
+  )(
+    implicit p: Parameters
+  ) = _root_.org.chipsalliance.diplomacy.DisableMonitors(body)(p)
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def FlipRendering[T](
+    body:       Parameters => T
+  )(
+    implicit p: Parameters
+  ) = _root_.org.chipsalliance.diplomacy.FlipRendering(body)(p)
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  implicit def moduleValue[T](value: ModuleValue[T]): T = _root_.org.chipsalliance.diplomacy.moduleValue(value)
 
-  type PropertyOption = Option[(String, Seq[ResourceValue])]
-  type PropertyMap = Iterable[(String, Seq[ResourceValue])]
+// Clone.scala
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val CloneLazyModule = _root_.org.chipsalliance.diplomacy.lazymodule.CloneLazyModule
 
-  implicit class IntToProperty(x: Int) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceInt(BigInt(x)))
-  }
+// ValName.scala
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type ValName = _root_.org.chipsalliance.diplomacy.ValName
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def ValName(value:                String)          = _root_.org.chipsalliance.diplomacy.ValName(value)
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  implicit def SourcecodeNameExt(x: sourcecode.Name) = _root_.org.chipsalliance.diplomacy.SourcecodeNameExt(x)
 
-  implicit class BigIntToProperty(x: BigInt) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceInt(x))
-  }
+// LazyModule.scala
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type LazyModule = _root_.org.chipsalliance.diplomacy.lazymodule.LazyModule
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val LazyModule = _root_.org.chipsalliance.diplomacy.lazymodule.LazyModule
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type LazyModuleImpLike = _root_.org.chipsalliance.diplomacy.lazymodule.LazyModuleImpLike
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type LazyModuleImp     = _root_.org.chipsalliance.diplomacy.lazymodule.LazyModuleImp
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type LazyRawModuleImp  = _root_.org.chipsalliance.diplomacy.lazymodule.LazyRawModuleImp
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type SimpleLazyModule  = _root_.org.chipsalliance.diplomacy.lazymodule.SimpleLazyModule
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type LazyScope         = _root_.org.chipsalliance.diplomacy.lazymodule.LazyScope
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val LazyScope = _root_.org.chipsalliance.diplomacy.lazymodule.LazyScope
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type ModuleValue[T] = _root_.org.chipsalliance.diplomacy.lazymodule.ModuleValue[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val InModuleBody = _root_.org.chipsalliance.diplomacy.lazymodule.InModuleBody
 
-  implicit class StringToProperty(x: String) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceString(x))
-  }
+// Nodes.scala
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type Dangle = _root_.org.chipsalliance.diplomacy.nodes.Dangle
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val Dangle = _root_.org.chipsalliance.diplomacy.nodes.Dangle
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type HalfEdge = _root_.org.chipsalliance.diplomacy.nodes.HalfEdge
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val HalfEdge        = _root_.org.chipsalliance.diplomacy.nodes.HalfEdge
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val MonitorsEnabled = _root_.org.chipsalliance.diplomacy.nodes.MonitorsEnabled
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val RenderFlipped   = _root_.org.chipsalliance.diplomacy.nodes.RenderFlipped
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val RenderedEdge    = _root_.org.chipsalliance.diplomacy.nodes.RenderedEdge
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type RenderedEdge                           = _root_.org.chipsalliance.diplomacy.nodes.RenderedEdge
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type InwardNodeImp[DI, UI, EI, BI <: Data]  = _root_.org.chipsalliance.diplomacy.nodes.InwardNodeImp[DI, UI, EI, BI]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type OutwardNodeImp[DO, UO, EO, BO <: Data] = _root_.org.chipsalliance.diplomacy.nodes.OutwardNodeImp[DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type NodeImp[D, U, EO, EI, B <: Data]       = _root_.org.chipsalliance.diplomacy.nodes.NodeImp[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type SimpleNodeImp[D, U, E, B <: Data]      = _root_.org.chipsalliance.diplomacy.nodes.SimpleNodeImp[D, U, E, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BaseNode                               = _root_.org.chipsalliance.diplomacy.nodes.BaseNode
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BaseNode = _root_.org.chipsalliance.diplomacy.nodes.BaseNode
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type FormatEdge                                   = _root_.org.chipsalliance.diplomacy.nodes.FormatEdge
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type FormatNode[I <: FormatEdge, O <: FormatEdge] = _root_.org.chipsalliance.diplomacy.nodes.FormatNode[I, O]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type NoHandle                                     = _root_.org.chipsalliance.diplomacy.nodes.NoHandle
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val NoHandleObject = _root_.org.chipsalliance.diplomacy.nodes.NoHandleObject
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type NodeHandle[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] =
+    _root_.org.chipsalliance.diplomacy.nodes.NodeHandle[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val NodeHandle = _root_.org.chipsalliance.diplomacy.nodes.NodeHandle
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type NodeHandlePair[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] =
+    _root_.org.chipsalliance.diplomacy.nodes.NodeHandlePair[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type InwardNodeHandle[DI, UI, EI, BI <: Data]                       =
+    _root_.org.chipsalliance.diplomacy.nodes.InwardNodeHandle[DI, UI, EI, BI]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type NodeBinding                                                    = _root_.org.chipsalliance.diplomacy.nodes.NodeBinding
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BIND_ONCE  = _root_.org.chipsalliance.diplomacy.nodes.BIND_ONCE
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BIND_QUERY = _root_.org.chipsalliance.diplomacy.nodes.BIND_QUERY
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BIND_STAR  = _root_.org.chipsalliance.diplomacy.nodes.BIND_STAR
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BIND_FLEX  = _root_.org.chipsalliance.diplomacy.nodes.BIND_FLEX
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type InwardNode[DI, UI, BI <: Data]            = _root_.org.chipsalliance.diplomacy.nodes.InwardNode[DI, UI, BI]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type OutwardNodeHandle[DO, UO, EO, BO <: Data] =
+    _root_.org.chipsalliance.diplomacy.nodes.OutwardNodeHandle[DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type OutwardNode[DO, UO, BO <: Data]           = _root_.org.chipsalliance.diplomacy.nodes.OutwardNode[DO, UO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type CycleException                            = _root_.org.chipsalliance.diplomacy.nodes.CycleException
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type StarCycleException                        = _root_.org.chipsalliance.diplomacy.nodes.StarCycleException
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type DownwardCycleException                    = _root_.org.chipsalliance.diplomacy.nodes.DownwardCycleException
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type UpwardCycleException                      = _root_.org.chipsalliance.diplomacy.nodes.UpwardCycleException
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val Edges = _root_.org.chipsalliance.diplomacy.nodes.Edges
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type Edges[EI, EO]                                                     = _root_.org.chipsalliance.diplomacy.nodes.Edges[EI, EO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type MixedCustomNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]   =
+    _root_.org.chipsalliance.diplomacy.nodes.MixedCustomNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type CustomNode[D, U, EO, EI, B <: Data]                               = _root_.org.chipsalliance.diplomacy.nodes.CustomNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type MixedJunctionNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data] =
+    _root_.org.chipsalliance.diplomacy.nodes.MixedJunctionNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type JunctionNode[D, U, EO, EI, B <: Data]                             = _root_.org.chipsalliance.diplomacy.nodes.JunctionNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type MixedAdapterNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]  =
+    _root_.org.chipsalliance.diplomacy.nodes.MixedAdapterNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type AdapterNode[D, U, EO, EI, B <: Data]                              = _root_.org.chipsalliance.diplomacy.nodes.AdapterNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type IdentityNode[D, U, EO, EI, B <: Data]                             = _root_.org.chipsalliance.diplomacy.nodes.IdentityNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type EphemeralNode[D, U, EO, EI, B <: Data]                            = _root_.org.chipsalliance.diplomacy.nodes.EphemeralNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type MixedNexusNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data]    =
+    _root_.org.chipsalliance.diplomacy.nodes.MixedNexusNode[DI, UI, EI, BI, DO, UO, EO, BO]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type NexusNode[D, U, EO, EI, B <: Data]                                = _root_.org.chipsalliance.diplomacy.nodes.NexusNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type SourceNode[D, U, EO, EI, B <: Data]                               = _root_.org.chipsalliance.diplomacy.nodes.SourceNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type SinkNode[D, U, EO, EI, B <: Data]                                 = _root_.org.chipsalliance.diplomacy.nodes.SinkNode[D, U, EO, EI, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type SimpleNodeHandle[D, U, E, B <: Data]                              = _root_.org.chipsalliance.diplomacy.nodes.SimpleNodeHandle[D, U, E, B]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type AnyMixedNode                                                      = _root_.org.chipsalliance.diplomacy.nodes.AnyMixedNode
 
-  implicit class DeviceToProperty(x: Device) {
-    def asProperty: Seq[ResourceValue] = Seq(ResourceReference(x.label))
-  }
+// BundleBridge.scala
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeParams[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeParams[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BundleBridgeParams = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeParams
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeEdgeParams[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeEdgeParams[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeImp[T <: Data]        = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeImp[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeSink[T <: Data]       = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeSink[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BundleBridgeSink = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeSink
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeSource[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeSource[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BundleBridgeSource = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeSource
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeIdentityNode[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeIdentityNode[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BundleBridgeIdentityNode = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeIdentityNode
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeEphemeralNode[T <: Data] =
+    _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeEphemeralNode[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BundleBridgeEphemeralNode                     = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeEphemeralNode
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def BundleBridgeNameNode[T <: Data](name: String) =
+    _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNameNode[T](name)
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeNexusNode[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNexusNode[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeNexus[T <: Data]     = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNexus[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  val BundleBridgeNexus = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNexus
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  def BundleBroadcast[T <: Data](
+    name:                Option[String] = None,
+    registered:          Boolean = false,
+    default:             Option[() => T] = None,
+    inputRequiresOutput: Boolean = false, // when false, connecting a source does not mandate connecting a sink
+    shouldBeInlined:     Boolean = true
+  )(
+    implicit p:          Parameters
+  ) = _root_.org.chipsalliance.diplomacy.bundlebridge
+    .BundleBroadcast[T](name, registered, default, inputRequiresOutput, shouldBeInlined)(p)
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeInwardNode[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeInwardNode[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeOutwardNode[T <: Data] = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeOutwardNode[T]
+  @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
+  type BundleBridgeNode[T <: Data]        = _root_.org.chipsalliance.diplomacy.bundlebridge.BundleBridgeNode[T]
 
-  def EnableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case MonitorsEnabled => true
-  })
-  def DisableMonitors[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case MonitorsEnabled => false
-  })
-  def FlipRendering[T](body: Parameters => T)(implicit p: Parameters) = body(p.alterPartial {
-    case RenderFlipped => !p(RenderFlipped)
-  })
-
-  implicit def moduleValue[T](value: ModuleValue[T]): T = value.getWrappedValue
-
-  implicit def noCrossing(value: NoCrossing.type): ClockCrossingType = SynchronousCrossing(BufferParams.none)
-
-  type BundleBridgeInwardNode[T <: Data] = InwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
-  type BundleBridgeOutwardNode[T <: Data] = OutwardNodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
-  type BundleBridgeNode[T <: Data] = NodeHandle[BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T, BundleBridgeParams[T], BundleBridgeParams[T], BundleBridgeEdgeParams[T], T]
+// Resources.scala
+  @deprecated("Use freechips.rocketchip.resources.ResourcePermissions", "rocketchip 2.0.0")
+  type ResourcePermissions = freechips.rocketchip.resources.ResourcePermissions
+  @deprecated("Use freechips.rocketchip.resources.Resource", "rocketchip 2.0.0")
+  type Resource = freechips.rocketchip.resources.Resource
+  @deprecated("Use freechips.rocketchip.resources.Resource", "rocketchip 2.0.0")
+  val Resource = freechips.rocketchip.resources.Resource
+  @deprecated("Use freechips.rocketchip.resources.ResourceAnchors", "rocketchip 2.0.0")
+  val ResourceAnchors = freechips.rocketchip.resources.ResourceAnchors
+  @deprecated("Use freechips.rocketchip.resources.ResourceAlias", "rocketchip 2.0.0")
+  type ResourceAlias = freechips.rocketchip.resources.ResourceAlias
+  @deprecated("Use freechips.rocketchip.resources.ResourceAlias", "rocketchip 2.0.0")
+  val ResourceAlias = freechips.rocketchip.resources.ResourceAlias
+  @deprecated("Use freechips.rocketchip.resources.ResourceMapping", "rocketchip 2.0.0")
+  type ResourceMapping = freechips.rocketchip.resources.ResourceMapping
+  @deprecated("Use freechips.rocketchip.resources.ResourceMapping", "rocketchip 2.0.0")
+  val ResourceMapping = freechips.rocketchip.resources.ResourceMapping
+  @deprecated("Use freechips.rocketchip.resources.ResourceMap", "rocketchip 2.0.0")
+  type ResourceMap = freechips.rocketchip.resources.ResourceMap
+  @deprecated("Use freechips.rocketchip.resources.ResourceMap", "rocketchip 2.0.0")
+  val ResourceMap = freechips.rocketchip.resources.ResourceMap
+  @deprecated("Use freechips.rocketchip.resources.ResourceReference", "rocketchip 2.0.0")
+  type ResourceReference = freechips.rocketchip.resources.ResourceReference
+  @deprecated("Use freechips.rocketchip.resources.ResourceReference", "rocketchip 2.0.0")
+  val ResourceReference = freechips.rocketchip.resources.ResourceReference
+  @deprecated("Use freechips.rocketchip.resources.ResourceAddress", "rocketchip 2.0.e0")
+  type ResourceAddress = freechips.rocketchip.resources.ResourceAddress
+  @deprecated("Use freechips.rocketchip.resources.ResourceAddress", "rocketchip 2.0.0")
+  val ResourceAddress = freechips.rocketchip.resources.ResourceAddress
+  @deprecated("Use freechips.rocketchip.resources.ResourceValue", "rocketchip 2.0.0")
+  type ResourceValue = freechips.rocketchip.resources.ResourceValue
+  @deprecated("Use freechips.rocketchip.resources.ResourceBinding", "rocketchip 2.0.0")
+  val ResourceBinding = freechips.rocketchip.resources.ResourceBinding
+  @deprecated("Use freechips.rocketchip.resources.ResourceBindings", "rocketchip 2.0.0")
+  type ResourceBindings = freechips.rocketchip.resources.ResourceBindings
+  @deprecated("Use freechips.rocketchip.resources.BindingScope", "rocketchip 2.0.0")
+  type BindingScope = freechips.rocketchip.resources.BindingScope
+  @deprecated("Use freechips.rocketchip.resources.Binding", "rocketchip 2.0.0")
+  type Binding = freechips.rocketchip.resources.Binding
+  @deprecated("Use freechips.rocketchip.resources.Binding", "rocketchip 2.0.0")
+  val Binding = freechips.rocketchip.resources.Binding
+  @deprecated("Use freechips.rocketchip.resources.ResourceInt", "rocketchip 2.0.0")
+  type ResourceInt = freechips.rocketchip.resources.ResourceInt
+  @deprecated("Use freechips.rocketchip.resources.ResourceInt", "rocketchip 2.0.0")
+  val ResourceInt = freechips.rocketchip.resources.ResourceInt
+  @deprecated("Use freechips.rocketchip.resources.ResourceString", "rocketchip 2.0.0")
+  type ResourceString = freechips.rocketchip.resources.ResourceString
+  @deprecated("Use freechips.rocketchip.resources.ResourceString", "rocketchip 2.0.0")
+  val ResourceString = freechips.rocketchip.resources.ResourceString
+  @deprecated("Use freechips.rocketchip.resources.SimpleDevice", "rocketchip 2.0.0")
+  type SimpleDevice = freechips.rocketchip.resources.SimpleDevice
+  @deprecated("Use freechips.rocketchip.resources.MemoryDevice", "rocketchip 2.0.0")
+  type MemoryDevice = freechips.rocketchip.resources.MemoryDevice
+  @deprecated("Use freechips.rocketchip.resources.Device", "rocketchip 2.0.0")
+  type Device = freechips.rocketchip.resources.Device
+  @deprecated("Use freechips.rocketchip.resources.Description", "rocketchip 2.0.0")
+  type Description = freechips.rocketchip.resources.Description
+  @deprecated("Use freechips.rocketchip.resources.Description", "rocketchip 2.0.0")
+  val Description = freechips.rocketchip.resources.Description
+  @deprecated("Use freechips.rocketchip.resources.SimpleBus", "rocketchip 2.0.0")
+  type SimpleBus = freechips.rocketchip.resources.SimpleBus
 }

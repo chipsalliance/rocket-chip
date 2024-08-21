@@ -3,11 +3,17 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3.experimental.SourceInfo
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import scala.math.max
 import chisel3.util.{isPow2, log2Up}
+
+import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.diplomacy.nodes.BaseNode
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes, IdRange, BufferParams, IdMap, IdMapEntry, DirectedBuffers}
+import freechips.rocketchip.resources.{Resource, Device, ResourceAddress, ResourcePermissions}
+import freechips.rocketchip.util.{BundleField, BundleFieldBase, BundleKeyBase, AsyncQueueParams, CreditedDelay}
+
+import scala.math.max
 
 /**
   * Parameters for AXI4 slave

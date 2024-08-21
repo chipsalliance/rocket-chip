@@ -3,11 +3,15 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
+import freechips.rocketchip.util.leftOR
+
 import scala.math.{min,max}
-import chisel3.util.{PriorityMux, Cat, FillInterleaved, Mux1H, MuxLookup, log2Up}
 
 // Ensures that all downstream RW managers support Atomic operations.
 // If !passthrough, intercept all Atomics. Otherwise, only intercept those unsupported downstream.
@@ -178,7 +182,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
             when (en) {
               r.fifoId := a_fifoId
               r.bits   := in.a.bits
-              r.lut    := MuxLookup(in.a.bits.param(1, 0), 0.U(4.W), Array(
+              r.lut    := MuxLookup(in.a.bits.param(1, 0), 0.U(4.W))(Array(
                 TLAtomics.AND  -> 0x8.U,
                 TLAtomics.OR   -> 0xe.U,
                 TLAtomics.XOR  -> 0x6.U,
@@ -280,9 +284,11 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
 
 object TLAtomicAutomata
 {
-  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true)(implicit p: Parameters): TLNode =
+  def apply(logical: Boolean = true, arithmetic: Boolean = true, concurrency: Int = 1, passthrough: Boolean = true, nameSuffix: Option[String] = None)(implicit p: Parameters): TLNode =
   {
-    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough))
+    val atomics = LazyModule(new TLAtomicAutomata(logical, arithmetic, concurrency, passthrough) {
+      override lazy val desiredName = (Seq("TLAtomicAutomata") ++ nameSuffix).mkString("_")
+    })
     atomics.node
   }
 

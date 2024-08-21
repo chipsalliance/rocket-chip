@@ -3,18 +3,21 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.experimental.{IntParam, noPrefix}
+import chisel3.experimental.{noPrefix, IntParam}
 import chisel3.util._
-import chisel3.util.HasBlackBoxResource
-import org.chipsalliance.cde.config.{Field, Parameters}
-import freechips.rocketchip.subsystem._
-import freechips.rocketchip.amba.apb._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.jtag._
-import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters, ClockSinkNode}
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.interrupts.{NullIntSyncSource, IntSyncXbar}
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.apb.{APBBundle, APBBundleParameters, APBMasterNode, APBMasterParameters, APBMasterPortParameters}
+import freechips.rocketchip.interrupts.{IntSyncXbar, NullIntSyncSource}
+import freechips.rocketchip.jtag.JTAGIO
+import freechips.rocketchip.prci.{ClockSinkNode, ClockSinkParameters}
+import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, FBUS, ResetSynchronous, SubsystemResetSchemeKey, TLBusWrapperLocation}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLWidthWidget}
+import freechips.rocketchip.util.{AsyncResetSynchronizerShiftReg, CanHavePSDTestModeIO, ClockGate, PSDTestMode, PlusArg, ResetSynchronizerShiftReg}
+
+import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
 /** Protocols used for communicating with external debugging tools */
 sealed trait DebugExportProtocol
@@ -84,7 +87,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
   lazy val debugOpt = p(DebugModuleKey).map { params =>
     val tlDM = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
-    tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus) := _ }
+    tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus.beatBytes, tlbus.blockBytes, nameSuffix = Some("Debug")) := _ }
     tlDM.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
 
     (apbDebugNodeOpt zip tlDM.apbNodeOpt) foreach { case (master, slave) =>
@@ -99,7 +102,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     tlDM
   }
 
-  lazy val debugNode = debugOpt.map(_.intnode).getOrElse(IntSyncXbar() := NullIntSyncSource())
+  val debugNode = debugOpt.map(_.intnode)
 
   val psd = InModuleBody {
     val psd = IO(new PSDIO)
@@ -323,6 +326,9 @@ object Debug {
 
       debug.clockeddmi.foreach { d =>
         d.dmi.req.valid := false.B
+        d.dmi.req.bits.addr := 0.U
+        d.dmi.req.bits.data := 0.U
+        d.dmi.req.bits.op := 0.U
         d.dmi.resp.ready := true.B
         d.dmiClock := false.B.asClock
         d.dmiReset := true.B.asAsyncReset
@@ -344,6 +350,7 @@ object Debug {
         t.out.ack := t.out.req
       }
       debug.disableDebug.foreach { x => x := false.B }
+      debug.dmactiveAck := false.B
       debug.ndreset
     }.getOrElse(false.B)
   }

@@ -1,11 +1,13 @@
 // See LICENSE.SiFive for license details.
 
-package freechips.rocketchip.diplomacy
+package freechips.rocketchip.resources
 
 import chisel3.util.log2Ceil
 
 import scala.collection.immutable.{ListMap, SortedMap}
 import scala.collection.mutable.HashMap
+import freechips.rocketchip.diplomacy.{AddressSet, AddressRange}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule}
 
 sealed trait ResourceValue
 
@@ -275,12 +277,12 @@ trait BindingScope
   BindingScope.add(this)
 
   private val parentScope = BindingScope.find(parent)
-  protected[diplomacy] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
-  protected[diplomacy] var resourceBindings: Seq[(Resource, Option[Device], ResourceValue)] = Nil
+  protected[resources] var resourceBindingFns: Seq[() => Unit] = Nil // callback functions to resolve resource binding during elaboration
+  protected[resources] var resourceBindings: Seq[(Resource, Option[Device], ResourceValue)] = Nil
 
   private case class ExpandedValue(path: Seq[String], labels: Seq[String], value: Seq[ResourceValue])
   private lazy val eval: Unit = {
-    require (!LazyModule.scope.isDefined, "May not evaluate binding while still constructing LazyModules")
+    require (!LazyModule.getScope.isDefined, "May not evaluate binding while still constructing LazyModules")
     parentScope.foreach { _.eval }
     resourceBindings = parentScope.map(_.resourceBindings).getOrElse(Nil)
     BindingScope.active = Some(this)
@@ -387,10 +389,10 @@ trait BindingScope
 
 object BindingScope
 {
-  protected[diplomacy] var active: Option[BindingScope] = None
-  protected[diplomacy] def find(m: Option[LazyModule] = LazyModule.scope): Option[BindingScope] = m.flatMap {
-    case x: BindingScope => find(x.parent).orElse(Some(x))
-    case x => find(x.parent)
+  protected[resources] var active: Option[BindingScope] = None
+  protected[resources] def find(m: Option[LazyModule] = LazyModule.getScope): Option[BindingScope] = m.flatMap {
+    case x: BindingScope => find(x.getParent).orElse(Some(x))
+    case x => find(x.getParent)
   }
 
   var bindingScopes = new collection.mutable.ArrayBuffer[BindingScope]()

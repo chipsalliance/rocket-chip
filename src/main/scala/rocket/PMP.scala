@@ -142,6 +142,7 @@ class PMPHomogeneityChecker(pmps: Seq[PMP])(implicit p: Parameters) {
 
 class PMPChecker(lgMaxSize: Int)(implicit val p: Parameters) extends Module
     with HasCoreParameters {
+  override def desiredName = s"PMPChecker_s${lgMaxSize}"
   val io = IO(new Bundle {
     val prv = Input(UInt(PRV.SZ.W))
     val pmp = Input(Vec(nPMPs, new PMP))

@@ -20,15 +20,16 @@
 package freechips.rocketchip.groundtest
  
 import chisel3._
-import chisel3.util.{log2Up, MuxLookup, Cat, log2Ceil, Enum}
-import org.chipsalliance.cde.config.{Parameters}
-import freechips.rocketchip.diplomacy.{ClockCrossingType}
+import chisel3.util._
+
+import org.chipsalliance.cde.config._
+
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.subsystem.{TileCrossingParamsLike, CanAttachTile}
+import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, CanAttachTile}
 import freechips.rocketchip.util._
-import freechips.rocketchip.prci.{ClockSinkParameters}
+import freechips.rocketchip.prci.{ClockSinkParameters, ClockCrossingType}
 
 // =======
 // Outline
@@ -61,22 +62,22 @@ import freechips.rocketchip.prci.{ClockSinkParameters}
 //     to repeatedly recompile with a different address bag.)
 
 case class TraceGenParams(
-    wordBits: Int, // p(XLen) 
-    addrBits: Int, // p(PAddrBits)
-    addrBag: List[BigInt], // p(AddressBag)
+    wordBits: Int,
+    addrBits: Int,
+    addrBag: List[BigInt],
     maxRequests: Int,
-    memStart: BigInt, //p(ExtMem).base
+    memStart: BigInt,
     numGens: Int,
     dcache: Option[DCacheParams] = Some(DCacheParams()),
-    hartId: Int = 0
+    tileId: Int = 0
 ) extends InstantiableTileParams[TraceGenTile] with GroundTestTileParams
 {
-  def instantiate(crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
+  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters): TraceGenTile = {
     new TraceGenTile(this, crossing, lookup)
   }
-  val beuAddr = None
   val blockerCtrlAddr = None
-  val name = None
+  val baseName = "tracegentile"
+  val uniqueName = s"${baseName}_$tileId"
   val clockSinkParams = ClockSinkParameters()
 }
 
@@ -105,7 +106,7 @@ trait HasTraceGenParams {
 
 case class TraceGenTileAttachParams(
   tileParams: TraceGenParams,
-  crossingParams: TileCrossingParamsLike
+  crossingParams: HierarchicalElementCrossingParamsLike
 ) extends CanAttachTile {
   type TileType = TraceGenTile
   val lookup: LookupByHartIdImpl = HartsWontDeduplicate(tileParams)
@@ -186,7 +187,7 @@ class TagMan(val logNumTags : Int) extends Module {
   io.tagOut := nextTag
 
   // Is the next tag available?
-  io.available := ~MuxLookup(nextTag, true.B, inUseMap)
+  io.available := ~MuxLookup(nextTag, true.B)(inUseMap)
 
   // When user takes a tag
   when (io.take) {
@@ -249,7 +250,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val addrBagIndices = (0 to addressBagLen-1).
                     map(i => i.U(logAddressBagLen.W))
 
-  val randAddrFromBag = MuxLookup(randAddrBagIndex, 0.U,
+  val randAddrFromBag = MuxLookup(randAddrBagIndex, 0.U)(
                           addrBagIndices.zip(bagOfAddrs))
 
   // Random address from the address bag or the extra addresses.
@@ -268,7 +269,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
 
           // A random address from the extra addresses.
           val randAddrFromExtra = Cat(0.U,
-                MuxLookup(randExtraAddrIndex, 0.U,
+                MuxLookup(randExtraAddrIndex, 0.U)(
                   extraAddrIndices.zip(extraAddrs)), 0.U(3.W))
 
           Frequency(List(
@@ -279,7 +280,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   val allAddrs = extraAddrs ++ bagOfAddrs
   val allAddrIndices = (0 until totalNumAddrs)
     .map(i => i.U(log2Ceil(totalNumAddrs).W))
-  val initAddr = MuxLookup(initCount, 0.U,
+  val initAddr = MuxLookup(initCount, 0.U)(
     allAddrIndices.zip(allAddrs))
 
   // Random opcodes
@@ -533,6 +534,7 @@ class TraceGenerator(val params: TraceGenParams)(implicit val p: Parameters) ext
   io.mem.req.bits.tag  := reqTag
   io.mem.req.bits.no_alloc := false.B
   io.mem.req.bits.no_xcpt := false.B
+  io.mem.req.bits.no_resp := false.B
   io.mem.req.bits.mask := ~(0.U((numBitsInWord / 8).W))
   io.mem.req.bits.phys := false.B
   io.mem.req.bits.dprv := PRV.M.U
@@ -617,7 +619,7 @@ class TraceGenTile private(
   q: Parameters
 ) extends GroundTestTile(params, crossing, lookup, q)
 {
-  def this(params: TraceGenParams, crossing: TileCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
+  def this(params: TraceGenParams, crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByHartIdImpl)(implicit p: Parameters) =
     this(params, crossing.crossingType, lookup, p)
 
   val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := dcacheOpt.map(_.node).getOrElse(TLTempNode())
@@ -644,5 +646,5 @@ class TraceGenTileModuleImp(outer: TraceGenTile) extends GroundTestTileModuleImp
   status.timeout.bits := 0.U
   status.error.valid := false.B
 
-  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.hartId}: request timed out")
+  assert(!tracegen.io.timeout, s"TraceGen tile ${outer.tileParams.tileId}: request timed out")
 }

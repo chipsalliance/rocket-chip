@@ -3,11 +3,17 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
+
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
+
+import org.chipsalliance.diplomacy.nodes.{NodeHandle}
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet}
+import freechips.rocketchip.prci.{AsynchronousCrossing}
+import freechips.rocketchip.tilelink.{TLRAMModel, TLFuzzer, TLToAXI4}
 import freechips.rocketchip.subsystem.CrossingWrapper
-import freechips.rocketchip.util._
+import freechips.rocketchip.util.{ToAsyncBundle, FromAsyncBundle, AsyncQueueParams, Pow2ClockDivider}
 
 /**
   * Source(Master) side for AXI4 crossing clock domain

@@ -3,7 +3,11 @@
 package freechips.rocketchip.interrupts
 
 import chisel3._
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.resources.Resource
+
 import freechips.rocketchip.regmapper._
 
 /** Mix this trait into a RegisterRouter to be able to attach its interrupt sources to an interrupt bus */

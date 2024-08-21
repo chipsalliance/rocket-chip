@@ -5,9 +5,12 @@ package freechips.rocketchip.amba.ahb
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.tilelink.LFSRNoiseMaker
+import freechips.rocketchip.util.{MaskGen, DataToAugmentedData, SeqMemToAugmentedSeqMem, PlusArg}
 
 class AHBRAM(
     address: AddressSet,

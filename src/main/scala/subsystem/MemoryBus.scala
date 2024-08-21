@@ -3,10 +3,15 @@
 package freechips.rocketchip.subsystem
 
 import org.chipsalliance.cde.config._
-import freechips.rocketchip.devices.tilelink._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.devices.tilelink.{BuiltInDevices, HasBuiltInDeviceParams, BuiltInErrorDeviceParams, BuiltInZeroDeviceParams}
+import freechips.rocketchip.tilelink.{
+  ReplicatedRegion, HasTLBusParams, HasRegionReplicatorParams, TLBusWrapper,
+  TLBusWrapperInstantiationLike, RegionReplicator, TLXbar, TLInwardNode,
+  TLOutwardNode, ProbePicker, TLEdge, TLFIFOFixer
+}
+import freechips.rocketchip.util.Location
 
 /** Parameterization of the memory-side bus created for each memory channel */
 case class MemoryBusParams(
@@ -39,7 +44,7 @@ class MemoryBus(params: MemoryBusParams, name: String = "memory_bus")(implicit p
     addressPrefixNexusNode
   }
 
-  private val xbar = LazyModule(new TLXbar).suggestName(busName + "_xbar")
+  private val xbar = LazyModule(new TLXbar(nameSuffix = Some(name))).suggestName(busName + "_xbar")
   val inwardNode: TLInwardNode =
     replicator.map(xbar.node :*=* TLFIFOFixer(TLFIFOFixer.all) :*=* _.node)
         .getOrElse(xbar.node :*=* TLFIFOFixer(TLFIFOFixer.all))

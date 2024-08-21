@@ -2,8 +2,14 @@
 package freechips.rocketchip.prci
 
 import chisel3.experimental.SourceInfo
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+
+import org.chipsalliance.diplomacy._
+import org.chipsalliance.diplomacy.lazymodule._
+import org.chipsalliance.diplomacy.nodes._
+
+import freechips.rocketchip.resources.FixedClockResource
 
 object ClockImp extends SimpleNodeImp[ClockSourceParameters, ClockSinkParameters, ClockEdgeParameters, ClockBundle]
 {

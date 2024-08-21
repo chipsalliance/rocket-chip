@@ -4,9 +4,10 @@ package freechips.rocketchip.interrupts
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.util.{SynchronizerShiftReg, AsyncResetReg}
-import freechips.rocketchip.diplomacy._
 
 @deprecated("IntXing does not ensure interrupt source is glitch free. Use IntSyncSource and IntSyncSink", "rocket-chip 1.2")
 class IntXing(sync: Int = 3)(implicit p: Parameters) extends LazyModule
@@ -35,14 +36,20 @@ class IntSyncCrossingSource(alreadyRegistered: Boolean = false)(implicit p: Para
 {
   val node = IntSyncSourceNode(alreadyRegistered)
 
-  lazy val module = new Impl
+  lazy val module = if (alreadyRegistered) (new ImplRegistered) else (new Impl)
+
   class Impl extends LazyModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.sync.size).getOrElse(0)
+    override def desiredName = s"IntSyncCrossingSource_n${node.out.size}x${outSize}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      if (alreadyRegistered) {
-        out.sync := in
-      } else {
-        out.sync := AsyncResetReg(Cat(in.reverse)).asBools
-      }
+      out.sync := AsyncResetReg(Cat(in.reverse)).asBools
+    }
+  }
+  class ImplRegistered extends LazyRawModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.sync.size).getOrElse(0)
+    override def desiredName = s"IntSyncCrossingSource_n${node.out.size}x${outSize}_Registered"
+    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+      out.sync := in
     }
   }
 }
@@ -65,6 +72,7 @@ class IntSyncAsyncCrossingSink(sync: Int = 3)(implicit p: Parameters) extends La
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    override def desiredName = s"IntSyncAsyncCrossingSink_n${node.out.size}x${node.out.head._1.size}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := SynchronizerShiftReg(in.sync, sync)
     }
@@ -85,7 +93,9 @@ class IntSyncSyncCrossingSink()(implicit p: Parameters) extends LazyModule
   val node = IntSyncSinkNode(0)
 
   lazy val module = new Impl
-  class Impl extends LazyModuleImp(this) {
+  class Impl extends LazyRawModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.size).getOrElse(0)
+    override def desiredName = s"IntSyncSyncCrossingSink_n${node.out.size}x${outSize}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := in.sync
     }
@@ -107,6 +117,8 @@ class IntSyncRationalCrossingSink()(implicit p: Parameters) extends LazyModule
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    def outSize = node.out.headOption.map(_._1.size).getOrElse(0)
+    override def desiredName = s"IntSyncRationalCrossingSink_n${node.out.size}x${outSize}"
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out := RegNext(in.sync)
     }

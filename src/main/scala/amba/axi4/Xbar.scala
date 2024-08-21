@@ -3,12 +3,16 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util._
-import org.chipsalliance.cde.config._
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
-import freechips.rocketchip.unittest._
-import freechips.rocketchip.tilelink._
+import chisel3.util.{Cat, Queue, UIntToOH, log2Ceil, OHToUInt, Mux1H, IrrevocableIO}
+
+import org.chipsalliance.cde.config.Parameters
+
+import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
+
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, BufferParams}
+import freechips.rocketchip.tilelink.{TLArbiter, TLXbar, TLFilter, TLFuzzer, TLToAXI4, TLRAMModel}
+import freechips.rocketchip.unittest.{UnitTest, UnitTestModule}
+import freechips.rocketchip.util.BundleField
 
 /**
   * AXI4 Crossbar. It connects multiple AXI4 masters to slaves.
@@ -85,7 +89,12 @@ class AXI4Xbar(
     // Transform input bundles
     val in = Wire(Vec(io_in.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until in.size) {
-      in(i).squeezeAll :<>= io_in(i).squeezeAll
+      in(i).aw.bits.user := DontCare
+      in(i).aw.bits.echo := DontCare
+      in(i).ar.bits.user := DontCare
+      in(i).ar.bits.echo := DontCare
+      in(i).w.bits.user := DontCare
+      in(i).squeezeAll.waiveAll :<>= io_in(i).squeezeAll.waiveAll
 
       // Handle size = 1 gracefully (Chisel3 empty range is broken)
       def trim(id: UInt, size: Int) = if (size <= 1) 0.U else id(log2Ceil(size)-1, 0)
@@ -168,7 +177,9 @@ class AXI4Xbar(
     // Transform output bundles
     val out = Wire(Vec(io_out.size, new AXI4Bundle(wide_bundle)))
     for (i <- 0 until out.size) {
-      io_out(i).squeezeAll :<>= out(i).squeezeAll
+      out(i).b.bits.user := DontCare
+      out(i).r.bits.user := DontCare
+      io_out(i).squeezeAll.waiveAll :<>= out(i).squeezeAll.waiveAll
 
       if (io_in.size > 1) {
         // Block AW if we cannot record the W source

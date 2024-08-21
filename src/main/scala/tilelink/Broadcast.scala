@@ -4,12 +4,19 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.interrupts._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.amba.AMBAProt
+import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, IdRange, RegionType, TransferSizes}
+import freechips.rocketchip.resources.{SimpleDevice}
+import freechips.rocketchip.regmapper.RegField
+import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
+import freechips.rocketchip.util.leftOR
+
+import freechips.rocketchip.util.DataToAugmentedData
+
 import scala.math.{min,max}
 
 case class TLBroadcastControlParams(

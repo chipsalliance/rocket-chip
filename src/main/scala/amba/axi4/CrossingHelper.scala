@@ -3,8 +3,9 @@
 package freechips.rocketchip.amba.axi4
 
 import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing}
+import org.chipsalliance.diplomacy.lazymodule.{LazyScope}
+
+import freechips.rocketchip.prci.{ResetCrossingType, NoResetCrossing, StretchedResetCrossing, CrossingType, ClockCrossingType, NoCrossing, AsynchronousCrossing, RationalCrossing, SynchronousCrossing, CreditedCrossing}
 
 trait AXI4OutwardCrossingHelper {
   type HelperCrossingType <: CrossingType

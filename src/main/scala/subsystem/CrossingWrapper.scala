@@ -2,12 +2,19 @@
 
 package freechips.rocketchip.subsystem
 
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.interrupts._
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.amba.axi4.{AXI4InwardNode, AXI4OutwardNode}
+import freechips.rocketchip.prci.{ClockCrossingType, HasClockDomainCrossing}
+import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode}
+import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
 import freechips.rocketchip.prci.{HasResetDomainCrossing, ResetCrossingType}
+
+import freechips.rocketchip.tilelink.TLClockDomainCrossing
+import freechips.rocketchip.tilelink.TLResetDomainCrossing
+import freechips.rocketchip.interrupts.IntClockDomainCrossing
+import freechips.rocketchip.interrupts.IntResetDomainCrossing
 
 @deprecated("Only use this trait if you are confident you island will only ever be crossed to a single clock", "rocket-chip 1.3")
 trait HasCrossing extends CrossesToOnlyOneClockDomain { this: LazyModule => }

@@ -3,8 +3,10 @@
 package freechips.rocketchip.tilelink
 
 import chisel3._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
 import freechips.rocketchip.util.BlockDuringReset
 
 /** BlockDuringReset ensures that no channel admits to be ready or valid while reset is raised. */

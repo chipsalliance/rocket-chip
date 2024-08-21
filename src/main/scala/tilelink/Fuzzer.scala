@@ -4,9 +4,14 @@ package freechips.rocketchip.tilelink
 
 import chisel3._
 import chisel3.util._
-import org.chipsalliance.cde.config.Parameters
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util._
+
+import org.chipsalliance.cde.config._
+import org.chipsalliance.diplomacy.lazymodule._
+
+import freechips.rocketchip.diplomacy.{AddressSet, IdRange}
+import freechips.rocketchip.util.{leftOR, UIntToOH1}
+
+import freechips.rocketchip.util.DataToAugmentedData
 
 class IDMapGenerator(numIds: Int) extends Module {
   require (numIds > 0)
@@ -180,7 +185,7 @@ class TLFuzzer(
     // Pick a specific message to try to send
     val a_type_sel  = noiseMaker(3, inc, 0)
 
-    val legal = legal_dest && MuxLookup(a_type_sel, glegal, Seq(
+    val legal = legal_dest && MuxLookup(a_type_sel, glegal)(Seq(
       "b000".U -> glegal,
       "b001".U -> (pflegal && !noModify.B),
       "b010".U -> (pplegal && !noModify.B),
@@ -188,7 +193,7 @@ class TLFuzzer(
       "b100".U -> (llegal && !noModify.B),
       "b101".U -> hlegal))
 
-    val bits = MuxLookup(a_type_sel, gbits, Seq(
+    val bits = MuxLookup(a_type_sel, gbits)(Seq(
       "b000".U -> gbits,
       "b001".U -> pfbits,
       "b010".U -> ppbits,
