@@ -303,7 +303,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val (pte, invalid_paddr, invalid_gpa) = {
     val tmp = mem_resp_data.asTypeOf(new PTE())
     val res = WireDefault(tmp)
-    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits.min(tmp.ppn.getWidth)-1, 0), tmp.ppn(ppnBits-1, 0))
+    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits.min(tmp.ppn.getWidth)-1, 0), tmp.ppn(ppnBits.min(tmp.ppn.getWidth)-1, 0))
     when (tmp.r || tmp.w || tmp.x) {
       // for superpage mappings, make sure PPN LSBs are zero
       for (i <- 0 until pgLevels-1)
