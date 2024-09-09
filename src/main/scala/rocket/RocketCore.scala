@@ -1093,7 +1093,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
-  io.fpu.killm := killm_common
+  io.fpu.killm := killm_common || vec_kill_mem
   io.fpu.inst := id_inst(0)
   io.fpu.fromint_data := ex_rs(0)
   io.fpu.ll_resp_val := dmem_resp_valid && dmem_resp_fpu
@@ -1122,7 +1122,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     v.ex.rs2 := ex_rs(1)
     v.ex.pc := ex_reg_pc
     v.mem.frs1 := io.fpu.store_data
-    v.killm := killm_common
+    v.killm := killm_common || fpu_kill_mem
     v.status := csr.io.status
   }
 

@@ -988,7 +988,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     s"FPU only supports coprocessor if FMA pipes have uniform latency ${pipes.map(_.lat)}")
   // Avoid structural hazards and nacking of external requests
   // toint responds in the MEM stage, so an incoming toint can induce a structural hazard against inflight FMAs
-  io.cp_req.ready := !ex_reg_valid && !(cp_ctrl.toint && wen =/= 0.U) && !divSqrt_inFlight
+  io.cp_req.ready := !(cp_ctrl.toint && wen =/= 0.U) && !divSqrt_inFlight
 
   val wb_toint_valid = wb_reg_valid && wb_ctrl.toint
   val wb_toint_exc = RegEnable(fpiu.io.out.bits.exc, mem_ctrl.toint)
@@ -1000,7 +1000,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   val divSqrt_write_port_busy = (mem_ctrl.div || mem_ctrl.sqrt) && wen.orR
   io.fcsr_rdy := !(ex_reg_valid && ex_ctrl.wflags || mem_reg_valid && mem_ctrl.wflags || wb_reg_valid && wb_ctrl.toint || wen.orR || divSqrt_inFlight)
-  io.nack_mem := (write_port_busy || divSqrt_write_port_busy || divSqrt_inFlight) && !mem_cp_valid
+  io.nack_mem := (write_port_busy || divSqrt_write_port_busy || divSqrt_inFlight || mem_cp_valid)
   io.dec <> id_ctrl
   def useScoreboard(f: ((Pipe, Int)) => Bool) = pipes.zipWithIndex.filter(_._1.lat > 3).map(x => f(x)).fold(false.B)(_||_)
   io.sboard_set := wb_reg_valid && !wb_cp_valid && RegNext(useScoreboard(_._1.cond(mem_ctrl)) || mem_ctrl.div || mem_ctrl.sqrt || mem_ctrl.vec)
