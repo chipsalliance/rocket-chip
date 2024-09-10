@@ -114,7 +114,7 @@ object SystemBusAccessModule
           a := 0.U(32.W)
         }.otherwise {
           a := Mux(SBADDRESSWrEn(i) && !SBCSRdData.sberror && !SBCSFieldsReg.sbbusy && !SBCSFieldsReg.sbbusyerror, SBADDRESSWrData(i),
-               Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement, autoIncrementedAddr(32*i+31,32*i), a))
+               Mux((sb2tl.module.io.rdDone || sb2tl.module.io.wrDone) && SBCSFieldsReg.sbautoincrement && !sb2tl.module.io.respError, autoIncrementedAddr(32*i+31,32*i), a))
         }
 
         RegFieldGroup("dmi_sbaddr"+i, Some("SBA Address Register"), Seq(RWNotify(32, a, SBADDRESSWrData(i), SBADDRESSRdEn(i), SBADDRESSWrEn(i),
@@ -346,8 +346,8 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     val rdTxValid = sbState === SBReadResponse.id.U && responseValid && responseReady
     val txLast    = counter === ((1.U << io.sizeIn) - 1.U)
 //    val txLast    = counter === accessTwice
-    counter := Mux((wrTxValid || rdTxValid) && txLast, 0.U,
-               Mux((wrTxValid || rdTxValid)          , counter+1.U, counter))
+    counter := Mux((wrTxValid || rdTxValid) && (txLast || respError), 0.U,
+               Mux((wrTxValid || rdTxValid)                         , counter+1.U, counter))
 
     for (i <- 0 until (cfg.maxSupportedSBAccess/8)) {
       io.rdLoad(i) := rdTxValid && (counter === i.U)
@@ -362,13 +362,13 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
     }.elsewhen (sbState === SBWriteRequest.id.U){
       sbState := Mux(requestValid && requestReady, SBWriteResponse.id.U, sbState)
     }.elsewhen (sbState === SBReadResponse.id.U){
-      sbState := Mux(rdTxValid && txLast, Idle.id.U, Mux(rdTxValid, SBReadRequest.id.U, sbState))
+      sbState := Mux(rdTxValid && (txLast || respError), Idle.id.U, Mux(rdTxValid, SBReadRequest.id.U, sbState))
     }.elsewhen (sbState === SBWriteResponse.id.U){
-      sbState := Mux(wrTxValid && txLast, Idle.id.U, Mux(wrTxValid, SBWriteRequest.id.U, sbState))
+      sbState := Mux(wrTxValid && (txLast || respError), Idle.id.U, Mux(wrTxValid, SBWriteRequest.id.U, sbState))
     }
  
-    io.rdDone  := rdTxValid && txLast
-    io.wrDone  := wrTxValid && txLast
+    io.rdDone  := rdTxValid && (txLast || respError)
+    io.wrDone  := wrTxValid && (txLast || respError)
     // io.dataOut := d.bits.data
     io.dataOut := (d.bits.data >> ((requestAddr(4, 0) << 3))) & 0xff.U
  
