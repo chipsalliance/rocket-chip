@@ -214,8 +214,10 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
   def q1_ill = {
     def rd0 = if (xLen == 32) false.B else rd === 0.U
     def immz = !(x(12) | x(6, 2).orR)
+    def mop = !x(11) && x(7)
+    def lui_res = immz && !mop
     def arith_res = x(12, 10).andR && (if (xLen == 32) true.B else x(6) === 1.U)
-    Seq(false.B, rd0, false.B, immz, arith_res, false.B, false.B, false.B)
+    Seq(false.B, rd0, false.B, lui_res, arith_res, false.B, false.B, false.B)
   }
 
   def q2_ill = {
