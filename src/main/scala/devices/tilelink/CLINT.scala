@@ -80,7 +80,7 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
       int(1) := ShiftRegister(time.asUInt >= timecmp(i).asUInt, params.intStages) // mtip
     }
 
-    io.time.valid := io.rtcTick
+    io.time.valid := RegNext(io.rtcTick)
     io.time.bits := time
 
     /* 0000 msip hart 0
