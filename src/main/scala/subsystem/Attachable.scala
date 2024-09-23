@@ -22,15 +22,18 @@ trait LazyScopeWithParameters extends LazyScope { this: LazyModule =>
   implicit val p: Parameters
 }
 
-/** Layers of hierarchy with this trait contain attachment points for neworks of power, clock, reset, and interrupt resources */
-trait HasPRCILocations extends LazyScopeWithParameters { this: LazyModule =>
-  val allClockGroupsNode: ClockGroupNode
-  val ibus: InterruptBusWrapper
+/** provide [[anyLocationMap]] to store Locations. */
+trait HasLocations { this: LazyModule =>
   val anyLocationMap = LocationMap.empty[Any]
 }
 
+/** Layers of hierarchy with this trait contain attachment points for neworks of power, clock, reset, and interrupt resources */
+trait HasPRCILocations extends LazyScopeWithParameters { this: LazyModule =>
+  val ibus: InterruptBusWrapper
+}
+
 /** Layers of hierarchy with this trait contain attachment points for TileLink interfaces */
-trait HasTileLinkLocations extends HasPRCILocations { this: LazyModule =>
+trait HasTileLinkLocations extends HasLocations with LazyScope { this: LazyModule =>
   val busContextName: String
   val tlBusWrapperLocationMap = LocationMap.empty[TLBusWrapper]
   def locateTLBusWrapper(location: Location[TLBusWrapper]): TLBusWrapper = locateTLBusWrapper(location.name)
@@ -39,12 +42,12 @@ trait HasTileLinkLocations extends HasPRCILocations { this: LazyModule =>
 
 /** Subclasses of this trait have the ability to instantiate things inside a context that has TL attachement locations */
 trait CanInstantiateWithinContextThatHasTileLinkLocations {
-  def instantiate(context: HasTileLinkLocations)(implicit p: Parameters): Unit
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule)(implicit p: Parameters): Unit
 }
 
 /** Subclasses of this trait have the ability to connect things inside a context that has TL attachement locations */
 trait CanConnectWithinContextThatHasTileLinkLocations {
-  def connect(context: HasTileLinkLocations)(implicit p: Parameters): Unit
+  def connect(context: HasTileLinkLocations with HasPRCILocations with LazyModule)(implicit p: Parameters): Unit
 }
 
 /** Attachable things provide a standard interface by which other things may attach themselves to this target.
@@ -52,6 +55,6 @@ trait CanConnectWithinContextThatHasTileLinkLocations {
   * to be able to define additional resources available to agents trying to attach themselves, other than
   * what is being made available via the LocationMaps in trait HasTileLinkLocations.
   */
-trait Attachable extends HasTileLinkLocations { this: LazyModule =>
+trait Attachable extends HasTileLinkLocations with HasPRCILocations { this: LazyModule =>
   def locateTLBusWrapper(location: TLBusWrapperLocation): TLBusWrapper = locateTLBusWrapper(location.name)
 }
