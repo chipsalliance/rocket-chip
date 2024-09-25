@@ -25,8 +25,8 @@ class APBRAM(
     fuzzError: Boolean = false)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
-    Seq(APBSlaveParameters(
+  val node = APBSubordinateNode(Seq(APBSubordinatePortParameters(
+    Seq(APBSubordinateParameters(
       address       = List(address) ++ errors,
       resources     = resources,
       regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,

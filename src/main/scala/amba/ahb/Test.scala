@@ -53,12 +53,12 @@ trait HasFuzzTarget {
                     AddressSet(0x900, ~0x900)) // ie: 0x900-0x9ff, 0xb00-0xbff, ... 0xf00-0xfff
 }
 
-class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
+class AHBFuzzManager(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
-  val node  = AHBSlaveIdentityNode()
+  val node  = AHBSubordinateIdentityNode()
   val arb   = LazyModule(new AHBArbiter)
   val fuzz  = LazyModule(new TLFuzzer(txns, overrideAddress = Some(fuzzAddr)))
-  val model = LazyModule(new TLRAMModel("AHBFuzzMaster", ignoreCorruptData=false))
+  val model = LazyModule(new TLRAMModel("AHBFuzzManager", ignoreCorruptData=false))
 
   (node
      := arb.node
@@ -80,9 +80,9 @@ class AHBFuzzMaster(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends L
   }
 }
 
-class AHBFuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasFuzzTarget
+class AHBFuzzSubordinate()(implicit p: Parameters) extends SimpleLazyModule with HasFuzzTarget
 {
-  val node = AHBSlaveIdentityNode()
+  val node = AHBSubordinateIdentityNode()
   val ram  = LazyModule(new TLTestRAM(fuzzAddr, trackCorruption=false))
 
   (ram.node
@@ -97,14 +97,14 @@ class AHBFuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasFu
 
 class AHBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule
 {
-  val master = LazyModule(new AHBFuzzMaster(aFlow, txns))
-  val slave  = LazyModule(new AHBFuzzSlave)
+  val manager = LazyModule(new AHBFuzzManager(aFlow, txns))
+  val subordinate  = LazyModule(new AHBFuzzSubordinate)
 
-  slave.node := master.node
+  subordinate.node := manager.node
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) with UnitTestModule {
-    io.finished := master.module.io.finished
+    io.finished := manager.module.io.finished
   }
 }
 

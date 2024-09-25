@@ -16,7 +16,7 @@ import freechips.rocketchip.subsystem.CrossingWrapper
 import freechips.rocketchip.util.{ToAsyncBundle, FromAsyncBundle, AsyncQueueParams, Pow2ClockDivider}
 
 /**
-  * Source(Master) side for AXI4 crossing clock domain
+  * Source(Manager) side for AXI4 crossing clock domain
   *
   * @param sync synchronization stages
   */
@@ -30,8 +30,8 @@ class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val psync = sync.getOrElse(edgeOut.slave.async.sync)
-      val params = edgeOut.slave.async.copy(sync = psync)
+      val psync = sync.getOrElse(edgeOut.subordinate.async.sync)
+      val params = edgeOut.subordinate.async.copy(sync = psync)
       out.ar <> ToAsyncBundle(in.ar, params)
       out.aw <> ToAsyncBundle(in.aw, params)
       out. w <> ToAsyncBundle(in. w, params)
@@ -42,7 +42,7 @@ class AXI4AsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends
 }
 
 /**
-  * Sink(Slave) side for AXI4 crossing clock domain
+  * Sink(Subordinate) side for AXI4 crossing clock domain
   *
   * @param params async queue params
   */

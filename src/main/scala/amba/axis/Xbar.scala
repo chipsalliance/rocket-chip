@@ -13,17 +13,17 @@ import freechips.rocketchip.tilelink.{TLXbar, TLArbiter}
 class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(implicit p: Parameters) extends LazyModule
 {
   val node = AXISNexusNode(
-    masterFn  = { seq =>
+    managerFn  = { seq =>
       seq.foreach { port => require(port.userFields == seq(0).userFields) }
       seq(0).v1copy(
         beatBytes = Some(beatBytes),
-        masters = (AXISXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-          port.masters map { master => master.v1copy(sourceId = master.sourceId.shift(range.start))}})},
-    slaveFn = { seq =>
+        managers = (AXISXbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
+          port.managers map { manager => manager.v1copy(sourceId = manager.sourceId.shift(range.start))}})},
+    subordinateFn = { seq =>
       seq(0).v1copy(
         beatBytes = Some(beatBytes),
-        slaves = (AXISXbar.mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
-          port.slaves.map { slave => slave.v1copy(destinationId = slave.destinationId + range.start)}})})
+        subordinates = (AXISXbar.mapOutputIds(seq) zip seq) flatMap { case (range, port) =>
+          port.subordinates.map { subordinate => subordinate.v1copy(destinationId = subordinate.destinationId + range.start)}})})
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -31,8 +31,8 @@ class AXISXbar(beatBytes: Int, policy: TLArbiter.Policy = TLArbiter.roundRobin)(
     val (io_out, edgesOut) = node.out.unzip
 
     // Grab the port ID mapping
-    val inputIdRanges = AXISXbar.mapInputIds(edgesIn.map(_.master))
-    val outputIdRanges = AXISXbar.mapOutputIds(edgesOut.map(_.slave))
+    val inputIdRanges = AXISXbar.mapInputIds(edgesIn.map(_.manager))
+    val outputIdRanges = AXISXbar.mapOutputIds(edgesOut.map(_.subordinate))
 
     // We need an intermediate size of bundle with the widest possible identifiers
     val wide_bundle = AXISBundleParameters.union(io_in.map(_.params) ++ io_out.map(_.params))
@@ -71,8 +71,8 @@ object AXISXbar
     xbar.node
   }
 
-  def mapInputIds (ports: Seq[AXISMasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endSourceId))
-  def mapOutputIds(ports: Seq[AXISSlavePortParameters]) = TLXbar.assignRanges(ports.map(_.endDestinationId))
+  def mapInputIds (ports: Seq[AXISManagerPortParameters]) = TLXbar.assignRanges(ports.map(_.endSourceId))
+  def mapOutputIds(ports: Seq[AXISSubordinatePortParameters]) = TLXbar.assignRanges(ports.map(_.endDestinationId))
 
   def arbitrate(policy: TLArbiter.Policy)(sink: AXISBundle, sources: Seq[AXISBundle]): Unit = {
     if (sources.isEmpty) {

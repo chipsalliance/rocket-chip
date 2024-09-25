@@ -15,7 +15,7 @@ import freechips.rocketchip.unittest.{UnitTest, UnitTestModule}
 import freechips.rocketchip.util.BundleField
 
 /**
-  * AXI4 Crossbar. It connects multiple AXI4 masters to slaves.
+  * AXI4 Crossbar. It connects multiple AXI4 managers to subordinates.
   *
   * @param arbitrationPolicy arbitration policy
   * @param maxFlightPerId maximum inflight transactions per id
@@ -30,25 +30,25 @@ class AXI4Xbar(
   require (awQueueDepth >= 1)
 
   val node = new AXI4NexusNode(
-    masterFn  = { seq =>
+    managerFn  = { seq =>
       seq(0).copy(
         echoFields    = BundleField.union(seq.flatMap(_.echoFields)),
         requestFields = BundleField.union(seq.flatMap(_.requestFields)),
         responseKeys  = seq.flatMap(_.responseKeys).distinct,
-        masters = (AXI4Xbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
-          port.masters map { master => master.copy(id = master.id.shift(range.start)) }
+        managers = (AXI4Xbar.mapInputIds(seq) zip seq) flatMap { case (range, port) =>
+          port.managers map { manager => manager.copy(id = manager.id.shift(range.start)) }
         }
       )
     },
-    slaveFn = { seq =>
+    subordinateFn = { seq =>
       seq(0).copy(
         responseFields = BundleField.union(seq.flatMap(_.responseFields)),
         requestKeys    = seq.flatMap(_.requestKeys).distinct,
         minLatency = seq.map(_.minLatency).min,
-        slaves = seq.flatMap { port =>
+        subordinates = seq.flatMap { port =>
           require (port.beatBytes == seq(0).beatBytes,
-            s"Xbar data widths don't match: ${port.slaves.map(_.name)} has ${port.beatBytes}B vs ${seq(0).slaves.map(_.name)} has ${seq(0).beatBytes}B")
-          port.slaves
+            s"Xbar data widths don't match: ${port.subordinates.map(_.name)} has ${port.beatBytes}B vs ${seq(0).subordinates.map(_.name)} has ${seq(0).beatBytes}B")
+          port.subordinates
         }
       )
     }
@@ -62,10 +62,10 @@ class AXI4Xbar(
     val (io_out, edgesOut) = node.out.unzip
 
     // Grab the port ID mapping
-    val inputIdRanges = AXI4Xbar.mapInputIds(edgesIn.map(_.master))
+    val inputIdRanges = AXI4Xbar.mapInputIds(edgesIn.map(_.manager))
 
     // Find a good mask for address decoding
-    val port_addrs = edgesOut.map(_.slave.slaves.map(_.address).flatten)
+    val port_addrs = edgesOut.map(_.subordinate.subordinates.map(_.address).flatten)
     val routingMask = AddressDecoder(port_addrs)
     val route_addrs = port_addrs.map(seq => AddressSet.unify(seq.map(_.widen(~routingMask)).distinct))
     val outputPorts = route_addrs.map(seq => (addr: UInt) => seq.map(_.contains(addr)).reduce(_ || _))
@@ -98,7 +98,7 @@ class AXI4Xbar(
 
       // Handle size = 1 gracefully (Chisel3 empty range is broken)
       def trim(id: UInt, size: Int) = if (size <= 1) 0.U else id(log2Ceil(size)-1, 0)
-      // Manipulate the AXI IDs to differentiate masters
+      // Manipulate the AXI IDs to differentiate managers
       val r = inputIdRanges(i)
       in(i).aw.bits.id := io_in(i).aw.bits.id | (r.start).U
       in(i).ar.bits.id := io_in(i).ar.bits.id | (r.start).U
@@ -107,7 +107,7 @@ class AXI4Xbar(
 
       if (io_out.size > 1) {
         // Block A[RW] if we switch ports, to ensure responses stay ordered (also: beware the dining philosophers)
-        val endId = edgesIn(i).master.endId
+        val endId = edgesIn(i).manager.endId
         val arFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
         val awFIFOMap = WireDefault(VecInit.fill(endId) { true.B })
         val arSel = UIntToOH(io_in(i).ar.bits.id, endId)
@@ -117,12 +117,12 @@ class AXI4Xbar(
         val arTag = OHToUInt(requestARIO(i).asUInt, io_out.size)
         val awTag = OHToUInt(requestAWIO(i).asUInt, io_out.size)
 
-        for (master <- edgesIn(i).master.masters) {
+        for (manager <- edgesIn(i).manager.managers) {
           def idTracker(port: UInt, req_fire: Bool, resp_fire: Bool) = {
-            if (master.maxFlight == Some(0)) {
+            if (manager.maxFlight == Some(0)) {
               true.B
             } else {
-              val legalFlight = master.maxFlight.getOrElse(maxFlightPerId+1)
+              val legalFlight = manager.maxFlight.getOrElse(maxFlightPerId+1)
               val flight = legalFlight min maxFlightPerId
               val canOverflow = legalFlight > flight
               val count = RegInit(0.U(log2Ceil(flight+1).W))
@@ -137,7 +137,7 @@ class AXI4Xbar(
             }
           }
 
-          for (id <- master.id.start until master.id.end) {
+          for (id <- manager.id.start until manager.id.end) {
             arFIFOMap(id) := idTracker(
               arTag,
               arSel(id) && io_in(i).ar.fire,
@@ -153,7 +153,7 @@ class AXI4Xbar(
         in(i).ar.valid := io_in(i).ar.valid && allowAR
         io_in(i).ar.ready := in(i).ar.ready && allowAR
 
-        // Keep in mind that slaves may do this: awready := wvalid, wready := awvalid
+        // Keep in mind that subordinates may do this: awready := wvalid, wready := awvalid
         // To not cause a loop, we cannot have: wvalid := awready
 
         // Block AW if we cannot record the W destination
@@ -242,7 +242,7 @@ object AXI4Xbar
     axi4xbar.node
   }
 
-  def mapInputIds(ports: Seq[AXI4MasterPortParameters]) = TLXbar.assignRanges(ports.map(_.endId))
+  def mapInputIds(ports: Seq[AXI4ManagerPortParameters]) = TLXbar.assignRanges(ports.map(_.endId))
 
   // Replicate an input port to each output port
   def fanout[T <: AXI4BundleBase](input: IrrevocableIO[T], select: Seq[Bool]) = {
@@ -311,33 +311,33 @@ object AXI4Arbiter
   }
 }
 
-class AXI4XbarFuzzTest(name: String, txns: Int, nMasters: Int, nSlaves: Int)(implicit p: Parameters) extends LazyModule
+class AXI4XbarFuzzTest(name: String, txns: Int, nManagers: Int, nSubordinates: Int)(implicit p: Parameters) extends LazyModule
 {
   val xbar = AXI4Xbar()
-  val slaveSize = 0x1000
-  val masterBandSize = slaveSize >> log2Ceil(nMasters)
-  def filter(i: Int) = TLFilter.mSelectIntersect(AddressSet(i * masterBandSize, ~BigInt(slaveSize - masterBandSize)))
+  val subordinateSize = 0x1000
+  val managerBandSize = subordinateSize >> log2Ceil(nManagers)
+  def filter(i: Int) = TLFilter.mSelectIntersect(AddressSet(i * managerBandSize, ~BigInt(subordinateSize - managerBandSize)))
 
-  val slaves = Seq.tabulate(nSlaves) { i => LazyModule(new AXI4RAM(AddressSet(slaveSize * i, slaveSize-1))) }
-  slaves.foreach { s => (s.node
+  val subordinates = Seq.tabulate(nSubordinates) { i => LazyModule(new AXI4RAM(AddressSet(subordinateSize * i, subordinateSize-1))) }
+  subordinates.foreach { s => (s.node
     := AXI4Fragmenter()
     := AXI4Buffer(BufferParams.flow)
     := AXI4Buffer(BufferParams.flow)
     := AXI4Delayer(0.25)
     := xbar) }
 
-  val masters = Seq.fill(nMasters) { LazyModule(new TLFuzzer(txns, 4, nOrdered = Some(1))) }
-  masters.zipWithIndex.foreach { case (m, i) => (xbar
+  val managers = Seq.fill(nManagers) { LazyModule(new TLFuzzer(txns, 4, nOrdered = Some(1))) }
+  managers.zipWithIndex.foreach { case (m, i) => (xbar
     := AXI4Delayer(0.25)
     := AXI4Deinterleaver(4096)
     := TLToAXI4()
     := TLFilter(filter(i))
-    := TLRAMModel(s"${name} Master $i")
+    := TLRAMModel(s"${name} Manager $i")
     := m.node) }
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) with UnitTestModule {
-    io.finished := masters.map(_.module.io.finished).reduce(_ || _)
+    io.finished := managers.map(_.module.io.finished).reduce(_ || _)
   }
 }
 

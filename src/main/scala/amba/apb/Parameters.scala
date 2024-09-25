@@ -15,7 +15,7 @@ import freechips.rocketchip.util.{BundleField, BundleKeyBase, BundleFieldBase}
 
 import scala.math.max
 
-case class APBSlaveParameters(
+case class APBSubordinateParameters(
   address:       Seq[AddressSet],
   resources:     Seq[Resource] = Nil,
   regionType:    RegionType.T  = RegionType.GET_EFFECTS,
@@ -42,31 +42,31 @@ case class APBSlaveParameters(
   }
 }
 
-case class APBSlavePortParameters(
-  slaves:    Seq[APBSlaveParameters],
+case class APBSubordinatePortParameters(
+  subordinates:    Seq[APBSubordinateParameters],
   beatBytes: Int,
   responseFields: Seq[BundleFieldBase] = Nil,
   requestKeys:    Seq[BundleKeyBase]   = Nil)
 {
-  require (!slaves.isEmpty)
+  require (!subordinates.isEmpty)
   require (isPow2(beatBytes))
 
-  val maxAddress = slaves.map(_.maxAddress).max
+  val maxAddress = subordinates.map(_.maxAddress).max
 
   // Require disjoint ranges for addresses
-  slaves.combinations(2).foreach { case Seq(x,y) =>
+  subordinates.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
       require (!a.overlaps(b))
     } }
   }
 }
 
-case class APBMasterParameters(
+case class APBManagerParameters(
   name:       String,
   nodePath:   Seq[BaseNode] = Seq())
 
-case class APBMasterPortParameters(
-  masters: Seq[APBMasterParameters],
+case class APBManagerPortParameters(
+  managers: Seq[APBManagerParameters],
   requestFields: Seq[BundleFieldBase] = Nil,
   responseKeys:  Seq[BundleKeyBase]   = Nil)
 
@@ -96,19 +96,19 @@ object APBBundleParameters
   val emptyBundleParams = APBBundleParameters(addrBits = 1, dataBits = 8, requestFields = Nil, responseFields = Nil)
   def union(x: Seq[APBBundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
-  def apply(master: APBMasterPortParameters, slave: APBSlavePortParameters) =
+  def apply(manager: APBManagerPortParameters, subordinate: APBSubordinatePortParameters) =
     new APBBundleParameters(
-      addrBits   = log2Up(slave.maxAddress+1),
-      dataBits   = slave.beatBytes * 8,
-      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
-      responseFields = BundleField.accept(slave.responseFields, master.responseKeys))
+      addrBits   = log2Up(subordinate.maxAddress+1),
+      dataBits   = subordinate.beatBytes * 8,
+      requestFields  = BundleField.accept(manager.requestFields, subordinate.requestKeys),
+      responseFields = BundleField.accept(subordinate.responseFields, manager.responseKeys))
 }
 
 case class APBEdgeParameters(
-  master: APBMasterPortParameters,
-  slave:  APBSlavePortParameters,
+  manager: APBManagerPortParameters,
+  subordinate:  APBSubordinatePortParameters,
   params: Parameters,
   sourceInfo: SourceInfo)
 {
-  val bundle = APBBundleParameters(master, slave)
+  val bundle = APBBundleParameters(manager, subordinate)
 }

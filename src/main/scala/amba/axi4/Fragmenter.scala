@@ -23,28 +23,28 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
   val maxBeats = 1 << AXI4Parameters.lenBits
   def expandTransfer(x: TransferSizes, beatBytes: Int, alignment: BigInt) =
     if (!x) x else TransferSizes(x.min, alignment.min(maxBeats*beatBytes).intValue)
-  def mapSlave(s: AXI4SlaveParameters, beatBytes: Int) = s.copy(
+  def mapSubordinate(s: AXI4SubordinateParameters, beatBytes: Int) = s.copy(
     supportsWrite = expandTransfer(s.supportsWrite, beatBytes, s.minAlignment),
     supportsRead  = expandTransfer(s.supportsRead,  beatBytes, s.minAlignment),
     interleavedId = None) // this breaks interleaving guarantees
-  def mapMaster(m: AXI4MasterParameters) = m.copy(aligned = true, maxFlight = None)
+  def mapManager(m: AXI4ManagerParameters) = m.copy(aligned = true, maxFlight = None)
 
   val node = AXI4AdapterNode(
-    masterFn = { mp => mp.copy(masters = mp.masters.map(m => mapMaster(m)), echoFields = AXI4FragLastField() +: mp.echoFields) },
-    slaveFn  = { sp => sp.copy(slaves  = sp.slaves .map(s => mapSlave(s, sp.beatBytes))) })
+    managerFn = { mp => mp.copy(managers = mp.managers.map(m => mapManager(m)), echoFields = AXI4FragLastField() +: mp.echoFields) },
+    subordinateFn  = { sp => sp.copy(subordinates  = sp.subordinates .map(s => mapSubordinate(s, sp.beatBytes))) })
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val slave     = edgeOut.slave
-      val slaves    = slave.slaves
-      val beatBytes = slave.beatBytes
+      val subordinate     = edgeOut.subordinate
+      val subordinates    = subordinate.subordinates
+      val beatBytes = subordinate.beatBytes
       val lgBytes   = log2Ceil(beatBytes)
-      val master    = edgeIn.master
-      val masters   = master.masters
+      val manager    = edgeIn.manager
+      val managers   = manager.managers
 
       // We don't support fragmenting to sub-beat accesses
-      slaves.foreach { s =>
+      subordinates.foreach { s =>
         require (!s.supportsRead  || s.supportsRead.contains(beatBytes))
         require (!s.supportsWrite || s.supportsWrite.contains(beatBytes))
       }
@@ -78,7 +78,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
         // We don't care about illegal addresses; bursts or no bursts... whatever circuit is simpler (AXI4ToTL will fix it)
         // !!! think about this more -- what if illegal?
-        val sizes1 = (supportedSizes1 zip slave.slaves.map(_.address)).filter(_._1 >= 0).groupBy(_._1).mapValues(_.flatMap(_._2))
+        val sizes1 = (supportedSizes1 zip subordinate.subordinates.map(_.address)).filter(_._1 >= 0).groupBy(_._1).mapValues(_.flatMap(_._2))
         val reductionMask = AddressDecoder(sizes1.values.toList)
         val support1 = Mux1H(sizes1.toList.map { case (v, a) => // maximum supported size-1 based on target address
           (AddressSet.unify(a.map(_.widen(~reductionMask)).distinct).map(_.contains(addr)).reduce(_||_), v.U)
@@ -139,8 +139,8 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       }
 
       // The size to which we will fragment the access
-      val readSizes1  = slaves.map(s => s.supportsRead .max/beatBytes-1)
-      val writeSizes1 = slaves.map(s => s.supportsWrite.max/beatBytes-1)
+      val readSizes1  = subordinates.map(s => s.supportsRead .max/beatBytes-1)
+      val writeSizes1 = subordinates.map(s => s.supportsWrite.max/beatBytes-1)
 
       // Irrevocable queues in front because we want to accept the request before responses come back
       val (in_ar, ar_last, _)       = fragment(Queue.irrevocable(in.ar, 1, flow=true), readSizes1)
@@ -208,9 +208,9 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
       out.b.ready := in.b.ready || !b_last
 
       // Merge errors from dropped B responses
-      val error = RegInit(VecInit.fill(edgeIn.master.endId)(0.U(AXI4Parameters.respBits.W)))
+      val error = RegInit(VecInit.fill(edgeIn.manager.endId)(0.U(AXI4Parameters.respBits.W)))
       in.b.bits.resp := out.b.bits.resp | error(out.b.bits.id)
-      (error zip UIntToOH(out.b.bits.id, edgeIn.master.endId).asBools) foreach { case (reg, sel) =>
+      (error zip UIntToOH(out.b.bits.id, edgeIn.manager.endId).asBools) foreach { case (reg, sel) =>
         when (sel && out.b.fire) { reg := Mux(b_last, 0.U, reg | out.b.bits.resp) }
       }
     }

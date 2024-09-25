@@ -15,8 +15,8 @@ import freechips.rocketchip.regmapper.{RegField, RegMapperParams, RegMapperInput
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 
 case class APBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
-  extends SinkNode(APBImp)(Seq(APBSlavePortParameters(
-    Seq(APBSlaveParameters(
+  extends SinkNode(APBImp)(Seq(APBSubordinatePortParameters(
+    Seq(APBSubordinateParameters(
       address       = Seq(address),
       executable    = executable,
       supportsWrite = true,

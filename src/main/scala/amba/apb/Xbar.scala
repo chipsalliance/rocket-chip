@@ -14,10 +14,10 @@ import freechips.rocketchip.util.BundleField
 
 class APBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new APBNexusNode(
-    masterFn = { case Seq(m) => m },
-    slaveFn  = { seq =>
+    managerFn = { case Seq(m) => m },
+    subordinateFn  = { seq =>
       seq(0).copy(
-        slaves         = seq.flatMap(_.slaves),
+        subordinates         = seq.flatMap(_.subordinates),
         requestKeys    = seq.flatMap(_.requestKeys).distinct,
         responseFields = BundleField.union(seq.flatMap(_.responseFields))) }
   ){
@@ -27,21 +27,21 @@ class APBFanout()(implicit p: Parameters) extends LazyModule {
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
-      require (node.edges.in.size == 1, "APBFanout does not support multiple masters")
-      require (node.edges.out.size > 0, "APBFanout requires at least one slave")
+      require (node.edges.in.size == 1, "APBFanout does not support multiple managers")
+      require (node.edges.out.size > 0, "APBFanout requires at least one subordinate")
 
       val (in, _) = node.in(0)
 
       // Require consistent bus widths
       val (io_out, edgesOut) = node.out.unzip
-      val port0 = edgesOut(0).slave
+      val port0 = edgesOut(0).subordinate
       edgesOut.foreach { edge =>
-        val port = edge.slave
+        val port = edge.subordinate
         require (port.beatBytes == port0.beatBytes,
-          s"${port.slaves.map(_.name)} ${port.beatBytes} vs ${port0.slaves.map(_.name)} ${port0.beatBytes}")
+          s"${port.subordinates.map(_.name)} ${port.beatBytes} vs ${port0.subordinates.map(_.name)} ${port0.beatBytes}")
       }
 
-      val port_addrs = edgesOut.map(_.slave.slaves.map(_.address).flatten)
+      val port_addrs = edgesOut.map(_.subordinate.subordinates.map(_.address).flatten)
       val routingMask = AddressDecoder(port_addrs)
       val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 

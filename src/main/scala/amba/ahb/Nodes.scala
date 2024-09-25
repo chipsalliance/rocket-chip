@@ -10,80 +10,80 @@ import org.chipsalliance.cde.config.{Parameters, Field}
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{SimpleNodeImp, RenderedEdge, OutwardNode, InwardNode, SourceNode, SinkNode, IdentityNode, AdapterNode, MixedNexusNode, NexusNode}
 
-case object AHBSlaveMonitorBuilder extends Field[AHBSlaveMonitorArgs => AHBSlaveMonitorBase]
+case object AHBSubordinateMonitorBuilder extends Field[AHBSubordinateMonitorArgs => AHBSubordinateMonitorBase]
 
-// From Arbiter to Slave
-object AHBImpSlave extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
+// From Arbiter to Subordinate
+object AHBImpSubordinate extends SimpleNodeImp[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBSubordinateBundle]
 {
-  def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: AHBEdgeParameters) = AHBSlaveBundle(e.bundle)
-  def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
+  def edge(pd: AHBManagerPortParameters, pu: AHBSubordinatePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: AHBEdgeParameters) = AHBSubordinateBundle(e.bundle)
+  def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.subordinate.beatBytes * 8).toString)
 
-  override def monitor(bundle: AHBSlaveBundle, edge: AHBEdgeParameters): Unit = {
-    edge.params.lift(AHBSlaveMonitorBuilder).foreach { builder =>
-      val monitor = Module(builder(AHBSlaveMonitorArgs(edge)))
+  override def monitor(bundle: AHBSubordinateBundle, edge: AHBEdgeParameters): Unit = {
+    edge.params.lift(AHBSubordinateMonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(AHBSubordinateMonitorArgs(edge)))
       monitor.io.in := bundle
     }
   }
 
-  override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBSlaveBundle]): AHBMasterPortParameters  =
-   pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
-  override def mixI(pu: AHBSlavePortParameters, node: InwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBSlaveBundle]): AHBSlavePortParameters =
-   pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
+  override def mixO(pd: AHBManagerPortParameters, node: OutwardNode[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBSubordinateBundle]): AHBManagerPortParameters  =
+   pd.copy(managers = pd.managers.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: AHBSubordinatePortParameters, node: InwardNode[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBSubordinateBundle]): AHBSubordinatePortParameters =
+   pu.copy(subordinates  = pu.subordinates.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
-case object AHBMasterMonitorBuilder extends Field[AHBMasterMonitorArgs => AHBMasterMonitorBase]
+case object AHBManagerMonitorBuilder extends Field[AHBManagerMonitorArgs => AHBManagerMonitorBase]
 
-// From Master to Arbiter
-object AHBImpMaster extends SimpleNodeImp[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBMasterBundle]
+// From Manager to Arbiter
+object AHBImpManager extends SimpleNodeImp[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBManagerBundle]
 {
-  def edge(pd: AHBMasterPortParameters, pu: AHBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
-  def bundle(e: AHBEdgeParameters) = AHBMasterBundle(e.bundle)
-  def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.slave.beatBytes * 8).toString)
+  def edge(pd: AHBManagerPortParameters, pu: AHBSubordinatePortParameters, p: Parameters, sourceInfo: SourceInfo) = AHBEdgeParameters(pd, pu, p, sourceInfo)
+  def bundle(e: AHBEdgeParameters) = AHBManagerBundle(e.bundle)
+  def render(e: AHBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, label = (e.subordinate.beatBytes * 8).toString)
 
-  override def monitor(bundle: AHBMasterBundle, edge: AHBEdgeParameters): Unit = {
-    edge.params.lift(AHBMasterMonitorBuilder).foreach { builder =>
-      val monitor = Module(builder(AHBMasterMonitorArgs(edge)))
+  override def monitor(bundle: AHBManagerBundle, edge: AHBEdgeParameters): Unit = {
+    edge.params.lift(AHBManagerMonitorBuilder).foreach { builder =>
+      val monitor = Module(builder(AHBManagerMonitorArgs(edge)))
       monitor.io.in := bundle
     }
   }
 
-  override def mixO(pd: AHBMasterPortParameters, node: OutwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBMasterBundle]): AHBMasterPortParameters  =
-   pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
-  override def mixI(pu: AHBSlavePortParameters, node: InwardNode[AHBMasterPortParameters, AHBSlavePortParameters, AHBMasterBundle]): AHBSlavePortParameters =
-   pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
+  override def mixO(pd: AHBManagerPortParameters, node: OutwardNode[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBManagerBundle]): AHBManagerPortParameters  =
+   pd.copy(managers = pd.managers.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: AHBSubordinatePortParameters, node: InwardNode[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBManagerBundle]): AHBSubordinatePortParameters =
+   pu.copy(subordinates  = pu.subordinates.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
 // Nodes implemented inside modules
-case class AHBMasterSourceNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpMaster)(portParams)
-case class AHBSlaveSourceNode(portParams: Seq[AHBMasterPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpSlave)(portParams)
-case class AHBMasterSinkNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpMaster)(portParams)
-case class AHBSlaveSinkNode(portParams: Seq[AHBSlavePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpSlave)(portParams)
-case class AHBMasterIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpMaster)()
-case class AHBSlaveIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpSlave)()
+case class AHBManagerSourceNode(portParams: Seq[AHBManagerPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpManager)(portParams)
+case class AHBSubordinateSourceNode(portParams: Seq[AHBManagerPortParameters])(implicit valName: ValName) extends SourceNode(AHBImpSubordinate)(portParams)
+case class AHBManagerSinkNode(portParams: Seq[AHBSubordinatePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpManager)(portParams)
+case class AHBSubordinateSinkNode(portParams: Seq[AHBSubordinatePortParameters])(implicit valName: ValName) extends SinkNode(AHBImpSubordinate)(portParams)
+case class AHBManagerIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpManager)()
+case class AHBSubordinateIdentityNode()(implicit valName: ValName) extends IdentityNode(AHBImpSubordinate)()
 
-case class AHBMasterAdapterNode(
-  masterFn:       AHBMasterPortParameters => AHBMasterPortParameters,
-  slaveFn:        AHBSlavePortParameters  => AHBSlavePortParameters)(
+case class AHBManagerAdapterNode(
+  managerFn:       AHBManagerPortParameters => AHBManagerPortParameters,
+  subordinateFn:        AHBSubordinatePortParameters  => AHBSubordinatePortParameters)(
   implicit valName: ValName)
-  extends AdapterNode(AHBImpMaster)(masterFn, slaveFn)
+  extends AdapterNode(AHBImpManager)(managerFn, subordinateFn)
 
-case class AHBSlaveAdapterNode(
-  masterFn:       AHBMasterPortParameters => AHBMasterPortParameters,
-  slaveFn:        AHBSlavePortParameters  => AHBSlavePortParameters)(
+case class AHBSubordinateAdapterNode(
+  managerFn:       AHBManagerPortParameters => AHBManagerPortParameters,
+  subordinateFn:        AHBSubordinatePortParameters  => AHBSubordinatePortParameters)(
   implicit valName: ValName)
-  extends AdapterNode(AHBImpMaster)(masterFn, slaveFn)
+  extends AdapterNode(AHBImpManager)(managerFn, subordinateFn)
 
-// From Master to Arbiter to Slave
+// From Manager to Arbiter to Subordinate
 case class AHBArbiterNode(
-  masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
-  slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(
+  managerFn:       Seq[AHBManagerPortParameters] => AHBManagerPortParameters,
+  subordinateFn:        Seq[AHBSubordinatePortParameters]  => AHBSubordinatePortParameters)(
   implicit valName: ValName)
-  extends MixedNexusNode(AHBImpMaster, AHBImpSlave)(masterFn, slaveFn)
+  extends MixedNexusNode(AHBImpManager, AHBImpSubordinate)(managerFn, subordinateFn)
 
-// Combine multiple Slaves into one logical Slave (suitable to attach to an Arbiter)
+// Combine multiple Subordinates into one logical Subordinate (suitable to attach to an Arbiter)
 case class AHBFanoutNode(
-  masterFn:       Seq[AHBMasterPortParameters] => AHBMasterPortParameters,
-  slaveFn:        Seq[AHBSlavePortParameters]  => AHBSlavePortParameters)(
+  managerFn:       Seq[AHBManagerPortParameters] => AHBManagerPortParameters,
+  subordinateFn:        Seq[AHBSubordinatePortParameters]  => AHBSubordinatePortParameters)(
   implicit valName: ValName)
-  extends NexusNode(AHBImpSlave)(masterFn, slaveFn)
+  extends NexusNode(AHBImpSubordinate)(managerFn, subordinateFn)

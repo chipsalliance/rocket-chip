@@ -8,29 +8,29 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.ValName
 import org.chipsalliance.diplomacy.nodes.{SimpleNodeImp, SourceNode, SinkNode, NexusNode, AdapterNode, OutwardNode, IdentityNode, RenderedEdge, InwardNode}
 
-object AXISImp extends SimpleNodeImp[AXISMasterPortParameters, AXISSlavePortParameters, AXISEdgeParameters, AXISBundle]
+object AXISImp extends SimpleNodeImp[AXISManagerPortParameters, AXISSubordinatePortParameters, AXISEdgeParameters, AXISBundle]
 {
-  def edge(pd: AXISMasterPortParameters, pu: AXISSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXISEdgeParameters.v1(pd, pu, p, sourceInfo)
+  def edge(pd: AXISManagerPortParameters, pu: AXISSubordinatePortParameters, p: Parameters, sourceInfo: SourceInfo) = AXISEdgeParameters.v1(pd, pu, p, sourceInfo)
   def bundle(e: AXISEdgeParameters) = AXISBundle(e.bundle)
   def render(e: AXISEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, (e.beatBytes * 8).toString)
 
-  override def mixO(pd: AXISMasterPortParameters, node: OutwardNode[AXISMasterPortParameters, AXISSlavePortParameters, AXISBundle]): AXISMasterPortParameters  =
-    pd.v1copy(masters = pd.masters.map  { c => c.v1copy (nodePath = node +: c.nodePath) })
-  override def mixI(pu: AXISSlavePortParameters, node: InwardNode[AXISMasterPortParameters, AXISSlavePortParameters, AXISBundle]): AXISSlavePortParameters =
-    pu.v1copy(slaves  = pu.slaves.map { m => m.v1copy (nodePath = node +: m.nodePath) })
+  override def mixO(pd: AXISManagerPortParameters, node: OutwardNode[AXISManagerPortParameters, AXISSubordinatePortParameters, AXISBundle]): AXISManagerPortParameters  =
+    pd.v1copy(managers = pd.managers.map  { c => c.v1copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: AXISSubordinatePortParameters, node: InwardNode[AXISManagerPortParameters, AXISSubordinatePortParameters, AXISBundle]): AXISSubordinatePortParameters =
+    pu.v1copy(subordinates  = pu.subordinates.map { m => m.v1copy (nodePath = node +: m.nodePath) })
 }
 
-case class AXISMasterNode(portParams: Seq[AXISMasterPortParameters])(implicit valName: ValName) extends SourceNode(AXISImp)(portParams)
-case class AXISSlaveNode(portParams: Seq[AXISSlavePortParameters])(implicit valName: ValName) extends SinkNode(AXISImp)(portParams)
+case class AXISManagerNode(portParams: Seq[AXISManagerPortParameters])(implicit valName: ValName) extends SourceNode(AXISImp)(portParams)
+case class AXISSubordinateNode(portParams: Seq[AXISSubordinatePortParameters])(implicit valName: ValName) extends SinkNode(AXISImp)(portParams)
 case class AXISNexusNode(
-  masterFn:       Seq[AXISMasterPortParameters] => AXISMasterPortParameters,
-  slaveFn:        Seq[AXISSlavePortParameters]  => AXISSlavePortParameters)(
+  managerFn:       Seq[AXISManagerPortParameters] => AXISManagerPortParameters,
+  subordinateFn:        Seq[AXISSubordinatePortParameters]  => AXISSubordinatePortParameters)(
   implicit valName: ValName)
-  extends NexusNode(AXISImp)(masterFn, slaveFn)
+  extends NexusNode(AXISImp)(managerFn, subordinateFn)
 
 case class AXISAdapterNode(
-  masterFn:  AXISMasterPortParameters => AXISMasterPortParameters = { m => m },
-  slaveFn:   AXISSlavePortParameters  => AXISSlavePortParameters  = { s => s })(
+  managerFn:  AXISManagerPortParameters => AXISManagerPortParameters = { m => m },
+  subordinateFn:   AXISSubordinatePortParameters  => AXISSubordinatePortParameters  = { s => s })(
   implicit valName: ValName)
-  extends AdapterNode(AXISImp)(masterFn, slaveFn)
+  extends AdapterNode(AXISImp)(managerFn, subordinateFn)
 case class AXISIdentityNode()(implicit valName: ValName) extends IdentityNode(AXISImp)()

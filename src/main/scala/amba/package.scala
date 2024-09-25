@@ -13,7 +13,7 @@ package object amba {
     val readalloc  = Bool()
     val writealloc = Bool()
     val privileged = Bool() // machine_mode=true,   user_mode=false
-    val secure     = Bool() // secure_master=true,  normal=false
+    val secure     = Bool() // secure_manager=true,  normal=false
     val fetch      = Bool() // instruct_fetch=true, load/store=false
   }
 

@@ -22,8 +22,8 @@ class AHBRAM(
     errors: Seq[AddressSet] = Nil)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
-  val node = AHBSlaveSinkNode(Seq(AHBSlavePortParameters(
-    Seq(AHBSlaveParameters(
+  val node = AHBSubordinateSinkNode(Seq(AHBSubordinatePortParameters(
+    Seq(AHBSubordinateParameters(
       address       = List(address) ++ errors,
       resources     = resources,
       regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,

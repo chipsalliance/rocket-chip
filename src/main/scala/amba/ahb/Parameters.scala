@@ -15,7 +15,7 @@ import freechips.rocketchip.util.{BundleField, BundleFieldBase, BundleKeyBase}
 
 import scala.math.{max, min}
 
-case class AHBSlaveParameters(
+case class AHBSubordinateParameters(
   address:       Seq[AddressSet],
   resources:     Seq[Resource] = Nil,
   regionType:    RegionType.T  = RegionType.GET_EFFECTS,
@@ -47,19 +47,19 @@ case class AHBSlaveParameters(
   }
 }
 
-case class AHBSlavePortParameters(
-  slaves:     Seq[AHBSlaveParameters],
+case class AHBSubordinatePortParameters(
+  subordinates:     Seq[AHBSubordinateParameters],
   beatBytes:  Int,
   lite:       Boolean,
   responseFields: Seq[BundleFieldBase] = Nil,
   requestKeys:    Seq[BundleKeyBase]   = Nil)
 {
-  require (!slaves.isEmpty)
+  require (!subordinates.isEmpty)
   require (isPow2(beatBytes))
 
-  val minMaxTransfer = slaves.map(_.minMaxTransfer).min // useful for fragmentation
-  val maxTransfer = slaves.map(_.maxTransfer).max
-  val maxAddress = slaves.map(_.maxAddress).max
+  val minMaxTransfer = subordinates.map(_.minMaxTransfer).min // useful for fragmentation
+  val maxTransfer = subordinates.map(_.maxTransfer).max
+  val maxAddress = subordinates.map(_.maxAddress).max
 
   // Check the link is not pointlessly wide
   require (maxTransfer >= beatBytes)
@@ -67,19 +67,19 @@ case class AHBSlavePortParameters(
   require (maxTransfer <= beatBytes * AHBParameters.maxTransfer)
 
   // Require disjoint ranges for addresses
-  slaves.combinations(2).foreach { case Seq(x,y) =>
+  subordinates.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
       require (!a.overlaps(b))
     } }
   }
 }
 
-case class AHBMasterParameters(
+case class AHBManagerParameters(
   name:     String,
   nodePath: Seq[BaseNode] = Nil)
 
-case class AHBMasterPortParameters(
-  masters: Seq[AHBMasterParameters],
+case class AHBManagerPortParameters(
+  managers: Seq[AHBManagerParameters],
   requestFields: Seq[BundleFieldBase] = Nil,
   responseKeys:  Seq[BundleKeyBase]   = Nil)
 
@@ -118,20 +118,20 @@ object AHBBundleParameters
   def union(x: Seq[AHBBundleParameters]) =
     if (x.isEmpty) emptyBundleParams else x.tail.foldLeft(x.head)((x,y) => x.union(y))
 
-  def apply(master: AHBMasterPortParameters, slave: AHBSlavePortParameters) =
+  def apply(manager: AHBManagerPortParameters, subordinate: AHBSubordinatePortParameters) =
     new AHBBundleParameters(
-      addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8,
-      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
-      responseFields = BundleField.accept(slave.responseFields, master.responseKeys),
-      lite  = slave.lite)
+      addrBits = log2Up(subordinate.maxAddress+1),
+      dataBits = subordinate.beatBytes * 8,
+      requestFields  = BundleField.accept(manager.requestFields, subordinate.requestKeys),
+      responseFields = BundleField.accept(subordinate.responseFields, manager.responseKeys),
+      lite  = subordinate.lite)
 }
 
 case class AHBEdgeParameters(
-  master: AHBMasterPortParameters,
-  slave:  AHBSlavePortParameters,
+  manager: AHBManagerPortParameters,
+  subordinate:  AHBSubordinatePortParameters,
   params: Parameters,
   sourceInfo: SourceInfo)
 {
-  val bundle = AHBBundleParameters(master, slave)
+  val bundle = AHBBundleParameters(manager, subordinate)
 }
