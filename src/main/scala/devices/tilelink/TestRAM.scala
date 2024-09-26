@@ -10,15 +10,15 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{MemoryDevice}
-import freechips.rocketchip.tilelink.{TLDelayer, TLFuzzer, TLManagerNode, TLMessages, TLRAMModel, TLSlaveParameters, TLSlavePortParameters}
+import freechips.rocketchip.tilelink.{TLDelayer, TLFuzzer, TLManagerNode, TLMessages, TLRAMModel, TLManagerParameters, TLManagerPortParameters}
 
 // Do not use this for synthesis! Only for simulation.
 class TLTestRAM(address: AddressSet, executable: Boolean = true, beatBytes: Int = 4, trackCorruption: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   val device = new MemoryDevice
 
-  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  val node = TLManagerNode(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address            = List(address),
       resources          = device.reg,
       regionType         = RegionType.UNCACHED,

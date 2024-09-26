@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.resources.SimpleDevice
 import freechips.rocketchip.tilelink.{TLArbiter, TLMessages, TLPermissions}
 
-/** Adds a /dev/null slave that generates TL error response messages */
+/** Adds a /dev/null manager that generates TL error response messages */
 class TLError(params: DevNullParams, buffer: Boolean = true, beatBytes: Int = 4)(implicit p: Parameters)
     extends DevNullDevice(params,
       minLatency = if (buffer) 1 else 0,
