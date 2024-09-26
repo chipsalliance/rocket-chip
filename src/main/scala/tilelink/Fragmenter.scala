@@ -55,7 +55,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
     else if (x.min <= minSize) TransferSizes(x.min, min(minSize, x.max))
     else TransferSizes.none
 
-  private def mapManager(m: TLSlaveParameters) = m.v1copy(
+  private def mapManager(m: TLManagerParameters) = m.v1copy(
     supportsArithmetic = shrinkTransfer(m.supportsArithmetic),
     supportsLogical    = shrinkTransfer(m.supportsLogical),
     supportsGet        = expandTransfer(m.supportsGet, "Get"),
@@ -65,25 +65,25 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
 
   val node = new TLAdapterNode(
     // We require that all the responses are mutually FIFO
-    // Thus we need to compact all of the masters into one big master
+    // Thus we need to compact all of the clients into one big client
     clientFn  = { c => (if (noChangeRequired) c else c.v2copy(
-      masters = Seq(TLMasterParameters.v2(
+      clients = Seq(TLClientParameters.v2(
         name        = "TLFragmenter",
         sourceId    = IdRange(0, if (minSize == maxSize) c.endSourceId else (c.endSourceId << addedBits)),
         requestFifo = true,
-        emits       = TLMasterToSlaveTransferSizes(
-          acquireT    = shrinkTransfer(c.masters.map(_.emits.acquireT)  .reduce(_ mincover _)),
-          acquireB    = shrinkTransfer(c.masters.map(_.emits.acquireB)  .reduce(_ mincover _)),
-          arithmetic  = shrinkTransfer(c.masters.map(_.emits.arithmetic).reduce(_ mincover _)),
-          logical     = shrinkTransfer(c.masters.map(_.emits.logical)   .reduce(_ mincover _)),
-          get         = shrinkTransfer(c.masters.map(_.emits.get)       .reduce(_ mincover _)),
-          putFull     = shrinkTransfer(c.masters.map(_.emits.putFull)   .reduce(_ mincover _)),
-          putPartial  = shrinkTransfer(c.masters.map(_.emits.putPartial).reduce(_ mincover _)),
-          hint        = shrinkTransfer(c.masters.map(_.emits.hint)      .reduce(_ mincover _))
+        emits       = TLClientToManagerTransferSizes(
+          acquireT    = shrinkTransfer(c.clients.map(_.emits.acquireT)  .reduce(_ mincover _)),
+          acquireB    = shrinkTransfer(c.clients.map(_.emits.acquireB)  .reduce(_ mincover _)),
+          arithmetic  = shrinkTransfer(c.clients.map(_.emits.arithmetic).reduce(_ mincover _)),
+          logical     = shrinkTransfer(c.clients.map(_.emits.logical)   .reduce(_ mincover _)),
+          get         = shrinkTransfer(c.clients.map(_.emits.get)       .reduce(_ mincover _)),
+          putFull     = shrinkTransfer(c.clients.map(_.emits.putFull)   .reduce(_ mincover _)),
+          putPartial  = shrinkTransfer(c.clients.map(_.emits.putPartial).reduce(_ mincover _)),
+          hint        = shrinkTransfer(c.clients.map(_.emits.hint)      .reduce(_ mincover _))
         )
       ))
     ))},
-    managerFn = { m => if (noChangeRequired) m else m.v2copy(slaves = m.slaves.map(mapManager)) }
+    managerFn = { m => if (noChangeRequired) m else m.v2copy(managers = m.managers.map(mapManager)) }
   ) {
     override def circuitIdentity = noChangeRequired
   }

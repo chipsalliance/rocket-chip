@@ -13,19 +13,19 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.amba.{AMBAProtField, AMBAProt}
 import freechips.rocketchip.diplomacy.TransferSizes
-import freechips.rocketchip.tilelink.{TLImp, TLManagerPortParameters, TLMessages, TLManagerParameters, TLManagerToSubordinateTransferSizes}
+import freechips.rocketchip.tilelink.{TLImp, TLClientPortParameters, TLMessages, TLClientParameters, TLClientToManagerTransferSizes}
 import freechips.rocketchip.util.{BundleMap, MaskGen, DataToAugmentedData}
 
 case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSubordinate, TLImp)(
   dFn = { case mp =>
-    TLManagerPortParameters.v2(
-      managers = mp.managers.map { m =>
+    TLClientPortParameters.v2(
+      clients = mp.managers.map { m =>
         // This value should be constrained by a data width parameter that flows from managers to subordinates
         // AHB fixed length transfer size maximum is 16384 = 1024 * 16 bits, hsize is capped at 111 = 1024 bit transfer size and hburst is capped at 111 = 16 beat burst
-          TLManagerParameters.v2(
+          TLClientParameters.v2(
             name     = m.name,
             nodePath = m.nodePath,
-            emits    = TLManagerToSubordinateTransferSizes(
+            emits    = TLClientToManagerTransferSizes(
                        get     = TransferSizes(1, 2048),
                        putFull = TransferSizes(1, 2048)
                        )

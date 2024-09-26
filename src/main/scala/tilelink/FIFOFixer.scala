@@ -14,7 +14,7 @@ import freechips.rocketchip.util.property
 
 class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Parameters) extends LazyModule
 {
-  private def fifoMap(seq: Seq[TLSlaveParameters]) = {
+  private def fifoMap(seq: Seq[TLManagerParameters]) = {
     val (flatManagers, keepManagers) = seq.partition(policy)
     // We need to be careful if one flatManager and one keepManager share an existing domain
     // Erring on the side of caution, we will also flatten the keepManager in this case
@@ -138,9 +138,9 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
 
 object TLFIFOFixer
 {
-  // Which slaves should have their FIFOness combined?
-  // NOTE: this transformation is still only applied for masters with requestFifo
-  type Policy = TLSlaveParameters => Boolean
+  // Which managers should have their FIFOness combined?
+  // NOTE: this transformation is still only applied for clients with requestFifo
+  type Policy = TLManagerParameters => Boolean
   import RegionType._
 
   val all:            Policy = m => true

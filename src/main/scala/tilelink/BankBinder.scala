@@ -23,7 +23,7 @@ case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCus
     (iStar, oStar)
   }
 
-  def mapParamsD(n: Int, p: Seq[TLMasterPortParameters]): Seq[TLMasterPortParameters] =
+  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] =
     (p zip ids) map { case (cp, id) => cp.v1copy(clients = cp.clients.map { c => c.v1copy(
       visibility         = c.visibility.flatMap { a => a.intersect(AddressSet(id, ~mask))},
       supportsProbe      = c.supports.probe      intersect maxXfer,
@@ -34,7 +34,7 @@ case class BankBinderNode(mask: BigInt)(implicit valName: ValName) extends TLCus
       supportsPutPartial = c.supports.putPartial intersect maxXfer,
       supportsHint       = c.supports.hint       intersect maxXfer)})}
 
-  def mapParamsU(n: Int, p: Seq[TLSlavePortParameters]): Seq[TLSlavePortParameters] =
+  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] =
     (p zip ids) map { case (mp, id) => mp.v1copy(managers = mp.managers.flatMap { m =>
       val addresses = m.address.flatMap(a => a.intersect(AddressSet(id, ~mask)))
       if (addresses.nonEmpty)

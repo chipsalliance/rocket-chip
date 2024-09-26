@@ -42,8 +42,8 @@ case class TLRegisterNode(
     undefZero:   Boolean = true,
     executable:  Boolean = false)(
     implicit valName: ValName)
-  extends SinkNode(TLImp)(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  extends SinkNode(TLImp)(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address            = address,
       resources          = Seq(Resource(device, deviceKey)),
       executable         = executable,

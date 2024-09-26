@@ -12,19 +12,19 @@ import org.chipsalliance.diplomacy.nodes._
 
 import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
-import freechips.rocketchip.amba.apb.{APBImp, APBMasterParameters, APBMasterPortParameters}
+import freechips.rocketchip.amba.apb.{APBImp, APBManagerParameters, APBManagerPortParameters}
 import freechips.rocketchip.amba.apb.APBParameters.PROT_DEFAULT
 
 case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLImp, APBImp)(
   dFn = { cp =>
-    APBMasterPortParameters(
-      masters = cp.clients.map { case c => APBMasterParameters(name = c.name, nodePath = c.nodePath) },
+    APBManagerPortParameters(
+      managers = cp.clients.map { case c => APBManagerParameters(name = c.name, nodePath = c.nodePath) },
       requestFields = cp.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
       responseKeys  = cp.responseKeys)
   },
   uFn = { sp =>
-    val managers = sp.slaves.map { case s =>
-      TLSlaveParameters.v1(
+    val managers = sp.subordinates.map { case s =>
+      TLManagerParameters.v1(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
@@ -36,7 +36,7 @@ case class TLToAPBNode()(implicit valName: ValName) extends MixedAdapterNode(TLI
         fifoId             = Some(0), // a common FIFO domain
         mayDenyPut         = true)
     }
-    TLSlavePortParameters.v1(
+    TLManagerPortParameters.v1(
       managers   = managers,
       beatBytes  = sp.beatBytes,
       endSinkId  = 0,
@@ -54,7 +54,7 @@ class TLToAPB(val aFlow: Boolean = true)(implicit p: Parameters) extends LazyMod
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val beatBytes = edgeOut.slave.beatBytes
+      val beatBytes = edgeOut.subordinate.beatBytes
       val lgBytes = log2Ceil(beatBytes)
 
       // APB has no cache coherence

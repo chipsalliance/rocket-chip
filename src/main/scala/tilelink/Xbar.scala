@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, RegionType, IdRange, TriStateValue}
 import freechips.rocketchip.util.BundleField
 
-// Trades off slave port proximity against routing resource cost
+// Trades off manager port proximity against routing resource cost
 object ForceFanout
 {
   def apply[T](
@@ -74,7 +74,7 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin, nameSuffix: Option
   class Impl extends LazyModuleImp(this) {
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
-      println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
+      println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Clients and ${node.out.size} Managers.")
       println (s"!!! WARNING !!!")
     }
     val wide_bundle = TLBundleParameters.union((node.in ++ node.out).map(_._2.bundle))
@@ -85,9 +85,9 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin, nameSuffix: Option
 
 object TLXbar
 {
-  def mapInputIds(ports: Seq[TLMasterPortParameters]) = assignRanges(ports.map(_.endSourceId))
+  def mapInputIds(ports: Seq[TLClientPortParameters]) = assignRanges(ports.map(_.endSourceId))
 
-  def mapOutputIds(ports: Seq[TLSlavePortParameters]) = assignRanges(ports.map(_.endSinkId))
+  def mapOutputIds(ports: Seq[TLManagerPortParameters]) = assignRanges(ports.map(_.endSinkId))
 
   def assignRanges(sizes: Seq[Int]) = {
     val pow2Sizes = sizes.map { z => if (z == 0) 0 else 1 << log2Ceil(z) }
@@ -117,7 +117,7 @@ object TLXbar
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 
-    // Not every master need connect to every slave on every channel; determine which connections are necessary
+    // Not every client need connect to every manager on every channel; determine which connections are necessary
     val reachableIO = edgesIn.map { cp => edgesOut.map { mp =>
       cp.client.clients.exists { c => mp.manager.managers.exists { m =>
         c.visibility.exists { ca => m.address.exists { ma =>

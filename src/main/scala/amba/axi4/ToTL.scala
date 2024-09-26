@@ -13,7 +13,7 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.amba.{AMBACorrupt, AMBAProt, AMBAProtField}
 import freechips.rocketchip.diplomacy.{IdRange, IdMapEntry, TransferSizes}
-import freechips.rocketchip.tilelink.{TLImp, TLManagerParameters, TLManagerPortParameters, TLArbiter}
+import freechips.rocketchip.tilelink.{TLImp, TLClientParameters, TLClientPortParameters, TLArbiter}
 import freechips.rocketchip.util.{OH1ToUInt, UIntToOH1}
 
 case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
@@ -30,10 +30,10 @@ case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends Mi
   dFn = { case mp =>
     mp.managers.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
     val maxFlight = mp.managers.map(_.maxFlight.get).max
-    TLManagerPortParameters.v1(
+    TLClientPortParameters.v1(
       clients = mp.managers.filter(_.maxFlight != Some(0)).flatMap { m =>
         for (id <- m.id.start until m.id.end)
-          yield TLManagerParameters.v1(
+          yield TLClientParameters.v1(
             name        = s"${m.name} ID#${id}",
             sourceId    = IdRange(id * maxFlight*2, (id+1) * maxFlight*2), // R+W ids are distinct
             nodePath    = m.nodePath,
