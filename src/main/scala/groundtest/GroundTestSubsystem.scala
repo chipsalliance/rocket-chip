@@ -23,7 +23,7 @@ class GroundTestSubsystem(implicit p: Parameters)
   with HasHierarchicalElements
   with HasTileNotificationSinks
   with HasTileInputConstants
-  with CanHaveMasterAXI4MemPort
+  with CanHaveManagerAXI4MemPort
 {
   val testram = LazyModule(new TLRAM(AddressSet(0x52000000, 0xfff), beatBytes=tlBusWrapperLocationMap.get(PBUS).getOrElse(tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))).beatBytes))
   tlBusWrapperLocationMap.lift(PBUS).getOrElse(tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location)))).coupleTo("TestRAM") { testram.node := TLFragmenter(tlBusWrapperLocationMap.lift(PBUS).getOrElse(tlBusWrapperLocationMap(p(TLManagerViewpointLocated(location))))) := _ }
