@@ -11,21 +11,21 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{SimpleDevice}
 
-import freechips.rocketchip.tilelink.{TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLBundleA, TLMessages, TLAtomics}
+import freechips.rocketchip.tilelink.{TLManagerNode, TLManagerPortParameters, TLManagerParameters, TLBundleA, TLMessages, TLAtomics}
 
 import freechips.rocketchip.util.UIntIsOneOf
 import freechips.rocketchip.util.DataToAugmentedData
 
 /* This adapter converts between diplomatic TileLink and non-diplomatic HellaCacheIO */
-class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
+class ScratchpadManagerPort(address: Seq[AddressSet], coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) extends LazyModule {
   def this(address: AddressSet, coreDataBytes: Int, usingAtomics: Boolean)(implicit p: Parameters) = {
     this(Seq(address), coreDataBytes, usingAtomics)
   }
 
   val device = new SimpleDevice("dtim", Seq("sifive,dtim0"))
 
-  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  val node = TLManagerNode(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address            = address,
       resources          = device.reg("mem"),
       regionType         = RegionType.IDEMPOTENT,
@@ -45,7 +45,7 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
       val dmem = new HellaCacheIO
     })
 
-    require(coreDataBytes * 8 == io.dmem.resp.bits.data.getWidth, "ScratchpadSlavePort is misconfigured: coreDataBytes must match D$ data width")
+    require(coreDataBytes * 8 == io.dmem.resp.bits.data.getWidth, "ScratchpadManagerPort is misconfigured: coreDataBytes must match D$ data width")
 
     val (tl_in, edge) = node.in(0)
 

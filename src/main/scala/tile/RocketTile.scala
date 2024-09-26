@@ -20,7 +20,7 @@ import freechips.rocketchip.interrupts.IntIdentityNode
 import freechips.rocketchip.tilelink.{TLIdentityNode, TLBuffer}
 import freechips.rocketchip.rocket.{
   RocketCoreParams, ICacheParams, DCacheParams, BTBParams, HasHellaCache,
-  HasICacheFrontend, ScratchpadSlavePort, HasICacheFrontendModule, Rocket
+  HasICacheFrontend, ScratchpadManagerPort, HasICacheFrontendModule, Rocket
 }
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
@@ -68,32 +68,32 @@ class RocketTile private(
     this(params, crossing.crossingType, lookup, p)
 
   val intOutwardNode = rocketParams.beuAddr map { _ => IntIdentityNode() }
-  val slaveNode = TLIdentityNode()
-  val masterNode = visibilityNode
+  val managerNode = TLIdentityNode()
+  val clientNode = visibilityNode
 
   val dtim_adapter = tileParams.dcache.flatMap { d => d.scratch.map { s =>
-    LazyModule(new ScratchpadSlavePort(AddressSet.misaligned(s, d.dataScratchpadBytes), lazyCoreParamsView.coreDataBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO))
+    LazyModule(new ScratchpadManagerPort(AddressSet.misaligned(s, d.dataScratchpadBytes), lazyCoreParamsView.coreDataBytes, tileParams.core.useAtomics && !tileParams.core.useAtomicsOnlyForIO))
   }}
-  dtim_adapter.foreach(lm => connectTLSlave(lm.node, lm.node.portParams.head.beatBytes))
+  dtim_adapter.foreach(lm => connectTLManager(lm.node, lm.node.portParams.head.beatBytes))
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
     val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), xLen/8))
     intOutwardNode.get := beu.intNode
-    connectTLSlave(beu.node, xBytes)
+    connectTLManager(beu.node, xBytes)
     beu
   }
 
-  val tile_master_blocker =
+  val tile_client_blocker =
     tileParams.blockerCtrlAddr
-      .map(BasicBusBlockerParams(_, xBytes, masterPortBeatBytes, deadlock = true))
+      .map(BasicBusBlockerParams(_, xBytes, clientPortBeatBytes, deadlock = true))
       .map(bp => LazyModule(new BasicBusBlocker(bp)))
 
-  tile_master_blocker.foreach(lm => connectTLSlave(lm.controlNode, xBytes))
+  tile_client_blocker.foreach(lm => connectTLManager(lm.controlNode, xBytes))
 
-  // TODO: this doesn't block other masters, e.g. RoCCs
-  tlOtherMastersNode := tile_master_blocker.map { _.node := tlMasterXbar.node } getOrElse { tlMasterXbar.node }
-  masterNode :=* tlOtherMastersNode
-  DisableMonitors { implicit p => tlSlaveXbar.node :*= slaveNode }
+  // TODO: this doesn't block other clients, e.g. RoCCs
+  tlOtherClientsNode := tile_client_blocker.map { _.node := tlClientXbar.node } getOrElse { tlClientXbar.node }
+  clientNode :=* tlOtherClientsNode
+  DisableMonitors { implicit p => tlManagerXbar.node :*= managerNode }
 
   nDCachePorts += 1 /*core */ + (dtim_adapter.isDefined).toInt + rocketParams.core.vector.map(_.useDCache.toInt).getOrElse(0)
 
@@ -115,8 +115,8 @@ class RocketTile private(
   }
 
   val vector_unit = rocketParams.core.vector.map(v => LazyModule(v.build(p)))
-  vector_unit.foreach(vu => tlMasterXbar.node :=* vu.atlNode)
-  vector_unit.foreach(vu => tlOtherMastersNode :=* vu.tlNode)
+  vector_unit.foreach(vu => tlClientXbar.node :=* vu.atlNode)
+  vector_unit.foreach(vu => tlOtherClientsNode :=* vu.tlNode)
 
 
   ResourceBinding {
@@ -125,13 +125,13 @@ class RocketTile private(
 
   override lazy val module = new RocketTileModuleImp(this)
 
-  override def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = (rocketParams.boundaryBuffers, crossing) match {
+  override def makeClientBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = (rocketParams.boundaryBuffers, crossing) match {
     case (Some(RocketTileBoundaryBufferParams(true )), _)                   => TLBuffer()
     case (Some(RocketTileBoundaryBufferParams(false)), _: RationalCrossing) => TLBuffer(BufferParams.none, BufferParams.flow, BufferParams.none, BufferParams.flow, BufferParams(1))
     case _ => TLBuffer(BufferParams.none)
   }
 
-  override def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = (rocketParams.boundaryBuffers, crossing) match {
+  override def makeManagerBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = (rocketParams.boundaryBuffers, crossing) match {
     case (Some(RocketTileBoundaryBufferParams(true )), _)                   => TLBuffer()
     case (Some(RocketTileBoundaryBufferParams(false)), _: RationalCrossing) => TLBuffer(BufferParams.flow, BufferParams.none, BufferParams.none, BufferParams.none, BufferParams.none)
     case _ => TLBuffer(BufferParams.none)
