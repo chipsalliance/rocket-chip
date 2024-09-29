@@ -206,9 +206,10 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
     def allz = !(x(12, 2).orR)
     def fld = if (fLen >= 64) false.B else true.B
     def flw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
+    def ldst_zcb = x(12)
     def fsd = if (fLen >= 64) false.B else true.B
     def fsw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
-    Seq(allz, fld, false.B, flw32, false.B, fsd, false.B, fsw32)
+    Seq(allz, fld, false.B, flw32, ldst_zcb, fsd, false.B, fsw32)
   }
 
   def q1_ill = {
