@@ -72,13 +72,13 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin, nameSuffix: Option
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    val wide_bundle = TLBundleParameters.union((node.in ++ node.out).map(_._2.bundle))
+    override def desiredName = (Seq("TLXbar") ++ nameSuffix ++ Seq(s"i${node.in.size}_o${node.out.size}_${wide_bundle.shortName}")).mkString("_")
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
       println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
       println (s"!!! WARNING !!!")
     }
-    val wide_bundle = TLBundleParameters.union((node.in ++ node.out).map(_._2.bundle))
-    override def desiredName = (Seq("TLXbar") ++ nameSuffix ++ Seq(s"i${node.in.size}_o${node.out.size}_${wide_bundle.shortName}")).mkString("_")
     TLXbar.circuit(policy, node.in, node.out)
   }
 }
