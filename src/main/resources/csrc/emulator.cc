@@ -4,7 +4,7 @@
 #include "verilated.h"
 #if VM_TRACE
 #include <memory>
-#include "verilated_vcd_c.h"
+#include "verilated_fst_c.h"
 #endif
 #include <fesvr/dtm.h>
 #include "remote_bitbang.h"
@@ -82,8 +82,8 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
         stdout);
 #endif
   fputs("\
-  -v, --vcd=FILE,          Write vcd trace to FILE (or '-' for stdout)\n\
-  -x, --dump-start=CYCLE   Start VCD tracing at CYCLE\n\
+  -v, --fst=FILE,          Write fst trace to FILE (or '-' for stdout)\n\
+  -x, --dump-start=CYCLE   Start FST tracing at CYCLE\n\
        +dump-start\n\
 ", stdout);
   fputs("\n" PLUSARG_USAGE_OPTIONS, stdout);
@@ -95,8 +95,8 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
 "  - run a bare metal test showing cycle-by-cycle information:\n"
 "    %s +verbose $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add 2>&1 | spike-dasm\n"
 #if VM_TRACE
-"  - run a bare metal test to generate a VCD waveform:\n"
-"    %s -v rv64ui-p-add.vcd $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
+"  - run a bare metal test to generate a FST waveform:\n"
+"    %s -v rv64ui-p-add.fst $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
 #endif
 "  - run an ELF (you wrote, called 'hello') using the proxy kernel:\n"
 "    %s pk hello\n",
@@ -116,7 +116,7 @@ int main(int argc, char** argv)
   // Port numbers are 16 bit unsigned integers. 
   uint16_t rbb_port = 0;
 #if VM_TRACE
-  FILE * vcdfile = NULL;
+  char* fstfile = NULL;
   uint64_t start = 0;
 #endif
   char ** htif_argv = NULL;
@@ -131,7 +131,7 @@ int main(int argc, char** argv)
       {"rbb-port",    required_argument, 0, 'r' },
       {"verbose",     no_argument,       0, 'V' },
 #if VM_TRACE
-      {"vcd",         required_argument, 0, 'v' },
+      {"fst",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
 #endif
       HTIF_LONG_OPTIONS
@@ -154,14 +154,7 @@ int main(int argc, char** argv)
       case 'r': rbb_port = atoi(optarg);    break;
       case 'V': verbose = true;             break;
 #if VM_TRACE
-      case 'v': {
-        vcdfile = strcmp(optarg, "-") == 0 ? stdout : fopen(optarg, "w");
-        if (!vcdfile) {
-          std::cerr << "Unable to open " << optarg << " for VCD write\n";
-          return 1;
-        }
-        break;
-      }
+      case 'v': fstfile = optarg;           break;
       case 'x': start = atoll(optarg);      break;
 #endif
       // Process legacy '+' EMULATOR arguments by replacing them with
@@ -258,11 +251,10 @@ done_processing:
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
-  std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
-  std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
-  if (vcdfile) {
+  std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
+  if (fstfile) {
     tile->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
-    tfp->open("");
+    tfp->open(fstfile);
   }
 #endif
 
@@ -307,8 +299,6 @@ done_processing:
 #if VM_TRACE
   if (tfp)
     tfp->close();
-  if (vcdfile)
-    fclose(vcdfile);
 #endif
 
   if (dtm->exit_code())

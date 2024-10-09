@@ -268,6 +268,7 @@ trait Emulator extends Cross.Module2[String, String] {
          |  ${mfccompiler.rtls().map(_.path.toString).mkString("\n")}
          |  TOP_MODULE TestHarness
          |  PREFIX VTestHarness
+         |  TRACE_FST
          |  VERILATOR_ARGS ${verilatorArgs().mkString(" ")}
          |)
          |""".stripMargin
