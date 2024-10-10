@@ -88,9 +88,9 @@ abstract class ControlKey[T <: Data](name: String) extends BundleKey[T](name) wi
 abstract class DataKey   [T <: Data](name: String) extends BundleKey[T](name) with IsDataKey
 
 /* Signals can be further categorized in a request-response protocol:
- *  - request fields flow from master to slave
- *  - response fields flow from slave to master
- *  - echo fields flow from master to slave to master; a master must receive the same value in the response as he sent in the request
+ *  - request fields flow from client to manager
+ *  - response fields flow from manager to client
+ *  - echo fields flow from client to manager to client; a client must receive the same value in the response as he sent in the request
  * Generally, this categorization belongs in different BundleMaps
  */
 

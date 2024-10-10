@@ -5,10 +5,10 @@ package freechips.rocketchip.amba.apb
 import chisel3._
 import freechips.rocketchip.util._
 
-// Signal directions are from the master's point-of-view
+// Signal directions are from the manager's point-of-view
 class APBBundle(val params: APBBundleParameters) extends Bundle
 {
-  // Flow control signals from the master
+  // Flow control signals from the manager
   val psel      = Output(Bool())
   val penable   = Output(Bool())
 

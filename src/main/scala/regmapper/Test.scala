@@ -235,22 +235,22 @@ abstract class RRTest1(address: BigInt, concurrency: Int, undefZero: Boolean = t
 
       val readCross = Module(new RegisterReadCrossing(field))
       readCross.io := DontCare
-      readCross.io.master_clock  := clock
-      readCross.io.master_reset  := reset
-      readCross.io.master_bypass := false.B
-      readCross.io.slave_clock   := clocks.io.clock_out
-      readCross.io.slave_reset   := reset
+      readCross.io.client_clock  := clock
+      readCross.io.client_reset  := reset
+      readCross.io.client_bypass := false.B
+      readCross.io.manager_clock   := clocks.io.clock_out
+      readCross.io.manager_reset   := reset
 
       val writeCross = Module(new RegisterWriteCrossing(field))
       writeCross.io := DontCare
-      writeCross.io.master_clock  := clock
-      writeCross.io.master_reset  := reset
-      writeCross.io.master_bypass := false.B
-      writeCross.io.slave_clock   := clocks.io.clock_out
-      writeCross.io.slave_reset   := reset
+      writeCross.io.client_clock  := clock
+      writeCross.io.client_reset  := reset
+      writeCross.io.client_bypass := false.B
+      writeCross.io.manager_clock   := clocks.io.clock_out
+      writeCross.io.manager_reset   := reset
 
-      readCross.io.slave_register := writeCross.io.slave_register
-      RegField(bits, readCross.io.master_port, writeCross.io.master_port)
+      readCross.io.manager_register := writeCross.io.manager_register
+      RegField(bits, readCross.io.client_port, writeCross.io.client_port)
     }
 
     val map = RRTest1Map.map.drop(1) ++ Seq(0 -> Seq(x(8), x(8), x(8), x(8)))

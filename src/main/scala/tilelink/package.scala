@@ -9,13 +9,9 @@ import freechips.rocketchip.prci.{HasResetDomainCrossing, HasClockDomainCrossing
 
 package object tilelink
 {
-  type TLInwardNode = InwardNodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle]
-  type TLOutwardNode = OutwardNodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
-  type TLNode = NodeHandle[TLMasterPortParameters, TLSlavePortParameters, TLEdgeIn, TLBundle, TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLBundle]
-  type TLManagerParameters = TLSlaveParameters
-  type TLManagerPortParameters = TLSlavePortParameters
-  type TLClientParameters = TLMasterParameters
-  type TLClientPortParameters = TLMasterPortParameters
+  type TLInwardNode = InwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLEdgeIn, TLBundle]
+  type TLOutwardNode = OutwardNodeHandle[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLBundle]
+  type TLNode = NodeHandle[TLClientPortParameters, TLManagerPortParameters, TLEdgeIn, TLBundle, TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLBundle]
 
   implicit class TLClockDomainCrossing(private val x: HasClockDomainCrossing) extends AnyVal {
     def crossIn (n: TLInwardNode) (implicit valName: ValName) = TLInwardClockCrossingHelper (valName.name, x, n)

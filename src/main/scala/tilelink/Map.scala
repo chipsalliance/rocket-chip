@@ -9,8 +9,8 @@ import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.AddressSet
 
-// Moves the AddressSets of slave devices around
-// Combine with TLFilter to remove slaves or reduce their size
+// Moves the AddressSets of manager devices around
+// Combine with TLFilter to remove managers or reduce their size
 class TLMap(fn: AddressSet => BigInt)(implicit p: Parameters) extends LazyModule
 {
   val node = TLAdapterNode(

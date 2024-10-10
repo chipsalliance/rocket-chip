@@ -81,10 +81,10 @@ object CoherenceManagerWrapper {
   def broadcastManagerFn(
     name: String,
     location: HierarchicalLocation,
-    controlPortsSlaveWhere: TLBusWrapperLocation
+    controlPortsManagerWhere: TLBusWrapperLocation
   ): CoherenceManagerInstantiationFn = { context =>
     implicit val p = context.p
-    val cbus = context.locateTLBusWrapper(controlPortsSlaveWhere)
+    val cbus = context.locateTLBusWrapper(controlPortsManagerWhere)
 
     val BroadcastParams(nTrackers, bufferless, controlAddress, filterFactory) = p(BroadcastKey)
     val bh = LazyModule(new TLBroadcast(TLBroadcastParams(

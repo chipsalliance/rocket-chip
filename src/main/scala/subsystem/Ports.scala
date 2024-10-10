@@ -10,9 +10,9 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.amba.axi4.{
-  AXI4SlaveNode, AXI4SlavePortParameters, AXI4SlaveParameters, AXI4UserYanker, AXI4Buffer,
-  AXI4Deinterleaver, AXI4IdIndexer, AXI4MasterNode, AXI4MasterPortParameters, AXI4ToTL,
-  AXI4Fragmenter, AXI4MasterParameters
+  AXI4SubordinateNode, AXI4SubordinatePortParameters, AXI4SubordinateParameters, AXI4UserYanker, AXI4Buffer,
+  AXI4Deinterleaver, AXI4IdIndexer, AXI4ManagerNode, AXI4ManagerPortParameters, AXI4ToTL,
+  AXI4Fragmenter, AXI4ManagerParameters
 }
 import freechips.rocketchip.diplomacy.{
   AddressSet, RegionType, TransferSizes, IdRange, BufferParams
@@ -22,8 +22,8 @@ import freechips.rocketchip.resources.{
 }
 import freechips.rocketchip.tilelink.{
   TLXbar, RegionReplicator, ReplicatedRegion, TLWidthWidget, TLFilter, TLToAXI4, TLBuffer,
-  TLFIFOFixer, TLSlavePortParameters, TLManagerNode, TLSlaveParameters, TLClientNode,
-  TLSourceShrinker, TLMasterParameters, TLMasterPortParameters
+  TLFIFOFixer, TLManagerPortParameters, TLManagerNode, TLManagerParameters, TLClientNode,
+  TLSourceShrinker, TLClientParameters, TLClientPortParameters
 }
 import freechips.rocketchip.util.StringToAugmentedString
 
@@ -31,7 +31,7 @@ import freechips.rocketchip.tilelink.TLClockDomainCrossing
 import freechips.rocketchip.tilelink.TLResetDomainCrossing
 
 /** Specifies the size and width of external memory ports */
-case class MasterPortParams(
+case class ClientPortParams(
   base: BigInt,
   size: BigInt,
   beatBytes: Int,
@@ -39,39 +39,39 @@ case class MasterPortParams(
   maxXferBytes: Int = 256,
   executable: Boolean = true)
 
-/** Specifies the width of external slave ports */
-case class SlavePortParams(beatBytes: Int, idBits: Int, sourceBits: Int)
+/** Specifies the width of external manager ports */
+case class ManagerPortParams(beatBytes: Int, idBits: Int, sourceBits: Int)
 // if incohBase is set, creates an incoherent alias for the region that hangs off the sbus
-case class MemoryPortParams(master: MasterPortParams, nMemoryChannels: Int, incohBase: Option[BigInt] = None)
+case class MemoryPortParams(client: ClientPortParams, nMemoryChannels: Int, incohBase: Option[BigInt] = None)
 
 case object ExtMem extends Field[Option[MemoryPortParams]](None)
-case object ExtBus extends Field[Option[MasterPortParams]](None)
-case object ExtIn extends Field[Option[SlavePortParams]](None)
+case object ExtBus extends Field[Option[ClientPortParams]](None)
+case object ExtIn extends Field[Option[ManagerPortParams]](None)
 
 ///// The following traits add ports to the sytem, in some cases converting to different interconnect standards
 
-/** Adds a port to the system intended to master an AXI4 DRAM controller. */
-trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
+/** Adds a port to the system intended to manager an AXI4 DRAM controller. */
+trait CanHaveManagerAXI4MemPort { this: BaseSubsystem =>
   private val memPortParamsOpt = p(ExtMem)
   private val portName = "axi4"
   private val device = new MemoryDevice
-  private val idBits = memPortParamsOpt.map(_.master.idBits).getOrElse(1)
+  private val idBits = memPortParamsOpt.map(_.client.idBits).getOrElse(1)
   private val mbus = tlBusWrapperLocationMap.get(MBUS).getOrElse(viewpointBus)
 
-  val memAXI4Node = AXI4SlaveNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels, _) =>
+  val memAXI4Node = AXI4SubordinateNode(memPortParamsOpt.map({ case MemoryPortParams(memPortParams, nMemoryChannels, _) =>
     Seq.tabulate(nMemoryChannels) { channel =>
       val base = AddressSet.misaligned(memPortParams.base, memPortParams.size)
       val filter = AddressSet(channel * mbus.blockBytes, ~((nMemoryChannels-1) * mbus.blockBytes))
 
-      AXI4SlavePortParameters(
-        slaves = Seq(AXI4SlaveParameters(
+      AXI4SubordinatePortParameters(
+        subordinates = Seq(AXI4SubordinateParameters(
           address       = base.flatMap(_.intersect(filter)),
           resources     = device.reg,
           regionType    = RegionType.UNCACHED, // cacheable
           executable    = true,
           supportsWrite = TransferSizes(1, mbus.blockBytes),
           supportsRead  = TransferSizes(1, mbus.blockBytes),
-          interleavedId = Some(0))), // slave does not interleave read responses
+          interleavedId = Some(0))), // manager does not interleave read responses
         beatBytes = memPortParams.beatBytes)
     }
   }).toList.flatten)
@@ -119,16 +119,16 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
   val mem_axi4 = InModuleBody { memAXI4Node.makeIOs() }
 }
 
-/** Adds a AXI4 port to the system intended to master an MMIO device bus */
-trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
+/** Adds a AXI4 port to the system intended to client an MMIO device bus */
+trait CanHaveManagerAXI4MMIOPort { this: BaseSubsystem =>
   private val mmioPortParamsOpt = p(ExtBus)
   private val portName = "mmio_port_axi4"
   private val device = new SimpleBus(portName.kebab, Nil)
 
-  val mmioAXI4Node = AXI4SlaveNode(
+  val mmioAXI4Node = AXI4SubordinateNode(
     mmioPortParamsOpt.map(params =>
-      AXI4SlavePortParameters(
-        slaves = Seq(AXI4SlaveParameters(
+      AXI4SubordinatePortParameters(
+        subordinates = Seq(AXI4SubordinateParameters(
           address       = AddressSet.misaligned(params.base, params.size),
           resources     = device.ranges,
           executable    = params.executable,
@@ -152,21 +152,21 @@ trait CanHaveMasterAXI4MMIOPort { this: BaseSubsystem =>
   val mmio_axi4 = InModuleBody { mmioAXI4Node.makeIOs() }
 }
 
-/** Adds an AXI4 port to the system intended to be a slave on an MMIO device bus */
-trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
-  private val slavePortParamsOpt = p(ExtIn)
-  private val portName = "slave_port_axi4"
+/** Adds an AXI4 port to the system intended to be a manager on an MMIO device bus */
+trait CanHaveSubordinateAXI4Port { this: BaseSubsystem =>
+  private val subordinatePortParamsOpt = p(ExtIn)
+  private val portName = "subordinate_port_axi4"
   private val fifoBits = 1
   private val fbus = tlBusWrapperLocationMap.get(FBUS).getOrElse(viewpointBus)
 
-  val l2FrontendAXI4Node = AXI4MasterNode(
-    slavePortParamsOpt.map(params =>
-      AXI4MasterPortParameters(
-        masters = Seq(AXI4MasterParameters(
+  val l2FrontendAXI4Node = AXI4ManagerNode(
+    subordinatePortParamsOpt.map(params =>
+      AXI4ManagerPortParameters(
+        managers = Seq(AXI4ManagerParameters(
           name = portName.kebab,
           id   = IdRange(0, 1 << params.idBits))))).toSeq)
 
-  slavePortParamsOpt.map { params =>
+  subordinatePortParamsOpt.map { params =>
     fbus.coupleFrom(s"port_named_$portName") {
       ( _
         := TLBuffer(BufferParams.default)
@@ -183,16 +183,16 @@ trait CanHaveSlaveAXI4Port { this: BaseSubsystem =>
   val l2_frontend_bus_axi4 = InModuleBody { l2FrontendAXI4Node.makeIOs() }
 }
 
-/** Adds a TileLink port to the system intended to master an MMIO device bus */
-trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
+/** Adds a TileLink port to the system intended to client an MMIO device bus */
+trait CanHaveClientTLMMIOPort { this: BaseSubsystem =>
   private val mmioPortParamsOpt = p(ExtBus)
   private val portName = "mmio_port_tl"
   private val device = new SimpleBus(portName.kebab, Nil)
 
   val mmioTLNode = TLManagerNode(
     mmioPortParamsOpt.map(params =>
-      TLSlavePortParameters.v1(
-        managers = Seq(TLSlaveParameters.v1(
+      TLManagerPortParameters.v1(
+        managers = Seq(TLManagerParameters.v1(
           address            = AddressSet.misaligned(params.base, params.size),
           resources          = device.ranges,
           executable         = params.executable,
@@ -217,21 +217,21 @@ trait CanHaveMasterTLMMIOPort { this: BaseSubsystem =>
   }
 }
 
-/** Adds an TL port to the system intended to be a slave on an MMIO device bus.
+/** Adds an TL port to the system intended to be a manager on an MMIO device bus.
   * NOTE: this port is NOT allowed to issue Acquires.
   */
-trait CanHaveSlaveTLPort { this: BaseSubsystem =>
-  private val slavePortParamsOpt = p(ExtIn)
-  private val portName = "slave_port_tl"
+trait CanHaveManagerTLPort { this: BaseSubsystem =>
+  private val managerPortParamsOpt = p(ExtIn)
+  private val portName = "manager_port_tl"
 
   val l2FrontendTLNode = TLClientNode(
-    slavePortParamsOpt.map(params =>
-      TLMasterPortParameters.v1(
-        clients = Seq(TLMasterParameters.v1(
+    managerPortParamsOpt.map(params =>
+      TLClientPortParameters.v1(
+        clients = Seq(TLClientParameters.v1(
           name     = portName.kebab,
           sourceId = IdRange(0, 1 << params.idBits))))).toSeq)
 
-  slavePortParamsOpt.map { params =>
+  managerPortParamsOpt.map { params =>
     viewpointBus.coupleFrom(s"port_named_$portName") {
       ( _
         := TLSourceShrinker(1 << params.sourceBits)

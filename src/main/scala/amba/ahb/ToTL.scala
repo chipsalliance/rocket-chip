@@ -13,19 +13,19 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.amba.{AMBAProtField, AMBAProt}
 import freechips.rocketchip.diplomacy.TransferSizes
-import freechips.rocketchip.tilelink.{TLImp, TLMasterPortParameters, TLMessages, TLMasterParameters, TLMasterToSlaveTransferSizes}
+import freechips.rocketchip.tilelink.{TLImp, TLClientPortParameters, TLMessages, TLClientParameters, TLClientToManagerTransferSizes}
 import freechips.rocketchip.util.{BundleMap, MaskGen, DataToAugmentedData}
 
-case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSlave, TLImp)(
+case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHBImpSubordinate, TLImp)(
   dFn = { case mp =>
-    TLMasterPortParameters.v2(
-      masters = mp.masters.map { m =>
-        // This value should be constrained by a data width parameter that flows from masters to slaves
+    TLClientPortParameters.v2(
+      clients = mp.managers.map { m =>
+        // This value should be constrained by a data width parameter that flows from managers to subordinates
         // AHB fixed length transfer size maximum is 16384 = 1024 * 16 bits, hsize is capped at 111 = 1024 bit transfer size and hburst is capped at 111 = 16 beat burst
-          TLMasterParameters.v2(
+          TLClientParameters.v2(
             name     = m.name,
             nodePath = m.nodePath,
-            emits    = TLMasterToSlaveTransferSizes(
+            emits    = TLClientToManagerTransferSizes(
                        get     = TransferSizes(1, 2048),
                        putFull = TransferSizes(1, 2048)
                        )
@@ -34,8 +34,8 @@ case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHB
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)
   },
-  uFn = { mp => AHBSlavePortParameters(
-    slaves = mp.managers.map { m =>
+  uFn = { mp => AHBSubordinatePortParameters(
+    subordinates = mp.managers.map { m =>
       def adjust(x: TransferSizes) = {
         if (x.contains(mp.beatBytes)) {
           TransferSizes(x.min, m.minAlignment.min(mp.beatBytes * AHBParameters.maxTransfer).toInt)
@@ -44,7 +44,7 @@ case class AHBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(AHB
         }
       }
 
-      AHBSlaveParameters(
+      AHBSubordinateParameters(
         address       = m.address,
         resources     = m.resources,
         regionType    = m.regionType,
@@ -148,7 +148,7 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
       // We must accept the D-channel beat on the first cycle, as otherwise
       // the failure might be legally retracted on the second cycle.
       // Although the AHB spec says:
-      //   "A slave only has to provide valid data when a transfer completes with
+      //   "A subordinate only has to provide valid data when a transfer completes with
       //    an OKAY response. ERROR responses do not require valid read data."
       // We choose, nevertheless, to provide the read data for the failed request.
       // Unfortunately, this comes at the cost of a bus-wide register.

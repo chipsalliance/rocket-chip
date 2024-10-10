@@ -15,7 +15,7 @@ trait HasRTCModuleImp extends LazyRawModuleImp {
 
   // Use the static period to toggle the RTC
   outer.clintDomainOpt.map { domain => {
-    val bus = outer.locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
+    val bus = outer.locateTLBusWrapper(p(CLINTAttachKey).managerWhere)
     val busFreq = bus.dtsFrequency.get
     val rtcFreq = outer.p(DTSTimebase)
     val internalPeriod: BigInt = busFreq / rtcFreq

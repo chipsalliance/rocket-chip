@@ -6,7 +6,7 @@ import org.chipsalliance.diplomacy.nodes.{InwardNodeHandle, OutwardNodeHandle, N
 
 package object axis
 {
-  type AXISInwardNode = InwardNodeHandle[AXISMasterPortParameters, AXISSlavePortParameters, AXISEdgeParameters, AXISBundle]
-  type AXISOutwardNode = OutwardNodeHandle[AXISMasterPortParameters, AXISSlavePortParameters, AXISEdgeParameters, AXISBundle]
-  type AXISNode = NodeHandle[AXISMasterPortParameters, AXISSlavePortParameters, AXISEdgeParameters, AXISBundle, AXISMasterPortParameters, AXISSlavePortParameters, AXISEdgeParameters, AXISBundle]
+  type AXISInwardNode = InwardNodeHandle[AXISManagerPortParameters, AXISSubordinatePortParameters, AXISEdgeParameters, AXISBundle]
+  type AXISOutwardNode = OutwardNodeHandle[AXISManagerPortParameters, AXISSubordinatePortParameters, AXISEdgeParameters, AXISBundle]
+  type AXISNode = NodeHandle[AXISManagerPortParameters, AXISSubordinatePortParameters, AXISEdgeParameters, AXISBundle, AXISManagerPortParameters, AXISSubordinatePortParameters, AXISEdgeParameters, AXISBundle]
 }

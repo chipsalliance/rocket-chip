@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.diplomacy.{RegionType, AddressSet, TransferSizes}
 import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.subsystem.{Attachable, HierarchicalLocation, TLBusWrapperLocation}
-import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters, TLWidthWidget}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLManagerParameters, TLManagerPortParameters, TLWidthWidget}
 import freechips.rocketchip.util.{ROMConfig, ROMGenerator}
 
 import freechips.rocketchip.util.DataToAugmentedData
@@ -20,8 +20,8 @@ case class MaskROMParams(address: BigInt, name: String, depth: Int = 2048, width
 
 class TLMaskROM(c: MaskROMParams)(implicit p: Parameters) extends LazyModule {
   val beatBytes = c.width/8
-  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  val node = TLManagerNode(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address            = AddressSet.misaligned(c.address, c.depth*beatBytes),
       resources          = new SimpleDevice("rom", Seq("sifive,maskrom0")).reg("mem"),
       regionType         = RegionType.UNCACHED,

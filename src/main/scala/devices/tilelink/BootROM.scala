@@ -12,7 +12,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{Resource, SimpleDevice}
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
+import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLManagerParameters, TLManagerPortParameters}
 
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
@@ -27,8 +27,8 @@ case class BootROMParams(
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
   resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem"))(implicit p: Parameters) extends LazyModule
 {
-  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  val node = TLManagerNode(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address     = List(AddressSet(base, size-1)),
       resources   = resources,
       regionType  = RegionType.UNCACHED,

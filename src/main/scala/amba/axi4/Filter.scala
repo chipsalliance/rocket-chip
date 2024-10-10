@@ -9,12 +9,12 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 
 class AXI4Filter(
-  Sfilter: AXI4SlaveParameters  => Option[AXI4SlaveParameters]   = AXI4Filter.Sidentity,
-  Mfilter: AXI4MasterParameters => Option[AXI4MasterParameters]  = AXI4Filter.Midentity
+  Sfilter: AXI4SubordinateParameters  => Option[AXI4SubordinateParameters]   = AXI4Filter.Sidentity,
+  Mfilter: AXI4ManagerParameters => Option[AXI4ManagerParameters]  = AXI4Filter.Midentity
   )(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4AdapterNode(
-    slaveFn  = { sp => sp.copy(slaves = sp.slaves.flatMap { s =>
+    subordinateFn  = { sp => sp.copy(subordinates = sp.subordinates.flatMap { s =>
       val out = Sfilter(s)
       out.foreach { o => // Confirm the filter only REMOVES capability
         o.address.foreach { a => require (s.address.map(_.contains(a)).reduce(_||_)) }
@@ -26,7 +26,7 @@ class AXI4Filter(
       }
       out
     })},
-    masterFn = { mp => mp.copy(masters = mp.masters.flatMap { m =>
+    managerFn = { mp => mp.copy(managers = mp.managers.flatMap { m =>
       val out = Mfilter(m)
       out.foreach { o => require (m.id.contains(o.id)) }
       out
@@ -42,9 +42,9 @@ class AXI4Filter(
 
 object AXI4Filter
 {
-  def Midentity: AXI4MasterParameters => Option[AXI4MasterParameters] = { m => Some(m) }
-  def Sidentity: AXI4SlaveParameters  => Option[AXI4SlaveParameters]  = { s => Some(s) }
-  def Smask(select: AddressSet): AXI4SlaveParameters  => Option[AXI4SlaveParameters] = { s =>
+  def Midentity: AXI4ManagerParameters => Option[AXI4ManagerParameters] = { m => Some(m) }
+  def Sidentity: AXI4SubordinateParameters  => Option[AXI4SubordinateParameters]  = { s => Some(s) }
+  def Smask(select: AddressSet): AXI4SubordinateParameters  => Option[AXI4SubordinateParameters] = { s =>
     val filtered = s.address.map(_.intersect(select)).flatten
     val alignment = select.alignment /* alignment 0 means 'select' selected everything */
     val maxTransfer = 1 << 30
@@ -59,8 +59,8 @@ object AXI4Filter
   }
 
   def apply(
-    Sfilter: AXI4SlaveParameters  => Option[AXI4SlaveParameters]   = AXI4Filter.Sidentity,
-    Mfilter: AXI4MasterParameters => Option[AXI4MasterParameters]  = AXI4Filter.Midentity
+    Sfilter: AXI4SubordinateParameters  => Option[AXI4SubordinateParameters]   = AXI4Filter.Sidentity,
+    Mfilter: AXI4ManagerParameters => Option[AXI4ManagerParameters]  = AXI4Filter.Midentity
     )(implicit p: Parameters): AXI4Node =
   {
     val axi4filt = LazyModule(new AXI4Filter(Sfilter, Mfilter))

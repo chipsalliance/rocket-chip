@@ -9,7 +9,7 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.diplomacy.TransferSizes
-import freechips.rocketchip.tilelink.{TLClientNode, TLMasterParameters, TLMasterPortParameters, TLMasterToSlaveTransferSizes}
+import freechips.rocketchip.tilelink.{TLClientNode, TLClientParameters, TLClientPortParameters, TLClientToManagerTransferSizes}
 import freechips.rocketchip.util.ParameterizedBundle
 
 /** Constant values used by both Debug Bus Response & Request
@@ -80,9 +80,9 @@ class ClockedDMIIO(implicit val p: Parameters) extends ParameterizedBundle()(p){
   */
 
 class DMIToTL(implicit p: Parameters) extends LazyModule {
-  val node = TLClientNode(Seq(TLMasterPortParameters.v2(Seq(TLMasterParameters.v2(
+  val node = TLClientNode(Seq(TLClientPortParameters.v2(Seq(TLClientParameters.v2(
     name = "debug",
-    emits = TLMasterToSlaveTransferSizes(
+    emits = TLClientToManagerTransferSizes(
       get = TransferSizes(4,4),
       putFull = TransferSizes(4,4)))))))
 

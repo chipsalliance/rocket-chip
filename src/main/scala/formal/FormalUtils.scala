@@ -12,10 +12,10 @@ sealed abstract class MonitorDirection(name: String) {
   def flip: MonitorDirection
 }
 object MonitorDirection {
-  // Also known as master, effectively contains assumes
+  // Also known as client, effectively contains assumes
   object Driver  extends MonitorDirection("Driver") { override def flip: MonitorDirection = Receiver }
 
-  // Also known as slave, effectively contains asserts
+  // Also known as manager, effectively contains asserts
   object Receiver extends MonitorDirection("Receiver") { override def flip: MonitorDirection = Driver }
 
   object Monitor extends MonitorDirection("Monitor") { override def flip: MonitorDirection = Monitor }

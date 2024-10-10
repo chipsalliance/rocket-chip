@@ -15,10 +15,10 @@ import freechips.rocketchip.resources.{DiplomaticSRAM, HasJustOneSeqMem}
 import freechips.rocketchip.util.{BundleMap, SeqMemToAugmentedSeqMem}
 
 /**
-  * AXI4 slave device to provide a RAM storage
+  * AXI4 subordinate device to provide a RAM storage
   *
   * Setting wcorrupt=true is not enough to enable the w.user field
-  * You must also list AMBACorrupt in your master's requestFields
+  * You must also list AMBACorrupt in your manager's requestFields
   *
   * @param address address range
   * @param cacheable whether this ram is cacheable
@@ -39,8 +39,8 @@ class AXI4RAM(
     wcorrupt: Boolean = true)
   (implicit p: Parameters) extends DiplomaticSRAM(address, beatBytes, devName)
 {
-  val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
-    Seq(AXI4SlaveParameters(
+  val node = AXI4SubordinateNode(Seq(AXI4SubordinatePortParameters(
+    Seq(AXI4SubordinateParameters(
       address       = List(address) ++ errors,
       resources     = resources,
       regionType    = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,

@@ -20,8 +20,8 @@ case object AXI4RRId extends ControlKey[UInt]("extra_id")
 case class AXI4RRIdField(width: Int) extends SimpleBundleField(AXI4RRId)(Output(UInt((1 max width).W)), 0.U)
 
 case class AXI4RegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
-  extends SinkNode(AXI4Imp)(Seq(AXI4SlavePortParameters(
-    Seq(AXI4SlaveParameters(
+  extends SinkNode(AXI4Imp)(Seq(AXI4SubordinatePortParameters(
+    Seq(AXI4SubordinateParameters(
       address       = Seq(address),
       executable    = executable,
       supportsWrite = TransferSizes(1, beatBytes),

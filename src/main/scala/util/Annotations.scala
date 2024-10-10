@@ -70,8 +70,8 @@ case class RetimeModuleAnnotation(target: ModuleName) extends SingleTargetAnnota
   def duplicate(n: ModuleName) = this.copy(n)
 }
 
-/** Annotation capturing information about port slave devices. */
-case class SlaveAddressMapChiselAnnotation(
+/** Annotation capturing information about port manager devices. */
+case class ManagerAddressMapChiselAnnotation(
     target: InstanceId,
     addresses: Seq[AddressSet],
     perms: ResourcePermissions) extends ChiselAnnotation {
@@ -79,7 +79,7 @@ case class SlaveAddressMapChiselAnnotation(
   def toFirrtl = AddressMapAnnotation(
     target = target.toNamed,
     mapping = range.map { r => AddressMapEntry(r, perms, Nil) },
-    label = "slaves")
+    label = "managers")
 }
 
 /** Record information about a top-level port of the design */

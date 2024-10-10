@@ -46,8 +46,8 @@ class RegionReplicator(val params: ReplicatedRegion)(implicit p: Parameters) ext
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       out <> in
 
-      // Is every slave contained by the replication region?
-      val totalContainment = edgeIn.slave.slaves.forall(_.address.forall(params.region contains _))
+      // Is every manager contained by the replication region?
+      val totalContainment = edgeIn.manager.managers.forall(_.address.forall(params.region contains _))
 
       // Which address within the mask routes to local devices?
       val local_prefix = RegNext(prefix.bundle)

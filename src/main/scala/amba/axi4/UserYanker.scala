@@ -22,29 +22,29 @@ import freechips.rocketchip.util.BundleMap
 class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4AdapterNode(
-    masterFn = { mp => mp.copy(
-      masters = mp.masters.map { m => m.copy(
+    managerFn = { mp => mp.copy(
+      managers = mp.managers.map { m => m.copy(
         maxFlight = (m.maxFlight, capMaxFlight) match {
           case (Some(x), Some(y)) => Some(x min y)
           case (Some(x), None)    => Some(x)
           case (None,    Some(y)) => Some(y)
           case (None,    None)    => None })},
       echoFields = Nil)},
-    slaveFn = { sp => sp })
+    subordinateFn = { sp => sp })
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       // Which fields are we stripping?
-      val echoFields = edgeIn.master.echoFields
-      val need_bypass = edgeOut.slave.minLatency < 1
+      val echoFields = edgeIn.manager.echoFields
+      val need_bypass = edgeOut.subordinate.minLatency < 1
 
-      edgeOut.master.masters.foreach { m =>
+      edgeOut.manager.managers.foreach { m =>
         require (m.maxFlight.isDefined, "UserYanker needs a flight cap on each ID")
       }
 
       def queue(id: Int) = {
-        val depth = edgeOut.master.masters.find(_.id.contains(id)).flatMap(_.maxFlight).getOrElse(0)
+        val depth = edgeOut.manager.managers.find(_.id.contains(id)).flatMap(_.maxFlight).getOrElse(0)
         if (depth == 0) {
           Wire(new QueueIO(BundleMap(echoFields), 1)) // unused ID => undefined value
         } else {
@@ -52,8 +52,8 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
         }
       }
 
-      val rqueues = Seq.tabulate(edgeIn.master.endId) { i => queue(i) }
-      val wqueues = Seq.tabulate(edgeIn.master.endId) { i => queue(i) }
+      val rqueues = Seq.tabulate(edgeIn.manager.endId) { i => queue(i) }
+      val wqueues = Seq.tabulate(edgeIn.manager.endId) { i => queue(i) }
 
       val arid = in.ar.bits.id
       val ar_ready = VecInit(rqueues.map(_.enq.ready))(arid)
@@ -72,8 +72,8 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       }
       in.r.bits.echo :<= r_bits
 
-      val arsel = UIntToOH(arid, edgeIn.master.endId).asBools
-      val rsel  = UIntToOH(rid,  edgeIn.master.endId).asBools
+      val arsel = UIntToOH(arid, edgeIn.manager.endId).asBools
+      val rsel  = UIntToOH(rid,  edgeIn.manager.endId).asBools
       (rqueues zip (arsel zip rsel)) foreach { case (q, (ar, r)) =>
         q.deq.ready := out.r .valid && in .r .ready && r && out.r.bits.last
         q.deq.valid := DontCare
@@ -101,8 +101,8 @@ class AXI4UserYanker(capMaxFlight: Option[Int] = None)(implicit p: Parameters) e
       }
       in.b.bits.echo :<>= b_bits
 
-      val awsel = UIntToOH(awid, edgeIn.master.endId).asBools
-      val bsel  = UIntToOH(bid,  edgeIn.master.endId).asBools
+      val awsel = UIntToOH(awid, edgeIn.manager.endId).asBools
+      val bsel  = UIntToOH(bid,  edgeIn.manager.endId).asBools
       (wqueues zip (awsel zip bsel)) foreach { case (q, (aw, b)) =>
         q.deq.ready := out.b .valid && in .b .ready && b
         q.deq.valid := DontCare

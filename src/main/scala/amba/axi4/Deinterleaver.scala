@@ -28,27 +28,27 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
   require (maxReadBytes >= 1, s"AXI4Deinterleaver: maxReadBytes must be at least 1, not $maxReadBytes")
   require (isPow2(maxReadBytes), s"AXI4Deinterleaver: maxReadBytes must be a power of two, not $maxReadBytes")
 
-  private def maxBeats(slave: AXI4SlavePortParameters): Int =
-    (maxReadBytes+slave.beatBytes-1) / slave.beatBytes
+  private def maxBeats(subordinate: AXI4SubordinatePortParameters): Int =
+    (maxReadBytes+subordinate.beatBytes-1) / subordinate.beatBytes
 
   // Nothing to do if R channel only uses a single beat
-  private def nothingToDeinterleave(slave: AXI4SlavePortParameters): Boolean =
-    maxBeats(slave) <= 1
+  private def nothingToDeinterleave(subordinate: AXI4SubordinatePortParameters): Boolean =
+    maxBeats(subordinate) <= 1
 
   val node = new AXI4AdapterNode(
-    masterFn = { mp => mp },
-    slaveFn  = { sp => sp.copy(slaves = sp.slaves.map(s => s.copy(
+    managerFn = { mp => mp },
+    subordinateFn  = { sp => sp.copy(subordinates = sp.subordinates.map(s => s.copy(
       supportsRead = s.supportsRead.intersect(TransferSizes(1, maxReadBytes)),
       interleavedId = Some(0))))
   }) {
-    override def circuitIdentity = edges.out.map(_.slave).forall(nothingToDeinterleave)
+    override def circuitIdentity = edges.out.map(_.subordinate).forall(nothingToDeinterleave)
   }
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val endId = edgeOut.master.endId
-      val beats = maxBeats(edgeOut.slave)
+      val endId = edgeOut.manager.endId
+      val beats = maxBeats(edgeOut.subordinate)
 
       // This adapter passes through the AR/AW control + W/B write data channels
       out.ar :<>= in.ar
@@ -57,12 +57,12 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
       in.b :<>= out.b
 
       // Only the R channel has the possibility of being changed
-      if (nothingToDeinterleave(edgeOut.slave)) {
+      if (nothingToDeinterleave(edgeOut.subordinate)) {
         in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<>= buffer.irrevocable(out.r)
       } else {
         // We only care to deinterleave ids that are actually in use
         val maxFlightPerId = Seq.tabulate(endId) { i =>
-          edgeOut.master.masters.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
+          edgeOut.manager.managers.find(_.id.contains(i)).flatMap(_.maxFlight).getOrElse(0)
         }
 
         // Queues to buffer R responses

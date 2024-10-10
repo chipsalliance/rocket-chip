@@ -15,7 +15,7 @@ object RegionType {
   }
 
   case object CACHED      extends T // an intermediate agent may have cached a copy of the region for you
-  case object TRACKED     extends T // the region may have been cached by another master, but coherence is being provided
+  case object TRACKED     extends T // the region may have been cached by another client, but coherence is being provided
   case object UNCACHED    extends T // the region has not been cached yet, but should be cached when possible
   case object IDEMPOTENT  extends T // gets return most recently put content, but content should not be cached
   case object VOLATILE    extends T // content may change without a put, but puts and gets have no side effects
@@ -119,7 +119,7 @@ object TransferSizes {
   def mincover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ mincover _)
   def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
-  implicit def asBool(x: TransferSizes) = !x.none
+  implicit def asBool(x: TransferSizes): Boolean = !x.none
 }
 
 // AddressSets specify the address space managed by the manager

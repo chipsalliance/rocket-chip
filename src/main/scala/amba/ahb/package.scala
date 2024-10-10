@@ -6,10 +6,10 @@ import org.chipsalliance.diplomacy.nodes.{InwardNodeHandle, OutwardNodeHandle, S
 
 package object ahb
 {
-  type AHBSlaveOutwardNode = OutwardNodeHandle[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
-  type AHBSlaveInwardNode = InwardNodeHandle[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
-  type AHBSlaveNode = SimpleNodeHandle[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBSlaveBundle]
-  type AHBMasterOutwardNode = OutwardNodeHandle[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBMasterBundle]
-  type AHBMasterInwardNode = InwardNodeHandle[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBMasterBundle]
-  type AHBMasterNode = SimpleNodeHandle[AHBMasterPortParameters, AHBSlavePortParameters, AHBEdgeParameters, AHBMasterBundle]
+  type AHBSubordinateOutwardNode = OutwardNodeHandle[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBSubordinateBundle]
+  type AHBSubordinateInwardNode = InwardNodeHandle[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBSubordinateBundle]
+  type AHBSubordinateNode = SimpleNodeHandle[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBSubordinateBundle]
+  type AHBManagerOutwardNode = OutwardNodeHandle[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBManagerBundle]
+  type AHBManagerInwardNode = InwardNodeHandle[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBManagerBundle]
+  type AHBManagerNode = SimpleNodeHandle[AHBManagerPortParameters, AHBSubordinatePortParameters, AHBEdgeParameters, AHBManagerBundle]
 }

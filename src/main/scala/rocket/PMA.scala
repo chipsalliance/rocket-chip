@@ -13,9 +13,9 @@ import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.diplomacy.RegionType
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.tile.{CoreModule, CoreBundle}
-import freechips.rocketchip.tilelink.{TLSlavePortParameters, TLManagerParameters}
+import freechips.rocketchip.tilelink.{TLManagerPortParameters, TLManagerParameters}
 
-class PMAChecker(manager: TLSlavePortParameters)(implicit p: Parameters) extends CoreModule()(p) {
+class PMAChecker(manager: TLManagerPortParameters)(implicit p: Parameters) extends CoreModule()(p) {
   val io = IO(new Bundle {
     val paddr = Input(UInt())
 
@@ -32,7 +32,7 @@ class PMAChecker(manager: TLSlavePortParameters)(implicit p: Parameters) extends
   })
 
   // PMA
-  // check exist a slave can consume this address.
+  // check exist a manager can consume this address.
   val legal_address = manager.findSafe(io.paddr).reduce(_||_)
   // check utility to help check SoC property.
   def fastCheck(member: TLManagerParameters => Boolean) =

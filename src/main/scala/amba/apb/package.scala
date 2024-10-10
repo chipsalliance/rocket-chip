@@ -6,7 +6,7 @@ import org.chipsalliance.diplomacy.nodes.{InwardNodeHandle, OutwardNodeHandle, S
 
 package object apb
 {
-  type APBOutwardNode = OutwardNodeHandle[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
-  type APBInwardNode = InwardNodeHandle[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
-  type APBNode = SimpleNodeHandle[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
+  type APBOutwardNode = OutwardNodeHandle[APBManagerPortParameters, APBSubordinatePortParameters, APBEdgeParameters, APBBundle]
+  type APBInwardNode = InwardNodeHandle[APBManagerPortParameters, APBSubordinatePortParameters, APBEdgeParameters, APBBundle]
+  type APBNode = SimpleNodeHandle[APBManagerPortParameters, APBSubordinatePortParameters, APBEdgeParameters, APBBundle]
 }

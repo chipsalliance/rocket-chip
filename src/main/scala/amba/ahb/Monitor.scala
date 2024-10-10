@@ -4,27 +4,27 @@ package freechips.rocketchip.amba.ahb
 
 import chisel3._
 
-case class AHBSlaveMonitorArgs(edge: AHBEdgeParameters)
+case class AHBSubordinateMonitorArgs(edge: AHBEdgeParameters)
 
-abstract class AHBSlaveMonitorBase(args: AHBSlaveMonitorArgs) extends Module
+abstract class AHBSubordinateMonitorBase(args: AHBSubordinateMonitorArgs) extends Module
 {
   val io = IO(new Bundle {
-    val in = Input(new AHBSlaveBundle(args.edge.bundle))
+    val in = Input(new AHBSubordinateBundle(args.edge.bundle))
   })
 
-  def legalize(bundle: AHBSlaveBundle, edge: AHBEdgeParameters, reset: Reset): Unit
+  def legalize(bundle: AHBSubordinateBundle, edge: AHBEdgeParameters, reset: Reset): Unit
   legalize(io.in, args.edge, reset)
 }
 
 
-case class AHBMasterMonitorArgs(edge: AHBEdgeParameters)
+case class AHBManagerMonitorArgs(edge: AHBEdgeParameters)
 
-abstract class AHBMasterMonitorBase(args: AHBMasterMonitorArgs) extends Module
+abstract class AHBManagerMonitorBase(args: AHBManagerMonitorArgs) extends Module
 {
   val io = IO(new Bundle {
-    val in = Input(new AHBMasterBundle(args.edge.bundle))
+    val in = Input(new AHBManagerBundle(args.edge.bundle))
   })
 
-  def legalize(bundle: AHBMasterBundle, edge: AHBEdgeParameters, reset: Reset): Unit
+  def legalize(bundle: AHBManagerBundle, edge: AHBEdgeParameters, reset: Reset): Unit
   legalize(io.in, args.edge, reset)
 }

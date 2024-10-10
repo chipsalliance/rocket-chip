@@ -30,8 +30,8 @@ class AXI4Buffer(
   def this()(implicit p: Parameters) = this(BufferParams.default)
 
   val node = AXI4AdapterNode(
-    masterFn = { p => p },
-    slaveFn  = { p => p.copy(minLatency = p.minLatency + min(aw.latency,ar.latency) + min(r.latency,b.latency)) })
+    managerFn = { p => p },
+    subordinateFn  = { p => p.copy(minLatency = p.minLatency + min(aw.latency,ar.latency) + min(r.latency,b.latency)) })
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {

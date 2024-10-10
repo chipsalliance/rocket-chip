@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
 import freechips.rocketchip.amba.{AMBACorrupt, AMBACorruptField, AMBAProt, AMBAProtField}
-import freechips.rocketchip.amba.axi4.{AXI4BundleARW, AXI4MasterParameters, AXI4MasterPortParameters, AXI4Parameters, AXI4Imp}
+import freechips.rocketchip.amba.axi4.{AXI4BundleARW, AXI4ManagerParameters, AXI4ManagerPortParameters, AXI4Parameters, AXI4Imp}
 import freechips.rocketchip.diplomacy.{IdMap, IdMapEntry, IdRange}
 import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, UIntToOH1}
 
@@ -30,16 +30,16 @@ case class AXI4TLStateField(sourceBits: Int) extends BundleField[AXI4TLStateBund
 
 /** TLtoAXI4IdMap serves as a record for the translation performed between id spaces.
   *
-  * Its member [axi4Masters] is used as the new AXI4MasterParameters in diplomacy.
+  * Its member [axi4Managers] is used as the new AXI4ManagerParameters in diplomacy.
   * Its member [mapping] is used as the template for the circuit generated in TLToAXI4Node.module.
   */
-class TLtoAXI4IdMap(tlPort: TLMasterPortParameters) extends IdMap[TLToAXI4IdMapEntry]
+class TLtoAXI4IdMap(tlPort: TLClientPortParameters) extends IdMap[TLToAXI4IdMapEntry]
 {
-  val tlMasters = tlPort.masters.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
-  private val axi4IdSize = tlMasters.map { tl => if (tl.requestFifo) 1 else tl.sourceId.size }
+  val tlClients = tlPort.clients.sortBy(_.sourceId).sortWith(TLToAXI4.sortByType)
+  private val axi4IdSize = tlClients.map { tl => if (tl.requestFifo) 1 else tl.sourceId.size }
   private val axi4IdStart = axi4IdSize.scanLeft(0)(_+_).init
-  val axi4Masters = axi4IdStart.zip(axi4IdSize).zip(tlMasters).map { case ((start, size), tl) =>
-    AXI4MasterParameters(
+  val axi4Managers = axi4IdStart.zip(axi4IdSize).zip(tlClients).map { case ((start, size), tl) =>
+    AXI4ManagerParameters(
       name      = tl.name,
       id        = IdRange(start, start+size),
       aligned   = true,
@@ -47,12 +47,12 @@ class TLtoAXI4IdMap(tlPort: TLMasterPortParameters) extends IdMap[TLToAXI4IdMapE
       nodePath  = tl.nodePath)
   }
 
-  private val axi4IdEnd = axi4Masters.map(_.id.end).max
+  private val axi4IdEnd = axi4Managers.map(_.id.end).max
   private val axiDigits = String.valueOf(axi4IdEnd-1).length()
   private val tlDigits = String.valueOf(tlPort.endSourceId-1).length()
   protected val fmt = s"\t[%${axiDigits}d, %${axiDigits}d) <= [%${tlDigits}d, %${tlDigits}d) %s%s%s"
 
-  val mapping: Seq[TLToAXI4IdMapEntry] = tlMasters.zip(axi4Masters).map { case (tl, axi) =>
+  val mapping: Seq[TLToAXI4IdMapEntry] = tlClients.zip(axi4Managers).map { case (tl, axi) =>
     TLToAXI4IdMapEntry(axi.id, tl.sourceId, tl.name, tl.supports.probe, tl.requestFifo)
   }
 }
@@ -67,15 +67,15 @@ case class TLToAXI4IdMapEntry(axi4Id: IdRange, tlId: IdRange, name: String, isCa
 
 case class TLToAXI4Node(wcorrupt: Boolean = true)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AXI4Imp)(
   dFn = { p =>
-    AXI4MasterPortParameters(
-      masters    = (new TLtoAXI4IdMap(p)).axi4Masters,
+    AXI4ManagerPortParameters(
+      managers    = (new TLtoAXI4IdMap(p)).axi4Managers,
       requestFields = (if (wcorrupt) Seq(AMBACorruptField()) else Seq()) ++ p.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
       echoFields    = AXI4TLStateField(log2Ceil(p.endSourceId)) +: p.echoFields,
       responseKeys  = p.responseKeys)
   },
-  uFn = { p => TLSlavePortParameters.v1(
-    managers = p.slaves.map { case s =>
-      TLSlaveParameters.v1(
+  uFn = { p => TLManagerPortParameters.v1(
+    managers = p.subordinates.map { case s =>
+      TLManagerParameters.v1(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
@@ -93,7 +93,7 @@ case class TLToAXI4Node(wcorrupt: Boolean = true)(implicit valName: ValName) ext
       requestKeys    = AMBAProt +: p.requestKeys)
   })
 
-// wcorrupt alone is not enough; a slave must include AMBACorrupt in the slave port's requestKeys
+// wcorrupt alone is not enough; a subordinate must include AMBACorrupt in the subordinate port's requestKeys
 class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String] = None, val stripBits: Int = 0, val wcorrupt: Boolean = true)(implicit p: Parameters) extends LazyModule
 {
   require(stripBits == 0, "stripBits > 0 is no longer supported on TLToAXI4")
@@ -102,18 +102,18 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val slaves  = edgeOut.slave.slaves
+      val subordinates  = edgeOut.subordinate.subordinates
 
-      // All pairs of slaves must promise that they will never interleave data
-      require (slaves(0).interleavedId.isDefined)
-      slaves.foreach { s => require (s.interleavedId == slaves(0).interleavedId) }
+      // All pairs of subordinates must promise that they will never interleave data
+      require (subordinates(0).interleavedId.isDefined)
+      subordinates.foreach { s => require (s.interleavedId == subordinates(0).interleavedId) }
 
       // Construct the source=>ID mapping table
       val map = new TLtoAXI4IdMap(edgeIn.client)
       val sourceStall = WireDefault(VecInit.fill(edgeIn.client.endSourceId)(false.B))
       val sourceTable = WireDefault(VecInit.fill(edgeIn.client.endSourceId)(0.U.asTypeOf(out.aw.bits.id)))
-      val idStall = WireDefault(VecInit.fill(edgeOut.master.endId)(false.B))
-      var idCount = Array.fill(edgeOut.master.endId) { None:Option[Int] }
+      val idStall = WireDefault(VecInit.fill(edgeOut.manager.endId)(false.B))
+      var idCount = Array.fill(edgeOut.manager.endId) { None:Option[Int] }
 
       map.mapping.foreach { case TLToAXI4IdMapEntry(axi4Id, tlId, _, _, fifo) =>
         for (i <- 0 until tlId.size) {
@@ -257,8 +257,8 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
 
       // We need to track if any reads or writes are inflight for a given ID.
       // If the opposite type arrives, we must stall until it completes.
-      val a_sel = UIntToOH(arw.id, edgeOut.master.endId).asBools
-      val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.master.endId).asBools
+      val a_sel = UIntToOH(arw.id, edgeOut.manager.endId).asBools
+      val d_sel = UIntToOH(Mux(r_wins, out.r.bits.id, out.b.bits.id), edgeOut.manager.endId).asBools
       val d_last = Mux(r_wins, out.r.bits.last, true.B)
       // If FIFO was requested, ensure that R+W ordering is preserved
       (a_sel zip d_sel zip idStall zip idCount) foreach { case (((as, ds), s), n) =>
@@ -266,7 +266,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
         // are in the middle of receiving a read burst and then issue a write,
         // the write might affect the read burst. This violates FIFO behaviour.
         // To solve this, we must wait until the last beat of a burst, but this
-        // means that a TileLink master which performs early source reuse can
+        // means that a TileLink manager which performs early source reuse can
         // have one more transaction inflight than we promised AXI; stall it too.
         val maxCount = n.getOrElse(1)
         val count = RegInit(0.U(log2Ceil(maxCount + 1).W))
@@ -302,7 +302,7 @@ object TLToAXI4
     tl2axi4.node
   }
 
-  def sortByType(a: TLMasterParameters, b: TLMasterParameters): Boolean = {
+  def sortByType(a: TLClientParameters, b: TLClientParameters): Boolean = {
     if ( a.supports.probe && !b.supports.probe) return false
     if (!a.supports.probe &&  b.supports.probe) return true
     if ( a.requestFifo    && !b.requestFifo   ) return false

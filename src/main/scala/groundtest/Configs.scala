@@ -6,10 +6,10 @@ package freechips.rocketchip.groundtest
 import org.chipsalliance.cde.config._
 
 import freechips.rocketchip.devices.tilelink.{CLINTKey, PLICKey}
-import freechips.rocketchip.devices.debug.{DebugModuleKey}
+import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.system.BaseConfig
-import freechips.rocketchip.rocket.{DCacheParams}
+import freechips.rocketchip.rocket.DCacheParams
 
 /** Actual testing target Configs */
 
@@ -44,7 +44,7 @@ class WithTraceGen(
   case TilesLocated(InSubsystem) => {
     val prev = up(TilesLocated(InSubsystem), site)
     val idOffset = up(NumTiles)
-    val memOffset: BigInt = overrideMemOffset.orElse(site(ExtMem).map(_.master.base)).getOrElse(0x0L)
+    val memOffset: BigInt = overrideMemOffset.orElse(site(ExtMem).map(_.client.base)).getOrElse(0x0L)
     params.zipWithIndex.map { case (dcp, i) =>
       TraceGenTileAttachParams(
         tileParams = TraceGenParams(

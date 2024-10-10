@@ -11,25 +11,25 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 import freechips.rocketchip.tilelink.{
   LFSR64, TLBundleA, TLBundleC, TLBundleE, TLClientNode, TLCustomNode, TLFilter, TLFragmenter,
-  TLFuzzer, TLMasterParameters, TLMasterPortParameters, TLPermissions, TLRAM, TLRAMModel,
-  TLSlaveParameters, TLSlavePortParameters
+  TLFuzzer, TLClientParameters, TLClientPortParameters, TLPermissions, TLRAM, TLRAMModel,
+  TLManagerParameters, TLManagerPortParameters
 }
 
-class MasterMuxNode(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(implicit valName: ValName) extends TLCustomNode
+class ClientMuxNode(uFn: Seq[TLClientPortParameters] => TLClientPortParameters)(implicit valName: ValName) extends TLCustomNode
 {
   def resolveStar(iKnown: Int, oKnown: Int, iStars: Int, oStars: Int): (Int, Int) = {
-    require (iStars == 0 && oStars == 0, "MasterMux node does not support :=* or :*=")
-    require (iKnown == 2, "MasterMux node expects exactly two inputs")
-    require (oKnown == 1, "MasterMux node expects exactly one output")
+    require (iStars == 0 && oStars == 0, "ClientMux node does not support :=* or :*=")
+    require (iKnown == 2, "ClientMux node expects exactly two inputs")
+    require (oKnown == 1, "ClientMux node expects exactly one output")
     (0, 0)
   }
-  def mapParamsD(n: Int, p: Seq[TLMasterPortParameters]): Seq[TLMasterPortParameters] = { Seq(uFn(p)) }
-  def mapParamsU(n: Int, p: Seq[TLSlavePortParameters]): Seq[TLSlavePortParameters] = { p ++ p }
+  def mapParamsD(n: Int, p: Seq[TLClientPortParameters]): Seq[TLClientPortParameters] = { Seq(uFn(p)) }
+  def mapParamsU(n: Int, p: Seq[TLManagerPortParameters]): Seq[TLManagerPortParameters] = { p ++ p }
 }
 
-class MuteMaster(name: String = "MuteMaster", maxProbe: Int = 0)(implicit p: Parameters) extends LazyModule
+class MuteClient(name: String = "MuteClient", maxProbe: Int = 0)(implicit p: Parameters) extends LazyModule
 {
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(clients = Seq(TLMasterParameters.v1(
+  val node = TLClientNode(Seq(TLClientPortParameters.v1(clients = Seq(TLClientParameters.v1(
     name = name,
     supportsProbe = if (maxProbe > 0) TransferSizes(1, maxProbe) else TransferSizes.none)))))
 
@@ -46,9 +46,9 @@ class MuteMaster(name: String = "MuteMaster", maxProbe: Int = 0)(implicit p: Par
   }
 }
 
-class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(implicit p: Parameters) extends LazyModule
+class ClientMux(uFn: Seq[TLClientPortParameters] => TLClientPortParameters)(implicit p: Parameters) extends LazyModule
 {
-  val node = new MasterMuxNode(uFn)
+  val node = new ClientMuxNode(uFn)
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -117,12 +117,12 @@ class MasterMux(uFn: Seq[TLMasterPortParameters] => TLMasterPortParameters)(impl
 // Synthesizable unit tests
 import freechips.rocketchip.unittest._
 
-class TLMasterMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {
+class TLClientMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {
   val fuzz1 = LazyModule(new TLFuzzer(txns))
   val fuzz2 = LazyModule(new TLFuzzer(txns))
-  val model1 = LazyModule(new TLRAMModel("MasterMux1"))
-  val model2 = LazyModule(new TLRAMModel("MasterMux2"))
-  val mux = LazyModule(new MasterMux(uFn = _.head))
+  val model1 = LazyModule(new TLRAMModel("ClientMux1"))
+  val model2 = LazyModule(new TLRAMModel("ClientMux2"))
+  val mux = LazyModule(new ClientMux(uFn = _.head))
   val ram = LazyModule(new TLRAM(AddressSet(0, 0x3ff), beatBytes = 4))
   mux.node := TLFilter(TLFilter.mSelectIntersect(AddressSet( 0, ~16))) := model1.node := fuzz1.node
   mux.node := TLFilter(TLFilter.mSelectIntersect(AddressSet(16, ~16))) := model2.node := fuzz2.node
@@ -136,7 +136,7 @@ class TLMasterMuxTester(txns: Int)(implicit p: Parameters) extends LazyModule {
   }
 }
 
-class TLMasterMuxTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
-  val dut = Module(LazyModule(new TLMasterMuxTester(txns)).module)
+class TLClientMuxTest(txns: Int = 5000, timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new TLClientMuxTester(txns)).module)
   io <> dut.io
 }

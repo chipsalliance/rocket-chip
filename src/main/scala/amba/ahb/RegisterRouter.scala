@@ -18,8 +18,8 @@ import freechips.rocketchip.util.MaskGen
 import scala.math.min
 
 case class AHBRegisterNode(address: AddressSet, concurrency: Int = 0, beatBytes: Int = 4, undefZero: Boolean = true, executable: Boolean = false)(implicit valName: ValName)
-  extends SinkNode(AHBImpSlave)(Seq(AHBSlavePortParameters(
-    Seq(AHBSlaveParameters(
+  extends SinkNode(AHBImpSubordinate)(Seq(AHBSubordinatePortParameters(
+    Seq(AHBSubordinateParameters(
       address       = Seq(address),
       executable    = executable,
       supportsWrite = TransferSizes(1, min(address.alignment.toInt, beatBytes * AHBParameters.maxTransfer)),

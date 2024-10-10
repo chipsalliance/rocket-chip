@@ -52,8 +52,8 @@ class Cluster(
   csbus.clockGroupNode := allClockGroupsNode
   ccbus.clockGroupNode := allClockGroupsNode
 
-  val slaveNode = ccbus.inwardNode
-  val masterNode = cmbus.outwardNode
+  val managerNode = ccbus.inwardNode
+  val clientNode = cmbus.outwardNode
 
 
 
@@ -117,8 +117,8 @@ trait CanAttachCluster {
   }
 
   def connect(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
-    connectMasterPorts(domain, context)
-    connectSlavePorts(domain, context)
+    connectClientPorts(domain, context)
+    connectManagerPorts(domain, context)
     connectInterrupts(domain, context)
     connectPRC(domain, context)
     connectOutputNotifications(domain, context)
@@ -126,18 +126,18 @@ trait CanAttachCluster {
     connectTrace(domain, context)
   }
 
-  def connectMasterPorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
+  def connectClientPorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
     implicit val p = context.p
-    val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
+    val dataBus = context.locateTLBusWrapper(crossingParams.client.where)
     dataBus.coupleFrom(clusterParams.baseName) { bus =>
-      bus :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
+      bus :=* crossingParams.client.injectNode(context) :=* domain.crossClientPort(crossingParams.crossingType)
     }
   }
-  def connectSlavePorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
+  def connectManagerPorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
     implicit val p = context.p
-    val controlBus = context.locateTLBusWrapper(crossingParams.slave.where)
+    val controlBus = context.locateTLBusWrapper(crossingParams.manager.where)
     controlBus.coupleTo(clusterParams.baseName) { bus =>
-      domain.crossSlavePort(crossingParams.crossingType) :*= crossingParams.slave.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
+      domain.crossManagerPort(crossingParams.crossingType) :*= crossingParams.manager.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
     }
   }
   def connectInterrupts(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {

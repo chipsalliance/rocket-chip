@@ -42,7 +42,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 
   val node = TLAdapterNode(
     clientFn  = { cp =>
-      cp.v1copy(clients = Seq(TLMasterParameters.v1(
+      cp.v1copy(clients = Seq(TLClientParameters.v1(
         name     = "TLBroadcast",
         sourceId = IdRange(0, 1 << log2Ceil(cp.endSourceId*4)))))
     },
@@ -304,7 +304,7 @@ class TLBroadcast(params: TLBroadcastParams)(implicit p: Parameters) extends Laz
 // addressMask is set for those bits which can actually toggle in an address; ie:
 //   - offset bits are 0
 //   - bank bits are 0
-//   - bits unused by any actual slave are 0
+//   - bits unused by any actual manager are 0
 case class ProbeFilterParams(mshrs: Int, caches: Int, maxAddress: BigInt, addressMask: BigInt)
 {
   require (mshrs >= 0)

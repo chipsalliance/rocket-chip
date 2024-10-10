@@ -13,10 +13,10 @@ import freechips.rocketchip.util.{AsyncQueueParams,RationalDirection}
 
 case object TLMonitorBuilder extends Field[TLMonitorArgs => TLMonitorBase](args => new TLMonitor(args))
 
-object TLImp extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
+object TLImp extends NodeImp[TLClientPortParameters, TLManagerPortParameters, TLEdgeOut, TLEdgeIn, TLBundle]
 {
-  def edgeO(pd: TLMasterPortParameters, pu: TLSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = new TLEdgeOut(pd, pu, p, sourceInfo)
-  def edgeI(pd: TLMasterPortParameters, pu: TLSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = new TLEdgeIn (pd, pu, p, sourceInfo)
+  def edgeO(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = new TLEdgeOut(pd, pu, p, sourceInfo)
+  def edgeI(pd: TLClientPortParameters, pu: TLManagerPortParameters, p: Parameters, sourceInfo: SourceInfo) = new TLEdgeIn (pd, pu, p, sourceInfo)
 
   def bundleO(eo: TLEdgeOut) = TLBundle(eo.bundle)
   def bundleI(ei: TLEdgeIn)  = TLBundle(ei.bundle)
@@ -28,27 +28,27 @@ object TLImp extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEd
     monitor.io.in := bundle
   }
 
-  override def mixO(pd: TLMasterPortParameters, node: OutwardNode[TLMasterPortParameters, TLSlavePortParameters, TLBundle]): TLMasterPortParameters  =
+  override def mixO(pd: TLClientPortParameters, node: OutwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLClientPortParameters  =
     pd.v1copy(clients  = pd.clients.map  { c => c.v1copy (nodePath = node +: c.nodePath) })
-  override def mixI(pu: TLSlavePortParameters, node: InwardNode[TLMasterPortParameters, TLSlavePortParameters, TLBundle]): TLSlavePortParameters =
+  override def mixI(pu: TLManagerPortParameters, node: InwardNode[TLClientPortParameters, TLManagerPortParameters, TLBundle]): TLManagerPortParameters =
     pu.v1copy(managers = pu.managers.map { m => m.v1copy (nodePath = node +: m.nodePath) })
 }
 
 
 trait TLFormatNode extends FormatNode[TLEdgeIn, TLEdgeOut]
 
-case class TLClientNode(portParams: Seq[TLMasterPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
-case class TLManagerNode(portParams: Seq[TLSlavePortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with TLFormatNode
+case class TLClientNode(portParams: Seq[TLClientPortParameters])(implicit valName: ValName) extends SourceNode(TLImp)(portParams) with TLFormatNode
+case class TLManagerNode(portParams: Seq[TLManagerPortParameters])(implicit valName: ValName) extends SinkNode(TLImp)(portParams) with TLFormatNode
 
 case class TLAdapterNode(
-  clientFn:  TLMasterPortParameters => TLMasterPortParameters = { s => s },
-  managerFn: TLSlavePortParameters  => TLSlavePortParameters  = { s => s })(
+  clientFn:  TLClientPortParameters => TLClientPortParameters = { s => s },
+  managerFn: TLManagerPortParameters  => TLManagerPortParameters  = { s => s })(
   implicit valName: ValName)
   extends AdapterNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
 case class TLJunctionNode(
-  clientFn:     Seq[TLMasterPortParameters] => Seq[TLMasterPortParameters],
-  managerFn:    Seq[TLSlavePortParameters]  => Seq[TLSlavePortParameters])(
+  clientFn:     Seq[TLClientPortParameters] => Seq[TLClientPortParameters],
+  managerFn:    Seq[TLManagerPortParameters]  => Seq[TLManagerPortParameters])(
   implicit valName: ValName)
   extends JunctionNode(TLImp)(clientFn, managerFn) with TLFormatNode
 
@@ -67,8 +67,8 @@ object TLTempNode {
 }
 
 case class TLNexusNode(
-  clientFn:        Seq[TLMasterPortParameters] => TLMasterPortParameters,
-  managerFn:       Seq[TLSlavePortParameters]  => TLSlavePortParameters)(
+  clientFn:        Seq[TLClientPortParameters] => TLClientPortParameters,
+  managerFn:       Seq[TLManagerPortParameters]  => TLManagerPortParameters)(
   implicit valName: ValName)
   extends NexusNode(TLImp)(clientFn, managerFn) with TLFormatNode
 

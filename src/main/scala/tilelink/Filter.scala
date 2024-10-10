@@ -76,8 +76,8 @@ class TLFilter(
 
 object TLFilter
 {
-  type ManagerFilter = TLSlaveParameters => Option[TLSlaveParameters]
-  type ClientFilter = TLMasterParameters => Option[TLMasterParameters]
+  type ManagerFilter = TLManagerParameters => Option[TLManagerParameters]
+  type ClientFilter = TLClientParameters => Option[TLClientParameters]
 
   // preserve manager visibility
   def mIdentity: ManagerFilter = { m => Some(m) }
@@ -103,7 +103,7 @@ object TLFilter
   }
 
   // adjust supported transfer sizes based on filtered intersection
-  private def transferSizeHelper(m: TLSlaveParameters, filtered: Seq[AddressSet], alignment: BigInt): Option[TLSlaveParameters] = {
+  private def transferSizeHelper(m: TLManagerParameters, filtered: Seq[AddressSet], alignment: BigInt): Option[TLManagerParameters] = {
     val maxTransfer = 1 << 30
     val capTransfer = if (alignment == 0 || alignment > maxTransfer) maxTransfer else alignment.toInt
     val cap = TransferSizes(1, capTransfer)

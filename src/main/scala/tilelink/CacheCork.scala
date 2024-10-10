@@ -68,7 +68,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
         // The CacheCork can potentially send the same source twice if a client sends
         // simultaneous Release and AMO/Get with the same source. It will still correctly
         // decode the messages based on the D.opcode, but the double use violates the spec.
-        // Fortunately, no masters we know of behave this way!
+        // Fortunately, no clients we know of behave this way!
 
         // Take requests from A to A or D (if BtoT Acquire)
         val a_a = Wire(chiselTypeOf(out.a))

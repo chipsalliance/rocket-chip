@@ -22,10 +22,10 @@ import freechips.rocketchip.util.TraceCoreInterface
 
 import scala.collection.immutable.SortedMap
 
-/** A default implementation of parameterizing the connectivity of the port where the tile is the master.
+/** A default implementation of parameterizing the connectivity of the port where the tile is the client.
   *   Optional timing buffers and/or an optional CacheCork can be inserted in the interconnect's clock domain.
   */
-case class HierarchicalElementMasterPortParams(
+case class HierarchicalElementClientPortParams(
   buffers: Int = 0,
   cork: Option[Boolean] = None,
   where: TLBusWrapperLocation = SBUS
@@ -35,17 +35,17 @@ case class HierarchicalElementMasterPortParams(
   }
 }
 
-object HierarchicalElementMasterPortParams {
+object HierarchicalElementClientPortParams {
   def locationDefault(loc: HierarchicalLocation) = loc match {
-    case InSubsystem => HierarchicalElementMasterPortParams()
-    case InCluster(clusterId) => HierarchicalElementMasterPortParams(where=CSBUS(clusterId))
+    case InSubsystem => HierarchicalElementClientPortParams()
+    case InCluster(clusterId) => HierarchicalElementClientPortParams(where=CSBUS(clusterId))
   }
 }
 
-/** A default implementation of parameterizing the connectivity of the port giving access to slaves inside the tile.
+/** A default implementation of parameterizing the connectivity of the port giving access to managers inside the tile.
   *   Optional timing buffers and/or an optional BusBlocker adapter can be inserted in the interconnect's clock domain.
   */
-case class HierarchicalElementSlavePortParams(
+case class HierarchicalElementManagerPortParams(
   buffers: Int = 0,
   blockerCtrlAddr: Option[BigInt] = None,
   blockerCtrlWhere: TLBusWrapperLocation = CBUS,
@@ -58,16 +58,16 @@ case class HierarchicalElementSlavePortParams(
       .map { BasicBusBlockerParams(_, blockerBus.beatBytes, controlBus.beatBytes) }
       .map { bbbp =>
         val blocker = LazyModule(new BasicBusBlocker(bbbp))
-        blockerBus.coupleTo("tile_slave_port_bus_blocker") { blocker.controlNode := TLFragmenter(blockerBus) := _ }
+        blockerBus.coupleTo("tile_manager_port_bus_blocker") { blocker.controlNode := TLFragmenter(blockerBus) := _ }
         blocker.node :*= TLBuffer.chainNode(buffers)
       } .getOrElse { TLBuffer.chainNode(buffers) }
   }
 }
 
-object HierarchicalElementSlavePortParams {
+object HierarchicalElementManagerPortParams {
   def locationDefault(loc: HierarchicalLocation) = loc match {
-    case InSubsystem => HierarchicalElementSlavePortParams()
-    case InCluster(clusterId) => HierarchicalElementSlavePortParams(where=CCBUS(clusterId), blockerCtrlWhere=CCBUS(clusterId))
+    case InSubsystem => HierarchicalElementManagerPortParams()
+    case InCluster(clusterId) => HierarchicalElementManagerPortParams(where=CCBUS(clusterId), blockerCtrlWhere=CCBUS(clusterId))
   }
 }
 

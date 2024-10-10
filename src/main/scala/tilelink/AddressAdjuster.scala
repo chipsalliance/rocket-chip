@@ -39,7 +39,7 @@ class AddressAdjuster(
   // Address Adjustment requires many things about the downstream devices, captured here as helper functions:
 
   // Report whether a region of addresses fully contains a particular manager
-  def isDeviceContainedBy(region: Seq[AddressSet], m: TLSlaveParameters): Boolean = {
+  def isDeviceContainedBy(region: Seq[AddressSet], m: TLManagerParameters): Boolean = {
     val addr = prefix0(m.address)
     val any_in  = region.exists { f => addr.exists { a => f.overlaps(a) } }
     val any_out = region.exists { f => addr.exists { a => !f.contains(a) } }
@@ -50,7 +50,7 @@ class AddressAdjuster(
   }
 
   // Confirm that bits of an address are repeated according to the mask
-  def requireMaskRepetition(managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
+  def requireMaskRepetition(managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
     val sorted = m.address.sorted
     bits.foreach { b =>
       val flipped = m.address.map(a => AddressSet((a.base ^ b) & ~a.mask, a.mask)).sorted
@@ -59,7 +59,7 @@ class AddressAdjuster(
   }
 
   // Confirm that everything supported by the remote PMA (which will be the final PMA) can be taken to the error device
-  def requireErrorSupport(errorDev: TLSlaveParameters, managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
+  def requireErrorSupport(errorDev: TLManagerParameters, managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
     require (errorDev.supportsAcquireT  .contains(m.supportsAcquireT  ), s"Error device cannot cover ${m.name}'s AcquireT")
     require (errorDev.supportsAcquireB  .contains(m.supportsAcquireB  ), s"Error device cannot cover ${m.name}'s AcquireB")
     require (errorDev.supportsArithmetic.contains(m.supportsArithmetic), s"Error device cannot cover ${m.name}'s Arithmetic")
@@ -70,7 +70,7 @@ class AddressAdjuster(
     require (errorDev.supportsHint      .contains(m.supportsHint      ), s"Error device cannot cover ${m.name}'s Hint")
   }
 
-  def sameSupport(local: Seq[TLSlaveParameters], remote: Seq[TLSlaveParameters]): (Boolean, Seq[AddressSet]) = {
+  def sameSupport(local: Seq[TLManagerParameters], remote: Seq[TLManagerParameters]): (Boolean, Seq[AddressSet]) = {
     val ra = prefix0(remote.flatMap(_.address))
     val la = prefix0(local .flatMap(_.address))
     val holes = la.foldLeft(ra) { case (holes, la) => holes.flatMap(_.subtract(la)) }
@@ -93,14 +93,14 @@ class AddressAdjuster(
   }
 
   /** Confirm that a subset of managers have homogeneous FIFO ids */
-  def requireFifoHomogeneity(managers: Seq[TLSlaveParameters]): Unit = managers.map { m =>
+  def requireFifoHomogeneity(managers: Seq[TLManagerParameters]): Unit = managers.map { m =>
     require(m.fifoId.isDefined && m.fifoId == managers.head.fifoId,
       s"${m.name} had fifoId ${m.fifoId}, " +
       s"which was not homogeneous (${managers.map(s => (s.name, s.fifoId))}) ")
   }
 
   /** Confirm that a particular manager r can successfully handle all operations targeting another manager l */
-  def requireContainerSupport(l: TLSlaveParameters, r: TLSlaveParameters): Unit = {
+  def requireContainerSupport(l: TLManagerParameters, r: TLManagerParameters): Unit = {
     require (l.regionType >= r.regionType,  s"Device ${l.name} cannot be ${l.regionType} when ${r.name} is ${r.regionType}")
     require (!l.executable || r.executable, s"Device ${l.name} cannot be executable if ${r.name} is not")
     require (!l.mayDenyPut || r.mayDenyPut, s"Device ${l.name} cannot deny Put if ${r.name} does not")
@@ -118,7 +118,7 @@ class AddressAdjuster(
   }
 
   // Utility debug printer
-  def printManagers(kind: String, managers: Seq[TLSlaveParameters]): Unit = {
+  def printManagers(kind: String, managers: Seq[TLManagerParameters]): Unit = {
     println(s"$kind:")
     println(managers.map(m => s"\t${m.name} ${m.address.head} ${m.fifoId}").mkString("\n"))
   }
@@ -215,7 +215,7 @@ class AddressAdjuster(
 
       // Relable the FIFO domains for certain manager subsets
       val fifoIdFactory = TLXbar.relabeler()
-      def relabelFifo(managers: Seq[TLSlaveParameters]): Seq[TLSlaveParameters] = {
+      def relabelFifo(managers: Seq[TLManagerParameters]): Seq[TLManagerParameters] = {
         val fifoIdMapper = fifoIdFactory()
         managers.map(m => m.v1copy(fifoId = m.fifoId.map(fifoIdMapper(_))))
       }
@@ -259,7 +259,7 @@ class AddressAdjuster(
       assert (params.isLegalPrefix(local_prefix))
 
       def containsAddress(region: Seq[AddressSet], addr: UInt): Bool = region.foldLeft(false.B)(_ || _.contains(addr))
-      val totalContainment = parentEdge.slave.slaves.forall(_.address.forall(params.region contains _))
+      val totalContainment = parentEdge.manager.managers.forall(_.address.forall(params.region contains _))
       def isAdjustable(addr: UInt) = params.region.contains(addr) || totalContainment.B
       def isDynamicallyLocal(addr: UInt) = (local_prefix & mask.U) === (addr & mask.U) || containsAddress(forceLocal, addr)
       val staticLocal = AddressSet.unify(fixedLocalManagers.flatMap(_.address))

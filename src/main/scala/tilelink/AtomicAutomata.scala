@@ -66,7 +66,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
       // Don't overprovision the CAM
       val camSize = min(domainsNeedingHelp.size, concurrency)
       // Compact the fifoIds to only those we care about
-      def camFifoId(m: TLSlaveParameters) = m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)
+      def camFifoId(m: TLManagerParameters) = m.fifoId.map(id => max(0, domainsNeedingHelp.indexOf(id))).getOrElse(0)
 
       // CAM entry state machine
       val FREE = 0.U // unused                   waiting on Atomic from A

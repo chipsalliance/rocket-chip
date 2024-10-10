@@ -40,7 +40,7 @@ abstract class GroundTestTile(
 {
   val cpuDevice: SimpleDevice = new SimpleDevice("groundtest", Nil)
   val intOutwardNode = None
-  val slaveNode: TLInwardNode = TLIdentityNode()
+  val managerNode: TLInwardNode = TLIdentityNode()
   val statusNode = BundleBridgeSource(() => new GroundTestStatus)
 
   val dcacheOpt = params.dcache.map { dc => LazyModule(p(BuildHellaCache)(this)(p)) }

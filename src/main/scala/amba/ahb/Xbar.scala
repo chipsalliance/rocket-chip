@@ -14,10 +14,10 @@ import freechips.rocketchip.util.BundleField
 
 class AHBFanout()(implicit p: Parameters) extends LazyModule {
   val node = new AHBFanoutNode(
-    masterFn = { case Seq(m) => m },
-    slaveFn  = { seq =>
+    managerFn = { case Seq(m) => m },
+    subordinateFn  = { seq =>
       seq(0).copy(
-        slaves = seq.flatMap(_.slaves),
+        subordinates = seq.flatMap(_.subordinates),
         requestKeys    = seq.flatMap(_.requestKeys).distinct,
         responseFields = BundleField.union(seq.flatMap(_.responseFields))) }
   ){
@@ -27,20 +27,20 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
-      require (node.edges.in.size == 1, "AHBFanout does not support multiple masters")
-      require (node.edges.out.size > 0, "AHBFanout requires at least one slave")
-      node.edges.out.foreach { eo => require (eo.slave.lite, s"AHBFanout only supports AHB-Lite slaves (${eo.slave.slaves.map(_.name)})") }
+      require (node.edges.in.size == 1, "AHBFanout does not support multiple managers")
+      require (node.edges.out.size > 0, "AHBFanout requires at least one subordinate")
+      node.edges.out.foreach { eo => require (eo.subordinate.lite, s"AHBFanout only supports AHB-Lite subordinates (${eo.subordinate.subordinates.map(_.name)})") }
 
       // Require consistent bus widths
       val (io_out, edgesOut) = node.out.unzip
-      val port0 = edgesOut(0).slave
+      val port0 = edgesOut(0).subordinate
       edgesOut.foreach { edge =>
-        val port = edge.slave
+        val port = edge.subordinate
         require (port.beatBytes == port0.beatBytes,
-          s"${port.slaves.map(_.name)} ${port.beatBytes} vs ${port0.slaves.map(_.name)} ${port0.beatBytes}")
+          s"${port.subordinates.map(_.name)} ${port.beatBytes} vs ${port0.subordinates.map(_.name)} ${port0.beatBytes}")
       }
 
-      val port_addrs = edgesOut.map(_.slave.slaves.map(_.address).flatten)
+      val port_addrs = edgesOut.map(_.subordinate.subordinates.map(_.address).flatten)
       val routingMask = AddressDecoder(port_addrs)
       val route_addrs = port_addrs.map(_.map(_.widen(~routingMask)).distinct)
 
@@ -52,7 +52,7 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
       (a_sel zip io_out) foreach { case (sel, out) =>
         out.squeezeAll :<>= in.squeezeAll
         out.hsel := in.hsel && sel
-        out.hmaster.map { _ := 0.U }
+        out.hmanager.map { _ := 0.U }
       }
 
       in.hreadyout := !Mux1H(d_sel, io_out.map(!_.hreadyout))
@@ -64,14 +64,14 @@ class AHBFanout()(implicit p: Parameters) extends LazyModule {
 
 class AHBArbiter()(implicit p: Parameters) extends LazyModule {
   val node = AHBArbiterNode(
-    masterFn = { case seq => seq(0).copy(masters = seq.flatMap(_.masters)) },
-    slaveFn  = { case Seq(s) => s })
+    managerFn = { case seq => seq(0).copy(managers = seq.flatMap(_.managers)) },
+    subordinateFn  = { case Seq(s) => s })
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     if (node.edges.in.size >= 1) {
-      require (node.edges.out.size == 1, "AHBArbiter requires exactly one slave")
-      require (node.edges.in.size == 1, "TODO: support more than one master")
+      require (node.edges.out.size == 1, "AHBArbiter requires exactly one subordinate")
+      require (node.edges.in.size == 1, "TODO: support more than one manager")
 
       val (in,  _) = node.in(0)
       val (out, _) = node.out(0)
@@ -90,7 +90,7 @@ class AHBArbiter()(implicit p: Parameters) extends LazyModule {
       in.hrdata     := out.hrdata
       in.hresp      := out.hresp // zero-extended
       in.hgrant.foreach { _ := true.B }
-      out.hmaster.foreach { _ := 0.U }
+      out.hmanager.foreach { _ := 0.U }
       out.hauser :<= in.hauser
       in.hduser :<= out.hduser
     }

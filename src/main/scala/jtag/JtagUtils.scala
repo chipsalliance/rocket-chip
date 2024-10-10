@@ -21,7 +21,7 @@ object JtagIdcode {
     BigInt(version) << 28 | BigInt(partNumber) << 12 | BigInt(mfrId) << 1 | 1
   }
 
-  /** A dummy manufacturer ID, not to be used per 12.2.1b since bus masters may shift this out to
+  /** A dummy manufacturer ID, not to be used per 12.2.1b since bus drivers may shift this out to
     * determine the end of a bus.
     */
   def dummyMfrId: Int = 0x7f

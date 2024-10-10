@@ -13,20 +13,20 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
 import freechips.rocketchip.diplomacy.TransferSizes
-import freechips.rocketchip.tilelink.{TLImp, TLMessages, TLMasterPortParameters, TLMasterParameters}
+import freechips.rocketchip.tilelink.{TLImp, TLMessages, TLClientPortParameters, TLClientParameters}
 
 case class APBToTLNode()(implicit valName: ValName) extends MixedAdapterNode(APBImp, TLImp)(
   dFn = { mp =>
-    TLMasterPortParameters.v1(
-      clients = mp.masters.map { m =>
-        TLMasterParameters.v1(name = m.name, nodePath = m.nodePath)
+    TLClientPortParameters.v1(
+      clients = mp.managers.map { m =>
+        TLClientParameters.v1(name = m.name, nodePath = m.nodePath)
       },
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)
   },
-  uFn = { mp => APBSlavePortParameters(
-    slaves = mp.managers.map { m =>
-      APBSlaveParameters(
+  uFn = { mp => APBSubordinatePortParameters(
+    subordinates = mp.managers.map { m =>
+      APBSubordinateParameters(
         address       = m.address,
         resources     = m.resources,
         regionType    = m.regionType,

@@ -12,7 +12,7 @@ import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
 import freechips.rocketchip.devices.debug.{DebugModuleKey, RWNotify, SBCSFields, WNotifyVal}
 import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup, RegFieldWrType}
-import freechips.rocketchip.tilelink.{TLClientNode, TLMasterParameters, TLMasterPortParameters}
+import freechips.rocketchip.tilelink.{TLClientNode, TLClientParameters, TLClientPortParameters}
 import freechips.rocketchip.util.property
 
 object SystemBusAccessState extends scala.Enumeration {
@@ -265,8 +265,8 @@ class SBToTL(implicit p: Parameters) extends LazyModule {
 
   val cfg = p(DebugModuleKey).get
 
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(
-    clients = Seq(TLMasterParameters.v1("debug")),
+  val node = TLClientNode(Seq(TLClientPortParameters.v1(
+    clients = Seq(TLClientParameters.v1("debug")),
     requestFields = Seq(AMBAProtField()))))
 
   lazy val module = new Impl

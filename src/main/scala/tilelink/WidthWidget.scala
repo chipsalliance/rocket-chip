@@ -172,12 +172,12 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
 
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
 
-      // If the master is narrower than the slave, the D channel must be narrowed.
+      // If the client is narrower than the manager, the D channel must be narrowed.
       // This is tricky, because the D channel has no address data.
       // Thus, you don't know which part of a sub-beat transfer to extract.
       // To fix this, we record the relevant address bits for all sources.
       // The assumption is that this sort of situation happens only where
-      // you connect a narrow master to the system bus, so there are few sources.
+      // you connect a narrow client to the system bus, so there are few sources.
 
       def sourceMap(source_bits: UInt) = {
         val source = if (edgeIn.client.endSourceId == 1) 0.U(0.W) else source_bits

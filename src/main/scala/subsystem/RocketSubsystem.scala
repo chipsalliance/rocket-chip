@@ -12,8 +12,8 @@ import freechips.rocketchip.util.HasCoreMonitorBundles
 
 case class RocketCrossingParams(
   crossingType: ClockCrossingType = SynchronousCrossing(),
-  master: HierarchicalElementPortParamsLike = HierarchicalElementMasterPortParams(),
-  slave: HierarchicalElementSlavePortParams = HierarchicalElementSlavePortParams(),
+  client: HierarchicalElementPortParamsLike = HierarchicalElementClientPortParams(),
+  manager: HierarchicalElementManagerPortParams = HierarchicalElementManagerPortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
   resetCrossingType: ResetCrossingType = NoResetCrossing(),
   forceSeparateClockReset: Boolean = false

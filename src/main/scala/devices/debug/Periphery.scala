@@ -9,7 +9,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.amba.apb.{APBBundle, APBBundleParameters, APBMasterNode, APBMasterParameters, APBMasterPortParameters}
+import freechips.rocketchip.amba.apb.{APBBundle, APBBundleParameters, APBManagerNode, APBManagerParameters, APBManagerPortParameters}
 import freechips.rocketchip.interrupts.{IntSyncXbar, NullIntSyncSource}
 import freechips.rocketchip.jtag.JTAGIO
 import freechips.rocketchip.prci.{ClockSinkNode, ClockSinkParameters}
@@ -30,8 +30,8 @@ case object APB extends DebugExportProtocol
 case class DebugAttachParams(
   protocols: Set[DebugExportProtocol] = Set(DMI),
   externalDisable: Boolean = false,
-  masterWhere: TLBusWrapperLocation = FBUS,
-  slaveWhere: TLBusWrapperLocation = CBUS
+  clientWhere: TLBusWrapperLocation = FBUS,
+  managerWhere: TLBusWrapperLocation = CBUS
 ) {
   def dmi   = protocols.contains(DMI)
   def jtag  = protocols.contains(JTAG)
@@ -75,10 +75,10 @@ class ResetCtrlIO(val nComponents: Int)(implicit val p: Parameters) extends Bund
   */
 
 trait HasPeripheryDebug { this: BaseSubsystem =>
-  private lazy val tlbus = locateTLBusWrapper(p(ExportDebug).slaveWhere)
+  private lazy val tlbus = locateTLBusWrapper(p(ExportDebug).managerWhere)
 
   lazy val debugCustomXbarOpt = p(DebugModuleKey).map(params => LazyModule( new DebugCustomXbar(outputRequiresInput = false)))
-  lazy val apbDebugNodeOpt = p(ExportDebug).apb.option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
+  lazy val apbDebugNodeOpt = p(ExportDebug).apb.option(APBManagerNode(Seq(APBManagerPortParameters(Seq(APBManagerParameters("debugAPB"))))))
   val debugTLDomainOpt = p(DebugModuleKey).map { _ =>
     val domain = ClockSinkNode(Seq(ClockSinkParameters()))
     domain := tlbus.fixedClockNode
@@ -90,12 +90,14 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     tlDM.node := tlbus.coupleTo("debug"){ TLFragmenter(tlbus.beatBytes, tlbus.blockBytes, nameSuffix = Some("Debug")) := _ }
     tlDM.dmInner.dmInner.customNode := debugCustomXbarOpt.get.node
 
-    (apbDebugNodeOpt zip tlDM.apbNodeOpt) foreach { case (master, slave) =>
-      slave := master
+    // amba interfaces use Mananger -> Subordinate and tilelink uses Client -> Manager to indicate Initator -> Responder flow
+    // in this case apbmanager is the Initiator and tlmanager the Responder.
+    (apbDebugNodeOpt zip tlDM.apbNodeOpt) foreach { case (apbmanager, tlmanager) =>
+      tlmanager := apbmanager
     }
 
     tlDM.dmInner.dmInner.sb2tlOpt.foreach { sb2tl  =>
-      locateTLBusWrapper(p(ExportDebug).masterWhere).coupleFrom("debug_sb") {
+      locateTLBusWrapper(p(ExportDebug).clientWhere).coupleFrom("debug_sb") {
         _ := TLWidthWidget(1) := sb2tl.node
       }
     }

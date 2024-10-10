@@ -101,18 +101,18 @@ class TLFuzzer(
     require(n > 0, s"nOrdered must be > 0, not $n")
     require((inFlight % n) == 0, s"inFlight (${inFlight}) must be evenly divisible by nOrdered (${nOrdered}).")
     Seq.tabulate(n) {i =>
-      TLMasterParameters.v1(name =s"OrderedFuzzer$i",
+      TLClientParameters.v1(name =s"OrderedFuzzer$i",
         sourceId = IdRange(i * (inFlight/n),  (i + 1)*(inFlight/n)),
         requestFifo = true)
     }
   } else {
-    Seq(TLMasterParameters.v1(
+    Seq(TLClientParameters.v1(
       name = "Fuzzer",
       sourceId = IdRange(0,inFlight)
     ))
   }
 
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(clientParams)))
+  val node = TLClientNode(Seq(TLClientPortParameters.v1(clientParams)))
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {

@@ -11,21 +11,21 @@ import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
 import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
-import freechips.rocketchip.amba.ahb.{AHBImpMaster, AHBParameters, AHBMasterParameters, AHBMasterPortParameters}
+import freechips.rocketchip.amba.ahb.{AHBImpManager, AHBParameters, AHBManagerParameters, AHBManagerPortParameters}
 import freechips.rocketchip.amba.ahb.AHBParameters.{BURST_INCR, BURST_SINGLE, TRANS_NONSEQ, TRANS_SEQ, TRANS_IDLE, TRANS_BUSY, PROT_DEFAULT}
 import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.util.{BundleMap, UIntToOH1}
 
-case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
+case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpManager)(
   dFn = { cp =>
-    AHBMasterPortParameters(
-      masters = cp.clients.map { case c => AHBMasterParameters(name = c.name, nodePath = c.nodePath) },
+    AHBManagerPortParameters(
+      managers = cp.clients.map { case c => AHBManagerParameters(name = c.name, nodePath = c.nodePath) },
       requestFields = cp.requestFields.filter(!_.isInstanceOf[AMBAProtField]),
       responseKeys  = cp.responseKeys)
   },
   uFn = { case sp =>
-    val managers = sp.slaves.map { case s =>
-      TLSlaveParameters.v1(
+    val managers = sp.subordinates.map { case s =>
+      TLManagerParameters.v1(
         address            = s.address,
         resources          = s.resources,
         regionType         = s.regionType,
@@ -40,7 +40,7 @@ case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends
         fifoId             = Some(0),
         mayDenyPut         = true)
     }
-    TLSlavePortParameters.v1(
+    TLManagerPortParameters.v1(
       managers   = managers,
       beatBytes  = sp.beatBytes,
       endSinkId  = 0,
@@ -76,8 +76,8 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val beatBytes = edgeOut.slave.beatBytes
-      val maxTransfer = edgeOut.slave.maxTransfer
+      val beatBytes = edgeOut.subordinate.beatBytes
+      val maxTransfer = edgeOut.subordinate.maxTransfer
       val lgMax = log2Ceil(maxTransfer)
       val lgBytes = log2Ceil(beatBytes)
 
@@ -248,7 +248,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
       assert (!d_valid || d_flow || !a_flow); // (d_valid && !d_flow) => !a_flow
 
       // On RETRY, we stall the pipeline and bypass the D-phase state back to A-phase
-      if (edgeOut.slave.lite) {
+      if (edgeOut.subordinate.lite) {
         retry := false.B
       } else if (!supportsRETRY) {
         assert (!d_flow || !out.hresp(1), "TLToAHB not configured with support for SPLIT/RETRY responses")

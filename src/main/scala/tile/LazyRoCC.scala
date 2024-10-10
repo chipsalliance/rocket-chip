@@ -15,7 +15,7 @@ import freechips.rocketchip.rocket.{
   SimpleHellaCacheIF, M_XRD, PTE, PRV, M_SZ
 }
 import freechips.rocketchip.tilelink.{
-  TLNode, TLIdentityNode, TLClientNode, TLMasterParameters, TLMasterPortParameters
+  TLNode, TLIdentityNode, TLClientNode, TLClientParameters, TLClientPortParameters
 }
 import freechips.rocketchip.util.InOrderArbiter
 
@@ -86,9 +86,9 @@ trait HasLazyRoCC extends CanHavePTW { this: BaseTile =>
   val roccCSRs = roccs.map(_.roccCSRs) // the set of custom CSRs requested by all roccs
   require(roccCSRs.flatten.map(_.id).toSet.size == roccCSRs.flatten.size,
     "LazyRoCC instantiations require overlapping CSRs")
-  roccs.map(_.atlNode).foreach { atl => tlMasterXbar.node :=* atl }
-  roccs.map(_.tlNode).foreach { tl => tlOtherMastersNode :=* tl }
-  roccs.map(_.stlNode).foreach { stl => stl :*= tlSlaveXbar.node }
+  roccs.map(_.atlNode).foreach { atl => tlClientXbar.node :=* atl }
+  roccs.map(_.tlNode).foreach { tl => tlOtherClientsNode :=* tl }
+  roccs.map(_.stlNode).foreach { stl => stl :*= tlManagerXbar.node }
 
   nPTWPorts += roccs.map(_.nPTWPorts).sum
   nDCachePorts += roccs.size
@@ -236,7 +236,7 @@ class TranslatorExampleModuleImp(outer: TranslatorExample)(implicit p: Parameter
 
 class  CharacterCountExample(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new CharacterCountExampleModuleImp(this)
-  override val atlNode = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("CharacterCountRoCC")))))
+  override val atlNode = TLClientNode(Seq(TLClientPortParameters.v1(Seq(TLClientParameters.v1("CharacterCountRoCC")))))
 }
 
 class CharacterCountExampleModuleImp(outer: CharacterCountExample)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)

@@ -13,7 +13,7 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.amba.{AMBACorrupt, AMBAProt, AMBAProtField}
 import freechips.rocketchip.diplomacy.{IdRange, IdMapEntry, TransferSizes}
-import freechips.rocketchip.tilelink.{TLImp, TLMasterParameters, TLMasterPortParameters, TLArbiter}
+import freechips.rocketchip.tilelink.{TLImp, TLClientParameters, TLClientPortParameters, TLArbiter}
 import freechips.rocketchip.util.{OH1ToUInt, UIntToOH1}
 
 case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
@@ -28,12 +28,12 @@ case class AXI4ToTLIdMapEntry(tlId: IdRange, axi4Id: IdRange, name: String)
 
 case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends MixedAdapterNode(AXI4Imp, TLImp)(
   dFn = { case mp =>
-    mp.masters.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
-    val maxFlight = mp.masters.map(_.maxFlight.get).max
-    TLMasterPortParameters.v1(
-      clients = mp.masters.filter(_.maxFlight != Some(0)).flatMap { m =>
+    mp.managers.foreach { m => require (m.maxFlight.isDefined, "AXI4 must include a transaction maximum per ID to convert to TL") }
+    val maxFlight = mp.managers.map(_.maxFlight.get).max
+    TLClientPortParameters.v1(
+      clients = mp.managers.filter(_.maxFlight != Some(0)).flatMap { m =>
         for (id <- m.id.start until m.id.end)
-          yield TLMasterParameters.v1(
+          yield TLClientParameters.v1(
             name        = s"${m.name} ID#${id}",
             sourceId    = IdRange(id * maxFlight*2, (id+1) * maxFlight*2), // R+W ids are distinct
             nodePath    = m.nodePath,
@@ -43,10 +43,10 @@ case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends Mi
       requestFields = AMBAProtField() +: mp.requestFields,
       responseKeys  = mp.responseKeys)
   },
-  uFn = { mp => AXI4SlavePortParameters(
-    slaves = mp.managers.map { m =>
+  uFn = { mp => AXI4SubordinatePortParameters(
+    subordinates = mp.managers.map { m =>
       val maxXfer = TransferSizes(1, mp.beatBytes * (1 << AXI4Parameters.lenBits))
-      AXI4SlaveParameters(
+      AXI4SubordinateParameters(
         address       = m.address,
         resources     = m.resources,
         regionType    = m.regionType,
@@ -62,12 +62,12 @@ case class AXI4ToTLNode(wcorrupt: Boolean)(implicit valName: ValName) extends Mi
   })
 
 /**
-  * Convert AXI4 master to TileLink.
+  * Convert AXI4 manager to TileLink.
   *
-  * You can use this adapter to connect external AXI4 masters to TileLink bus topology.
+  * You can use this adapter to connect external AXI4 managers to TileLink bus topology.
   *
   * Setting wcorrupt=true is insufficient to enable w.user.corrupt.
-  * One must additionally list it in the AXI4 master's requestFields.
+  * One must additionally list it in the AXI4 manager's requestFields.
   *
   * @param wcorrupt enable AMBACorrupt in w.user
   */
@@ -78,15 +78,15 @@ class AXI4ToTL(wcorrupt: Boolean)(implicit p: Parameters) extends LazyModule
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      val numIds = edgeIn.master.endId
+      val numIds = edgeIn.manager.endId
       val beatBytes = edgeOut.manager.beatBytes
       val beatCountBits = AXI4Parameters.lenBits + (1 << AXI4Parameters.sizeBits) - 1
-      val maxFlight = edgeIn.master.masters.map(_.maxFlight.get).max
+      val maxFlight = edgeIn.manager.managers.map(_.maxFlight.get).max
       val logFlight = log2Ceil(maxFlight)
       val txnCountBits = log2Ceil(maxFlight+1) // wrap-around must not block b_allow
       val addedBits = logFlight + 1 // +1 for read vs. write source ID
 
-      require (edgeIn.master.masters(0).aligned)
+      require (edgeIn.manager.managers(0).aligned)
       edgeOut.manager.requireFifo()
 
       // Look for an Error device to redirect bad requests
