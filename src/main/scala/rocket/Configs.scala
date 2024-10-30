@@ -8,6 +8,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.subsystem.{TilesLocated, NumTiles, HierarchicalLocation, RocketCrossingParams, SystemBusKey, CacheBlockBytes, RocketTileAttachParams, InSubsystem, InCluster, HierarchicalElementMasterPortParams, HierarchicalElementSlavePortParams, CBUS, CCBUS, ClustersLocated, TileAttachConfig, CloneTileAttachParams}
 import freechips.rocketchip.tile.{RocketTileParams, RocketTileBoundaryBufferParams, FPUParams}
+import freechips.rocketchip.util.{RationalDirection, Flexible}
 import scala.reflect.ClassTag
 
 // All the user-level bells and whistles
@@ -308,7 +309,7 @@ class WithCDC(crossingType: ClockCrossingType = SynchronousCrossing()) extends R
 class WithSeperateClockReset                                           extends RocketCrossingConfig(_.copy(forceSeparateClockReset = true))
 class WithSynchronousCDCs                                              extends WithCDC(SynchronousCrossing())
 class WithAsynchronousCDCs(depth: Int, sync: Int)                      extends WithCDC(AsynchronousCrossing(depth, sync))
-class WithRationalCDCs                                                 extends WithCDC(RationalCrossing())
+class WithRationalCDCs(direction: RationalDirection = Flexible)        extends WithCDC(RationalCrossing(direction))
 
 
 
