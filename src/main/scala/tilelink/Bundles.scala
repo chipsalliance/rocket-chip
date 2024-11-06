@@ -39,12 +39,19 @@ object TLMessages
   def ReleaseAck     = 6.U     //                    .
   def GrantAck       = 0.U     //                         .
 
+  // *Expand A channel to 4 bits*     A    B    C    D    E
+  def CBOClean       = 8.U     //     .                        => cbo.clean   (Custom since Kunminghu V2)
+  def CBOFlush       = 9.U     //     .                        => cbo.flush   (Custom since Kunminghu V2)
+  def CBOInval       = 10.U    //     .                        => cbo.inval   (Custom since Kunminghu V2)
+  // *Expand D channel to 4 bits*     A    B    C    D    E
+  def CBOAck         = 8.U     //                    .         => Ack of CBOs (Custom since Kunminghu V2)
+
   def isA(x: UInt) = x <= AcquirePerm
   def isB(x: UInt) = x <= Probe
   def isC(x: UInt) = x <= ReleaseData
   def isD(x: UInt) = x <= ReleaseAck
 
-  def adResponse = VecInit(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant)
+  def adResponse = VecInit(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, Grant, Grant, CBOAck, CBOAck, CBOAck)
   def bcResponse = VecInit(AccessAck, AccessAck, AccessAckData, AccessAckData, AccessAckData, HintAck, ProbeAck, ProbeAck)
 
   def a = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
@@ -54,7 +61,10 @@ object TLMessages
                ("Get",TLPermissions.PermMsgReserved),
                ("Hint",TLHints.HintsMsg),
                ("AcquireBlock",TLPermissions.PermMsgGrow),
-               ("AcquirePerm",TLPermissions.PermMsgGrow))
+               ("AcquirePerm",TLPermissions.PermMsgGrow),
+               ("CBOClean",TLPermissions.PermMsgReserved),
+               ("CBOFlush",TLPermissions.PermMsgReserved),
+               ("CBOInval",TLPermissions.PermMsgReserved))
 
   def b = Seq( ("PutFullData",TLPermissions.PermMsgReserved),
                ("PutPartialData",TLPermissions.PermMsgReserved),
@@ -79,7 +89,9 @@ object TLMessages
                ("Invalid Opcode",TLPermissions.PermMsgReserved),
                ("Grant",TLPermissions.PermMsgCap),
                ("GrantData",TLPermissions.PermMsgCap),
-               ("ReleaseAck",TLPermissions.PermMsgReserved))
+               ("ReleaseAck",TLPermissions.PermMsgReserved),
+               ("Invalid Opcode",TLPermissions.PermMsgReserved),
+               ("CBOAck",TLPermissions.PermMsgReserved))
 
 }
 
@@ -175,7 +187,7 @@ final class TLBundleA(params: TLBundleParameters)
 {
   val channelName = "'A' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(3.W)
+  val opcode  = UInt(4.W)
   val param   = UInt(List(TLAtomics.width, TLPermissions.aWidth, TLHints.width).max.W) // amo_opcode || grow perms || hint
   val size    = UInt(params.sizeBits.W)
   val source  = UInt(params.sourceBits.W) // from
@@ -225,7 +237,7 @@ final class TLBundleD(params: TLBundleParameters)
 {
   val channelName = "'D' channel"
   // fixed fields during multibeat:
-  val opcode  = UInt(3.W)
+  val opcode  = UInt(4.W)
   val param   = UInt(TLPermissions.bdWidth.W) // cap perms
   val size    = UInt(params.sizeBits.W)
   val source  = UInt(params.sourceBits.W) // to
