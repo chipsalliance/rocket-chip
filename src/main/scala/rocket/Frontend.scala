@@ -240,7 +240,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       val rvcBranch = bits === Instructions.C_BEQZ || bits === Instructions.C_BNEZ
       val rvcJAL = (xLen == 32).B && bits === Instructions32.C_JAL
       val rvcJump = bits === Instructions.C_J || rvcJAL
-      val rvcImm = Mux(bits(14), new RVCDecoder(bits, xLen, fLen).bImm.asSInt, new RVCDecoder(bits, xLen, fLen).jImm.asSInt)
+      val rvcImm = Mux(bits(14), new RVCDecoder(bits, false.B, xLen, fLen).bImm.asSInt, new RVCDecoder(bits, false.B, xLen, fLen).jImm.asSInt) // FIXME: fsIsOff is only used in XiangShan, not in rocket-chip
       val rvcJR = bits === Instructions.C_MV && bits(6,2) === 0.U
       val rvcReturn = rvcJR && BitPat("b00?01") === bits(11,7)
       val rvcJALR = bits === Instructions.C_ADD && bits(6,2) === 0.U
