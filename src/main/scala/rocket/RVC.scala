@@ -20,8 +20,10 @@ class ExpandedInstruction extends Bundle {
 /* RVCDecoder
   Intended for OpenXiangShan/XiangShan use only,
   assume M-ext, B-ext is implemented, also Zcb-ext as per RVA23
+
+  fsIsOff indicates whether f/d-extention is enabled by CSR, `mstatus.fs === 0.U` for example
 */
-class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
+class RVCDecoder(x: UInt, fsIsOff: Bool, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
   def inst(bits: UInt, rd: UInt = x(11,7), rs1: UInt = x(19,15), rs2: UInt = x(24,20), rs3: UInt = x(31,27)) = {
     val res = Wire(new ExpandedInstruction)
     res.bits := bits
@@ -204,12 +206,17 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
 
   def q0_ill = {
     def immz = !(x(12, 5).orR)
-    def fld = if (fLen >= 64) false.B else true.B
-    def flw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
+    /* lsq_flsd (lq_fld / sq_fsd) is:
+     * - for RV128, lq / sq, is always legal
+     * - for RV32/64, fld / fsd, need d-extension and !fsIsOff, otherwise illegal
+     * lsw is always legal
+     * lsd_flsw is similar to lsq_flsd, just int for RV64/128 and fp for RV32, fp need only f-extension
+     */
+    def lsq_flsd = if (xLen == 128) false.B else if (fLen >= 64) fsIsOff else true.B
+    def lsw = false.B
+    def lsd_flsw = if (xLen >= 64) false.B else if (fLen >= 32) fsIsOff else true.B
     def ldst_zcb = x(12) || (x(11) && x(10) && x(6))
-    def fsd = if (fLen >= 64) false.B else true.B
-    def fsw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
-    Seq(immz, fld, false.B, flw32, ldst_zcb, fsd, false.B, fsw32)
+    Seq(immz, lsq_flsd, lsw, lsd_flsw, ldst_zcb, lsq_flsd, lsw, lsd_flsw)
   }
 
   def q1_ill = {
@@ -221,13 +228,18 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
   }
 
   def q2_ill = {
-    def fldsp = if (fLen >= 64) false.B else true.B
     def rd0 = rd === 0.U
-    def flwsp = if (xLen == 64) rd0 else if (fLen >= 32) false.B else true.B
-    def jr_res = !(x(12 ,2).orR)
-    def fsdsp = if (fLen >= 64) false.B else true.B
-    def fswsp32 = if (xLen == 64) false.B else if (fLen >= 32) false.B else true.B
-    Seq(false.B, fldsp, rd0, flwsp, jr_res, fsdsp, false.B, fswsp32)
+    // similar to lsq_flsd / lsw / lsq_flsw in q0_ill. But rd === 0.U is reserved for lwsp / ldsp / lqsp
+    def lqsp_fldsp = if (xLen == 128) rd0 else if (fLen >= 64) fsIsOff else true.B
+    def lwsp = rd0
+    def ldsp_flwsp = if (xLen >= 64) rd0 else if (fLen >= 32) fsIsOff else true.B
+    // no reserved rd === 0.U for swsp / sdsp / sqsp
+    def sqsp_fsdsp = if (xLen == 128) false.B else if (fLen >= 64) fsIsOff else true.B
+    def swsp = false.B
+    def sdsp_fswsp = if (xLen >= 64) false.B else if (fLen >= 32) fsIsOff else true.B
+
+    def jr_res = !(x(12, 2).orR)
+    Seq(false.B, lqsp_fldsp, lwsp, ldsp_flwsp, jr_res, sqsp_fsdsp, swsp, sdsp_fswsp)
   }
   def q3_ill = Seq.fill(8)(false.B)
 
@@ -240,6 +252,7 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
 class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) extends Module with HasCoreParameters {
   val io = IO(new Bundle {
     val in = Input(UInt(32.W))
+    val fsIsOff = Input(Bool())
     val out = Output(new ExpandedInstruction)
     val rvc = Output(Bool())
     val ill = Output(Bool())
@@ -247,12 +260,12 @@ class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) ext
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= 3.U
-    val decoder = new RVCDecoder(io.in, p(XLen), fLen, useAddiForMv)
+    val decoder = new RVCDecoder(io.in, io.fsIsOff, p(XLen), fLen, useAddiForMv)
     io.out := decoder.decode
     io.ill := decoder.ill
   } else {
     io.rvc := false.B
-    io.out := new RVCDecoder(io.in, p(XLen), fLen, useAddiForMv).passthrough
+    io.out := new RVCDecoder(io.in, io.fsIsOff, p(XLen), fLen, useAddiForMv).passthrough
     io.ill := false.B // only used for RVC
   }
 }
