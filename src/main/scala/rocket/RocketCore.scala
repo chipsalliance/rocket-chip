@@ -1174,6 +1174,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       !div.io.req.ready || // mul/div in flight
       usingFPU.B && !io.fpu.fcsr_rdy || // long-latency FPU in flight
       io.dmem.replay_next || // long-latency load replaying
+      id_rocc_busy || // RoCC command in flight
       (!long_latency_stall && (ibuf.io.inst(0).valid || io.imem.resp.valid)) // instruction pending
 
     assert(!(ex_pc_valid || mem_pc_valid || wb_pc_valid) || clock_en)
