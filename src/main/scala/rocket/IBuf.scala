@@ -85,6 +85,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
   def expand(i: Int, j: UInt, curInst: UInt): Unit = if (i < retireWidth) {
     val exp = Module(new RVCExpander)
     exp.io.in := curInst
+    exp.io.fsIsOff := false.B // FIXME: used only in XiangShan, not in rocket-chip
     io.inst(i).bits.inst := exp.io.out
     io.inst(i).bits.raw := curInst
 
