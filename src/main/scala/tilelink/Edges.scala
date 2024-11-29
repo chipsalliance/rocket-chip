@@ -374,6 +374,26 @@ class TLEdgeOut(
     (legal, a)
   }
 
+  def CacheBlockOperation(fromSource: UInt, toAddress: UInt, lgSize: UInt, opcode: UInt) = {
+    val legal = manager.supportsAcquireBFast(toAddress, lgSize)
+    val a = Wire(new TLBundleA(bundle))
+    a.opcode  := MuxLookup(opcode, TLMessages.CBOClean)(Seq(
+      0.U -> TLMessages.CBOClean,
+      1.U -> TLMessages.CBOFlush,
+      2.U -> TLMessages.CBOInval
+    ))
+    a.param   := DontCare
+    a.size    := lgSize
+    a.source  := fromSource
+    a.address := toAddress
+    a.user    := DontCare
+    a.echo    := DontCare
+    a.mask    := DontCare
+    a.data    := DontCare
+    a.corrupt := false.B
+    (legal, a)
+  }
+
   def Release(fromSource: UInt, toAddress: UInt, lgSize: UInt, shrinkPermissions: UInt): (Bool, TLBundleC) = {
     require (manager.anySupportAcquireB, s"TileLink: No managers visible from this edge support Acquires, but one of these clients would try to request one: ${client.clients}")
     val legal = manager.supportsAcquireBFast(toAddress, lgSize)
