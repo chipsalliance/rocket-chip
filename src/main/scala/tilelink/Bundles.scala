@@ -40,9 +40,9 @@ object TLMessages
   def GrantAck       = 0.U     //                         .
 
   // *Expand A channel to 4 bits*     A    B    C    D    E
-  def CBOClean       = 8.U     //     .                        => cbo.clean   (Custom since Kunminghu V2)
-  def CBOFlush       = 9.U     //     .                        => cbo.flush   (Custom since Kunminghu V2)
-  def CBOInval       = 10.U    //     .                        => cbo.inval   (Custom since Kunminghu V2)
+  def CBOClean       = 12.U    //     .                        => cbo.clean   (Custom since Kunminghu V2)
+  def CBOFlush       = 13.U    //     .                        => cbo.flush   (Custom since Kunminghu V2)
+  def CBOInval       = 14.U    //     .                        => cbo.inval   (Custom since Kunminghu V2)
   // *Expand D channel to 4 bits*     A    B    C    D    E
   def CBOAck         = 8.U     //                    .         => Ack of CBOs (Custom since Kunminghu V2)
 
