@@ -131,6 +131,8 @@ class CoreInterrupts(val hasBeu: Boolean)(implicit p: Parameters) extends TileIn
 trait HasRocketCoreIO extends HasRocketCoreParameters {
   implicit val p: Parameters
   def nTotalRoCCCSRs: Int
+  def ingress_params = new TraceCoreParams(nGroups = 1, iretireWidth = coreParams.retireWidth, 
+                                            xlen = coreParams.xLen, iaddrWidth = coreParams.xLen) 
   val io = IO(new CoreBundle()(p) {
     val hartid = Input(UInt(hartIdLen.W))
     val reset_vector = Input(UInt(resetVectorLen.W))
@@ -146,6 +148,7 @@ trait HasRocketCoreIO extends HasRocketCoreParameters {
     val wfi = Output(Bool())
     val traceStall = Input(Bool())
     val vector = if (usingVector) Some(Flipped(new VectorCoreIO)) else None
+    val trace_core_ingress = Output(new TraceCoreInterface(ingress_params))
   })
 }
 
@@ -301,6 +304,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wb_reg_raw_inst = Reg(UInt())
   val wb_reg_wdata = Reg(Bits())
   val wb_reg_rs2 = Reg(Bits())
+  val wb_reg_br_taken = Reg(Bool())
   val take_pc_wb = Wire(Bool())
   val wb_reg_wphit           = Reg(Vec(nBreakpoints, Bool()))
 
@@ -721,6 +725,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_hfence_v := mem_ctrl.mem_cmd === M_HFENCEV
     wb_reg_hfence_g := mem_ctrl.mem_cmd === M_HFENCEG
     wb_reg_pc := mem_reg_pc
+    wb_reg_br_taken := mem_br_taken
     wb_reg_wphit := mem_reg_wphit | bpu.io.bpwatch.map { bpw => (bpw.rvalid(0) && mem_reg_load) || (bpw.wvalid(0) && mem_reg_store) }
     wb_reg_set_vconfig := mem_reg_set_vconfig
   }
@@ -822,6 +827,25 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
                  Mux(wb_ctrl.mul, mul.map(_.io.resp.bits.data).getOrElse(wb_reg_wdata),
                  wb_reg_wdata))))
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
+
+  val ingress_gen = Module(new TraceCoreIngressGen(ingress_params))
+  ingress_gen.io.in.valid := wb_valid || wb_xcpt
+  ingress_gen.io.in.taken := wb_reg_br_taken
+  ingress_gen.io.in.is_branch := wb_ctrl.branch
+  ingress_gen.io.in.is_jal := wb_ctrl.jal
+  ingress_gen.io.in.is_jalr := wb_ctrl.jalr
+  ingress_gen.io.in.insn := wb_reg_inst
+  ingress_gen.io.in.pc := wb_reg_pc
+  ingress_gen.io.in.is_compressed := !wb_reg_raw_inst(1, 0).andR // 2'b11 is uncompressed, everything else is compressed
+  ingress_gen.io.in.interrupt := csr.io.trace(0).interrupt && csr.io.trace(0).exception
+  ingress_gen.io.in.exception := !csr.io.trace(0).interrupt && csr.io.trace(0).exception
+  ingress_gen.io.in.trap_return := csr.io.trap_return
+
+  io.trace_core_ingress.group(0) <> ingress_gen.io.out
+  io.trace_core_ingress.priv := csr.io.trace(0).priv 
+  io.trace_core_ingress.tval := csr.io.tval
+  io.trace_core_ingress.cause := csr.io.cause
+  io.trace_core_ingress.time := csr.io.time
 
   // hook up control/status regfile
   csr.io.ungated_clock := clock
