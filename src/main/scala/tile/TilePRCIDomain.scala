@@ -9,7 +9,7 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.prci.ClockSinkParameters
 import freechips.rocketchip.rocket.TracedInstruction
 import freechips.rocketchip.subsystem.{HierarchicalElementCrossingParamsLike, HierarchicalElementPRCIDomain}
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 
 /** A wrapper containing all logic necessary to safely place a tile

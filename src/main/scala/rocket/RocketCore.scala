@@ -11,6 +11,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property
 import scala.collection.mutable.ArrayBuffer
+import freechips.rocketchip.trace._
 
 case class RocketCoreParams(
   xLen: Int = 64,
@@ -56,7 +57,8 @@ case class RocketCoreParams(
   debugROB: Option[DebugROBParams] = None, // if size < 1, SW ROB, else HW ROB
   haveCease: Boolean = true, // non-standard CEASE instruction
   haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
-  vector: Option[RocketCoreVectorParams] = None
+  vector: Option[RocketCoreVectorParams] = None,
+  enableTraceCoreIngress: Boolean = false
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -131,7 +133,7 @@ class CoreInterrupts(val hasBeu: Boolean)(implicit p: Parameters) extends TileIn
 trait HasRocketCoreIO extends HasRocketCoreParameters {
   implicit val p: Parameters
   def nTotalRoCCCSRs: Int
-  def ingress_params = new TraceCoreParams(nGroups = 1, iretireWidth = coreParams.retireWidth, 
+  def traceIngressParams = TraceCoreParams(nGroups = 1, iretireWidth = coreParams.retireWidth, 
                                             xlen = coreParams.xLen, iaddrWidth = coreParams.xLen) 
   val io = IO(new CoreBundle()(p) {
     val hartid = Input(UInt(hartIdLen.W))
@@ -148,7 +150,7 @@ trait HasRocketCoreIO extends HasRocketCoreParameters {
     val wfi = Output(Bool())
     val traceStall = Input(Bool())
     val vector = if (usingVector) Some(Flipped(new VectorCoreIO)) else None
-    val trace_core_ingress = Output(new TraceCoreInterface(ingress_params))
+    val trace_core_ingress = if (rocketParams.enableTraceCoreIngress) Some(Output(new TraceCoreInterface(traceIngressParams))) else None
   })
 }
 
@@ -828,24 +830,26 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
                  wb_reg_wdata))))
   when (rf_wen) { rf.write(rf_waddr, rf_wdata) }
 
-  val ingress_gen = Module(new TraceCoreIngressGen(ingress_params))
-  ingress_gen.io.in.valid := wb_valid || wb_xcpt
-  ingress_gen.io.in.taken := wb_reg_br_taken
-  ingress_gen.io.in.is_branch := wb_ctrl.branch
-  ingress_gen.io.in.is_jal := wb_ctrl.jal
-  ingress_gen.io.in.is_jalr := wb_ctrl.jalr
-  ingress_gen.io.in.insn := wb_reg_inst
-  ingress_gen.io.in.pc := wb_reg_pc
-  ingress_gen.io.in.is_compressed := !wb_reg_raw_inst(1, 0).andR // 2'b11 is uncompressed, everything else is compressed
-  ingress_gen.io.in.interrupt := csr.io.trace(0).interrupt && csr.io.trace(0).exception
-  ingress_gen.io.in.exception := !csr.io.trace(0).interrupt && csr.io.trace(0).exception
-  ingress_gen.io.in.trap_return := csr.io.trap_return
+  if (rocketParams.enableTraceCoreIngress) {
+    val trace_ingress = Module(new TraceCoreIngress(traceIngressParams))
+    trace_ingress.io.in.valid := wb_valid || wb_xcpt
+    trace_ingress.io.in.taken := wb_reg_br_taken
+    trace_ingress.io.in.is_branch := wb_ctrl.branch
+    trace_ingress.io.in.is_jal := wb_ctrl.jal
+    trace_ingress.io.in.is_jalr := wb_ctrl.jalr
+    trace_ingress.io.in.insn := wb_reg_inst
+    trace_ingress.io.in.pc := wb_reg_pc
+    trace_ingress.io.in.is_compressed := !wb_reg_raw_inst(1, 0).andR // 2'b11 is uncompressed, everything else is compressed
+    trace_ingress.io.in.interrupt := csr.io.trace(0).interrupt && csr.io.trace(0).exception
+    trace_ingress.io.in.exception := !csr.io.trace(0).interrupt && csr.io.trace(0).exception
+    trace_ingress.io.in.trap_return := csr.io.trap_return
 
-  io.trace_core_ingress.group(0) <> ingress_gen.io.out
-  io.trace_core_ingress.priv := csr.io.trace(0).priv 
-  io.trace_core_ingress.tval := csr.io.tval
-  io.trace_core_ingress.cause := csr.io.cause
-  io.trace_core_ingress.time := csr.io.time
+    io.trace_core_ingress.get.group(0) <> trace_ingress.io.out
+    io.trace_core_ingress.get.priv := csr.io.trace(0).priv 
+    io.trace_core_ingress.get.tval := csr.io.tval
+    io.trace_core_ingress.get.cause := csr.io.cause
+    io.trace_core_ingress.get.time := csr.io.time
+  }
 
   // hook up control/status regfile
   csr.io.ungated_clock := clock

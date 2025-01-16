@@ -13,7 +13,7 @@ import freechips.rocketchip.interrupts.{IntIdentityNode, IntSyncIdentityNode, Nu
 import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, ClockSinkParameters, ClockGroupIdentityNode, BundleBridgeBlockDuringReset}
 import freechips.rocketchip.tile.{RocketTile, NMI, TraceBundle}
 import freechips.rocketchip.tilelink.TLWidthWidget
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 import scala.collection.immutable.SortedMap
 

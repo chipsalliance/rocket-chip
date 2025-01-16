@@ -25,9 +25,8 @@ import freechips.rocketchip.rocket.{
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.util.{Annotated, InOrderArbiter}
-import freechips.rocketchip.util.{
-  Annotated, InOrderArbiter, TraceEncoder, 
-  TraceEncoderParams, TraceSinkPrint, TraceSinkDMA,
+import freechips.rocketchip.trace.{
+  TraceEncoder, TraceEncoderParams, TraceSinkPrint, TraceSinkDMA,
   TraceEncoderController, TraceSinkArbiter
 }
 import freechips.rocketchip.subsystem._
@@ -90,6 +89,11 @@ class RocketTile private(
     beu
   }
 
+  /**
+   * A Centralized Trace encoder controller,
+   * controlling enable/disable of trace encoder
+   * and selecting trace sink
+   */
   val trace_encoder_controller = rocketParams.ltrace.map { t =>
     val trace_encoder_controller = LazyModule(new TraceEncoderController(t.encoderBaseAddr, xBytes))
     connectTLSlave(trace_encoder_controller.node, xBytes)
@@ -180,7 +184,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   if (outer.rocketParams.ltrace.isDefined) {
     val trace_encoder = Module(new TraceEncoder(outer.rocketParams.ltrace.get))
 
-    core.io.trace_core_ingress <> trace_encoder.io.in
+    core.io.trace_core_ingress.get <> trace_encoder.io.in
     outer.trace_encoder_controller.foreach { lm =>
       trace_encoder.io.control <> lm.module.io.control
     }
@@ -189,10 +193,10 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     trace_sink_arbiter.io.target := trace_encoder.io.control.target
     trace_sink_arbiter.io.in <> trace_encoder.io.out 
     outer.trace_sink_print.foreach { lm =>
-      lm.module.io.in <> trace_sink_arbiter.io.out(0)
+      lm.module.io.trace_in <> trace_sink_arbiter.io.out(0)
     }
     outer.trace_sink_dma.foreach { lm =>
-      lm.module.io.in <> trace_sink_arbiter.io.out(1)
+      lm.module.io.trace_in <> trace_sink_arbiter.io.out(1)
     }
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || trace_encoder.io.stall
   } else {

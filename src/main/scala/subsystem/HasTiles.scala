@@ -15,7 +15,7 @@ import freechips.rocketchip.tile.{MaxHartIdBits, BaseTile, InstantiableTileParam
 import freechips.rocketchip.tilelink.TLWidthWidget
 import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing}
 import freechips.rocketchip.rocket.TracedInstruction
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 import scala.collection.immutable.SortedMap
 
@@ -175,6 +175,10 @@ trait CanAttachTile {
     connectOutputNotifications(domain, context)
     connectInputConstants(domain, context)
     connectTrace(domain, context)
+    /** This is different from connectTrace 
+     * connectTrace is for modules outside of the tile to get trace data
+     * connectTraceSinkDMA is for trace sink dma to ship trace data outside of the tile
+     */
     connectTraceSinkDMA(domain, context)
   }
 
