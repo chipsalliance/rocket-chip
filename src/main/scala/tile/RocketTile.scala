@@ -26,12 +26,12 @@ import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.util.{Annotated, InOrderArbiter}
 import freechips.rocketchip.trace.{
-  TraceEncoder, TraceEncoderParams, TraceSinkPrint, TraceSinkDMA,
-  TraceEncoderController, TraceSinkArbiter
-}
+  TraceEncoder, TraceEncoderParams, TraceSinkAlways, TraceSinkDMA,
+  TraceEncoderController, TraceSinkArbiter}
 import freechips.rocketchip.subsystem._
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.trace.CanHaveTraceSinkAlways
 
 case class RocketTileBoundaryBufferParams(force: Boolean = false)
 
@@ -100,15 +100,9 @@ class RocketTile private(
     trace_encoder_controller
   }
 
-  val trace_sink_print = rocketParams.ltrace.map { t =>
-    LazyModule(new TraceSinkPrint(rocketParams.uniqueName))
-  }
-
-  val trace_sink_dma = rocketParams.ltrace.map { t =>
-    val trace_sink_dma = LazyModule(new TraceSinkDMA(t.sinkDMABaseAddr, xBytes))
-    connectTLSlave(trace_sink_dma.regnode, xBytes)
-    traceSinkIdentityNode := trace_sink_dma.node
-    trace_sink_dma
+  val trace_sink_arbiter = rocketParams.ltrace.map { t =>
+    val trace_sink_arbiter = LazyModule(new TraceSinkArbiter(t.sinks, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
+    trace_sink_arbiter
   }
 
   val tile_master_blocker =
@@ -189,15 +183,11 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
       trace_encoder.io.control <> lm.module.io.control
     }
 
-    val trace_sink_arbiter = Module(new TraceSinkArbiter(2))
-    trace_sink_arbiter.io.target := trace_encoder.io.control.target
-    trace_sink_arbiter.io.in <> trace_encoder.io.out 
-    outer.trace_sink_print.foreach { lm =>
-      lm.module.io.trace_in <> trace_sink_arbiter.io.out(0)
+    outer.trace_sink_arbiter.foreach { lm =>
+      lm.module.io.target := trace_encoder.io.control.target
+      lm.module.io.in <> trace_encoder.io.out 
     }
-    outer.trace_sink_dma.foreach { lm =>
-      lm.module.io.trace_in <> trace_sink_arbiter.io.out(1)
-    }
+
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || trace_encoder.io.stall
   } else {
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall

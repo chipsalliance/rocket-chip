@@ -8,20 +8,28 @@ import org.chipsalliance.cde.config.{Parameters, Field, Config}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
+import freechips.rocketchip.tile._
 
-class TraceSinkDMA(addr: BigInt, beatBytes: Int)(implicit p: Parameters) extends LazyModule {
+case object TraceSinkDMAKey extends Field[Option[Int]](None)
+
+case class TraceSinkDMAParams(
+  regNodeBaseAddr: BigInt,
+  beatBytes: Int
+)
+
+class TraceSinkDMA(params: TraceSinkDMAParams)(implicit p: Parameters) extends LazyTraceSink {
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(Seq(TLClientParameters(
     name = "trace-sink-dma", sourceId = IdRange(0, 1))))))
 
   val device = new SimpleDevice("trace-sink-dma", Seq("ucbbar,trace0"))
   val regnode = TLRegisterNode(
-    address = Seq(AddressSet(addr, 0xFF)),
+    address = Seq(AddressSet(params.regNodeBaseAddr, 0xFF)),
     device = device,
-    beatBytes = beatBytes
+    beatBytes = params.beatBytes
   )
 
   lazy val module = new TraceSinkDMAImpl(this)
-  class TraceSinkDMAImpl(outer: TraceSinkDMA) extends LazyModuleImp(outer) with HasTraceSinkIO {
+  class TraceSinkDMAImpl(outer: TraceSinkDMA) extends LazyTraceSinkModuleImp(outer) {
     val fifo = Module(new Queue(UInt(8.W), 32))
     fifo.io.enq <> io.trace_in
     val (mem, edge) = outer.node.out(0)
@@ -126,5 +134,38 @@ class TraceSinkDMA(addr: BigInt, beatBytes: Int)(implicit p: Parameters) extends
         )
       ):_*
     )
+  }
+}
+
+class WithTraceSinkDMA(targetId: Int = 1) extends Config(
+  (new WithTraceSink(targetId)).alter((site, here, up) => {
+    case TraceSinkDMAKey => Some(targetId)
+  })
+)
+
+trait CanHaveTraceSinkDMA {this: BaseSubsystem with InstantiatesHierarchicalElements =>
+  val traceSinkDMA = p(TraceSinkDMAKey) match {
+    case Some(targetId) => {
+      val arbs = totalTiles.values.map { t => t match {
+        case r: RocketTile => List((t, r.trace_sink_arbiter.get))
+        case _ => Nil
+      }}.flatten
+      arbs.map { case (t, arb) => 
+      t { // in the implicit clock domain of tile
+        val traceSinkDMA = LazyModule(new TraceSinkDMA(TraceSinkDMAParams(
+          regNodeBaseAddr = 0x3010000 + t.tileParams.tileId * 0x1000,
+          beatBytes = t.xBytes
+        ))(p))
+        val index = t.asInstanceOf[RocketTile].rocketParams.ltrace.get.sinks.indexOf(targetId)
+        t.connectTLSlave(traceSinkDMA.regnode, t.xBytes)
+        t.traceSinkIdentityNode := traceSinkDMA.node
+        
+        InModuleBody {
+          traceSinkDMA.module.io.trace_in <> arb.module.io.out(index)
+          }
+        }
+      }
+    }
+    case _ => None
   }
 }

@@ -12,9 +12,8 @@ case class TraceEncoderParams(
   coreParams: TraceCoreParams,
   bufferDepth: Int,
   encoderBaseAddr: BigInt,
-  sinkDMABaseAddr: BigInt,
-  useSinkPrint: Boolean,
-  useSinkDMA: Boolean
+  useArbiterMonitor: Boolean,
+  sinks: Seq[Int] = Seq.empty[Int]
 )
 
 object FullHeaderType extends ChiselEnum {

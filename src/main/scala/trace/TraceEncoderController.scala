@@ -84,16 +84,3 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
     )
   }
 }
-
-class TraceSinkArbiter(n: Int) extends Module {
-  val io = IO(new Bundle {
-    val target = Input(UInt(TraceSinkTarget.getWidth.W))
-    val in = Flipped(Decoupled(UInt(8.W)))
-    val out = Vec(n, Decoupled(UInt(8.W)))
-  })
-  io.in.ready := io.out(io.target).ready
-  io.out.zipWithIndex.foreach { case (o, i) => 
-    o.valid := io.in.valid && (io.target === i.U)
-    o.bits := io.in.bits
-  }
-}
