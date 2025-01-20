@@ -158,8 +158,10 @@ trait CanHaveTraceSinkDMA {this: BaseSubsystem with InstantiatesHierarchicalElem
         ))(p))
         val index = t.asInstanceOf[RocketTile].rocketParams.ltrace.get.sinks.indexOf(targetId)
         t.connectTLSlave(traceSinkDMA.regnode, t.xBytes)
-        t.traceSinkIdentityNode := traceSinkDMA.node
-        
+        val mbus = locateTLBusWrapper(MBUS)
+        mbus.coupleFrom(t.tileParams.baseName) { bus =>
+          bus := mbus.crossOut(traceSinkDMA.node)(ValName("trace_sink_dma"))(AsynchronousCrossing())
+        }
         InModuleBody {
           traceSinkDMA.module.io.trace_in <> arb.module.io.out(index)
           }

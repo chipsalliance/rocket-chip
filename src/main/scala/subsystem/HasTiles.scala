@@ -175,11 +175,6 @@ trait CanAttachTile {
     connectOutputNotifications(domain, context)
     connectInputConstants(domain, context)
     connectTrace(domain, context)
-    /** This is different from connectTrace 
-     * connectTrace is for modules outside of the tile to get trace data
-     * connectTraceSinkDMA is for trace sink dma to ship trace data outside of the tile
-     */
-    connectTraceSinkDMA(domain, context)
   }
 
   /** Connect the port where the tile is the master to a TileLink interconnect. */
@@ -305,15 +300,6 @@ trait CanAttachTile {
     val traceCoreCrossingNode = BundleBridgeBlockDuringReset[TraceCoreInterface](
       resetCrossingType = crossingParams.resetCrossingType)
     context.traceCoreNodes(domain.element.tileId) :*= traceCoreCrossingNode := domain.element.traceCoreNode
-  }
-
-  /** Function to handle connection from trace sink dma to mbus */
-  def connectTraceSinkDMA(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
-    implicit val p = context.p
-    val mbus = context.locateTLBusWrapper(MBUS)
-    mbus.coupleFrom(tileParams.baseName) { bus =>
-      bus :=* crossingParams.master.injectNode(context) :=* domain.element.traceSinkIdentityNode
-    } 
   }
 }
 

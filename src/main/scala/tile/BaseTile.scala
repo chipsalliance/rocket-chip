@@ -301,8 +301,6 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   val traceCoreSourceNode = BundleBridgeSource(() => new TraceCoreInterface(traceCoreParams))
   /** Node for external consumers to source  a V1.0 instruction trace from the core. */
   val traceCoreNode = traceCoreSourceNode
-  /** Node for tile to drive encoded instruction trace to external consumers. */
-  val traceSinkIdentityNode = TLIdentityNode()
 
   /** Node to broadcast collected trace sideband signals into the tile. */
   val traceAuxNexusNode = BundleBridgeNexus[TraceAux](default = Some(() => {
