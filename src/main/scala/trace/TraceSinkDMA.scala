@@ -53,7 +53,7 @@ class TraceSinkDMA(params: TraceSinkDMAParams)(implicit p: Parameters) extends L
     val done_reg = RegInit(false.B)
     val collect_full = collect_counter === (busWidth / 8).U
     val collect_advance = Mux(flush_reg, collect_full || fifo.io.deq.valid === false.B, collect_full)
-    val flush_done = (flush_reg) && (fifo.io.deq.valid === false.B)
+    val flush_done = (flush_reg) && (fifo.io.deq.valid === false.B) && mstate === mIdle
     done_reg := done_reg || flush_done
     
     mem.a.valid := mstate === mWrite
