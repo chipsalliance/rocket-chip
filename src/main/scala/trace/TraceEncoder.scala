@@ -7,13 +7,15 @@ import chisel3._
 import chisel3.util._
 import scala.math.min
 
+import org.chipsalliance.cde.config.Parameters
 
 case class TraceEncoderParams(
   coreParams: TraceCoreParams,
   bufferDepth: Int,
   encoderBaseAddr: BigInt,
   useArbiterMonitor: Boolean,
-  sinks: Seq[Int] = Seq.empty[Int]
+  // a seq of functions that takes a parameter and returns a lazymodule and a target id
+  buildSinks: Seq[Parameters => (LazyTraceSink, Int)] = Seq.empty[Parameters => (LazyTraceSink, Int)]
 )
 
 object FullHeaderType extends ChiselEnum {

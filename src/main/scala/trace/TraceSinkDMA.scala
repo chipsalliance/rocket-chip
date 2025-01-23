@@ -137,37 +137,36 @@ class TraceSinkDMA(params: TraceSinkDMAParams)(implicit p: Parameters) extends L
   }
 }
 
-class WithTraceSinkDMA(targetId: Int = 1) extends Config(
-  (new WithTraceSink(targetId)).alter((site, here, up) => {
-    case TraceSinkDMAKey => Some(targetId)
-  })
-)
+class WithTraceSinkDMA(targetId: Int = 1) extends Config((site, here, up) => {
+  case TilesLocated(InSubsystem) => up(TilesLocated(InSubsystem), site) map {
+    case tp: RocketTileAttachParams => {
+      // redefine tile level constants
+      val xBytes = tp.tileParams.core.xLen / 8
+      tp.copy(tileParams = tp.tileParams.copy(
+        ltrace = Some(tp.tileParams.ltrace.get.copy(buildSinks = 
+          tp.tileParams.ltrace.get.buildSinks :+ (p => 
+            (LazyModule(new TraceSinkDMA(TraceSinkDMAParams(
+            regNodeBaseAddr = 0x3010000 + tp.tileParams.tileId * 0x1000,
+            beatBytes = xBytes
+        ))(p)), targetId)))))
+      )
+    }
+    case other => other
+  }
+})
 
 trait CanHaveTraceSinkDMA {this: BaseSubsystem with InstantiatesHierarchicalElements =>
-  val traceSinkDMA = p(TraceSinkDMAKey) match {
-    case Some(targetId) => {
-      val arbs = totalTiles.values.map { t => t match {
-        case r: RocketTile => List((t, r.trace_sink_arbiter.get))
-        case _ => Nil
-      }}.flatten
-      arbs.map { case (t, arb) => 
-      t { // in the implicit clock domain of tile
-        val traceSinkDMA = LazyModule(new TraceSinkDMA(TraceSinkDMAParams(
-          regNodeBaseAddr = 0x3010000 + t.tileParams.tileId * 0x1000,
-          beatBytes = t.xBytes
-        ))(p))
-        val index = t.asInstanceOf[RocketTile].rocketParams.ltrace.get.sinks.indexOf(targetId)
-        t.connectTLSlave(traceSinkDMA.regnode, t.xBytes)
-        val mbus = locateTLBusWrapper(MBUS)
-        mbus.coupleFrom(t.tileParams.baseName) { bus =>
-          bus := mbus.crossOut(traceSinkDMA.node)(ValName("trace_sink_dma"))(AsynchronousCrossing())
-        }
-        InModuleBody {
-          traceSinkDMA.module.io.trace_in <> arb.module.io.out(index)
-          }
-        }
+  val traceSinkDMAs = totalTiles.values.map { t => t match {
+    case r: RocketTile => r.trace_sinks.collect { case r: TraceSinkDMA => (t, r) }
+    case _ => Nil
+  }}.flatten
+  val mbus = locateTLBusWrapper(MBUS)
+  traceSinkDMAs.foreach { case (t, s) =>
+    t { // in the implicit clock domain of tile
+      mbus.coupleFrom(t.tileParams.baseName) { bus =>
+        bus := mbus.crossOut(s.node)(ValName("trace_sink_dma"))(AsynchronousCrossing())
       }
+      t.connectTLSlave(s.regnode, t.xBytes)
     }
-    case _ => None
   }
 }

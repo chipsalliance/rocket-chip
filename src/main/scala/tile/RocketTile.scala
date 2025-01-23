@@ -31,7 +31,6 @@ import freechips.rocketchip.trace.{
 import freechips.rocketchip.subsystem._
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
-import freechips.rocketchip.trace.CanHaveTraceSinkAlways
 
 case class RocketTileBoundaryBufferParams(force: Boolean = false)
 
@@ -100,9 +99,16 @@ class RocketTile private(
     trace_encoder_controller
   }
 
+  val (trace_sinks, trace_sink_ids) = rocketParams.ltrace match {
+    case Some(t) => 
+      val sequence = t.buildSinks.map {_(p)}
+      (sequence.map(_._1), sequence.map(_._2))
+    case None => (Seq.empty, Seq.empty)
+  }
+
   val trace_sink_arbiter = rocketParams.ltrace.map { t =>
-    val trace_sink_arbiter = LazyModule(new TraceSinkArbiter(t.sinks, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
-    trace_sink_arbiter
+    val arb = LazyModule(new TraceSinkArbiter(trace_sink_ids, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
+    arb
   }
 
   val tile_master_blocker =
@@ -191,6 +197,11 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || trace_encoder.io.stall
   } else {
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
+  }
+
+  outer.trace_sinks.zip(outer.trace_sink_ids).foreach { case (sink, id) =>
+    val index = outer.trace_sink_ids.indexOf(id)
+    sink.module.io.trace_in <> outer.trace_sink_arbiter.get.module.io.out(index)
   }
 
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
