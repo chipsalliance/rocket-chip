@@ -13,7 +13,6 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
 
 class TraceSinkArbiter(nSeq : Seq[Int], use_monitor: Boolean = false, monitor_name: String = "unknown")(implicit p: Parameters) extends LazyModule {
-  println(s"TraceSinkArbiter nSeq: $nSeq")
   override lazy val module = new TraceSinkArbiterModuleImp(this)
   class TraceSinkArbiterModuleImp(outer: TraceSinkArbiter) extends LazyModuleImp(outer) {
     val io = IO(new Bundle {
@@ -30,7 +29,6 @@ class TraceSinkArbiter(nSeq : Seq[Int], use_monitor: Boolean = false, monitor_na
 
     if (use_monitor) {
       val monitor = Module(new TraceSinkMonitor(s"trace_monitor_$monitor_name.out"))
-      println(s"trace_monitor_$monitor_name.out")
       monitor.io.in_fire := io.in.valid && io.in.ready
       monitor.io.in_byte := io.in.bits
       monitor.io.clk := clock

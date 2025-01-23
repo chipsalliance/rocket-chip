@@ -99,15 +99,13 @@ class RocketTile private(
     trace_encoder_controller
   }
 
-  val (trace_sinks, trace_sink_ids) = rocketParams.ltrace match {
-    case Some(t) => 
-      val sequence = t.buildSinks.map {_(p)}
-      (sequence.map(_._1), sequence.map(_._2))
-    case None => (Seq.empty, Seq.empty)
+  val (trace_sinks, traceSinkIds) = rocketParams.ltrace match {
+    case Some(t) => t.buildSinks.map {_(p)}.unzip
+    case None => (Nil, Nil)
   }
 
   val trace_sink_arbiter = rocketParams.ltrace.map { t =>
-    val arb = LazyModule(new TraceSinkArbiter(trace_sink_ids, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
+    val arb = LazyModule(new TraceSinkArbiter(traceSinkIds, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
     arb
   }
 
@@ -199,8 +197,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   }
 
-  outer.trace_sinks.zip(outer.trace_sink_ids).foreach { case (sink, id) =>
-    val index = outer.trace_sink_ids.indexOf(id)
+  outer.trace_sinks.zip(outer.traceSinkIds).foreach { case (sink, id) =>
+    val index = outer.traceSinkIds.indexOf(id)
     sink.module.io.trace_in <> outer.trace_sink_arbiter.get.module.io.out(index)
   }
 
