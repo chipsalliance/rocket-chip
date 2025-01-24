@@ -9,7 +9,7 @@ module TraceSinkMonitor
     input[7:0] in_byte
 );
 
-`ifdef VCS
+`ifndef SYNTHESIS
 
 integer file;
 
