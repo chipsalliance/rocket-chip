@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.diplomacy._
-import org.chipsalliance.cde.config.{Parameters, Field, Config}
+import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.prci._
 import freechips.rocketchip.subsystem._
 

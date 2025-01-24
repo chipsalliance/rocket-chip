@@ -26,7 +26,7 @@ import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.util.{Annotated, InOrderArbiter}
 import freechips.rocketchip.trace.{
-  TraceEncoder, TraceEncoderParams, TraceSinkAlways, TraceSinkDMA,
+  TraceEncoderParams, TraceSinkAlways, TraceSinkDMA,
   TraceEncoderController, TraceSinkArbiter}
 import freechips.rocketchip.subsystem._
 
@@ -45,7 +45,7 @@ case class RocketTileParams(
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
     boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None,
-    ltrace: Option[TraceEncoderParams] = None
+    traceParams: Option[TraceEncoderParams] = None
   ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
@@ -93,18 +93,23 @@ class RocketTile private(
    * controlling enable/disable of trace encoder
    * and selecting trace sink
    */
-  val trace_encoder_controller = rocketParams.ltrace.map { t =>
+  val trace_encoder_controller = rocketParams.traceParams.map { t =>
     val trace_encoder_controller = LazyModule(new TraceEncoderController(t.encoderBaseAddr, xBytes))
     connectTLSlave(trace_encoder_controller.node, xBytes)
     trace_encoder_controller
   }
 
-  val (trace_sinks, traceSinkIds) = rocketParams.ltrace match {
+  val trace_encoder = rocketParams.traceParams match {
+    case Some(t) => Some(t.buildEncoder(p))
+    case None => None
+  }
+
+  val (trace_sinks, traceSinkIds) = rocketParams.traceParams match {
     case Some(t) => t.buildSinks.map {_(p)}.unzip
     case None => (Nil, Nil)
   }
 
-  val trace_sink_arbiter = rocketParams.ltrace.map { t =>
+  val trace_sink_arbiter = rocketParams.traceParams.map { t =>
     val arb = LazyModule(new TraceSinkArbiter(traceSinkIds, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
     arb
   }
@@ -179,20 +184,18 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
 
-  if (outer.rocketParams.ltrace.isDefined) {
-    val trace_encoder = Module(new TraceEncoder(outer.rocketParams.ltrace.get))
-
-    core.io.trace_core_ingress.get <> trace_encoder.io.in
+  if (outer.rocketParams.traceParams.isDefined) {
+    core.io.trace_core_ingress.get <> outer.trace_encoder.get.module.io.in
     outer.trace_encoder_controller.foreach { lm =>
-      trace_encoder.io.control <> lm.module.io.control
+      outer.trace_encoder.get.module.io.control <> lm.module.io.control
     }
 
     outer.trace_sink_arbiter.foreach { lm =>
-      lm.module.io.target := trace_encoder.io.control.target
-      lm.module.io.in <> trace_encoder.io.out 
+      lm.module.io.target := outer.trace_encoder.get.module.io.control.target
+      lm.module.io.in <> outer.trace_encoder.get.module.io.out 
     }
 
-    core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || trace_encoder.io.stall
+    core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || outer.trace_encoder.get.module.io.stall
   } else {
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
   }

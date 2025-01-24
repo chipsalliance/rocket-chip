@@ -12,9 +12,13 @@ import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.tilelink.TLRegisterNode
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
 
+object TraceSinkTarget {
+  def width = 8
+}
+
 class TraceEncoderControlInterface() extends Bundle {
   val enable = Bool()
-  val target = UInt(TraceSinkTarget.getWidth.W)
+  val target = UInt(TraceSinkTarget.width.W)
   val hpmcounter_enable = UInt(32.W)
   val hpmcounter_report_interval = UInt(32.W)
 }
@@ -39,7 +43,9 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
     val active = control_reg_bits(0)
     io.control.enable := enable
 
-    val trace_sink_target = RegInit(TraceSinkTarget.STPrint.asUInt)
+    val trace_encoder_impl = RegInit(0.U(32.W))
+
+    val trace_sink_target = RegInit(0.U(TraceSinkTarget.width.W))
     io.control.target := trace_sink_target.asUInt
 
     val trace_hpmcounter_enable = RegInit(0.U(32.W))
@@ -52,8 +58,6 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
       control_reg_write_valid := valid
       when (control_reg_write_valid) {
         control_reg_bits := bits
-        printf("Writing to trace encoder control reg from %x to %x\n",
-         control_reg_bits, bits)
       }
       true.B
     }
@@ -69,16 +73,12 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
             RegFieldDesc("control", "Control trace encoder"))
         ),
         0x04 -> Seq(
+          RegField.r(32, trace_encoder_impl,
+            RegFieldDesc("impl", "Trace encoder implementation"))
+        ),
+        0x20 -> Seq(
           RegField(1, trace_sink_target,
             RegFieldDesc("target", "Trace sink target"))
-        ),
-        0x08 -> Seq(
-          RegField(32, trace_hpmcounter_enable,
-            RegFieldDesc("hpmcounter_enable", "Trace hpmcounter enable"))
-        ),
-        0x0C -> Seq(
-          RegField(32, trace_hpmcounter_report_interval,
-            RegFieldDesc("hpmcounter_report_interval", "Trace hpmcounter report interval"))
         )
       ):_*
     )

@@ -14,9 +14,10 @@ import freechips.rocketchip.regmapper.{RegField, RegFieldDesc}
 
 class TraceSinkArbiter(nSeq : Seq[Int], use_monitor: Boolean = false, monitor_name: String = "unknown")(implicit p: Parameters) extends LazyModule {
   override lazy val module = new TraceSinkArbiterModuleImp(this)
+  override def shouldBeInlined = false
   class TraceSinkArbiterModuleImp(outer: TraceSinkArbiter) extends LazyModuleImp(outer) {
     val io = IO(new Bundle {
-      val target = Input(UInt(TraceSinkTarget.getWidth.W))
+      val target = Input(UInt(TraceSinkTarget.width.W))
       val in = Flipped(Decoupled(UInt(8.W)))
       val out = Vec(nSeq.size, Decoupled(UInt(8.W)))
     })

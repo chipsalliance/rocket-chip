@@ -105,8 +105,6 @@ class TraceSinkDMA(params: TraceSinkDMAParams)(implicit p: Parameters) extends L
       dma_addr_write_valid := valid && mstate === mIdle
       when (dma_addr_write_valid) {
         dma_start_addr := bits
-        printf("Writing to trace sink DMA reg from %x to %x\n",
-         dma_start_addr, bits)
       }
       true.B
     }
@@ -143,8 +141,8 @@ class WithTraceSinkDMA(targetId: Int = 1) extends Config((site, here, up) => {
       // redefine tile level constants
       val xBytes = tp.tileParams.core.xLen / 8
       tp.copy(tileParams = tp.tileParams.copy(
-        ltrace = Some(tp.tileParams.ltrace.get.copy(buildSinks = 
-          tp.tileParams.ltrace.get.buildSinks :+ (p => 
+        traceParams = Some(tp.tileParams.traceParams.get.copy(buildSinks = 
+          tp.tileParams.traceParams.get.buildSinks :+ (p => 
             (LazyModule(new TraceSinkDMA(TraceSinkDMAParams(
             regNodeBaseAddr = 0x3010000 + tp.tileParams.tileId * 0x1000,
             beatBytes = xBytes
