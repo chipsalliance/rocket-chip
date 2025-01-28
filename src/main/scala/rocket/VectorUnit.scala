@@ -91,7 +91,8 @@ abstract class RocketVectorDecoder(implicit p: Parameters) extends CoreModule()(
   val io = IO(new Bundle {
     val inst = Input(UInt(32.W))
     val vconfig = Input(new VConfig)
-    val legal = Output(Bool())
+    val vector = Output(Bool()) // this is a vector instruction
+    val legal = Output(Bool()) // this is a legal vector instruction given vconfig
     val fp = Output(Bool())
     val read_rs1 = Output(Bool())
     val read_rs2 = Output(Bool())
