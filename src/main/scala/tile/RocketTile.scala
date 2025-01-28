@@ -107,11 +107,6 @@ class RocketTile private(
     case None => (Nil, Nil)
   }
 
-  val trace_sink_arbiter = rocketParams.traceParams.map { t =>
-    val arb = LazyModule(new TraceSinkArbiter(traceSinkIds, use_monitor = t.useArbiterMonitor, monitor_name = rocketParams.uniqueName))
-    arb
-  }
-
   val tile_master_blocker =
     tileParams.blockerCtrlAddr
       .map(BasicBusBlockerParams(_, xBytes, masterPortBeatBytes, deadlock = true))
@@ -182,15 +177,20 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
 
+  val trace_sink_arbiter = outer.rocketParams.traceParams.map { t =>
+    val arb = Module(new TraceSinkArbiter(outer.traceSinkIds, use_monitor = t.useArbiterMonitor, monitor_name = outer.rocketParams.uniqueName))
+    arb
+  }
+
   if (outer.rocketParams.traceParams.isDefined) {
     core.io.trace_core_ingress.get <> outer.trace_encoder.get.module.io.in
     outer.trace_encoder_controller.foreach { lm =>
       outer.trace_encoder.get.module.io.control <> lm.module.io.control
     }
 
-    outer.trace_sink_arbiter.foreach { lm =>
-      lm.module.io.target := outer.trace_encoder.get.module.io.control.target
-      lm.module.io.in <> outer.trace_encoder.get.module.io.out 
+    trace_sink_arbiter.foreach { arb =>
+      arb.io.target := outer.trace_encoder.get.module.io.control.target
+      arb.io.in <> outer.trace_encoder.get.module.io.out 
     }
 
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || outer.trace_encoder.get.module.io.stall
@@ -200,7 +200,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   outer.trace_sinks.zip(outer.traceSinkIds).foreach { case (sink, id) =>
     val index = outer.traceSinkIds.indexOf(id)
-    sink.module.io.trace_in <> outer.trace_sink_arbiter.get.module.io.out(index)
+    sink.module.io.trace_in <> trace_sink_arbiter.get.io.out(index)
   }
 
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
