@@ -6,7 +6,7 @@ import chisel3.experimental.StringParam
 
 class TraceSinkMonitor(name: String) extends BlackBox(
   Map(
-    "FILE_NAME" -> StringParam(s"tacit_${name}_trace.out")
+    "FILE_NAME" -> StringParam(s"${name}_trace.out")
   )
 ) with HasBlackBoxResource {
   val io = IO(new Bundle {

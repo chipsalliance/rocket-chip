@@ -25,9 +25,7 @@ import freechips.rocketchip.rocket.{
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.util.{Annotated, InOrderArbiter}
-import freechips.rocketchip.trace.{
-  TraceEncoderParams, TraceSinkAlways, TraceSinkDMA,
-  TraceEncoderController, TraceSinkArbiter}
+import freechips.rocketchip.trace.{TraceEncoderParams,TraceEncoderController, TraceSinkArbiter}
 import freechips.rocketchip.subsystem._
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
@@ -229,7 +227,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
-  // core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
+  
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
   core.io.hartid := outer.hartIdSinkNode.bundle
   require(core.io.hartid.getWidth >= outer.hartIdSinkNode.bundle.getWidth,
