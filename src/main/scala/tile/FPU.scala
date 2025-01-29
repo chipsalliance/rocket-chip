@@ -754,6 +754,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     val v_decode = v.decoder(p) // Only need to get ren1
     v_decode.io.inst := io.inst
     v_decode.io.vconfig := DontCare // core deals with this
+    v_decode.io.vconfig.vtype.vsew := io.v_sew
     when (v_decode.io.legal && v_decode.io.read_frs1) {
       id_ctrl.ren1 := true.B
       id_ctrl.swap12 := false.B
