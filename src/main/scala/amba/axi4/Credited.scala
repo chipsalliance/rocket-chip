@@ -17,8 +17,8 @@ import freechips.rocketchip.util._
 class AXI4CreditedBuffer(delay: AXI4CreditedDelay)(implicit p: Parameters) extends LazyModule
 {
   val node = AXI4CreditedAdapterNode(
-    masterFn = p => p.copy(delay = delay + p.delay),
-    slaveFn  = p => p.copy(delay = delay + p.delay))
+    managerFn = p => p.copy(delay = delay + p.delay),
+    subordinateFn  = p => p.copy(delay = delay + p.delay))
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {

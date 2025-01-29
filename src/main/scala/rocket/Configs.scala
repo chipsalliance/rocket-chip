@@ -6,7 +6,7 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
-import freechips.rocketchip.subsystem.{TilesLocated, NumTiles, HierarchicalLocation, RocketCrossingParams, SystemBusKey, CacheBlockBytes, RocketTileAttachParams, InSubsystem, InCluster, HierarchicalElementMasterPortParams, HierarchicalElementSlavePortParams, CBUS, CCBUS, ClustersLocated, TileAttachConfig, CloneTileAttachParams}
+import freechips.rocketchip.subsystem.{TilesLocated, NumTiles, HierarchicalLocation, RocketCrossingParams, SystemBusKey, CacheBlockBytes, RocketTileAttachParams, InSubsystem, InCluster, HierarchicalElementClientPortParams, HierarchicalElementManagerPortParams, CBUS, CCBUS, ClustersLocated, TileAttachConfig, CloneTileAttachParams}
 import freechips.rocketchip.tile.{RocketTileParams, RocketTileBoundaryBufferParams, FPUParams}
 import freechips.rocketchip.util.{RationalDirection, Flexible}
 import scala.reflect.ClassTag
@@ -50,8 +50,8 @@ class WithNHugeCores(
   case NumTiles => up(NumTiles) + n
 }) {
   def this(n: Int, location: HierarchicalLocation = InSubsystem) = this(n, location, RocketCrossingParams(
-    master = HierarchicalElementMasterPortParams.locationDefault(location),
-    slave = HierarchicalElementSlavePortParams.locationDefault(location),
+    client = HierarchicalElementClientPortParams.locationDefault(location),
+    manager = HierarchicalElementManagerPortParams.locationDefault(location),
     mmioBaseAddressPrefixWhere = location match {
       case InSubsystem => CBUS
       case InCluster(clusterId) => CCBUS(clusterId)
@@ -87,8 +87,8 @@ class WithNBigCores(
   case NumTiles => up(NumTiles) + n
 }) {
   def this(n: Int, location: HierarchicalLocation = InSubsystem) = this(n, location, RocketCrossingParams(
-    master = HierarchicalElementMasterPortParams.locationDefault(location),
-    slave = HierarchicalElementSlavePortParams.locationDefault(location),
+    client = HierarchicalElementClientPortParams.locationDefault(location),
+    manager = HierarchicalElementManagerPortParams.locationDefault(location),
     mmioBaseAddressPrefixWhere = location match {
       case InSubsystem => CBUS
       case InCluster(clusterId) => CCBUS(clusterId)
@@ -193,7 +193,7 @@ class With1TinyCore extends Config((site, here, up) => {
       tiny,
       RocketCrossingParams(
         crossingType = SynchronousCrossing(),
-        master = HierarchicalElementMasterPortParams())
+        client = HierarchicalElementClientPortParams())
     ))
   }
   case NumTiles => 1

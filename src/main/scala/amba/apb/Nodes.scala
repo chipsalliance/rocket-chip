@@ -12,11 +12,11 @@ import org.chipsalliance.diplomacy.nodes.{SimpleNodeImp,RenderedEdge, InwardNode
 
 case object APBMonitorBuilder extends Field[APBMonitorArgs => APBMonitorBase]
 
-object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParameters, APBEdgeParameters, APBBundle]
+object APBImp extends SimpleNodeImp[APBManagerPortParameters, APBSubordinatePortParameters, APBEdgeParameters, APBBundle]
 {
-  def edge(pd: APBMasterPortParameters, pu: APBSlavePortParameters, p: Parameters, sourceInfo: SourceInfo) = APBEdgeParameters(pd, pu, p, sourceInfo)
+  def edge(pd: APBManagerPortParameters, pu: APBSubordinatePortParameters, p: Parameters, sourceInfo: SourceInfo) = APBEdgeParameters(pd, pu, p, sourceInfo)
   def bundle(e: APBEdgeParameters) = APBBundle(e.bundle)
-  def render(e: APBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, (e.slave.beatBytes * 8).toString)
+  def render(e: APBEdgeParameters) = RenderedEdge(colour = "#00ccff" /* bluish */, (e.subordinate.beatBytes * 8).toString)
 
   override def monitor(bundle: APBBundle, edge: APBEdgeParameters): Unit = {
     edge.params.lift(APBMonitorBuilder).foreach { builder =>
@@ -25,18 +25,18 @@ object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParamet
     }
   }
 
-  override def mixO(pd: APBMasterPortParameters, node: OutwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBMasterPortParameters  =
-   pd.copy(masters = pd.masters.map  { c => c.copy (nodePath = node +: c.nodePath) })
-  override def mixI(pu: APBSlavePortParameters, node: InwardNode[APBMasterPortParameters, APBSlavePortParameters, APBBundle]): APBSlavePortParameters =
-   pu.copy(slaves  = pu.slaves.map { m => m.copy (nodePath = node +: m.nodePath) })
+  override def mixO(pd: APBManagerPortParameters, node: OutwardNode[APBManagerPortParameters, APBSubordinatePortParameters, APBBundle]): APBManagerPortParameters  =
+   pd.copy(managers = pd.managers.map  { c => c.copy (nodePath = node +: c.nodePath) })
+  override def mixI(pu: APBSubordinatePortParameters, node: InwardNode[APBManagerPortParameters, APBSubordinatePortParameters, APBBundle]): APBSubordinatePortParameters =
+   pu.copy(subordinates  = pu.subordinates.map { m => m.copy (nodePath = node +: m.nodePath) })
 }
 
-case class APBMasterNode(portParams: Seq[APBMasterPortParameters])(implicit valName: ValName) extends SourceNode(APBImp)(portParams)
-case class APBSlaveNode(portParams: Seq[APBSlavePortParameters])(implicit valName: ValName) extends SinkNode(APBImp)(portParams)
+case class APBManagerNode(portParams: Seq[APBManagerPortParameters])(implicit valName: ValName) extends SourceNode(APBImp)(portParams)
+case class APBSubordinateNode(portParams: Seq[APBSubordinatePortParameters])(implicit valName: ValName) extends SinkNode(APBImp)(portParams)
 case class APBNexusNode(
-  masterFn:       Seq[APBMasterPortParameters] => APBMasterPortParameters,
-  slaveFn:        Seq[APBSlavePortParameters]  => APBSlavePortParameters)(
+  managerFn:       Seq[APBManagerPortParameters] => APBManagerPortParameters,
+  subordinateFn:        Seq[APBSubordinatePortParameters]  => APBSubordinatePortParameters)(
   implicit valName: ValName)
-  extends NexusNode(APBImp)(masterFn, slaveFn)
+  extends NexusNode(APBImp)(managerFn, subordinateFn)
 
 case class APBIdentityNode()(implicit valName: ValName) extends IdentityNode(APBImp)()

@@ -195,9 +195,9 @@ class WithRoccExample extends Config((site, here, up) => {
 class WithIncoherentTiles extends Config((site, here, up) => {
   case TilesLocated(location) => up(TilesLocated(location), site) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
-      master = tp.crossingParams.master match {
-        case x: HierarchicalElementMasterPortParams => x.copy(cork = Some(true))
-        case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
+      client = tp.crossingParams.client match {
+        case x: HierarchicalElementClientPortParams => x.copy(cork = Some(true))
+        case _ => throw new Exception("Unrecognized type for RocketCrossingParams.client")
       }))
     case t => t
   }
@@ -229,7 +229,7 @@ class WithDebugAPB extends Config ((site, here, up) => {
 
 
 class WithDebugSBA extends Config ((site, here, up) => {
-  case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(hasBusMaster = true))
+  case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(hasBusDriver = true))
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {
@@ -249,7 +249,7 @@ class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
 })
 
 class WithExtMemSize(n: BigInt) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
+  case ExtMem => up(ExtMem, site).map(x => x.copy(client = x.client.copy(size = n)))
 })
 
 class WithExtMemSbusBypass(base: BigInt = x"10_0000_0000") extends Config((site, here, up) => {
@@ -266,7 +266,7 @@ class WithTimebase(hertz: BigInt) extends Config((site, here, up) => {
 })
 
 class WithDefaultMemPort extends Config((site, here, up) => {
-  case ExtMem => Some(MemoryPortParams(MasterPortParams(
+  case ExtMem => Some(MemoryPortParams(ClientPortParams(
                       base = x"8000_0000",
                       size = x"1000_0000",
                       beatBytes = site(MemoryBusKey).beatBytes,
@@ -274,7 +274,7 @@ class WithDefaultMemPort extends Config((site, here, up) => {
 })
 
 class WithCustomMemPort (base_addr: BigInt, base_size: BigInt, data_width: Int, id_bits: Int, maxXferBytes: Int) extends Config((site, here, up) => {
-  case ExtMem => Some(MemoryPortParams(MasterPortParams(
+  case ExtMem => Some(MemoryPortParams(ClientPortParams(
                       base = base_addr,
                       size = base_size,
                       beatBytes = data_width/8,
@@ -287,7 +287,7 @@ class WithNoMemPort extends Config((site, here, up) => {
 })
 
 class WithDefaultMMIOPort extends Config((site, here, up) => {
-  case ExtBus => Some(MasterPortParams(
+  case ExtBus => Some(ClientPortParams(
                       base = x"6000_0000",
                       size = x"2000_0000",
                       beatBytes = site(MemoryBusKey).beatBytes,
@@ -295,7 +295,7 @@ class WithDefaultMMIOPort extends Config((site, here, up) => {
 })
 
 class WithCustomMMIOPort (base_addr: BigInt, base_size: BigInt, data_width: Int, id_bits: Int, maxXferBytes: Int) extends Config((site, here, up) => {
-  case ExtBus => Some(MasterPortParams(
+  case ExtBus => Some(ClientPortParams(
                       base = base_addr,
                       size = base_size,
                       beatBytes = data_width/8,
@@ -307,15 +307,15 @@ class WithNoMMIOPort extends Config((site, here, up) => {
   case ExtBus => None
 })
 
-class WithDefaultSlavePort extends Config((site, here, up) => {
-  case ExtIn  => Some(SlavePortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
+class WithDefaultManagerPort extends Config((site, here, up) => {
+  case ExtIn  => Some(ManagerPortParams(beatBytes = 8, idBits = 8, sourceBits = 4))
 })
 
-class WithCustomSlavePort (data_width: Int, id_bits: Int) extends Config((site, here, up) => {
-  case ExtIn  => Some(SlavePortParams(beatBytes = data_width/8, idBits = id_bits, sourceBits = 4))
+class WithCustomManagerPort (data_width: Int, id_bits: Int) extends Config((site, here, up) => {
+  case ExtIn  => Some(ManagerPortParams(beatBytes = data_width/8, idBits = id_bits, sourceBits = 4))
 })
 
-class WithNoSlavePort extends Config((site, here, up) => {
+class WithNoManagerPort extends Config((site, here, up) => {
   case ExtIn => None
 })
 

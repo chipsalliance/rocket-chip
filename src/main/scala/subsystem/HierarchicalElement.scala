@@ -25,10 +25,10 @@ abstract class InstantiableHierarchicalElementParams[ElementType <: BaseHierarch
 trait HierarchicalElementCrossingParamsLike {
   /** The type of clock crossing that should be inserted at the element boundary. */
   def crossingType: ClockCrossingType
-  /** Parameters describing the contents and behavior of the point where the element is attached as an interconnect master. */
-  def master: HierarchicalElementPortParamsLike
-  /** Parameters describing the contents and behavior of the point where the element is attached as an interconnect slave. */
-  def slave: HierarchicalElementPortParamsLike
+  /** Parameters describing the contents and behavior of the point where the element is attached as an interconnect client. */
+  def client: HierarchicalElementPortParamsLike
+  /** Parameters describing the contents and behavior of the point where the element is attached as an interconnect manager. */
+  def manager: HierarchicalElementPortParamsLike
   /** The subnetwork location of the device selecting the apparent base address of MMIO devices inside the element */
   def mmioBaseAddressPrefixWhere: TLBusWrapperLocation
   /** Inject a reset management subgraph that effects the element child reset only */
@@ -51,29 +51,29 @@ abstract class BaseHierarchicalElement (val crossing: ClockCrossingType)(implici
 {
   def module: BaseHierarchicalElementModuleImp[BaseHierarchicalElement]
 
-  protected val tlOtherMastersNode = TLIdentityNode()
-  protected val tlMasterXbar = LazyModule(new TLXbar(nameSuffix = Some(s"MasterXbar_$desiredName")))
-  protected val tlSlaveXbar = LazyModule(new TLXbar(nameSuffix = Some(s"SlaveXbar_$desiredName")))
+  protected val tlOtherClientsNode = TLIdentityNode()
+  protected val tlClientXbar = LazyModule(new TLXbar(nameSuffix = Some(s"ClientXbar_$desiredName")))
+  protected val tlManagerXbar = LazyModule(new TLXbar(nameSuffix = Some(s"ManagerXbar_$desiredName")))
   protected val intXbar = LazyModule(new IntXbar)
 
-  def masterNode: TLOutwardNode
-  def slaveNode: TLInwardNode
+  def clientNode: TLOutwardNode
+  def managerNode: TLInwardNode
 
-  /** Helper function to insert additional buffers on master ports at the boundary of the tile.
+  /** Helper function to insert additional buffers on client ports at the boundary of the tile.
     *
     * The boundary buffering needed to cut feed-through paths is
     * microarchitecture specific, so this may need to be overridden
     * in subclasses of this class.
     */
-  def makeMasterBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def makeClientBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
 
-  /** Helper function to insert additional buffers on slave ports at the boundary of the tile.
+  /** Helper function to insert additional buffers on manager ports at the boundary of the tile.
     *
     * The boundary buffering needed to cut feed-through paths is
     * microarchitecture specific, so this may need to be overridden
     * in subclasses of this class.
     */
-  def makeSlaveBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
+  def makeManagerBoundaryBuffers(crossing: ClockCrossingType)(implicit p: Parameters) = TLBuffer(BufferParams.none)
 
 
 }

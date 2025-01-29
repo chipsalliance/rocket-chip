@@ -7,14 +7,14 @@ import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 class AHBLite()(implicit p: Parameters) extends LazyModule {
-  val node = AHBMasterAdapterNode(
-    masterFn = { mp => mp },
-    slaveFn  = { sp => sp.copy(lite = false) })
+  val node = AHBManagerAdapterNode(
+    managerFn = { mp => mp },
+    subordinateFn  = { sp => sp.copy(lite = false) })
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
-      require (edgeOut.slave.lite) // or else this adapter is pointless
+      require (edgeOut.subordinate.lite) // or else this adapter is pointless
 
       out.hmastlock.get := in.hlock.get
       in.hgrant.get := true.B

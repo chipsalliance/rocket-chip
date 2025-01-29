@@ -14,7 +14,7 @@ class WithDebugAPB extends freechips.rocketchip.subsystem.WithDebugAPB
 class BaseConfig extends Config(
   new WithDefaultMemPort ++
   new WithDefaultMMIOPort ++
-  new WithDefaultSlavePort ++
+  new WithDefaultManagerPort ++
   new WithTimebase(BigInt(1000000)) ++ // 1 MHz
   new WithDTS("freechips,rocketchip-unknown", Nil) ++
   new WithNExtTopInterrupts(2) ++
@@ -86,12 +86,12 @@ class TinyConfig extends Config(
 
 class MemPortOnlyConfig extends Config(
   new WithNoMMIOPort ++
-  new WithNoSlavePort ++
+  new WithNoManagerPort ++
   new DefaultConfig
 )
 
 class MMIOPortOnlyConfig extends Config(
-  new WithNoSlavePort ++
+  new WithNoManagerPort ++
   new WithNoMemPort ++
   new WithNMemoryChannels(0) ++
   new WithNBanks(0) ++

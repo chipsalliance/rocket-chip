@@ -100,11 +100,11 @@ trait HasFuzzTarget {
                     AddressSet(0x900, ~0x900)) // ie: 0x900-0x9ff, 0xb00-0xbff, ... 0xf00-0xfff
 }
 
-class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
+class AXI4FuzzManager(txns: Int)(implicit p: Parameters) extends LazyModule with HasFuzzTarget
 {
   val node  = AXI4IdentityNode()
   val fuzz  = LazyModule(new TLFuzzer(txns, overrideAddress = Some(fuzzAddr)))
-  val model = LazyModule(new TLRAMModel("AXI4FuzzMaster"))
+  val model = LazyModule(new TLRAMModel("AXI4FuzzManager"))
 
   (node
     := AXI4UserYanker()
@@ -127,7 +127,7 @@ class AXI4FuzzMaster(txns: Int)(implicit p: Parameters) extends LazyModule with 
   }
 }
 
-class AXI4FuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasFuzzTarget
+class AXI4FuzzSubordinate()(implicit p: Parameters) extends SimpleLazyModule with HasFuzzTarget
 {
   val node = AXI4IdentityNode()
   val xbar = LazyModule(new TLXbar)
@@ -151,14 +151,14 @@ class AXI4FuzzSlave()(implicit p: Parameters) extends SimpleLazyModule with HasF
 
 class AXI4FuzzBridge(txns: Int)(implicit p: Parameters) extends LazyModule
 {
-  val master = LazyModule(new AXI4FuzzMaster(txns))
-  val slave  = LazyModule(new AXI4FuzzSlave)
+  val manager = LazyModule(new AXI4FuzzManager(txns))
+  val subordinate  = LazyModule(new AXI4FuzzSubordinate)
 
-  slave.node := master.node
+  subordinate.node := manager.node
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) with UnitTestModule {
-    io.finished := master.module.io.finished
+    io.finished := manager.module.io.finished
   }
 }
 

@@ -923,13 +923,13 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.s2_gpa_is_pte := s2_tlb_xcpt.gpa_is_pte
 
   // report whether there are any outstanding accesses.  disregard any
-  // slave-port accesses, since they don't affect local memory ordering.
-  val s1_isSlavePortAccess = s1_req.no_xcpt
-  val s2_isSlavePortAccess = s2_req.no_xcpt
-  io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
+  // manager-port accesses, since they don't affect local memory ordering.
+  val s1_isManagerPortAccess = s1_req.no_xcpt
+  val s2_isManagerPortAccess = s2_req.no_xcpt
+  io.cpu.ordered := !(s1_valid && !s1_isManagerPortAccess || s2_valid && !s2_isManagerPortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
   io.cpu.store_pending := (cached_grant_wait && isWrite(s2_req.cmd)) || uncachedInFlight.asUInt.orR
 
-  val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
+  val s1_xcpt_valid = tlb.io.req.valid && !s1_isManagerPortAccess && !s1_nack
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))
 
   if (usingDataScratchpad) {
@@ -1139,8 +1139,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       property.CoverBoolean(data_error && !data_error_uncorrectable, Seq("data_correctable_error")),
       property.CoverBoolean(data_error && data_error_uncorrectable, Seq("data_uncorrectable_error")))
     val request_source = Seq(
-      property.CoverBoolean(s2_isSlavePortAccess, Seq("from_TL")),
-      property.CoverBoolean(!s2_isSlavePortAccess, Seq("from_CPU")))
+      property.CoverBoolean(s2_isManagerPortAccess, Seq("from_TL")),
+      property.CoverBoolean(!s2_isManagerPortAccess, Seq("from_CPU")))
 
     property.cover(new property.CrossProperty(
       Seq(data_error_cover, request_source),

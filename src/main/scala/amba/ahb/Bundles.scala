@@ -5,10 +5,10 @@ package freechips.rocketchip.amba.ahb
 import chisel3._
 import freechips.rocketchip.util._
 
-// Signal directions are from the master's point-of-view
-class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle
+// Signal directions are from the manager's point-of-view
+class AHBSubordinateBundle(val params: AHBBundleParameters) extends Bundle
 {
-  // Control signals from the arbiter to slave
+  // Control signals from the arbiter to subordinate
   val hmastlock = Output(Bool())
   val hsel      = Output(Bool())
 
@@ -16,7 +16,7 @@ class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle
   val hready    = Output(Bool()) // from arbiter
   val hreadyout = Input(Bool())  // to arbiter
 
-  // A-phase signals from arbiter to slave
+  // A-phase signals from arbiter to subordinate
   val htrans    = Output(UInt(params.transBits.W))
   val hsize     = Output(UInt(params.sizeBits.W))
   val hburst    = Output(UInt(params.burstBits.W))
@@ -25,27 +25,27 @@ class AHBSlaveBundle(val params: AHBBundleParameters) extends Bundle
   val haddr     = Output(UInt(params.addrBits.W))
   val hauser    = BundleMap(params.requestFields)
 
-  // D-phase signals from arbiter to slave
+  // D-phase signals from arbiter to subordinate
   val hduser    = BundleMap(params.responseFields)
   val hwdata    = Output(UInt(params.dataBits.W))
 
-  // D-phase signals from slave to arbiter
+  // D-phase signals from subordinate to arbiter
   val hresp     = Input(UInt(params.hrespBits.W))
   val hrdata    = Input(UInt(params.dataBits.W))
 
   // Split signals
-  val hmaster   = if (params.lite) None else Some(Output(UInt(4.W)))
+  val hmanager   = if (params.lite) None else Some(Output(UInt(4.W)))
   val hsplit    = if (params.lite) None else Some(Input(UInt(16.W)))
 }
 
-class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
+class AHBManagerBundle(val params: AHBBundleParameters) extends Bundle
 {
-  // Control signals from master to arbiter
+  // Control signals from manager to arbiter
   val hmastlock = if (params.lite) Some(Output(Bool())) else None
   val hlock     = if (params.lite) None else Some(Output(Bool()))
   val hbusreq   = if (params.lite) None else Some(Output(Bool()))
 
-  // Flow control from arbiter to master
+  // Flow control from arbiter to manager
   val hgrant  = if (params.lite) None else Some(Input(Bool()))
   val hready  = Input(Bool())
 
@@ -54,7 +54,7 @@ class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
   def busreq(): Bool = if (params.lite) WireInit(true.B) else hbusreq.get
   def grant():  Bool = if (params.lite) WireInit(true.B) else hgrant.get
 
-  // A-phase signals from master to arbiter
+  // A-phase signals from manager to arbiter
   val htrans  = Output(UInt(params.transBits.W))
   val hsize   = Output(UInt(params.sizeBits.W))
   val hburst  = Output(UInt(params.burstBits.W))
@@ -63,21 +63,21 @@ class AHBMasterBundle(val params: AHBBundleParameters) extends Bundle
   val haddr   = Output(UInt(params.addrBits.W))
   val hauser  = BundleMap(params.requestFields)
 
-  // D-phase signals from master to arbiter
+  // D-phase signals from manager to arbiter
   val hduser    = BundleMap(params.responseFields)
   val hwdata  = Output(UInt(params.dataBits.W))
 
-  // D-phase response from arbiter to master
+  // D-phase response from arbiter to manager
   val hresp   = Input(UInt(params.hrespBits.W))
   val hrdata  = Input(UInt(params.dataBits.W))
 }
 
-object AHBSlaveBundle
+object AHBSubordinateBundle
 {
-  def apply(params: AHBBundleParameters) = new AHBSlaveBundle(params)
+  def apply(params: AHBBundleParameters) = new AHBSubordinateBundle(params)
 }
 
-object AHBMasterBundle
+object AHBManagerBundle
 {
-  def apply(params: AHBBundleParameters) = new AHBMasterBundle(params)
+  def apply(params: AHBBundleParameters) = new AHBManagerBundle(params)
 }

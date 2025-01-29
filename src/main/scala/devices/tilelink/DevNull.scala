@@ -8,7 +8,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{SimpleDevice}
 import freechips.rocketchip.prci.{HasClockDomainCrossing}
-import freechips.rocketchip.tilelink.{TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
+import freechips.rocketchip.tilelink.{TLManagerNode, TLManagerParameters, TLManagerPortParameters}
 
 import freechips.rocketchip.tilelink.TLClockDomainCrossing
 
@@ -38,8 +38,8 @@ abstract class DevNullDevice(params: DevNullParams, minLatency: Int, beatBytes: 
   val atom = if (params.maxAtomic > 0) TransferSizes(1, params.maxAtomic) else TransferSizes.none
   val acq  = if (params.acquire) xfer else TransferSizes.none
   val hint = if (params.hint) xfer else TransferSizes.none
-  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  val node = TLManagerNode(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address            = params.address,
       resources          = device.reg,
       regionType         = params.region,

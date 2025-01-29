@@ -12,7 +12,7 @@ import freechips.rocketchip.resources.{Resource}
 import freechips.rocketchip.util.{BundleFieldBase, BundleField}
 
 
-class AXISSlaveParameters private (
+class AXISSubordinateParameters private (
   val name:          String,
   val supportsSizes: TransferSizes,
   val destinationId: Int,
@@ -29,7 +29,7 @@ class AXISSlaveParameters private (
       resources:     Seq[Resource] = resources,
       nodePath:      Seq[BaseNode] = nodePath) =
   {
-    new AXISSlaveParameters(
+    new AXISSubordinateParameters(
       name         = name,
       supportsSizes = supportsSizes,
       destinationId = destinationId,
@@ -38,7 +38,7 @@ class AXISSlaveParameters private (
   }
 }
 
-object AXISSlaveParameters {
+object AXISSubordinateParameters {
   def v1(
       name:          String,
       supportsSizes: TransferSizes,
@@ -46,7 +46,7 @@ object AXISSlaveParameters {
       resources:     Seq[Resource] = Nil,
       nodePath:      Seq[BaseNode] = Nil) =
   {
-    new AXISSlaveParameters(
+    new AXISSubordinateParameters(
       name         = name,
       supportsSizes = supportsSizes,
       destinationId = destinationId,
@@ -55,48 +55,48 @@ object AXISSlaveParameters {
   }
 }
 
-class AXISSlavePortParameters private (
-  val slaves:        Seq[AXISSlaveParameters],
+class AXISSubordinatePortParameters private (
+  val subordinates:        Seq[AXISSubordinateParameters],
   val reqAligned:    Boolean, /* 'Position byte's are unsupported */
   val reqContinuous: Boolean, /* 'Null byte's inside transfers unsupported */
   val beatBytes:     Option[Int])
 {
-  require (!slaves.isEmpty)
+  require (!subordinates.isEmpty)
   beatBytes.foreach { b => require(isPow2(b)) }
 
-  val endDestinationId = slaves.map(_.destinationId).max + 1
-  val supportsMinCover = TransferSizes.mincover(slaves.map(_.supportsSizes))
+  val endDestinationId = subordinates.map(_.destinationId).max + 1
+  val supportsMinCover = TransferSizes.mincover(subordinates.map(_.supportsSizes))
 
   def v1copy(
-    slaves:        Seq[AXISSlaveParameters] = slaves,
+    subordinates:        Seq[AXISSubordinateParameters] = subordinates,
     reqAligned:    Boolean                  = reqAligned,
     reqContinuous: Boolean                  = reqContinuous,
     beatBytes:     Option[Int]              = beatBytes) =
   {
-    new AXISSlavePortParameters(
-      slaves        = slaves,
+    new AXISSubordinatePortParameters(
+      subordinates        = subordinates,
       reqAligned    = reqAligned,
       reqContinuous = reqContinuous,
       beatBytes     = beatBytes)
   }
 }
 
-object AXISSlavePortParameters {
+object AXISSubordinatePortParameters {
   def v1(
-    slaves:        Seq[AXISSlaveParameters],
+    subordinates:        Seq[AXISSubordinateParameters],
     reqAligned:    Boolean     = false,
     reqContinuous: Boolean     = false,
     beatBytes:     Option[Int] = None) =
   {
-    new AXISSlavePortParameters(
-      slaves        = slaves,
+    new AXISSubordinatePortParameters(
+      subordinates        = subordinates,
       reqAligned    = reqAligned,
       reqContinuous = reqContinuous,
       beatBytes     = beatBytes)
   }
 }
 
-class AXISMasterParameters private (
+class AXISManagerParameters private (
   val name:       String,
   val emitsSizes: TransferSizes,
   val sourceId:   IdRange,
@@ -113,7 +113,7 @@ class AXISMasterParameters private (
     resources:  Seq[Resource] = resources,
     nodePath:   Seq[BaseNode] = nodePath) =
   {
-    new AXISMasterParameters(
+    new AXISManagerParameters(
       name       = name,
       emitsSizes = emitsSizes,
       sourceId   = sourceId,
@@ -122,7 +122,7 @@ class AXISMasterParameters private (
   }
 }
 
-object AXISMasterParameters {
+object AXISManagerParameters {
   def v1(
     name:       String,
     emitsSizes: TransferSizes,
@@ -130,7 +130,7 @@ object AXISMasterParameters {
     resources:  Seq[Resource] = Nil,
     nodePath:   Seq[BaseNode] = Nil) =
   {
-    new AXISMasterParameters(
+    new AXISManagerParameters(
       name       = name,
       emitsSizes = emitsSizes,
       sourceId   = sourceId,
@@ -139,28 +139,28 @@ object AXISMasterParameters {
   }
 }
 
-class AXISMasterPortParameters private (
-  val masters:      Seq[AXISMasterParameters],
+class AXISManagerPortParameters private (
+  val managers:      Seq[AXISManagerParameters],
   val userFields:   Seq[BundleFieldBase],
   val isAligned:    Boolean, /* there are no 'Position byte's in transfers */
   val isContinuous: Boolean, /* there are no 'Null byte's except at the end of a transfer */
   val beatBytes:    Option[Int])
 {
-  require (!masters.isEmpty)
+  require (!managers.isEmpty)
   beatBytes.foreach { b => require(isPow2(b)) }
 
-  val endSourceId = masters.map(_.sourceId.end).max
-  val emitsMinCover = TransferSizes.mincover(masters.map(_.emitsSizes))
+  val endSourceId = managers.map(_.sourceId.end).max
+  val emitsMinCover = TransferSizes.mincover(managers.map(_.emitsSizes))
 
   def v1copy(
-    masters:      Seq[AXISMasterParameters] = masters,
+    managers:      Seq[AXISManagerParameters] = managers,
     userFields:   Seq[BundleFieldBase]      = userFields,
     isAligned:    Boolean                   = isAligned,
     isContinuous: Boolean                   = isContinuous,
     beatBytes:    Option[Int]               = beatBytes) =
   {
-    new AXISMasterPortParameters(
-      masters      = masters,
+    new AXISManagerPortParameters(
+      managers      = managers,
       userFields   = userFields,
       isAligned    = isAligned,
       isContinuous = isContinuous,
@@ -168,16 +168,16 @@ class AXISMasterPortParameters private (
   }
 }
 
-object AXISMasterPortParameters {
+object AXISManagerPortParameters {
   def v1(
-    masters:      Seq[AXISMasterParameters],
+    managers:      Seq[AXISManagerParameters],
     userFields:   Seq[BundleFieldBase] = Nil,
     isAligned:    Boolean              = false,
     isContinuous: Boolean              = false,
     beatBytes:    Option[Int]          = None) =
   {
-    new AXISMasterPortParameters(
-      masters      = masters,
+    new AXISManagerPortParameters(
+      managers      = managers,
       userFields   = userFields,
       isAligned    = isAligned,
       isContinuous = isContinuous,
@@ -263,38 +263,38 @@ object AXISBundleParameters {
 }
 
 class AXISEdgeParameters private (
-  val master:     AXISMasterPortParameters,
-  val slave:      AXISSlavePortParameters,
+  val manager:     AXISManagerPortParameters,
+  val subordinate:      AXISSubordinatePortParameters,
   val params:     Parameters,
   val sourceInfo: SourceInfo)
 {
-  require (!slave.beatBytes.isEmpty || !master.beatBytes.isEmpty,
-    s"Neither master nor slave port specify a bus width (insert an AXISBusBinder between them?) at ${sourceInfo}")
-  require (slave.beatBytes.isEmpty || master.beatBytes.isEmpty || slave.beatBytes == master.beatBytes,
-    s"Master and slave ports specify incompatible bus widths (insert an AXISWidthWidget between them?) at ${sourceInfo}")
-  require (!slave.reqAligned || master.isAligned, s"Slave port requires aligned stream data at ${sourceInfo}")
-  require (!slave.reqContinuous || master.isContinuous, s"Slave port requires continuous stream data at ${sourceInfo}")
+  require (!subordinate.beatBytes.isEmpty || !manager.beatBytes.isEmpty,
+    s"Neither manager nor subordinate port specify a bus width (insert an AXISBusBinder between them?) at ${sourceInfo}")
+  require (subordinate.beatBytes.isEmpty || manager.beatBytes.isEmpty || subordinate.beatBytes == manager.beatBytes,
+    s"Manager and subordinate ports specify incompatible bus widths (insert an AXISWidthWidget between them?) at ${sourceInfo}")
+  require (!subordinate.reqAligned || manager.isAligned, s"Subordinate port requires aligned stream data at ${sourceInfo}")
+  require (!subordinate.reqContinuous || manager.isContinuous, s"Subordinate port requires continuous stream data at ${sourceInfo}")
 
-  val beatBytes = slave.beatBytes.getOrElse(master.beatBytes.get)
-  val transferSizes = master.emitsMinCover intersect slave.supportsMinCover
+  val beatBytes = subordinate.beatBytes.getOrElse(manager.beatBytes.get)
+  val transferSizes = manager.emitsMinCover intersect subordinate.supportsMinCover
 
   val bundle = AXISBundleParameters.v1(
-    idBits      = log2Ceil(master.endSourceId),
-    destBits    = log2Ceil(slave.endDestinationId),
+    idBits      = log2Ceil(manager.endSourceId),
+    destBits    = log2Ceil(subordinate.endDestinationId),
     dataBits    = beatBytes * 8,
-    userFields  = master.userFields,
+    userFields  = manager.userFields,
     oneBeat     = transferSizes.max <= beatBytes,
-    aligned     = master.isAligned)
+    aligned     = manager.isAligned)
 
   def v1copy(
-    master:     AXISMasterPortParameters = master,
-    slave:      AXISSlavePortParameters  = slave,
+    manager:     AXISManagerPortParameters = manager,
+    subordinate:      AXISSubordinatePortParameters  = subordinate,
     params:     Parameters               = params,
     sourceInfo: SourceInfo               = sourceInfo) =
   {
     new AXISEdgeParameters(
-      master     = master,
-      slave      = slave,
+      manager     = manager,
+      subordinate      = subordinate,
       params     = params,
       sourceInfo = sourceInfo)
   }
@@ -302,14 +302,14 @@ class AXISEdgeParameters private (
 
 object AXISEdgeParameters {
   def v1(
-    master:     AXISMasterPortParameters,
-    slave:      AXISSlavePortParameters,
+    manager:     AXISManagerPortParameters,
+    subordinate:      AXISSubordinatePortParameters,
     params:     Parameters,
     sourceInfo: SourceInfo) =
   {
     new AXISEdgeParameters(
-      master     = master,
-      slave      = slave,
+      manager     = manager,
+      subordinate      = subordinate,
       params     = params,
       sourceInfo = sourceInfo)
   }

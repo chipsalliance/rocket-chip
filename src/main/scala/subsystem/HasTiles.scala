@@ -168,8 +168,8 @@ trait CanAttachTile {
 
   /** A default set of connections that need to occur for most tile types */
   def connect(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
-    connectMasterPorts(domain, context)
-    connectSlavePorts(domain, context)
+    connectClientPorts(domain, context)
+    connectManagerPorts(domain, context)
     connectInterrupts(domain, context)
     connectPRC(domain, context)
     connectOutputNotifications(domain, context)
@@ -177,22 +177,22 @@ trait CanAttachTile {
     connectTrace(domain, context)
   }
 
-  /** Connect the port where the tile is the master to a TileLink interconnect. */
-  def connectMasterPorts(domain: TilePRCIDomain[TileType], context: Attachable): Unit = {
+  /** Connect the port where the tile is the client to a TileLink interconnect. */
+  def connectClientPorts(domain: TilePRCIDomain[TileType], context: Attachable): Unit = {
     implicit val p = context.p
-    val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
+    val dataBus = context.locateTLBusWrapper(crossingParams.client.where)
     dataBus.coupleFrom(tileParams.baseName) { bus =>
-      bus :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
+      bus :=* crossingParams.client.injectNode(context) :=* domain.crossClientPort(crossingParams.crossingType)
     }
   }
 
-  /** Connect the port where the tile is the slave to a TileLink interconnect. */
-  def connectSlavePorts(domain: TilePRCIDomain[TileType], context: Attachable): Unit = {
+  /** Connect the port where the tile is the manager to a TileLink interconnect. */
+  def connectManagerPorts(domain: TilePRCIDomain[TileType], context: Attachable): Unit = {
     implicit val p = context.p
     DisableMonitors { implicit p =>
-      val controlBus = context.locateTLBusWrapper(crossingParams.slave.where)
+      val controlBus = context.locateTLBusWrapper(crossingParams.manager.where)
       controlBus.coupleTo(tileParams.baseName) { bus =>
-        domain.crossSlavePort(crossingParams.crossingType) :*= crossingParams.slave.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
+        domain.crossManagerPort(crossingParams.crossingType) :*= crossingParams.manager.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
       }
     }
   }
@@ -270,7 +270,7 @@ trait CanAttachTile {
   /** Connect power/reset/clock resources. */
   def connectPRC(domain: TilePRCIDomain[TileType], context: TileContextType): Unit = {
     implicit val p = context.p
-    val tlBusToGetClockDriverFrom = context.locateTLBusWrapper(crossingParams.master.where)
+    val tlBusToGetClockDriverFrom = context.locateTLBusWrapper(crossingParams.client.where)
     (crossingParams.crossingType match {
       case _: SynchronousCrossing | _: CreditedCrossing =>
         if (crossingParams.forceSeparateClockReset) {

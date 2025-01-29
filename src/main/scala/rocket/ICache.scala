@@ -16,7 +16,7 @@ import freechips.rocketchip.amba.{AMBAProt, AMBAProtField}
 import freechips.rocketchip.diplomacy.{IdRange, AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{SimpleDevice, ResourceBindings, Binding, ResourceAddress, Description, ResourceString, ResourceValue}
 import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, TileKey, LookupByHartId}
-import freechips.rocketchip.tilelink.{TLClientNode, TLMasterPortParameters, TLManagerNode, TLSlavePortParameters, TLSlaveParameters, TLMasterParameters, TLHints}
+import freechips.rocketchip.tilelink.{TLClientNode, TLClientPortParameters, TLManagerNode, TLManagerPortParameters, TLManagerParameters, TLClientParameters, TLHints}
 import freechips.rocketchip.util.{Code, CanHaveErrors, DescribedSRAM, RandomReplacement, Split, IdentityCode, property}
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
@@ -137,7 +137,7 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
 
   /** Rocket configuration has virtual memory.
     *
-    * This only affect [[masterNode]] AMBA ports only:
+    * This only affect [[clientNode]] AMBA ports only:
     * AMBA privileged, secure will be set as true while others set as false.
     * see [[freechips.rocketchip.amba.AMBAProt]] for more informations.
     */
@@ -151,8 +151,8 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
     *
     * @todo why if no [[useVM]], will have AMBAProtField in requestFields?
     */
-  val masterNode = TLClientNode(Seq(TLMasterPortParameters.v1(
-    clients = Seq(TLMasterParameters.v1(
+  val clientNode = TLClientNode(Seq(TLClientPortParameters.v1(
+    clients = Seq(TLClientParameters.v1(
       sourceId = IdRange(0, 1 + icacheParams.prefetch.toInt), // 0=refill, 1=hint
       name = s"Core ${staticIdForMetadataUseOnly} ICache")),
     requestFields = useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
@@ -183,9 +183,9 @@ class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int
   private val wordBytes = icacheParams.fetchBytes
 
   /** Instruction Tightly Integrated Memory node. */
-  val slaveNode =
-    TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLSlavePortParameters.v1(
-      Seq(TLSlaveParameters.v1(
+  val managerNode =
+    TLManagerNode(icacheParams.itimAddr.toSeq.map { itimAddr => TLManagerPortParameters.v1(
+      Seq(TLManagerParameters.v1(
         address         = Seq(AddressSet(itimAddr, size-1)),
         resources       = device.reg("mem"),
         regionType      = RegionType.IDEMPOTENT,
@@ -256,14 +256,14 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val io = IO(new ICacheBundle(outer))
 
   /** TileLink port to memory. */
-  val (tl_out, edge_out) = outer.masterNode.out(0)
+  val (tl_out, edge_out) = outer.clientNode.out(0)
 
   /** TileLink port as ITIM memory.
-    * if [[outer.slaveNode]] is not connected [[outer.slaveNode.in]] will be empty.
+    * if [[outer.managerNode]] is not connected [[outer.managerNode.in]] will be empty.
     *
     * wes: Option.unzip does not exist :-(
     */
-  val (tl_in, edge_in) = outer.slaveNode.in.headOption.unzip
+  val (tl_in, edge_in) = outer.managerNode.in.headOption.unzip
 
   val tECC = cacheParams.tagCode
   val dECC = cacheParams.dataCode
@@ -322,15 +322,15 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     *                    │    line       │
     * }}}
     * @param addr address to be found.
-   *             applied to slave_addr
+   *             applied to manager_addr
     */
   def scratchpadLine(addr: UInt) = addr(untagBits+log2Ceil(nWays)-1, blockOffBits)
 
   /** scratchpad access valid in stage N*/
-  val s0_slaveValid = tl_in.map(_.a.fire).getOrElse(false.B)
-  val s1_slaveValid = RegNext(s0_slaveValid, false.B)
-  val s2_slaveValid = RegNext(s1_slaveValid, false.B)
-  val s3_slaveValid = RegNext(false.B)
+  val s0_managerValid = tl_in.map(_.a.fire).getOrElse(false.B)
+  val s1_managerValid = RegNext(s0_managerValid, false.B)
+  val s2_managerValid = RegNext(s1_managerValid, false.B)
+  val s3_managerValid = RegNext(false.B)
 
   /** valid signal for CPU accessing cache in stage 0. */
   val s0_valid = io.req.fire
@@ -346,19 +346,19 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   /** CPU I$ Hit in stage 1.
     *
     * @note
-    * for logic in `Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))`,
+    * for logic in `Mux(s1_managerValid, true.B, addrMaybeInScratchpad(io.s1_paddr))`,
     * there are two different types based on latency:
     *
-    * if latency is 1: `s1_slaveValid === false.B` and `addrMaybeInScratchpad(io.s1_paddr) === false.B` ,
+    * if latency is 1: `s1_managerValid === false.B` and `addrMaybeInScratchpad(io.s1_paddr) === false.B` ,
     *                   since in this case, ITIM must be empty.
     *
-    * if latency is 2: if `s1_slaveValid` is true, this SRAM accessing is coming from [[tl_in]], so it will hit.
-    *                  if `s1_slaveValid` is false, but CPU is accessing memory range in scratchpad address, it will hit by default.
+    * if latency is 2: if `s1_managerValid` is true, this SRAM accessing is coming from [[tl_in]], so it will hit.
+    *                  if `s1_managerValid` is false, but CPU is accessing memory range in scratchpad address, it will hit by default.
     *                  Hardware won't guarantee this access will access to a data which have been written in ITIM.
     *
-    * @todo seem CPU access are both processed by `s1_tag_hit` and `Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))`?
+    * @todo seem CPU access are both processed by `s1_tag_hit` and `Mux(s1_managerValid, true.B, addrMaybeInScratchpad(io.s1_paddr))`?
     */
-  val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_slaveValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
+  val s1_hit = s1_tag_hit.reduce(_||_) || Mux(s1_managerValid, true.B, addrMaybeInScratchpad(io.s1_paddr))
   dontTouch(s1_hit)
   val s2_valid = RegNext(s1_valid && !io.s1_kill, false.B)
   val s2_hit = RegNext(s1_hit)
@@ -391,14 +391,14 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val refill_one_beat = tl_out.d.fire && edge_out.hasData(tl_out.d.bits)
 
   /** block request from CPU when refill or scratch pad access. */
-  io.req.ready := !(refill_one_beat || s0_slaveValid || s3_slaveValid)
+  io.req.ready := !(refill_one_beat || s0_managerValid || s3_managerValid)
   s1_valid := s0_valid
 
   val (_, _, d_done, refill_cnt) = edge_out.count(tl_out.d)
   /** at last beat of `tl_out.d.fire`, finish refill. */
   val refill_done = refill_one_beat && d_done
   /** scratchpad is writing data. block refill. */
-  tl_out.d.ready := !s3_slaveValid
+  tl_out.d.ready := !s3_managerValid
   require (edge_out.manager.minLatency > 0)
 
   /** way to be replaced, implemented with a hardcoded random replacement algorithm */
@@ -474,19 +474,19 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   s1_dout := DontCare
 
   /** address accessed by [[tl_in]] for ITIM. */
-  val s0_slaveAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
+  val s0_managerAddr = tl_in.map(_.a.bits.address).getOrElse(0.U)
   /** address used at stage 1 and 3.
     * {{{
     * In stage 1, it caches TileLink data, store in stage 2 if ECC passed.
     * In stage 3, it caches corrected data from stage 2, and store in stage 4.}}}
     */
-  val s1s3_slaveAddr = Reg(UInt(log2Ceil(outer.size).W))
+  val s1s3_managerAddr = Reg(UInt(log2Ceil(outer.size).W))
   /** data used at stage 1 and 3.
     * {{{
     * In stage 1, it caches TileLink data, store in stage 2.
     * In stage 3, it caches corrected data from data ram, and return to d channel.}}}
     */
-  val s1s3_slaveData = Reg(UInt(wordBits.W))
+  val s1s3_managerData = Reg(UInt(wordBits.W))
 
   for (i <- 0 until nWays) {
     val s1_idx = index(s1_vaddr, io.s1_paddr)
@@ -495,17 +495,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
       * [[tag_array]] corrupted.
       */
     val scratchpadHit = scratchpadWayValid(i.U) &&
-      Mux(s1_slaveValid,
+      Mux(s1_managerValid,
         // scratchpad accessing form [[tl_in]].
         // @todo I think XBar will guarantee there won't be an illegal access on the bus?
-        //       so why did have this check `lineInScratchpad(scratchpadLine(s1s3_slaveAddr))`?
+        //       so why did have this check `lineInScratchpad(scratchpadLine(s1s3_managerAddr))`?
         //       I think it will always be true.
-        lineInScratchpad(scratchpadLine(s1s3_slaveAddr)) && scratchpadWay(s1s3_slaveAddr) === i.U,
+        lineInScratchpad(scratchpadLine(s1s3_managerAddr)) && scratchpadWay(s1s3_managerAddr) === i.U,
         // scratchpad accessing from [[io]].
         // @todo Accessing ITIM correspond address will be able to read cacheline?
         //       is this desired behavior?
         addrInScratchpad(io.s1_paddr) && scratchpadWay(io.s1_paddr) === i.U)
-    val s1_vb = vb_array(Cat(i.U, s1_idx).pad(log2Ceil(nSets*nWays))) && !s1_slaveValid
+    val s1_vb = vb_array(Cat(i.U, s1_idx).pad(log2Ceil(nSets*nWays))) && !s1_managerValid
     val enc_tag = tECC.decode(tag_rdata(i))
     /** [[tl_error]] ECC error bit.
       * [[tag]] of [[tag_array]] access.
@@ -518,7 +518,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     s1_tl_error(i) := tagMatch && tl_error.asBool
     s1_tag_hit(i) := tagMatch || scratchpadHit
   }
-  assert(!(s1_valid || s1_slaveValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1.U)
+  assert(!(s1_valid || s1_managerValid) || PopCount(s1_tag_hit zip s1_tag_disparity map { case (h, d) => h && !d }) <= 1.U)
 
   require(tl_out.d.bits.data.getWidth % wordBits == 0)
 
@@ -564,32 +564,32 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     def wordMatch(addr: UInt) = addr.extract(log2Ceil(tl_out.d.bits.data.getWidth/8)-1, log2Ceil(wordBits/8)) === i.U
     def row(addr: UInt) = addr(untagBits-1, blockOffBits-log2Ceil(refillCycles))
     /** read_enable signal*/
-    val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_slaveValid && wordMatch(s0_slaveAddr))
+    val s0_ren = (s0_valid && wordMatch(s0_vaddr)) || (s0_managerValid && wordMatch(s0_managerAddr))
     /** write_enable signal
      * refill from [[tl_out]] or ITIM write. */
-    val wen = (refill_one_beat && !invalidated) || (s3_slaveValid && wordMatch(s1s3_slaveAddr))
+    val wen = (refill_one_beat && !invalidated) || (s3_managerValid && wordMatch(s1s3_managerAddr))
     /** index to access [[data_array]]. */
     val mem_idx =
       // I$ refill. refill_idx[2:0] is the beats
       Mux(refill_one_beat, (refill_idx << log2Ceil(refillCycles)) | refill_cnt,
       // ITIM write.
-                  Mux(s3_slaveValid, row(s1s3_slaveAddr),
+                  Mux(s3_managerValid, row(s1s3_managerAddr),
       // ITIM read.
-                  Mux(s0_slaveValid, row(s0_slaveAddr),
+                  Mux(s0_managerValid, row(s0_managerAddr),
       // CPU read.
                   row(s0_vaddr))))
     when (wen) {
       //wr_data
-      val data = Mux(s3_slaveValid, s1s3_slaveData, tl_out.d.bits.data(wordBits*(i+1)-1, wordBits*i))
+      val data = Mux(s3_managerValid, s1s3_managerData, tl_out.d.bits.data(wordBits*(i+1)-1, wordBits*i))
       //the way to be replaced/written
-      val way = Mux(s3_slaveValid, scratchpadWay(s1s3_slaveAddr), repl_way)
+      val way = Mux(s3_managerValid, scratchpadWay(s1s3_managerAddr), repl_way)
       data_array.write(mem_idx, VecInit(Seq.fill(nWays){dECC.encode(data)}), (0 until nWays).map(way === _.U))
     }
     // write access
     /** data read from [[data_array]]. */
     val dout = data_array.read(mem_idx, !wen && s0_ren)
     // Mux to select a way to [[s1_dout]]
-    when (wordMatch(Mux(s1_slaveValid, s1s3_slaveAddr, io.s1_paddr))) {
+    when (wordMatch(Mux(s1_managerValid, s1s3_managerAddr, io.s1_paddr))) {
       s1_dout := dout
     }
   }
@@ -598,17 +598,17 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     * When writing a full scratchpad word, suppress the read so Xs don't leak out
     */
   val s1s2_full_word_write = WireDefault(false.B)
-  val s1_dont_read = s1_slaveValid && s1s2_full_word_write
+  val s1_dont_read = s1_managerValid && s1s2_full_word_write
 
   /** clock gate signal for [[s2_tag_hit]], [[s2_dout]], [[s2_tag_disparity]], [[s2_tl_error]], [[s2_scratchpad_hit]]. */
-  val s1_clk_en = s1_valid || s1_slaveValid
+  val s1_clk_en = s1_valid || s1_managerValid
   val s2_tag_hit = RegEnable(Mux(s1_dont_read, 0.U.asTypeOf(s1_tag_hit), s1_tag_hit), s1_clk_en)
   /** way index to access [[data_arrays]]. */
   val s2_hit_way = OHToUInt(s2_tag_hit)
   /** ITIM index to access [[data_arrays]].
     * replace tag with way, word set to 0.
     */
-  val s2_scratchpad_word_addr = Cat(s2_hit_way, Mux(s2_slaveValid, s1s3_slaveAddr, io.s2_vaddr)(untagBits-1, log2Ceil(wordBits/8)), 0.U(log2Ceil(wordBits/8).W))
+  val s2_scratchpad_word_addr = Cat(s2_hit_way, Mux(s2_managerValid, s1s3_managerAddr, io.s2_vaddr)(untagBits-1, log2Ceil(wordBits/8)), 0.U(log2Ceil(wordBits/8).W))
   val s2_dout = RegEnable(s1_dout, s1_clk_en)
   val s2_way_mux = Mux1H(s2_tag_hit, s2_dout)
   val s2_tag_disparity = RegEnable(s1_tag_disparity, s1_clk_en).asUInt.orR
@@ -617,19 +617,19 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   val s2_data_decoded = dECC.decode(s2_way_mux)
   /** ECC error happened, correctable or uncorrectable, ask CPU to replay. */
   val s2_disparity = s2_tag_disparity || s2_data_decoded.error
-  /** access hit in ITIM, if [[s1_slaveValid]], this access is from [[tl_in]], else from CPU [[io]]. */
-  val s1_scratchpad_hit = Mux(s1_slaveValid, lineInScratchpad(scratchpadLine(s1s3_slaveAddr)), addrInScratchpad(io.s1_paddr))
+  /** access hit in ITIM, if [[s1_managerValid]], this access is from [[tl_in]], else from CPU [[io]]. */
+  val s1_scratchpad_hit = Mux(s1_managerValid, lineInScratchpad(scratchpadLine(s1s3_managerAddr)), addrInScratchpad(io.s1_paddr))
   /** stage 2 of [[s1_scratchpad_hit]]. */
   val s2_scratchpad_hit = RegEnable(s1_scratchpad_hit, s1_clk_en)
   /** ITIM uncorrectable read.
     * `s2_scratchpad_hit`: processing a scratchpad read(from [[tl_in]] or [[io]])
     * `s2_data_decoded.uncorrectable`: read a uncorrectable data.
     * `s2_valid`: [[io]] non-canceled read.
-    * `(s2_slaveValid && !s2_full_word_write)`: [[tl_in]] read or write a word with wormhole.
+    * `(s2_managerValid && !s2_full_word_write)`: [[tl_in]] read or write a word with wormhole.
     *                                           if write a full word, even stage 2 read uncorrectable.
     *                                           stage 3 full word write will recovery this.
     */
-  val s2_report_uncorrectable_error = s2_scratchpad_hit && s2_data_decoded.uncorrectable && (s2_valid || (s2_slaveValid && !s1s2_full_word_write))
+  val s2_report_uncorrectable_error = s2_scratchpad_hit && s2_data_decoded.uncorrectable && (s2_valid || (s2_managerValid && !s1s2_full_word_write))
   /** ECC uncorrectable address, send to Bus Error Unit. */
   val s2_error_addr = scratchpadBase.map(base => Mux(s2_scratchpad_hit, base + s2_scratchpad_word_addr, 0.U)).getOrElse(0.U)
 
@@ -660,7 +660,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
 
       // report correctable error to BEU at stage 2.
       io.errors.correctable.foreach { c =>
-        c.valid := (s2_valid || s2_slaveValid) && s2_disparity && !s2_report_uncorrectable_error
+        c.valid := (s2_valid || s2_managerValid) && s2_disparity && !s2_report_uncorrectable_error
         c.bits := s2_error_addr
       }
       // report uncorrectable error to BEU at stage 2.
@@ -674,18 +674,18 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         /** valid signal for D channel. */
         val respValid = RegInit(false.B)
         // ITIM access is unpipelined
-        tl.a.ready := !(tl_out.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid || respValid || !io.clock_enabled)
+        tl.a.ready := !(tl_out.d.valid || s1_managerValid || s2_managerValid || s3_managerValid || respValid || !io.clock_enabled)
         /** register used to latch TileLink request for one cycle. */
-        val s1_a = RegEnable(tl.a.bits, s0_slaveValid)
+        val s1_a = RegEnable(tl.a.bits, s0_managerValid)
         // Write Data(Put / PutPartial all mask is 1)
         s1s2_full_word_write := edge_in.get.hasData(s1_a) && s1_a.mask.andR
         // (de)allocate ITIM
-        when (s0_slaveValid) {
+        when (s0_managerValid) {
           val a = tl.a.bits
           // address
-          s1s3_slaveAddr := tl.a.bits.address
+          s1s3_managerAddr := tl.a.bits.address
           // store Put/PutP data
-          s1s3_slaveData := tl.a.bits.data
+          s1s3_managerData := tl.a.bits.data
           // S0
           when (edge_in.get.hasData(a)) {
             // access data in 0 -> way - 2 allocate and enable, access data in way - 1(last way), deallocate.
@@ -711,37 +711,37 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
         }
 
         assert(!s2_valid || RegNext(RegNext(s0_vaddr)) === io.s2_vaddr)
-        when (!(tl.a.valid || s1_slaveValid || s2_slaveValid || respValid)
+        when (!(tl.a.valid || s1_managerValid || s2_managerValid || respValid)
               && s2_valid && s2_data_decoded.error && !s2_tag_disparity) {
           // handle correctable errors on CPU accesses to the scratchpad.
-          // if there is an in-flight slave-port access to the scratchpad,
+          // if there is an in-flight manager-port access to the scratchpad,
           // report the miss but don't correct the error (as there is
-          // a structural hazard on s1s3_slaveData/s1s3_slaveAddress).
-          s3_slaveValid := true.B
-          s1s3_slaveData := s2_data_decoded.corrected
-          s1s3_slaveAddr := s2_scratchpad_word_addr | s1s3_slaveAddr(log2Ceil(wordBits/8)-1, 0)
+          // a structural hazard on s1s3_managerData/s1s3_managerAddress).
+          s3_managerValid := true.B
+          s1s3_managerData := s2_data_decoded.corrected
+          s1s3_managerAddr := s2_scratchpad_word_addr | s1s3_managerAddr(log2Ceil(wordBits/8)-1, 0)
         }
 
         // back pressure is allowed on the [[tl]]
-        // pull up [[respValid]] when [[s2_slaveValid]] until [[tl.d.fire]]
-        respValid := s2_slaveValid || (respValid && !tl.d.ready)
+        // pull up [[respValid]] when [[s2_managerValid]] until [[tl.d.fire]]
+        respValid := s2_managerValid || (respValid && !tl.d.ready)
         // if [[s2_full_word_write]] will overwrite data, and [[s2_data_decoded.uncorrectable]] can be ignored.
-        val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable && !s1s2_full_word_write, s2_slaveValid)
-        when (s2_slaveValid) {
+        val respError = RegEnable(s2_scratchpad_hit && s2_data_decoded.uncorrectable && !s1s2_full_word_write, s2_managerValid)
+        when (s2_managerValid) {
           // need stage 3 if Put or correct decoding.
           // @todo if uncorrectable [[s2_data_decoded]]?
-          when (edge_in.get.hasData(s1_a) || s2_data_decoded.error) { s3_slaveValid := true.B }
+          when (edge_in.get.hasData(s1_a) || s2_data_decoded.error) { s3_managerValid := true.B }
           /** data not masked by the TileLink PutData/PutPartialData.
-            * means data is stored at [[s1s3_slaveData]] which was read at stage 1.
+            * means data is stored at [[s1s3_managerData]] which was read at stage 1.
             */
           def byteEn(i: Int) = !(edge_in.get.hasData(s1_a) && s1_a.mask(i))
-          // write [[s1s3_slaveData]] based on index of wordBits.
+          // write [[s1s3_managerData]] based on index of wordBits.
           // @todo seems a problem here?
           //       granularity of CPU fetch is `wordBits/8`,
           //       granularity of TileLink access is `TLBundleParameters.dataBits/8`
           //       these two granularity can be different.
           // store data read from RAM
-          s1s3_slaveData := (0 until wordBits/8).map(i => Mux(byteEn(i), s2_data_decoded.corrected, s1s3_slaveData)(8*(i+1)-1, 8*i)).asUInt
+          s1s3_managerData := (0 until wordBits/8).map(i => Mux(byteEn(i), s2_data_decoded.corrected, s1s3_managerData)(8*(i+1)-1, 8*i)).asUInt
         }
 
         tl.d.valid := respValid
@@ -750,14 +750,14 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
           edge_in.get.AccessAck(s1_a),
           // Get -> AccessAckData
           edge_in.get.AccessAck(s1_a, 0.U, denied = false.B, corrupt = respError))
-        tl.d.bits.data := s1s3_slaveData
+        tl.d.bits.data := s1s3_managerData
         // Tie off unused channels
         tl.b.valid := false.B
         tl.c.ready := true.B
         tl.e.ready := true.B
 
-        ccover(s0_valid && s1_slaveValid, "CONCURRENT_ITIM_ACCESS_1", "ITIM accessed, then I$ accessed next cycle")
-        ccover(s0_valid && s2_slaveValid, "CONCURRENT_ITIM_ACCESS_2", "ITIM accessed, then I$ accessed two cycles later")
+        ccover(s0_valid && s1_managerValid, "CONCURRENT_ITIM_ACCESS_1", "ITIM accessed, then I$ accessed next cycle")
+        ccover(s0_valid && s2_managerValid, "CONCURRENT_ITIM_ACCESS_2", "ITIM accessed, then I$ accessed two cycles later")
         ccover(tl.d.valid && !tl.d.ready, "ITIM_D_STALL", "ITIM response blocked by D-channel")
         ccover(tl_out.d.valid && !tl_out.d.ready, "ITIM_BLOCK_D", "D-channel blocked by ITIM access")
       }
@@ -833,7 +833,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   io.perf.acquire := refill_fire
   // don't gate I$ clock since there are outstanding transcations.
   io.keep_clock_enabled :=
-    tl_in.map(tl => tl.a.valid || tl.d.valid || s1_slaveValid || s2_slaveValid || s3_slaveValid).getOrElse(false.B) || // ITIM
+    tl_in.map(tl => tl.a.valid || tl.d.valid || s1_managerValid || s2_managerValid || s3_managerValid).getOrElse(false.B) || // ITIM
     s1_valid || s2_valid || refill_valid || send_hint || hint_outstanding // I$
 
   /** index to access [[data_arrays]] and [[tag_array]].
@@ -874,8 +874,8 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
     property.CoverBoolean(s2_data_decoded.correctable, Seq("data_correctable_error")),
     property.CoverBoolean(s2_data_decoded.uncorrectable, Seq("data_uncorrectable_error")))
   val request_source = Seq(
-    property.CoverBoolean(!s2_slaveValid, Seq("from_CPU")),
-    property.CoverBoolean(s2_slaveValid, Seq("from_TL"))
+    property.CoverBoolean(!s2_managerValid, Seq("from_CPU")),
+    property.CoverBoolean(s2_managerValid, Seq("from_TL"))
   )
   val tag_error = Seq(
     property.CoverBoolean(!s2_tag_disparity, Seq("no_tag_error")),

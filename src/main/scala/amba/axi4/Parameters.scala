@@ -16,14 +16,14 @@ import freechips.rocketchip.util.{BundleField, BundleFieldBase, BundleKeyBase, A
 import scala.math.max
 
 /**
-  * Parameters for AXI4 slave
+  * Parameters for AXI4 subordinate
   *
   * @param address base address
   * @param resources device tree resource
   * @param regionType memory region type
   * @param executable whether processor can execute from this memory
   */
-case class AXI4SlaveParameters(
+case class AXI4SubordinateParameters(
   address:       Seq[AddressSet],
   resources:     Seq[Resource] = Nil,
   regionType:    RegionType.T  = RegionType.GET_EFFECTS,
@@ -56,18 +56,18 @@ case class AXI4SlaveParameters(
   }
 }
 
-case class AXI4SlavePortParameters(
-  slaves:     Seq[AXI4SlaveParameters],
+case class AXI4SubordinatePortParameters(
+  subordinates:     Seq[AXI4SubordinateParameters],
   beatBytes:  Int,
   minLatency: Int = 1,
   responseFields: Seq[BundleFieldBase] = Nil,
   requestKeys:    Seq[BundleKeyBase]   = Nil)
 {
-  require (!slaves.isEmpty)
+  require (!subordinates.isEmpty)
   require (isPow2(beatBytes))
 
-  val maxTransfer = slaves.map(_.maxTransfer).max
-  val maxAddress = slaves.map(_.maxAddress).max
+  val maxTransfer = subordinates.map(_.maxTransfer).max
+  val maxAddress = subordinates.map(_.maxAddress).max
 
   // Check the link is not pointlessly wide
   require (maxTransfer >= beatBytes,
@@ -78,14 +78,14 @@ case class AXI4SlavePortParameters(
     s"maxTransfer ($maxTransfer) cannot be larger than $limit on a $beatBytes*8 width bus")
 
   // Require disjoint ranges for addresses
-  slaves.combinations(2).foreach { case Seq(x,y) =>
+  subordinates.combinations(2).foreach { case Seq(x,y) =>
     x.address.foreach { a => y.address.foreach { b =>
       require (!a.overlaps(b), s"$a and $b overlap")
     } }
   }
 }
 
-case class AXI4MasterParameters(
+case class AXI4ManagerParameters(
   name:      String,
   id:        IdRange       = IdRange(0, 1),
   aligned:   Boolean       = false,
@@ -95,17 +95,17 @@ case class AXI4MasterParameters(
   maxFlight.foreach { m => require (m >= 0) }
 }
 
-case class AXI4MasterPortParameters(
-  masters:    Seq[AXI4MasterParameters],
+case class AXI4ManagerPortParameters(
+  managers:    Seq[AXI4ManagerParameters],
   echoFields:    Seq[BundleFieldBase] = Nil,
   requestFields: Seq[BundleFieldBase] = Nil,
   responseKeys:  Seq[BundleKeyBase]   = Nil)
 {
-  val endId = masters.map(_.id.end).max
+  val endId = managers.map(_.id.end).max
 
   // Require disjoint ranges for ids
-  IdRange.overlaps(masters.map(_.id)).foreach { case (x, y) =>
-    require (!x.overlaps(y), s"AXI4MasterParameters.id $x and $y overlap")
+  IdRange.overlaps(managers.map(_.id)).foreach { case (x, y) =>
+    require (!x.overlaps(y), s"AXI4ManagerParameters.id $x and $y overlap")
   }
 }
 
@@ -148,32 +148,32 @@ object AXI4BundleParameters
   val emptyBundleParams = AXI4BundleParameters(addrBits=1, dataBits=8, idBits=1, echoFields=Nil, requestFields=Nil, responseFields=Nil)
   def union(x: Seq[AXI4BundleParameters]) = x.foldLeft(emptyBundleParams)((x,y) => x.union(y))
 
-  def apply(master: AXI4MasterPortParameters, slave: AXI4SlavePortParameters) =
+  def apply(manager: AXI4ManagerPortParameters, subordinate: AXI4SubordinatePortParameters) =
     new AXI4BundleParameters(
-      addrBits = log2Up(slave.maxAddress+1),
-      dataBits = slave.beatBytes * 8,
-      idBits   = log2Up(master.endId),
-      echoFields     = master.echoFields,
-      requestFields  = BundleField.accept(master.requestFields, slave.requestKeys),
-      responseFields = BundleField.accept(slave.responseFields, master.responseKeys))
+      addrBits = log2Up(subordinate.maxAddress+1),
+      dataBits = subordinate.beatBytes * 8,
+      idBits   = log2Up(manager.endId),
+      echoFields     = manager.echoFields,
+      requestFields  = BundleField.accept(manager.requestFields, subordinate.requestKeys),
+      responseFields = BundleField.accept(subordinate.responseFields, manager.responseKeys))
 }
 
 case class AXI4EdgeParameters(
-  master: AXI4MasterPortParameters,
-  slave:  AXI4SlavePortParameters,
+  manager: AXI4ManagerPortParameters,
+  subordinate:  AXI4SubordinatePortParameters,
   params: Parameters,
   sourceInfo: SourceInfo)
 {
-  val bundle = AXI4BundleParameters(master, slave)
+  val bundle = AXI4BundleParameters(manager, subordinate)
 }
 
-case class AXI4AsyncSlavePortParameters(async: AsyncQueueParams, base: AXI4SlavePortParameters)
-case class AXI4AsyncMasterPortParameters(base: AXI4MasterPortParameters)
+case class AXI4AsyncSubordinatePortParameters(async: AsyncQueueParams, base: AXI4SubordinatePortParameters)
+case class AXI4AsyncManagerPortParameters(base: AXI4ManagerPortParameters)
 
 case class AXI4AsyncBundleParameters(async: AsyncQueueParams, base: AXI4BundleParameters)
-case class AXI4AsyncEdgeParameters(master: AXI4AsyncMasterPortParameters, slave: AXI4AsyncSlavePortParameters, params: Parameters, sourceInfo: SourceInfo)
+case class AXI4AsyncEdgeParameters(manager: AXI4AsyncManagerPortParameters, subordinate: AXI4AsyncSubordinatePortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
-  val bundle = AXI4AsyncBundleParameters(slave.async, AXI4BundleParameters(master.base, slave.base))
+  val bundle = AXI4AsyncBundleParameters(subordinate.async, AXI4BundleParameters(manager.base, subordinate.base))
 }
 
 case class AXI4BufferParams(
@@ -209,19 +209,19 @@ object AXI4CreditedDelay {
   def apply(delay: CreditedDelay): AXI4CreditedDelay = apply(delay, delay, delay.flip, delay, delay.flip)
 }
 
-case class AXI4CreditedSlavePortParameters(delay: AXI4CreditedDelay, base: AXI4SlavePortParameters)
-case class AXI4CreditedMasterPortParameters(delay: AXI4CreditedDelay, base: AXI4MasterPortParameters)
-case class AXI4CreditedEdgeParameters(master: AXI4CreditedMasterPortParameters, slave: AXI4CreditedSlavePortParameters, params: Parameters, sourceInfo: SourceInfo)
+case class AXI4CreditedSubordinatePortParameters(delay: AXI4CreditedDelay, base: AXI4SubordinatePortParameters)
+case class AXI4CreditedManagerPortParameters(delay: AXI4CreditedDelay, base: AXI4ManagerPortParameters)
+case class AXI4CreditedEdgeParameters(manager: AXI4CreditedManagerPortParameters, subordinate: AXI4CreditedSubordinatePortParameters, params: Parameters, sourceInfo: SourceInfo)
 {
-  val delay = master.delay + slave.delay
-  val bundle = AXI4BundleParameters(master.base, slave.base)
+  val delay = manager.delay + subordinate.delay
+  val bundle = AXI4BundleParameters(manager.base, subordinate.base)
 }
 
 /** Pretty printing of AXI4 source id maps */
-class AXI4IdMap(axi4: AXI4MasterPortParameters) extends IdMap[AXI4IdMapEntry] {
+class AXI4IdMap(axi4: AXI4ManagerPortParameters) extends IdMap[AXI4IdMapEntry] {
   private val axi4Digits = String.valueOf(axi4.endId-1).length()
   protected val fmt = s"\t[%${axi4Digits}d, %${axi4Digits}d) %s%s%s"
-  private val sorted = axi4.masters.sortBy(_.id)
+  private val sorted = axi4.managers.sortBy(_.id)
 
   val mapping: Seq[AXI4IdMapEntry] = sorted.map { case c =>
     // to conservatively state max number of transactions, assume every id has up to c.maxFlight and reuses ids between AW and AR channels

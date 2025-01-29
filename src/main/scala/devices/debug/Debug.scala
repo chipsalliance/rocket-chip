@@ -96,7 +96,7 @@ object DebugAbstractCommandType extends scala.Enumeration {
   *  @param nDMIAddrSize Size of the Debug Bus Address
   *  @param nAbstractDataWords Number of 32-bit words for Abstract Commands
   *  @param nProgamBufferWords Number of 32-bit words for Program Buffer
-  *  @param hasBusMaster Whether or not a bus master should be included
+  *  @param hasBusDriver Whether or not a bus driver should be included
   *  @param clockGate Whether or not to use dmactive as the clockgate for debug module
   *  @param maxSupportedSBAccess Maximum transaction size supported by System Bus Access logic.
   *  @param supportQuickAccess Whether or not to support the quick access command.
@@ -114,7 +114,7 @@ case class DebugModuleParams (
   nProgramBufferWords: Int = 16,
   nAbstractDataWords : Int = 4,
   nScratch : Int = 1,
-  hasBusMaster : Boolean = false,
+  hasBusDriver : Boolean = false,
   clockGate : Boolean = true,
   maxSupportedSBAccess : Int = 32,
   supportQuickAccess : Boolean = false,
@@ -254,7 +254,7 @@ class DebugCtrlBundle (nComponents: Int)(implicit val p: Parameters) extends Par
 /** Parameterized version of the Debug Module defined in the
   *  RISC-V Debug Specification 
   *  
-  *  DebugModule is a slave to two asynchronous masters:
+  *  DebugModule is a receiver to two asynchronous drivers:
   *    The Debug Bus (DMI) -- This is driven by an external debugger
   *  
   *    The System Bus -- This services requests from the cores. Generally
@@ -779,7 +779,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     executable=true
   )
 
-  val sb2tlOpt = cfg.hasBusMaster.option(LazyModule(new SBToTL()))
+  val sb2tlOpt = cfg.hasBusDriver.option(LazyModule(new SBToTL()))
 
   // If we want to support custom registers read through Abstract Commands,
   // provide a place to bring them into the debug module. What this connects

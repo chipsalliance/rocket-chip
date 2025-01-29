@@ -37,8 +37,8 @@ class TLHintHandler(passthrough: Boolean = true)(implicit p: Parameters) extends
       }
 
       val isHint = in.a.bits.opcode === TLMessages.Hint
-      def usePP (m: TLSlaveParameters) = !(passthrough && m.supportsHint) && m.supportsPutPartial
-      def useGet(m: TLSlaveParameters) = !(passthrough && m.supportsHint) && !m.supportsPutPartial
+      def usePP (m: TLManagerParameters) = !(passthrough && m.supportsHint) && m.supportsPutPartial
+      def useGet(m: TLManagerParameters) = !(passthrough && m.supportsHint) && !m.supportsPutPartial
 
       // Does the HintHandler help using PutPartial with this message?
       val helpPP = isHint && edgeOut.manager.fastProperty(in.a.bits.address, usePP, (b:Boolean) => b.B)

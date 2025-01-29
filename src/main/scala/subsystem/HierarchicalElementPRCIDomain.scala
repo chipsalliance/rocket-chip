@@ -74,27 +74,27 @@ abstract class HierarchicalElementPRCIDomain[T <: BaseHierarchicalElement](
     intOutClockXing(crossingType)
   }
 
-  /** External code looking to connect the ports where this tile is slaved to an interconnect
+  /** External code looking to connect the ports where this tile is managerd to an interconnect
     * (while also crossing clock domains) can call this.
     */
-  def crossSlavePort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
-    val tlSlaveResetXing = this {
-      element_reset_domain.crossTLIn(element.slaveNode) :*=
-        element { element.makeSlaveBoundaryBuffers(crossingType) }
+  def crossManagerPort(crossingType: ClockCrossingType): TLInwardNode = { DisableMonitors { implicit p => FlipRendering { implicit p =>
+    val tlManagerResetXing = this {
+      element_reset_domain.crossTLIn(element.managerNode) :*=
+        element { element.makeManagerBoundaryBuffers(crossingType) }
     }
-    val tlSlaveClockXing = this.crossIn(tlSlaveResetXing)
-    tlSlaveClockXing(crossingType)
+    val tlManagerClockXing = this.crossIn(tlManagerResetXing)
+    tlManagerClockXing(crossingType)
   } } }
 
-  /** External code looking to connect the ports where this tile masters an interconnect
+  /** External code looking to connect the ports where this tile clients an interconnect
     * (while also crossing clock domains) can call this.
     */
-  def crossMasterPort(crossingType: ClockCrossingType): TLOutwardNode = {
-    val tlMasterResetXing = this { DisableMonitors { implicit p =>
-      element { element.makeMasterBoundaryBuffers(crossingType) } :=*
-        element_reset_domain.crossTLOut(element.masterNode)
+  def crossClientPort(crossingType: ClockCrossingType): TLOutwardNode = {
+    val tlClientResetXing = this { DisableMonitors { implicit p =>
+      element { element.makeClientBoundaryBuffers(crossingType) } :=*
+        element_reset_domain.crossTLOut(element.clientNode)
     } }
-    val tlMasterClockXing = this.crossOut(tlMasterResetXing)
-    tlMasterClockXing(crossingType)
+    val tlClientClockXing = this.crossOut(tlClientResetXing)
+    tlClientClockXing(crossingType)
   }
 }

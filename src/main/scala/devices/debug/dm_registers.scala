@@ -116,7 +116,7 @@ object DMI_RegAddrs {
       of the configuration string pointer. Reading the other {\tt confstrptr}
       registers returns the upper bits of the address.
 
-      When system bus mastering is implemented, this must be an
+      When system bus driving is implemented, this must be an
       address that can be used with the System Bus Access module. Otherwise,
       this must be an address that can be used to access the
       configuration string from the hart with ID 0.
@@ -241,7 +241,7 @@ object DMI_RegAddrs {
 
   /* If \Fsbasize is 0, then this register is not present.
 
-        When the system bus master is busy, writes to this register will set
+        When the system bus driver is busy, writes to this register will set
         \Fsbbusyerror and don't do anything else.
 
         \begin{steps}{If \Fsberror is 0, \Fsbbusyerror is 0, and \Fsbreadonaddr
@@ -257,21 +257,21 @@ object DMI_RegAddrs {
 
   /* If \Fsbasize is less than 33, then this register is not present.
 
-        When the system bus master is busy, writes to this register will set
+        When the system bus driver is busy, writes to this register will set
         \Fsbbusyerror and don't do anything else.
   */
   def DMI_SBADDRESS1 =  0x3a
 
   /* If \Fsbasize is less than 65, then this register is not present.
 
-        When the system bus master is busy, writes to this register will set
+        When the system bus driver is busy, writes to this register will set
         \Fsbbusyerror and don't do anything else.
   */
   def DMI_SBADDRESS2 =  0x3b
 
   /* If \Fsbasize is less than 97, then this register is not present.
 
-        When the system bus master is busy, writes to this register will set
+        When the system bus driver is busy, writes to this register will set
         \Fsbbusyerror and don't do anything else.
   */
   def DMI_SBADDRESS3 =  0x37
@@ -285,7 +285,7 @@ object DMI_RegAddrs {
 
         If \Fsberror or \Fsbbusyerror both aren't 0 then accesses do nothing.
 
-        If the bus master is busy then accesses set \Fsbbusyerror, and don't do
+        If the bus driver is busy then accesses set \Fsbbusyerror, and don't do
         anything else.
 
         \begin{steps}{Writes to this register start the following:}
@@ -316,21 +316,21 @@ object DMI_RegAddrs {
   /* If \Fsbaccesssixtyfour and \Fsbaccessonetwentyeight are 0, then this
         register is not present.
 
-        If the bus master is busy then accesses set \Fsbbusyerror, and don't do
+        If the bus driver is busy then accesses set \Fsbbusyerror, and don't do
         anything else.
   */
   def DMI_SBDATA1 =  0x3d
 
   /* This register only exists if \Fsbaccessonetwentyeight is 1.
 
-        If the bus master is busy then accesses set \Fsbbusyerror, and don't do
+        If the bus driver is busy then accesses set \Fsbbusyerror, and don't do
         anything else.
   */
   def DMI_SBDATA2 =  0x3e
 
   /* This register only exists if \Fsbaccessonetwentyeight is 1.
 
-        If the bus master is busy then accesses set \Fsbbusyerror, and don't do
+        If the bus driver is busy then accesses set \Fsbbusyerror, and don't do
         anything else.
   */
   def DMI_SBDATA3 =  0x3f
@@ -858,7 +858,7 @@ class SBCSFields extends Bundle {
   */
   val sbbusyerror = Bool()
 
-  /* When 1, indicates the system bus master is busy. (Whether the
+  /* When 1, indicates the system bus driver is busy. (Whether the
             system bus itself is busy is related, but not the same thing.) This
             bit goes high immediately when a read or write is requested for any
             reason, and does not go low until the access is fully completed.
@@ -902,7 +902,7 @@ class SBCSFields extends Bundle {
   val sbreadondata = Bool()
 
   /* When the Debug Module's system bus
-            master encounters an error, this field gets set. The bits in this
+            driver encounters an error, this field gets set. The bits in this
             field remain set until they are cleared by writing 1 to them.
             While this field is non-zero, no more system bus accesses can be
             initiated by the Debug Module.

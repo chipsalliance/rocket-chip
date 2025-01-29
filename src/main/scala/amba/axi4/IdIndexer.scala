@@ -28,23 +28,23 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
   require (idBits >= 0, s"AXI4IdIndexer: idBits must be > 0, not $idBits")
 
   val node = AXI4AdapterNode(
-    masterFn = { mp =>
-      // Create one new "master" per ID
-      val masters = Array.tabulate(1 << idBits) { i => AXI4MasterParameters(
+    managerFn = { mp =>
+      // Create one new "manager" per ID
+      val managers = Array.tabulate(1 << idBits) { i => AXI4ManagerParameters(
          name      = "",
          id        = IdRange(i, i+1),
          aligned   = true,
          maxFlight = Some(0))
       }
-      // Accumulate the names of masters we squish
+      // Accumulate the names of managers we squish
       val names = Array.fill(1 << idBits) { new scala.collection.mutable.HashSet[String]() }
-      // Squash the information from original masters into new ID masters
-      mp.masters.foreach { m =>
+      // Squash the information from original managers into new ID managers
+      mp.managers.foreach { m =>
         for (i <- m.id.start until m.id.end) {
           val j = i % (1 << idBits)
-          val accumulated = masters(j)
+          val accumulated = managers(j)
           names(j) += m.name
-          masters(j) = accumulated.copy(
+          managers(j) = accumulated.copy(
             aligned   = accumulated.aligned && m.aligned,
             maxFlight = accumulated.maxFlight.flatMap { o => m.maxFlight.map { n => o+n } })
         }
@@ -54,9 +54,9 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
       val field = if (bits > 0) Seq(AXI4ExtraIdField(bits)) else Nil
       mp.copy(
         echoFields = field ++ mp.echoFields,
-        masters    = masters.zip(finalNameStrings).map { case (m, n) => m.copy(name = n) })
+        managers    = managers.zip(finalNameStrings).map { case (m, n) => m.copy(name = n) })
     },
-    slaveFn = { sp => sp
+    subordinateFn = { sp => sp
     })
 
   lazy val module = new Impl
@@ -81,7 +81,7 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
         case (lhs, rhs) => lhs.squeezeAll :<>= rhs.squeezeAll
       }
 
-      val bits = log2Ceil(edgeIn.master.endId) - idBits
+      val bits = log2Ceil(edgeIn.manager.endId) - idBits
       if (bits > 0) {
         // (in.aX.bits.id >> idBits).width = bits > 0
         out.ar.bits.echo(AXI4ExtraId) := in.ar.bits.id >> idBits

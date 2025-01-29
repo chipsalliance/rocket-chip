@@ -13,7 +13,7 @@ import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.amba.AMBAProtField
 import freechips.rocketchip.diplomacy.{IdRange, TransferSizes, RegionType}
 import freechips.rocketchip.tile.{L1CacheParams, HasL1CacheParameters, HasCoreParameters, CoreBundle, HasNonDiplomaticTileParameters, BaseTile, HasTileParameters}
-import freechips.rocketchip.tilelink.{TLMasterParameters, TLClientNode, TLMasterPortParameters, TLEdgeOut, TLWidthWidget, TLFIFOFixer, ClientMetadata}
+import freechips.rocketchip.tilelink.{TLClientParameters, TLClientNode, TLClientPortParameters, TLEdgeOut, TLWidthWidget, TLFIFOFixer, ClientMetadata}
 import freechips.rocketchip.util.{Code, RandomReplacement, ParameterizedBundle}
 
 import freechips.rocketchip.util.{BooleanToAugmentedBoolean, IntToAugmentedInt}
@@ -200,19 +200,19 @@ abstract class HellaCache(tileId: Int)(implicit p: Parameters) extends LazyModul
     with HasNonDiplomaticTileParameters {
   protected val cfg = tileParams.dcache.get
 
-  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLMasterParameters.v1(
+  protected def cacheClientParameters = cfg.scratch.map(x => Seq()).getOrElse(Seq(TLClientParameters.v1(
     name          = s"Core ${tileId} DCache",
     sourceId      = IdRange(0, 1 max cfg.nMSHRs),
     supportsProbe = TransferSizes(cfg.blockBytes, cfg.blockBytes))))
 
-  protected def mmioClientParameters = Seq(TLMasterParameters.v1(
+  protected def mmioClientParameters = Seq(TLClientParameters.v1(
     name          = s"Core ${tileId} DCache MMIO",
     sourceId      = IdRange(firstMMIO, firstMMIO + cfg.nMMIOs),
     requestFifo   = true))
 
   def firstMMIO = (cacheClientParameters.map(_.sourceId.end) :+ 0).max
 
-  val node = TLClientNode(Seq(TLMasterPortParameters.v1(
+  val node = TLClientNode(Seq(TLClientPortParameters.v1(
     clients = cacheClientParameters ++ mmioClientParameters,
     minLatency = 1,
     requestFields = tileParams.core.useVM.option(Seq()).getOrElse(Seq(AMBAProtField())))))
@@ -277,7 +277,7 @@ trait HasHellaCache { this: BaseTile =>
   var nDCachePorts = 0
   lazy val dcache: HellaCache = LazyModule(p(BuildHellaCache)(this)(p))
 
-  tlMasterXbar.node := TLWidthWidget(tileParams.dcache.get.rowBits/8) := dcache.node
+  tlClientXbar.node := TLWidthWidget(tileParams.dcache.get.rowBits/8) := dcache.node
   dcache.hartIdSinkNodeOpt.map { _ := hartIdNexusNode }
   dcache.mmioAddressPrefixSinkNodeOpt.map { _ := mmioAddressPrefixNexusNode }
   InModuleBody {

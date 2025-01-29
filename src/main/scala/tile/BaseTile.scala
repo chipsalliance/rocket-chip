@@ -90,7 +90,7 @@ trait HasNonDiplomaticTileParameters {
 
   def cacheBlockBytes = p(CacheBlockBytes)
   def lgCacheBlockBytes = log2Up(cacheBlockBytes)
-  def masterPortBeatBytes = p(SystemBusKey).beatBytes
+  def clientPortBeatBytes = p(SystemBusKey).beatBytes
 
   // TODO make HellaCacheIO diplomatic and remove this brittle collection of hacks
   //                  Core   PTW                DTIM                    coprocessors           
@@ -219,7 +219,7 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   def this(tileParams: TileParams, crossing: ClockCrossingType, lookup: LookupByHartIdImpl, p: Parameters) = {
     this(crossing, p.alterMap(Map(
       TileKey -> tileParams,
-      TileVisibilityNodeKey -> TLEphemeralNode()(ValName("tile_master")),
+      TileVisibilityNodeKey -> TLEphemeralNode()(ValName("tile_client")),
       LookupByHartId -> lookup
     )))
   }
@@ -252,7 +252,7 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   /** Node for consuming the reset vector input in tile-layer Chisel logic.
     *
     * Its width is sized by looking at the size of the address space visible
-    * on the tile's master ports, but this lookup is not evaluated until
+    * on the tile's client ports, but this lookup is not evaluated until
     * diplomacy has completed and Chisel elaboration has begun.
     */
   val resetVectorSinkNode = BundleBridgeSink[UInt](Some(() => UInt(visiblePhysAddrBits.W)))
@@ -321,17 +321,17 @@ abstract class BaseTile private (crossing: ClockCrossingType, q: Parameters)
   val bpwatchNode: BundleBridgeOutwardNode[Vec[BPWatch]] =
     BundleBridgeNameNode("bpwatch") :*= bpwatchNexusNode := bpwatchSourceNode
 
-  /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
-  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int): Unit = {
+  /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external clients. */
+  def connectTLManager(xbarNode: TLOutwardNode, node: TLNode, bytes: Int): Unit = {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
         .foldRight(xbarNode)(_ :*= _)
     }
   }
-  def connectTLSlave(node: TLNode, bytes: Int): Unit = { connectTLSlave(tlSlaveXbar.node, node, bytes) }
+  def connectTLManager(node: TLNode, bytes: Int): Unit = { connectTLManager(tlManagerXbar.node, node, bytes) }
 
-  /** TileLink node which represents the view that the intra-tile masters have of the rest of the system. */
+  /** TileLink node which represents the view that the intra-tile clients have of the rest of the system. */
   val visibilityNode = p(TileVisibilityNodeKey)
   protected def visibleManagers = visibilityNode.edges.out.flatMap(_.manager.managers)
   protected def visiblePhysAddrBits = visibilityNode.edges.out.head.bundle.addressBits

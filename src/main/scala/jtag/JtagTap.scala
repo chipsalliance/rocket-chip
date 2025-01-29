@@ -7,7 +7,7 @@ import scala.collection.SortedMap
 import chisel3._
 import org.chipsalliance.cde.config.Parameters
 
-/** JTAG signals, viewed from the master side
+/** JTAG signals, viewed from the driver side
   */
 class JTAGIO(hasTRSTn: Boolean = false) extends Bundle {
   val TRSTn = if (hasTRSTn) Some(Output(Bool())) else None

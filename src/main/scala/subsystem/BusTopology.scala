@@ -104,10 +104,10 @@ case class CoherentBusTopologyParams(
     (MBUS, mbus),
     (COH, CoherenceManagerWrapperParams(mbus.blockBytes, mbus.beatBytes, coherence.nBanks, COH.name)(coherence.coherenceManager)))),
   connections = if (coherence.nBanks == 0) Nil else List(
-    (SBUS, COH,   TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
+    (SBUS, COH,   TLBusWrapperConnection(driveClockFromClient = Some(true), nodeBinding = BIND_STAR)()),
     (COH,  MBUS,  TLBusWrapperConnection.crossTo(
       xType = sbusToMbusXType,
-      driveClockFromMaster = if (driveMBusClockFromSBus) Some(true) else None,
+      driveClockFromClient = if (driveMBusClockFromSBus) Some(true) else None,
       nodeBinding = BIND_QUERY))
   )
 )
@@ -124,10 +124,10 @@ case class ClusterBusTopologyParams(
     (CMBUS(clusterId), csbus),
     (CCOH (clusterId), CoherenceManagerWrapperParams(csbus.blockBytes, csbus.beatBytes, coherence.nBanks, CCOH(clusterId).name)(coherence.coherenceManager)))),
   connections = if (coherence.nBanks == 0) Nil else List(
-    (CSBUS(clusterId), CCOH (clusterId), TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
+    (CSBUS(clusterId), CCOH (clusterId), TLBusWrapperConnection(driveClockFromClient = Some(true), nodeBinding = BIND_STAR)()),
     (CCOH (clusterId), CMBUS(clusterId), TLBusWrapperConnection.crossTo(
       xType = NoCrossing,
-      driveClockFromMaster = Some(true),
+      driveClockFromClient = Some(true),
       nodeBinding = BIND_QUERY))
   )
 )

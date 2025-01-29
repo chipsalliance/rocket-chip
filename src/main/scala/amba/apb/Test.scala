@@ -24,7 +24,7 @@ class APBRRTest1(address: BigInt)(implicit p: Parameters)
 class APBFuzzBridge(aFlow: Boolean, txns: Int)(implicit p: Parameters) extends LazyModule
 {
   val fuzz  = LazyModule(new TLFuzzer(txns))
-  val model = LazyModule(new TLRAMModel("APBFuzzMaster"))
+  val model = LazyModule(new TLRAMModel("APBFuzzManager"))
   val xbar  = LazyModule(new APBFanout)
   val ram   = LazyModule(new APBRAM(AddressSet(0x0, 0xff), fuzzReady = true, fuzzError = true))
   val gpio  = LazyModule(new APBRRTest0(0x100))

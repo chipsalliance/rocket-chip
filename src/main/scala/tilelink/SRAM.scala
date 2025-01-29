@@ -40,8 +40,8 @@ class TLRAM(
   require (beatBytes >= 1 && isPow2(beatBytes))
   require (eccBytes <= beatBytes, s"TLRAM eccBytes (${eccBytes}) > beatBytes (${beatBytes}). Use a WidthWidget=>Fragmenter=>SRAM if you need high density and narrow ECC; it will do bursts efficiently")
 
-  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-    Seq(TLSlaveParameters.v1(
+  val node = TLManagerNode(Seq(TLManagerPortParameters.v1(
+    Seq(TLManagerParameters.v1(
       address            = List(address),
       resources          = resources,
       regionType         = if (cacheable) RegionType.UNCACHED else RegionType.IDEMPOTENT,
