@@ -660,7 +660,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       val hartResetReg = RegNext(next=hartResetNxt, init=0.U.asTypeOf(hartResetNxt))
 
       for (component <- 0 until nComponents) {
-        hartResetNxt(component) := DMCONTROLNext.hartreset & hartSelected(component)
+        hartResetNxt(component) := DMCONTROLNxt.hartreset & hartSelected(component)
         io.hartResetReq.get(component) := hartResetReg(component)
       }
     }
