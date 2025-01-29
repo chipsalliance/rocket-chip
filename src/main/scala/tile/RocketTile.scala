@@ -177,30 +177,28 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
 
-  val trace_sink_arbiter = outer.rocketParams.traceParams.map { t =>
-    val arb = Module(new TraceSinkArbiter(outer.traceSinkIds, use_monitor = t.useArbiterMonitor, monitor_name = outer.rocketParams.uniqueName))
-    arb
-  }
-
   if (outer.rocketParams.traceParams.isDefined) {
     core.io.trace_core_ingress.get <> outer.trace_encoder.get.module.io.in
     outer.trace_encoder_controller.foreach { lm =>
       outer.trace_encoder.get.module.io.control <> lm.module.io.control
     }
 
-    trace_sink_arbiter.foreach { arb =>
-      arb.io.target := outer.trace_encoder.get.module.io.control.target
-      arb.io.in <> outer.trace_encoder.get.module.io.out 
-    }
+    val trace_sink_arbiter = Module(new TraceSinkArbiter(outer.traceSinkIds, 
+      use_monitor = outer.rocketParams.traceParams.get.useArbiterMonitor, 
+      monitor_name = outer.rocketParams.uniqueName))
+
+    trace_sink_arbiter.io.target := outer.trace_encoder.get.module.io.control.target
+    trace_sink_arbiter.io.in <> outer.trace_encoder.get.module.io.out 
+
 
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || outer.trace_encoder.get.module.io.stall
+
+    outer.trace_sinks.zip(outer.traceSinkIds).foreach { case (sink, id) =>
+      val index = outer.traceSinkIds.indexOf(id)
+      sink.module.io.trace_in <> trace_sink_arbiter.io.out(index)
+    }
   } else {
     core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
-  }
-
-  outer.trace_sinks.zip(outer.traceSinkIds).foreach { case (sink, id) =>
-    val index = outer.traceSinkIds.indexOf(id)
-    sink.module.io.trace_in <> trace_sink_arbiter.get.io.out(index)
   }
 
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
