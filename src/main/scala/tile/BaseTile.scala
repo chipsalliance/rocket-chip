@@ -19,10 +19,12 @@ import freechips.rocketchip.subsystem.{
 }
 import freechips.rocketchip.tilelink.{TLEphemeralNode, TLOutwardNode, TLNode, TLFragmenter, EarlyAck, TLWidthWidget, TLManagerParameters, ManagerUnification}
 import freechips.rocketchip.prci.{ClockCrossingType, ClockSinkParameters}
-import freechips.rocketchip.util.{TraceCoreParams, TraceCoreInterface}
+import freechips.rocketchip.trace.{TraceCoreParams, TraceCoreInterface}
 
 import freechips.rocketchip.resources.{BigIntToProperty, IntToProperty, StringToProperty}
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
+
+import freechips.rocketchip.tilelink.TLIdentityNode
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
@@ -83,7 +85,11 @@ trait HasNonDiplomaticTileParameters {
   def vmIdBits: Int = p(VMIdBits)
   lazy val maxPAddrBits: Int = {
     require(xLen == 32 || xLen == 64, s"Only XLENs of 32 or 64 are supported, but got $xLen")
-    xLen match { case 32 => 34; case 64 => 56 }
+    ((xLen, usingVM): @unchecked) match {
+      case (_, false) => xLen
+      case (32, true) => 34
+      case (64, true) => 56
+    }
   }
 
   def tileId: Int = tileParams.tileId

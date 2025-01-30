@@ -149,7 +149,7 @@ class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
     case 32 => (1, 9)
     case 64 => (4, 16)
   }
-  require(modeBits + maxASIdBits + maxPAddrBits - pgIdxBits == xLen)
+  require(!usingVM || modeBits + maxASIdBits + maxPAddrBits - pgIdxBits == xLen)
 
   val mode = UInt(modeBits.W)
   val asid = UInt(maxASIdBits.W)
@@ -272,8 +272,8 @@ class CSRFileIO(hasBeu: Boolean)(implicit p: Parameters) extends CoreBundle
   val csr_stall = Output(Bool()) // stall retire for wfi
   val rw_stall = Output(Bool()) // stall rw, rw will have no effect while rw_stall
   val eret = Output(Bool())
+  val trap_return = Output(Bool())
   val singleStep = Output(Bool())
-
   val status = Output(new MStatus())
   val hstatus = Output(new HStatus())
   val gstatus = Output(new MStatus())
@@ -998,6 +998,7 @@ class CSRFile(
   io.hgatp := reg_hgatp
   io.vsatp := reg_vsatp
   io.eret := insn_call || insn_break || insn_ret
+  io.trap_return := insn_ret
   io.singleStep := reg_dcsr.step && !reg_debug
   io.status := reg_mstatus
   io.status.sd := io.status.fs.andR || io.status.xs.andR || io.status.vs.andR

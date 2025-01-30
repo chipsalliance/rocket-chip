@@ -6,6 +6,7 @@ import chisel3._
 import chisel3.util.DecoupledIO
 import freechips.rocketchip.tile.{TraceBundle}
 import freechips.rocketchip.rocket.{TracedInstruction}
+import freechips.rocketchip.trace.{TraceCoreInterface, TraceItype}
 
 /** A trait supplying a function allowing the contents of data
   * to be supressed for a time period, i.e. be blocked.
