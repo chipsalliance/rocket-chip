@@ -357,6 +357,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     val v_decode = rocketParams.vector.get.decoder(p)
     v_decode.io.inst := id_inst(0)
     v_decode.io.vconfig := csr.io.vector.get.vconfig
+    id_ctrl.vec := v_decode.io.vector
     when (v_decode.io.legal) {
       id_ctrl.legal := !csr.io.vector.get.vconfig.vtype.vill
       id_ctrl.fp := v_decode.io.fp
@@ -388,7 +389,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || (io.fpu.illegal_rm && !id_ctrl.vec)) ||
-    (id_ctrl.vec) && (csr.io.decode(0).vector_illegal || csr.io.vector.map(_.vconfig.vtype.vill).getOrElse(false.B)) ||
+    id_set_vconfig && csr.io.decode(0).vector_illegal ||
+    id_ctrl.vec && (csr.io.decode(0).vector_illegal || csr.io.vector.map(_.vconfig.vtype.vill).getOrElse(false.B)) ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
     id_raddr2_illegal && id_ctrl.rxs2 ||
@@ -1121,7 +1123,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   io.fpu.valid := !ctrl_killd && id_ctrl.fp
   io.fpu.killx := ctrl_killx
-  io.fpu.killm := killm_common
+  io.fpu.killm := killm_common || vec_kill_mem
   io.fpu.inst := id_inst(0)
   io.fpu.fromint_data := ex_rs(0)
   io.fpu.ll_resp_val := dmem_resp_valid && dmem_resp_fpu
@@ -1150,7 +1152,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     v.ex.rs2 := ex_rs(1)
     v.ex.pc := ex_reg_pc
     v.mem.frs1 := io.fpu.store_data
-    v.killm := killm_common
+    v.killm := killm_common || fpu_kill_mem
     v.status := csr.io.status
   }
 
