@@ -25,6 +25,8 @@ import freechips.rocketchip.rocket.{
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
 import freechips.rocketchip.util.{Annotated, InOrderArbiter}
+import freechips.rocketchip.trace.{TraceEncoderParams,TraceEncoderController, TraceSinkArbiter}
+import freechips.rocketchip.subsystem._
 
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
 
@@ -40,7 +42,8 @@ case class RocketTileParams(
     beuAddr: Option[BigInt] = None,
     blockerCtrlAddr: Option[BigInt] = None,
     clockSinkParams: ClockSinkParameters = ClockSinkParameters(),
-    boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None
+    boundaryBuffers: Option[RocketTileBoundaryBufferParams] = None,
+    traceParams: Option[TraceEncoderParams] = None
   ) extends InstantiableTileParams[RocketTile] {
   require(icache.isDefined)
   require(dcache.isDefined)
@@ -77,10 +80,31 @@ class RocketTile private(
   dtim_adapter.foreach(lm => connectTLSlave(lm.node, lm.node.portParams.head.beatBytes))
 
   val bus_error_unit = rocketParams.beuAddr map { a =>
-    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a)))
+    val beu = LazyModule(new BusErrorUnit(new L1BusErrors, BusErrorUnitParams(a), xLen/8))
     intOutwardNode.get := beu.intNode
     connectTLSlave(beu.node, xBytes)
     beu
+  }
+
+  /**
+   * A Centralized Trace encoder controller,
+   * controlling enable/disable of trace encoder
+   * and selecting trace sink
+   */
+  val trace_encoder_controller = rocketParams.traceParams.map { t =>
+    val trace_encoder_controller = LazyModule(new TraceEncoderController(t.encoderBaseAddr, xBytes))
+    connectTLSlave(trace_encoder_controller.node, xBytes)
+    trace_encoder_controller
+  }
+
+  val trace_encoder = rocketParams.traceParams match {
+    case Some(t) => Some(t.buildEncoder(p))
+    case None => None
+  }
+
+  val (trace_sinks, traceSinkIds) = rocketParams.traceParams match {
+    case Some(t) => t.buildSinks.map {_(p)}.unzip
+    case None => (Nil, Nil)
   }
 
   val tile_master_blocker =
@@ -153,6 +177,30 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   // reset vector is connected in the Frontend to s2_pc
   core.io.reset_vector := DontCare
 
+  if (outer.rocketParams.traceParams.isDefined) {
+    core.io.trace_core_ingress.get <> outer.trace_encoder.get.module.io.in
+    outer.trace_encoder_controller.foreach { lm =>
+      outer.trace_encoder.get.module.io.control <> lm.module.io.control
+    }
+
+    val trace_sink_arbiter = Module(new TraceSinkArbiter(outer.traceSinkIds, 
+      use_monitor = outer.rocketParams.traceParams.get.useArbiterMonitor, 
+      monitor_name = outer.rocketParams.uniqueName))
+
+    trace_sink_arbiter.io.target := outer.trace_encoder.get.module.io.control.target
+    trace_sink_arbiter.io.in <> outer.trace_encoder.get.module.io.out 
+
+
+    core.io.traceStall := outer.traceAuxSinkNode.bundle.stall || outer.trace_encoder.get.module.io.stall
+
+    outer.trace_sinks.zip(outer.traceSinkIds).foreach { case (sink, id) =>
+      val index = outer.traceSinkIds.indexOf(id)
+      sink.module.io.trace_in <> trace_sink_arbiter.io.out(index)
+    }
+  } else {
+    core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
+  }
+
   // Report unrecoverable error conditions; for now the only cause is cache ECC errors
   outer.reportHalt(List(outer.dcache.module.io.errors))
 
@@ -177,7 +225,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
 
   // Pass through various external constants and reports that were bundle-bridged into the tile
   outer.traceSourceNode.bundle <> core.io.trace
-  core.io.traceStall := outer.traceAuxSinkNode.bundle.stall
+  
   outer.bpwatchSourceNode.bundle <> core.io.bpwatch
   core.io.hartid := outer.hartIdSinkNode.bundle
   require(core.io.hartid.getWidth >= outer.hartIdSinkNode.bundle.getWidth,

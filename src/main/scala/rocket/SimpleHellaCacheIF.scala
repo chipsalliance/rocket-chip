@@ -100,7 +100,7 @@ class SimpleHellaCacheIF(implicit p: Parameters) extends Module
   })
   io <> DontCare
 
-  val replayq = Module(new SimpleHellaCacheIFReplayQueue(2))
+  val replayq = Module(new SimpleHellaCacheIFReplayQueue(3))
   val req_arb = Module(new Arbiter(new HellaCacheReq, 2))
 
   val req_helper = DecoupledHelper(

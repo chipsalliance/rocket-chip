@@ -12,7 +12,7 @@ import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
 import freechips.rocketchip.prci.{ClockCrossingType, ResetCrossingType, ResetDomain, ClockSinkNode, ClockSinkParameters, ClockIdentityNode, FixedClockBroadcast, ClockDomain}
 import freechips.rocketchip.tile.{RocketTile, TraceBundle}
 import freechips.rocketchip.tilelink.{TLInwardNode, TLOutwardNode}
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 import freechips.rocketchip.tilelink.TLClockDomainCrossing
 import freechips.rocketchip.tilelink.TLResetDomainCrossing

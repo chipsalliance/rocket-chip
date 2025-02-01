@@ -72,13 +72,13 @@ class TLXbar(policy: TLArbiter.Policy = TLArbiter.roundRobin, nameSuffix: Option
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    val wide_bundle = TLBundleParameters.union((node.in ++ node.out).map(_._2.bundle))
+    override def desiredName = (Seq("TLXbar") ++ nameSuffix ++ Seq(s"i${node.in.size}_o${node.out.size}_${wide_bundle.shortName}")).mkString("_")
     if ((node.in.size * node.out.size) > (8*32)) {
       println (s"!!! WARNING !!!")
       println (s" Your TLXbar ($name with parent $parent) is very large, with ${node.in.size} Masters and ${node.out.size} Slaves.")
       println (s"!!! WARNING !!!")
     }
-    val wide_bundle = TLBundleParameters.union((node.in ++ node.out).map(_._2.bundle))
-    override def desiredName = (Seq("TLXbar") ++ nameSuffix ++ Seq(s"i${node.in.size}_o${node.out.size}_${wide_bundle.shortName}")).mkString("_")
     TLXbar.circuit(policy, node.in, node.out)
   }
 }
@@ -161,8 +161,8 @@ object TLXbar
       val r = inputIdRanges(i)
 
       if (connectAIO(i).exists(x=>x)) {
-        in(i).a.squeezeAll.waiveAll :<>= io_in(i).a.squeezeAll.waiveAll
         in(i).a.bits.user := DontCare
+        in(i).a.squeezeAll.waiveAll :<>= io_in(i).a.squeezeAll.waiveAll
         in(i).a.bits.source := io_in(i).a.bits.source | r.start.U
       } else {
         in(i).a := DontCare
@@ -182,8 +182,8 @@ object TLXbar
       }
 
       if (connectCIO(i).exists(x=>x)) {
-        in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
         in(i).c.bits.user := DontCare
+        in(i).c.squeezeAll.waiveAll :<>= io_in(i).c.squeezeAll.waiveAll
         in(i).c.bits.source := io_in(i).c.bits.source | r.start.U
       } else {
         in(i).c := DontCare
@@ -218,8 +218,8 @@ object TLXbar
       val r = outputIdRanges(o)
 
       if (connectAOI(o).exists(x=>x)) {
-        io_out(o).a.squeezeAll.waiveAll :<>= out(o).a.squeezeAll.waiveAll
         out(o).a.bits.user := DontCare
+        io_out(o).a.squeezeAll.waiveAll :<>= out(o).a.squeezeAll.waiveAll
       } else {
         out(o).a := DontCare
         io_out(o).a := DontCare
@@ -237,8 +237,8 @@ object TLXbar
       }
 
       if (connectCOI(o).exists(x=>x)) {
-        io_out(o).c.squeezeAll.waiveAll :<>= out(o).c.squeezeAll.waiveAll
         out(o).c.bits.user := DontCare
+        io_out(o).c.squeezeAll.waiveAll :<>= out(o).c.squeezeAll.waiveAll
       } else {
         out(o).c  := DontCare
         io_out(o).c  := DontCare

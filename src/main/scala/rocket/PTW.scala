@@ -303,7 +303,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   val (pte, invalid_paddr, invalid_gpa) = {
     val tmp = mem_resp_data.asTypeOf(new PTE())
     val res = WireDefault(tmp)
-    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits.min(tmp.ppn.getWidth)-1, 0), tmp.ppn(ppnBits-1, 0))
+    res.ppn := Mux(do_both_stages && !stage2, tmp.ppn(vpnBits.min(tmp.ppn.getWidth)-1, 0), tmp.ppn(ppnBits.min(tmp.ppn.getWidth)-1, 0))
     when (tmp.r || tmp.w || tmp.x) {
       // for superpage mappings, make sure PPN LSBs are zero
       for (i <- 0 until pgLevels-1)
@@ -695,7 +695,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       when (do_both_stages && !stage2) { do_switch := true.B }
       count := count + 1.U
     }.otherwise {
-      val gf = (stage2 && !stage2_final && !pte.ur()) || (pte.v && pte.reserved_for_future === 0.U && invalid_gpa)
+      val gf = (stage2 && !stage2_final && !pte.ur()) || (pte.leaf() && pte.reserved_for_future === 0.U && invalid_gpa)
       val ae = pte.v && invalid_paddr
       val pf = pte.v && pte.reserved_for_future =/= 0.U
       val success = pte.v && !ae && !pf && !gf
@@ -723,7 +723,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         }
 
         resp_ae_ptw := ae && count < (pgLevels-1).U && pte.table()
-        resp_ae_final := ae
+        resp_ae_final := ae && pte.leaf()
         resp_pf := pf && !stage2
         resp_gf := gf || (pf && stage2)
         resp_hr := !stage2 || (!pf && !gf && pte.ur())

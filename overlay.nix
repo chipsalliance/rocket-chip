@@ -8,12 +8,12 @@ final: prev: {
   });
   riscvTests = final.pkgsCross.riscv64-embedded.stdenv.mkDerivation rec {
     pname = "riscv-tests";
-    version = "55bbcc8c06637a31cc01970881ba8072838a9121";
+    version = "f2f748ebb9cf8ea049103f85c4cbf7e8a2927b16";
     src = final.fetchgit {
       url = "https://github.com/riscv-software-src/riscv-tests.git";
       rev = "${version}";
       fetchSubmodules = true;
-      sha256 = "sha256-TcIU+WFQxPqAG7lvfKPgHm4CnBpTkosqe+fYOxS+J7I=";
+      sha256 = "sha256-E3RfrP+PFIYy9c/pY04jYPxeGpnfgWwjV8iwL5+s+9w=";
     };
 
     enableParallelBuilding = true;
