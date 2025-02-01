@@ -15,7 +15,7 @@ import freechips.rocketchip.tile.{MaxHartIdBits, BaseTile, InstantiableTileParam
 import freechips.rocketchip.tilelink.TLWidthWidget
 import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing}
 import freechips.rocketchip.rocket.TracedInstruction
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 import scala.collection.immutable.SortedMap
 

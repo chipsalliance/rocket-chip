@@ -12,17 +12,19 @@ import org.chipsalliance.diplomacy.bundlebridge._
 
 import freechips.rocketchip.resources.{PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
-import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, PgLevels, ASIdBits, VMIdBits, TraceAux, BPWatch}
+import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, ASIdBits, VMIdBits, TraceAux, BPWatch}
 import freechips.rocketchip.subsystem.{
   HierarchicalElementParams, InstantiableHierarchicalElementParams, HierarchicalElementCrossingParamsLike,
   CacheBlockBytes, SystemBusKey, BaseHierarchicalElement, InsertTimingClosureRegistersOnHartIds, BaseHierarchicalElementModuleImp
 }
 import freechips.rocketchip.tilelink.{TLEphemeralNode, TLOutwardNode, TLNode, TLFragmenter, EarlyAck, TLWidthWidget, TLManagerParameters, ManagerUnification}
 import freechips.rocketchip.prci.{ClockCrossingType, ClockSinkParameters}
-import freechips.rocketchip.util.{TraceCoreParams, TraceCoreInterface}
+import freechips.rocketchip.trace.{TraceCoreParams, TraceCoreInterface}
 
 import freechips.rocketchip.resources.{BigIntToProperty, IntToProperty, StringToProperty}
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
+
+import freechips.rocketchip.tilelink.TLIdentityNode
 
 case object TileVisibilityNodeKey extends Field[TLEphemeralNode]
 case object TileKey extends Field[TileParams]
@@ -61,12 +63,12 @@ trait HasNonDiplomaticTileParameters {
   def usingPTW: Boolean = usingVM
   def usingDataScratchpad: Boolean = tileParams.dcache.flatMap(_.scratch).isDefined
 
-  def xLen: Int = p(XLen)
+  def xLen: Int = tileParams.core.xLen
   def xBytes: Int = xLen / 8
   def iLen: Int = 32
   def pgIdxBits: Int = 12
   def pgLevelBits: Int = 10 - log2Ceil(xLen / 32)
-  def pgLevels: Int = p(PgLevels)
+  def pgLevels: Int = tileParams.core.pgLevels
   def maxSVAddrBits: Int = pgIdxBits + pgLevels * pgLevelBits
   def maxHypervisorExtraAddrBits: Int = 2
   def hypervisorExtraAddrBits: Int = {
@@ -83,7 +85,11 @@ trait HasNonDiplomaticTileParameters {
   def vmIdBits: Int = p(VMIdBits)
   lazy val maxPAddrBits: Int = {
     require(xLen == 32 || xLen == 64, s"Only XLENs of 32 or 64 are supported, but got $xLen")
-    xLen match { case 32 => 34; case 64 => 56 }
+    ((xLen, usingVM): @unchecked) match {
+      case (_, false) => xLen
+      case (32, true) => 34
+      case (64, true) => 56
+    }
   }
 
   def tileId: Int = tileParams.tileId
@@ -104,20 +110,39 @@ trait HasNonDiplomaticTileParameters {
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
-    val v = if (tileParams.core.useVector) "v" else ""
+    val b = if (tileParams.core.useBitmanip) "b" else ""
+    val v = if (tileParams.core.useVector && tileParams.core.vLen >= 128 && tileParams.core.eLen == 64 && tileParams.core.vfLen == 64) "v" else ""
     val h = if (usingHypervisor) "h" else ""
+
+    val ext_strs = Seq(
+      (tileParams.core.useVector) -> s"zvl${tileParams.core.vLen}b",
+      (tileParams.core.useVector) -> {
+        val c = tileParams.core.vfLen match {
+          case 64 => "d"
+          case 32 => "f"
+          case 0 => "x"
+        }
+        s"zve${tileParams.core.eLen}$c"
+      },
+      (tileParams.core.useVector && tileParams.core.vfh) -> "zvfh",
+      (tileParams.core.fpu.map(_.fLen >= 16).getOrElse(false) && tileParams.core.minFLen <= 16) -> "zfh",
+      (tileParams.core.useZba) -> "zba",
+      (tileParams.core.useZbb) -> "zbb",
+      (tileParams.core.useZbs) -> "zbs",
+      (tileParams.core.useConditionalZero) -> "zicond"
+    ).filter(_._1).map(_._2)
+
     val multiLetterExt = (
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
       //Some(Seq("zicntr")) ++
-      Option.when(tileParams.core.useConditionalZero)(Seq("zicond")) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
-      Option.when(tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen >= 16 && tileParams.core.fpu.get.minFLen <= 16)(Seq("zfh")) ++
+      Some(ext_strs) ++ Some(tileParams.core.vExts) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
     val multiLetterString = multiLetterExt.mkString("_")
-    s"rv${p(XLen)}$ie$m$a$f$d$c$v$h$multiLetterString"
+    s"rv$xLen$ie$m$a$f$d$c$b$v$h$multiLetterString"
   }
 
   def tileProperties: PropertyMap = {
