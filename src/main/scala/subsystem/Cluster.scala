@@ -56,18 +56,14 @@ class Cluster(
   lazy val allClockGroupsNode = ClockGroupIdentityNode()
 
   val csbus = tlBusWrapperLocationMap(CSBUS(clusterId)) // like the sbus in the base subsystem
-  val clbus = tlBusWrapperLocationMap(CLBUS(clusterId)) // like the sbus in the base subsystem
   val ccbus = tlBusWrapperLocationMap(CCBUS(clusterId)) // like the cbus in the base subsystem
   val cmbus = tlBusWrapperLocationMap.lift(CMBUS(clusterId)).getOrElse(csbus)
 
   csbus.clockGroupNode := allClockGroupsNode
-  clbus.clockGroupNode := allClockGroupsNode
   ccbus.clockGroupNode := allClockGroupsNode
 
   val slaveNode = ccbus.inwardNode
   val masterNode = cmbus.outwardNode
-
-
 
   lazy val ibus = LazyModule(new InterruptBusWrapper)
   ibus.clockNode := csbus.fixedClockNode

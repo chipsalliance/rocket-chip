@@ -34,7 +34,6 @@ case object COH  extends TLBusWrapperLocation("coh")
 case class CSBUS(clusterId: Int) extends TLBusWrapperLocation(s"csbus$clusterId")
 case class CMBUS(clusterId: Int) extends TLBusWrapperLocation(s"cmbus$clusterId")
 case class CCBUS(clusterId: Int) extends TLBusWrapperLocation(s"ccbus$clusterId")
-case class CLBUS(clusterId: Int) extends TLBusWrapperLocation(s"clbus$clusterId")
 case class CCOH (clusterId: Int) extends TLBusWrapperLocation(s"ccoh$clusterId")
 
 /** Parameterizes the subsystem in terms of optional clock-crossings
@@ -121,14 +120,11 @@ case class ClusterBusTopologyParams(
 ) extends TLBusWrapperTopology(
   instantiations = List(
     (CSBUS(clusterId), csbus),
-    (CLBUS(clusterId), csbus), // TODO don't copy from csbus params
     (CCBUS(clusterId), ccbus)) ++ (if (coherence.nBanks == 0) Nil else List(
     (CMBUS(clusterId), csbus),
     (CCOH (clusterId), CoherenceManagerWrapperParams(csbus.blockBytes, csbus.beatBytes, coherence.nBanks, CCOH(clusterId).name)(coherence.coherenceManager)))),
   connections = if (coherence.nBanks == 0) Nil else List(
     (CSBUS(clusterId), CCOH (clusterId), TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
-    // NOTE(hansung): not sure this is necessary
-    (CLBUS(clusterId), CCOH (clusterId), TLBusWrapperConnection(driveClockFromMaster = Some(true), nodeBinding = BIND_STAR)()),
     (CCOH (clusterId), CMBUS(clusterId), TLBusWrapperConnection.crossTo(
       xType = NoCrossing,
       driveClockFromMaster = Some(true),
