@@ -12,24 +12,30 @@
     in
     flake-utils.lib.eachDefaultSystem
       (system:
-      let
-        pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
-        deps = with pkgs; [
-          git
-          gnumake autoconf automake
-          mill
-          dtc
-          verilator cmake ninja
-          python3
-          python3Packages.pip
-          pkgsCross.riscv64-embedded.buildPackages.gcc
-          pkgsCross.riscv64-embedded.buildPackages.gdb
-          openocd
-          circt
+        let
+          pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
+          deps = with pkgs; [
+            git
+            gnumake
+            autoconf
+            automake
+            mill
+            dtc
+            verilator
+            cmake
+            ninja
+            python3
+            python3Packages.pip
+            pkgsCross.riscv64-embedded.buildPackages.gcc
+            pkgsCross.riscv64-embedded.buildPackages.gdb
+            openocd
+            circt
+            libz
 
-          spike riscvTests
-        ];
-      in
+            spike
+            riscvTests
+          ];
+        in
         {
           legacyPackages = pkgs;
           devShell = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
