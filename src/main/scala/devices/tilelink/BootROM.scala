@@ -22,6 +22,9 @@ case class BootROMParams(
   address: BigInt = 0x10000,
   size: Int = 0x10000,
   hang: BigInt = 0x10040, // The hang parameter is used as the power-on reset vector
+  driveResetVector: Boolean = true,
+  appendDTB: Boolean = true,
+  name: String = "bootrom",
   contentFileName: String)
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
@@ -63,7 +66,7 @@ class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], exec
   }
 }
 
-case class BootROMLocated(loc: HierarchicalLocation) extends Field[Option[BootROMParams]](None)
+case class BootROMLocated(loc: HierarchicalLocation) extends Field[Seq[BootROMParams]](Nil)
 
 object BootROM {
   /** BootROM.attach not only instantiates a TLROM and attaches it to the tilelink interconnect
@@ -73,27 +76,33 @@ object BootROM {
   def attach(params: BootROMParams, subsystem: BaseSubsystem with HasHierarchicalElements with HasTileInputConstants, where: TLBusWrapperLocation)
             (implicit p: Parameters): TLROM = {
     val tlbus = subsystem.locateTLBusWrapper(where)
-    val bootROMDomainWrapper = tlbus.generateSynchronousDomain("BootROM").suggestName("bootrom_domain")
+    val bootROMDomainWrapper = tlbus.generateSynchronousDomain(params.name).suggestName(s"${params.name}_domain")
 
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
     lazy val contents = {
       val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
       val rom = ByteBuffer.wrap(romdata)
-      rom.array() ++ subsystem.dtb.contents
+      if (params.appendDTB) {
+        rom.array() ++ subsystem.dtb.contents
+      } else {
+        rom.array()
+      }
     }
 
     val bootrom = bootROMDomainWrapper {
       LazyModule(new TLROM(params.address, params.size, contents, true, tlbus.beatBytes))
     }
 
-    bootrom.node := tlbus.coupleTo("bootrom"){ TLFragmenter(tlbus, Some("BootROM")) := _ }
+    bootrom.node := tlbus.coupleTo(params.name){ TLFragmenter(tlbus, Some(params.name)) := _ }
     // Drive the `subsystem` reset vector to the `hang` address of this Boot ROM.
-    subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
-    InModuleBody {
-      val reset_vector_source = bootROMResetVectorSourceNode.bundle
-      require(reset_vector_source.getWidth >= params.hang.bitLength,
-        s"BootROM defined with a reset vector (${params.hang})too large for physical address space (${reset_vector_source.getWidth})")
-      bootROMResetVectorSourceNode.bundle := params.hang.U
+    if (params.driveResetVector) {
+      subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
+      InModuleBody {
+        val reset_vector_source = bootROMResetVectorSourceNode.bundle
+        require(reset_vector_source.getWidth >= params.hang.bitLength,
+          s"BootROM defined with a reset vector (${params.hang})too large for physical address space (${reset_vector_source.getWidth})")
+        bootROMResetVectorSourceNode.bundle := params.hang.U
+      }
     }
     bootrom
   }
