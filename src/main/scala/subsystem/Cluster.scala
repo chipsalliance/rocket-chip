@@ -72,9 +72,10 @@ class Cluster(
   def meipDomain = this
   def seipDomain = this
   def toPlicDomain = this
+  def hasSupervisorTileIdList: Seq[Int] = totalTiles.filter(_._2.tileParams.core.hasSupervisorMode).keys.toSeq.sorted
   lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
-  lazy val seipNodes = totalTiles.filter(_._2.tileParams.core.useSupervisor).keys.map { i => (i, IntIdentityNode()) }.to(SortedMap)
+  lazy val seipNodes = hasSupervisorTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(SortedMap)
   lazy val nmiNodes = totalTiles.filter { case (i,t) => t.tileParams.core.useNMI }
