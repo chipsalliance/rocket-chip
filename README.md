@@ -55,6 +55,32 @@ Once you want to set up the environment:
     $ cd rocket-chip
     $ nix develop
 
+### Building The Project
+
+Generating verilog
+
+    $ make verilog
+
+Generating verilog for a specific Config
+
+    $ make verilog CONFIG=DefaultSmallConfig
+
+Generating emulator
+
+    $ make emulator
+
+Generating emulator for a specific Config
+
+    $ make emulator CONFIG=DefaultSmallConfig
+
+Generating riscv-test
+
+    $ make test
+
+Generating riscv-test for a specific Config and a specific test
+
+    $ make test CONFIG=DefaultSmallConfig TEST=rv64si-p
+
 ### Keeping Your Repo Up-to-Date
 
 If you are trying to keep your repo up to date with this GitHub repo,
