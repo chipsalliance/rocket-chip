@@ -34,23 +34,26 @@ For possible time adjustments, they will be negotiated in Slack and published in
     $ cd rocket-chip
     $ git submodule update --init
 
-### Install Necessary Dependencies
+### Nix Install
 
-You may need to install some additional packages to use this repository.
-Rather than list all dependencies here, please see the appropriate section of the READMEs for each of the subprojects:
+Install nix:
 
-* [rocket-tools "Ubuntu Packages Needed"](https://github.com/freechipsproject/rocket-tools/blob/master/README.md)
-* [chisel3 "Installation"](https://github.com/ucb-bar/chisel3#installation)
+    $ sh <(curl -L https://nixos.org/nix/install) --daemon
+    $ . ~/.nix-profile/etc/profile.d/nix.sh
+    $ git submodule update --init
 
-### Building The Project
+Set path in $HOME/.bashrc:
 
-Generating verilog
+    $ export PATH="$HOME/.nix-profile/bin:$PATH"
 
-    $ make verilog
+Edit /etc/nix/nix.conf and add the following line:
 
-Generating verilog for a specific Config
+    $ experimental-features = nix-command flakes
 
-    $ make verilog CONFIG=DefaultSmallConfig
+Once you want to set up the environment:
+
+    $ cd rocket-chip
+    $ nix develop
 
 ### Keeping Your Repo Up-to-Date
 
