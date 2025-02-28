@@ -110,9 +110,9 @@ class RVCDecoder(x: UInt, fsIsOff: Bool, xLen: Int, fLen: Int, useAddiForMv: Boo
     def lui = {
       val opc = Mux(addiImm.orR, 0x37.U(7.W), 0x3F.U(7.W))
       val me = inst(Cat(luiImm(31,12), rd, opc), rd, rd, rs2p)
-      val zc = (x(6,2) === 0.U && x(12,11) === 0.U)
+      val zcmop = x(7) && x(6,2) === 0.U && x(12,11) === 0.U
       val nop = inst(Cat(0.U(12.W), 0.U(5.W), 7.U(3.W), 0.U(5.W), 0x13.U(7.W)), 0.U, 0.U, 0.U, 0.U)
-      Mux(zc, nop, Mux(rd === x0 || rd === sp, addi16sp, me))
+      Mux(zcmop, nop, Mux(rd === sp, addi16sp, me))
     }
     def j = inst(Cat(jImm(20), jImm(10,1), jImm(11), jImm(19,12), x0, 0x6F.U(7.W)), x0, rs1p, rs2p)
     def beqz = inst(Cat(bImm(12), bImm(10,5), x0, rs1p, 0.U(3.W), bImm(4,1), bImm(11), 0x63.U(7.W)), rs1p, rs1p, x0)
