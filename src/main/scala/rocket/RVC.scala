@@ -93,7 +93,10 @@ class RVCDecoder(x: UInt, fsIsOff: Bool, xLen: Int, fLen: Int, useAddiForMv: Boo
   }
 
   def q1 = {
-    def addi = inst(Cat(addiImm, rd, 0.U(3.W), rd, 0x13.U(7.W)), rd, rd, rs2p)
+    def addi = {
+      val nop = inst(Cat(0.U(12.W), 0.U(5.W), 0.U(3.W), 0.U(5.W), 0x13.U(7.W)), 0.U, 0.U, 0.U, 0.U)
+      Mux(rd === x0, nop, inst(Cat(addiImm, rd, 0.U(3.W), rd, 0x13.U(7.W)), rd, rd, rs2p))
+    }
     def addiw = {
       val opc = Mux(rd.orR, 0x1B.U(7.W), 0x1F.U(7.W))
       inst(Cat(addiImm, rd, 0.U(3.W), rd, opc), rd, rd, rs2p)
@@ -111,7 +114,7 @@ class RVCDecoder(x: UInt, fsIsOff: Bool, xLen: Int, fLen: Int, useAddiForMv: Boo
       val opc = Mux(addiImm.orR, 0x37.U(7.W), 0x3F.U(7.W))
       val me = inst(Cat(luiImm(31,12), rd, opc), rd, rd, rs2p)
       val zcmop = x(7) && x(6,2) === 0.U && x(12,11) === 0.U
-      val nop = inst(Cat(0.U(12.W), 0.U(5.W), 7.U(3.W), 0.U(5.W), 0x13.U(7.W)), 0.U, 0.U, 0.U, 0.U)
+      val nop = inst(Cat(0.U(12.W), 0.U(5.W), 0.U(3.W), 0.U(5.W), 0x13.U(7.W)), 0.U, 0.U, 0.U, 0.U)
       Mux(zcmop, nop, Mux(rd === sp, addi16sp, me))
     }
     def j = inst(Cat(jImm(20), jImm(10,1), jImm(11), jImm(19,12), x0, 0x6F.U(7.W)), x0, rs1p, rs2p)
