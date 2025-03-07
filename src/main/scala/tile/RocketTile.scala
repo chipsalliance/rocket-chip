@@ -24,7 +24,7 @@ import freechips.rocketchip.rocket.{
 }
 import freechips.rocketchip.subsystem.HierarchicalElementCrossingParamsLike
 import freechips.rocketchip.prci.{ClockSinkParameters, RationalCrossing, ClockCrossingType}
-import freechips.rocketchip.util.{Annotated, InOrderArbiter}
+import freechips.rocketchip.util.InOrderArbiter
 import freechips.rocketchip.trace.{TraceEncoderParams,TraceEncoderController, TraceSinkArbiter}
 import freechips.rocketchip.subsystem._
 
@@ -166,8 +166,6 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasFpuOpt
     with HasLazyRoCCModule
     with HasICacheFrontendModule {
-  Annotated.params(this, outer.rocketParams)
-
   val core = Module(new Rocket(outer)(outer.p))
   outer.vector_unit.foreach { v =>
     core.io.vector.get <> v.module.io.core

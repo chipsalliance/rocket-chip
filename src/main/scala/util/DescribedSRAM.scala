@@ -25,16 +25,6 @@ object DescribedSRAM {
 
     val uid = 0
 
-    Annotated.srams(
-      component = mem,
-      name = name,
-      address_width = log2Ceil(size),
-      data_width = data.getWidth,
-      depth = size,
-      description = desc,
-      write_mask_granularity = granWidth
-    )
-
     mem
   }
 }

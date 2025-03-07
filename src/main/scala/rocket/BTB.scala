@@ -32,9 +32,7 @@ trait HasBtbParameters extends HasCoreParameters { this: InstanceId =>
   val nPages = (btbParams.nPages + 1) / 2 * 2 // control logic assumes 2 divides pages
 }
 
-abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters {
-  Annotated.params(this, btbParams)
-}
+abstract class BtbModule(implicit val p: Parameters) extends Module with HasBtbParameters
 
 abstract class BtbBundle(implicit val p: Parameters) extends Bundle with HasBtbParameters
 
@@ -301,7 +299,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   if (btbParams.bhtParams.nonEmpty) {
-    val bht = new BHT(Annotated.params(this, btbParams.bhtParams.get))
+    val bht = new BHT(btbParams.bhtParams.get)
     val isBranch = (idxHit & cfiType.map(_ === CFIType.branch).asUInt).orR
     val res = bht.get(io.req.bits.addr)
     when (io.bht_advance.valid) {

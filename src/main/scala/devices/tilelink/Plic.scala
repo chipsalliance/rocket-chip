@@ -15,7 +15,7 @@ import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSink
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldRdAction, RegFieldWrType, RegReadFn, RegWriteFn}
 import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
-import freechips.rocketchip.util.{Annotated, MuxT, property}
+import freechips.rocketchip.util.{MuxT, property}
 
 import scala.math.min
 
@@ -130,8 +130,6 @@ class TLPLIC(params: PLICParams, beatBytes: Int)(implicit p: Parameters) extends
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    Annotated.params(this, params)
-
     val (io_devices, edgesIn) = intnode.in.unzip
     val (io_harts, _) = intnode.out.unzip
 
