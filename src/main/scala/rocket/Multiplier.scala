@@ -183,7 +183,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   io.req.ready := state === s_ready
 }
 
-class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Module with ShouldBeRetimed {
+class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Module {
   val io = IO(new Bundle {
     val req = Flipped(Valid(new MultiplierReq(width, log2Ceil(nXpr))))
     val resp = Valid(new MultiplierResp(width, log2Ceil(nXpr)))
