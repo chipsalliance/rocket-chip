@@ -21,7 +21,7 @@ class APBFanout()(implicit p: Parameters) extends LazyModule {
         requestKeys    = seq.flatMap(_.requestKeys).distinct,
         responseFields = BundleField.union(seq.flatMap(_.responseFields))) }
   ){
-    override def circuitIdentity = outputs == 1 && inputs == 1
+    override def circuitIdentity = outputs.size == 1 && inputs.size == 1
   }
 
   lazy val module = new Impl
