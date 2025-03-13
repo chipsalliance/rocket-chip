@@ -13,6 +13,7 @@ import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
 import freechips.rocketchip.resources.{Resource, SimpleDevice}
 import freechips.rocketchip.subsystem._
 import freechips.rocketchip.tilelink.{TLFragmenter, TLManagerNode, TLSlaveParameters, TLSlavePortParameters}
+import freechips.rocketchip.util.{FileName, SystemFileName, ResourceFileName}
 
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Paths}
@@ -25,7 +26,8 @@ case class BootROMParams(
   driveResetVector: Boolean = true,
   appendDTB: Boolean = true,
   name: String = "bootrom",
-  contentFileName: String)
+  contentFileName: FileName = SystemFileName("./bootrom/bootrom.img")
+)
 
 class TLROM(val base: BigInt, val size: Int, contentsDelayed: => Seq[Byte], executable: Boolean = true, beatBytes: Int = 4,
   resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem"))(implicit p: Parameters) extends LazyModule
@@ -79,14 +81,21 @@ object BootROM {
     val bootROMDomainWrapper = tlbus.generateSynchronousDomain(params.name).suggestName(s"${params.name}_domain")
 
     val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
-    lazy val contents = {
-      val romdata = Files.readAllBytes(Paths.get(params.contentFileName))
-      val rom = ByteBuffer.wrap(romdata)
-      if (params.appendDTB) {
-        rom.array() ++ subsystem.dtb.contents
-      } else {
-        rom.array()
+    val rom = params.contentFileName match {
+      case SystemFileName(fileName) => {
+        val romdata = Files.readAllBytes(Paths.get(fileName))
+        ByteBuffer.wrap(romdata).array()
       }
+      case ResourceFileName(fileName) => {
+        val file = os.resource / os.RelPath(fileName.dropWhile(_ == '/'))
+        os.read.bytes(file)
+      }
+    }
+
+    lazy val contents = if (params.appendDTB) {
+      rom ++ subsystem.dtb.contents
+    } else {
+      rom
     }
 
     val bootrom = bootROMDomainWrapper {
