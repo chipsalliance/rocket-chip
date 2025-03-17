@@ -105,8 +105,9 @@ trait CanHaveMasterAXI4MemPort { this: BaseSubsystem =>
     })
 
     mbus.coupleTo(s"memory_controller_port_named_$portName") {
-      (memAXI4Node
-        := AXI4UserYanker()
+      // Disable monitors on this connection since the class with this trait (i.e. DigitalTop) doesn't provide an
+      // implicit clock for the monitor.
+      (DisableMonitors { implicit p => memAXI4Node := AXI4UserYanker() }
         := AXI4IdIndexer(idBits)
         := TLToAXI4()
         := TLWidthWidget(mbus.beatBytes)
