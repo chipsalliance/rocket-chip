@@ -8,6 +8,8 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
+import scala.collection.immutable.ListSet
+
 import freechips.rocketchip.diplomacy.{AddressRange}
 import freechips.rocketchip.resources.{
   BindingScope, DTS, DTB, ResourceBinding, JSON, ResourceInt,
@@ -20,6 +22,12 @@ import freechips.rocketchip.util.{Location, ElaborationArtefacts, PlusArgArtefac
 case object SubsystemDriveClockGroupsFromIO extends Field[Boolean](true)
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
 case class TLManagerViewpointLocated(where: HierarchicalLocation) extends Field[Location[TLBusWrapper]](SBUS)
+
+// Defines Keys which can be used to lookup functions that inject arbitrary code into the Subsystem
+// This is intended to be used to inject devices without requiring the cake pattern
+
+abstract class SubsystemInjector(inject: (Parameters, BaseSubsystem) => Unit) extends Field[(Parameters, BaseSubsystem) => Unit](inject)
+case object SubsystemInjectorKey extends Field[ListSet[SubsystemInjector]](ListSet.empty)
 
 class HierarchicalLocation(override val name: String) extends Location[LazyScope](name)
 case object InTile extends HierarchicalLocation("InTile")
@@ -111,6 +119,9 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
   //       a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.
   ibus.clockNode := viewpointBus.fixedClockNode
+
+  // Inject all the functions collected through the SubsystemInjector
+  p(SubsystemInjectorKey).foreach { k => p(k)(p, this) }
 
   // Collect information for use in DTS
   ResourceBinding {
