@@ -1,3 +1,4 @@
+
 // See LICENSE.SiFive for license details.
 // See LICENSE.Berkeley for license details.
 
@@ -22,7 +23,7 @@ import freechips.rocketchip.resources.{
 import freechips.rocketchip.tile.{
   MaxHartIdBits, RocketTileParams, BuildRoCC, AccumulatorExample, OpcodeSet, TranslatorExample, CharacterCountExample, BlackBoxExample
 }
-import freechips.rocketchip.util.ClockGateModelFile
+import freechips.rocketchip.util.{ClockGateModelFile, SystemFileName}
 import scala.reflect.ClassTag
 
 case object MaxXLen extends Field[Int]
@@ -54,7 +55,7 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
     beatBytes = 8,
     blockBytes = site(CacheBlockBytes))
   // Additional device Parameters
-  case BootROMLocated(InSubsystem) => Some(BootROMParams(contentFileName = "./bootrom/bootrom.img"))
+  case BootROMLocated(InSubsystem) => Seq(BootROMParams(contentFileName = SystemFileName("./bootrom/bootrom.img")))
   case HasTilesExternalResetVectorKey => false
   case DebugModuleKey => Some(DefaultDebugModuleParams(64))
   case CLINTKey => Some(CLINTParams())
@@ -207,7 +208,7 @@ class WithIncoherentTiles extends Config((site, here, up) => {
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName = bootROMFile))
+  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName=SystemFileName(bootROMFile)))
 })
 
 class WithClockGateModel(file: String = "/vsrc/EICG_wrapper.v") extends Config((site, here, up) => {
