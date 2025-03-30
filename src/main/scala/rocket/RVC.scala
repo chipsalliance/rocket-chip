@@ -155,12 +155,12 @@ class RVCDecoder(x: UInt, xLen: Int, fLen: Int, useAddiForMv: Boolean = false) {
   }
 
   def q0_ill = {
-    def allz = !(x(12, 2).orR)
+    def immz = !(x(12, 5).orR)
     def fld = if (fLen >= 64) false.B else true.B
     def flw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
     def fsd = if (fLen >= 64) false.B else true.B
     def fsw32 = if (xLen == 64 || fLen >= 32) false.B else true.B
-    Seq(allz, fld, false.B, flw32, true.B, fsd, false.B, fsw32)
+    Seq(immz, fld, false.B, flw32, true.B, fsd, false.B, fsw32)
   }
 
   def q1_ill = {
@@ -197,12 +197,12 @@ class RVCExpander(useAddiForMv: Boolean = false)(implicit val p: Parameters) ext
 
   if (usingCompressed) {
     io.rvc := io.in(1,0) =/= 3.U
-    val decoder = new RVCDecoder(io.in, p(XLen), fLen, useAddiForMv)
+    val decoder = new RVCDecoder(io.in, xLen, fLen, useAddiForMv)
     io.out := decoder.decode
     io.ill := decoder.ill
   } else {
     io.rvc := false.B
-    io.out := new RVCDecoder(io.in, p(XLen), fLen, useAddiForMv).passthrough
+    io.out := new RVCDecoder(io.in, xLen, fLen, useAddiForMv).passthrough
     io.ill := false.B // only used for RVC
   }
 }

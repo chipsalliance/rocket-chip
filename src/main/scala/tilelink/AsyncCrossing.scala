@@ -21,6 +21,7 @@ class TLAsyncCrossingSource(sync: Option[Int])(implicit p: Parameters) extends L
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    override def desiredName = (Seq("TLAsyncCrossingSource") ++ node.in.headOption.map(_._2.bundle.shortName)).mkString("_")
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeIn.manager.anySupportAcquireB && edgeIn.client.anySupportProbe
       val psync = sync.getOrElse(edgeOut.manager.async.sync)
@@ -56,6 +57,7 @@ class TLAsyncCrossingSink(params: AsyncQueueParams = AsyncQueueParams())(implici
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    override def desiredName = (Seq("TLAsyncCrossingSink") ++ node.out.headOption.map(_._2.bundle.shortName)).mkString("_")
     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
       val bce = edgeOut.manager.anySupportAcquireB && edgeOut.client.anySupportProbe
 

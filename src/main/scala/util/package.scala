@@ -270,7 +270,7 @@ package object util {
         val y = Output(chiselTypeOf(in))
       })
       io.y := io.x
-      override def desiredName = "OptimizationBarrier"
+      override def desiredName = s"OptimizationBarrier_${in.typeName}"
     })
     barrier.io.x := in
     barrier.io.y
@@ -300,4 +300,10 @@ package object util {
   def HeterogeneousBag[T <: Data](elts: Seq[T]) = _root_.org.chipsalliance.diplomacy.nodes.HeterogeneousBag[T](elts)
   @deprecated("HeterogeneousBag has been absorbed into standalone diplomacy library", "rocketchip 2.0.0")
   val HeterogeneousBag = _root_.org.chipsalliance.diplomacy.nodes.HeterogeneousBag
+
+  trait FileName {
+    val fileName: String
+  }
+  case class SystemFileName(fileName: String) extends FileName
+  case class ResourceFileName(fileName: String) extends FileName
 }

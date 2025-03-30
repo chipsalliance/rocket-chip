@@ -13,16 +13,26 @@ import freechips.rocketchip.interrupts.{IntIdentityNode, IntSyncIdentityNode, Nu
 import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, ClockSinkParameters, ClockGroupIdentityNode, BundleBridgeBlockDuringReset}
 import freechips.rocketchip.tile.{RocketTile, NMI, TraceBundle}
 import freechips.rocketchip.tilelink.TLWidthWidget
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 import scala.collection.immutable.SortedMap
 
 case class ClustersLocated(loc: HierarchicalLocation) extends Field[Seq[CanAttachCluster]](Nil)
 
+trait BaseClusterParams extends HierarchicalElementParams {
+  val clusterId: Int
+}
+
+abstract class InstantiableClusterParams[ClusterType <: Cluster]
+    extends HierarchicalElementParams
+    with BaseClusterParams {
+  def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByClusterIdImpl)(implicit p: Parameters): ClusterType
+}
+
 case class ClusterParams(
   val clusterId: Int,
   val clockSinkParams: ClockSinkParameters = ClockSinkParameters()
-) extends HierarchicalElementParams {
+) extends InstantiableClusterParams[Cluster] {
   val baseName = "cluster"
   val uniqueName = s"${baseName}_$clusterId"
   def instantiate(crossing: HierarchicalElementCrossingParamsLike, lookup: LookupByClusterIdImpl)(implicit p: Parameters): Cluster = {
@@ -31,7 +41,7 @@ case class ClusterParams(
 }
 
 class Cluster(
-  val thisClusterParams: ClusterParams,
+  val thisClusterParams: BaseClusterParams,
   crossing: ClockCrossingType,
   lookup: LookupByClusterIdImpl)(implicit p: Parameters) extends BaseHierarchicalElement(crossing)(p)
     with Attachable
@@ -55,17 +65,17 @@ class Cluster(
   val slaveNode = ccbus.inwardNode
   val masterNode = cmbus.outwardNode
 
-
-
   lazy val ibus = LazyModule(new InterruptBusWrapper)
   ibus.clockNode := csbus.fixedClockNode
 
   def msipDomain = this
   def meipDomain = this
   def seipDomain = this
+  def toPlicDomain = this
+  def hasSupervisorTileIdList: Seq[Int] = totalTiles.filter(_._2.tileParams.core.hasSupervisorMode).keys.toSeq.sorted
   lazy val msipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val meipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
-  lazy val seipNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
+  lazy val seipNodes = hasSupervisorTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(SortedMap)
   lazy val nmiNodes = totalTiles.filter { case (i,t) => t.tileParams.core.useNMI }
@@ -78,7 +88,7 @@ class Cluster(
   // TODO fix: shouldn't need to connect dummy notifications
   tileHaltXbarNode := NullIntSource()
   tileWFIXbarNode := NullIntSource()
-  tileCeaseXbarNode := NullIntSource()
+  // tileCeaseXbarNode := NullIntSource()
 
   override lazy val module = new ClusterModuleImp(this)
 }
@@ -87,12 +97,12 @@ class ClusterModuleImp(outer: Cluster) extends BaseHierarchicalElementModuleImp[
 
 case class InCluster(id: Int) extends HierarchicalLocation(s"Cluster$id")
 
-class ClusterPRCIDomain(
+abstract class ClusterPRCIDomain[ClusterType <: Cluster](
   clockSinkParams: ClockSinkParameters,
   crossingParams: HierarchicalElementCrossingParamsLike,
-  clusterParams: ClusterParams,
+  clusterParams: InstantiableClusterParams[ClusterType],
   lookup: LookupByClusterIdImpl)
-  (implicit p: Parameters) extends HierarchicalElementPRCIDomain[Cluster](clockSinkParams, crossingParams)
+  (implicit p: Parameters) extends HierarchicalElementPRCIDomain[ClusterType](clockSinkParams, crossingParams)
 {
   val element = element_reset_domain {
     LazyModule(clusterParams.instantiate(crossingParams, lookup))
@@ -103,19 +113,19 @@ class ClusterPRCIDomain(
 
 
 trait CanAttachCluster {
+  type ClusterType <: Cluster
   type ClusterContextType <: DefaultHierarchicalElementContextType
-
-  def clusterParams: ClusterParams
+  def clusterParams: InstantiableClusterParams[ClusterType]
   def crossingParams: HierarchicalElementCrossingParamsLike
 
-  def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: SortedMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
+  def instantiate(allClusterParams: Seq[BaseClusterParams], instantiatedClusters: SortedMap[Int, ClusterPRCIDomain[_]])(implicit p: Parameters): ClusterPRCIDomain[ClusterType] = {
     val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
-    val cluster_prci_domain = LazyModule(new ClusterPRCIDomain(
-      clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)))
+    val cluster_prci_domain = LazyModule(new ClusterPRCIDomain[ClusterType](
+      clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)) {})
     cluster_prci_domain
   }
 
-  def connect(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
+  def connect(domain: ClusterPRCIDomain[ClusterType], context: ClusterContextType): Unit = {
     connectMasterPorts(domain, context)
     connectSlavePorts(domain, context)
     connectInterrupts(domain, context)
@@ -125,21 +135,21 @@ trait CanAttachCluster {
     connectTrace(domain, context)
   }
 
-  def connectMasterPorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
+  def connectMasterPorts(domain: ClusterPRCIDomain[ClusterType], context: Attachable): Unit = {
     implicit val p = context.p
     val dataBus = context.locateTLBusWrapper(crossingParams.master.where)
     dataBus.coupleFrom(clusterParams.baseName) { bus =>
       bus :=* crossingParams.master.injectNode(context) :=* domain.crossMasterPort(crossingParams.crossingType)
     }
   }
-  def connectSlavePorts(domain: ClusterPRCIDomain, context: Attachable): Unit = {
+  def connectSlavePorts(domain: ClusterPRCIDomain[ClusterType], context: Attachable): Unit = {
     implicit val p = context.p
     val controlBus = context.locateTLBusWrapper(crossingParams.slave.where)
     controlBus.coupleTo(clusterParams.baseName) { bus =>
       domain.crossSlavePort(crossingParams.crossingType) :*= crossingParams.slave.injectNode(context) :*= TLWidthWidget(controlBus.beatBytes) :*= bus
     }
   }
-  def connectInterrupts(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
+  def connectInterrupts(domain: ClusterPRCIDomain[ClusterType], context: ClusterContextType): Unit = {
     implicit val p = context.p
 
     domain.element.debugNodes.foreach { case (hartid, node) =>
@@ -169,7 +179,7 @@ trait CanAttachCluster {
     }
   }
 
-  def connectPRC(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
+  def connectPRC(domain: ClusterPRCIDomain[ClusterType], context: ClusterContextType): Unit = {
     implicit val p = context.p
     domain.element.allClockGroupsNode :*= context.allClockGroupsNode
     domain {
@@ -177,7 +187,7 @@ trait CanAttachCluster {
     }
   }
 
-  def connectOutputNotifications(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
+  def connectOutputNotifications(domain: ClusterPRCIDomain[ClusterType], context: ClusterContextType): Unit = {
     implicit val p = context.p
     context.tileHaltXbarNode  :=* domain.crossIntOut(NoCrossing, domain.element.tileHaltXbarNode)
     context.tileWFIXbarNode   :=* domain.crossIntOut(NoCrossing, domain.element.tileWFIXbarNode)
@@ -185,7 +195,7 @@ trait CanAttachCluster {
 
   }
 
-  def connectInputConstants(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
+  def connectInputConstants(domain: ClusterPRCIDomain[ClusterType], context: ClusterContextType): Unit = {
     implicit val p = context.p
     val tlBusToGetPrefixFrom = context.locateTLBusWrapper(crossingParams.mmioBaseAddressPrefixWhere)
     domain.element.tileHartIdNodes.foreach { case (hartid, node) =>
@@ -196,7 +206,7 @@ trait CanAttachCluster {
     }
   }
 
-  def connectTrace(domain: ClusterPRCIDomain, context: ClusterContextType): Unit = {
+  def connectTrace(domain: ClusterPRCIDomain[ClusterType], context: ClusterContextType): Unit = {
     implicit val p = context.p
     domain.element.traceNodes.foreach { case (hartid, node) =>
       val traceNexusNode = BundleBridgeBlockDuringReset[TraceBundle](
@@ -211,23 +221,26 @@ trait CanAttachCluster {
   }
 }
 
-case class ClusterAttachParams(
+case class ClusterAttachParams (
   clusterParams: ClusterParams,
   crossingParams: HierarchicalElementCrossingParamsLike
-) extends CanAttachCluster
+) extends CanAttachCluster {
+  type ClusterType = Cluster
+}
 
 case class CloneClusterAttachParams(
   sourceClusterId: Int,
   cloneParams: CanAttachCluster
 ) extends CanAttachCluster {
+  type ClusterType = cloneParams.ClusterType
   def clusterParams = cloneParams.clusterParams
   def crossingParams = cloneParams.crossingParams
 
-  override def instantiate(allClusterParams: Seq[ClusterParams], instantiatedClusters: SortedMap[Int, ClusterPRCIDomain])(implicit p: Parameters): ClusterPRCIDomain = {
+  override def instantiate(allClusterParams: Seq[BaseClusterParams], instantiatedClusters: SortedMap[Int, ClusterPRCIDomain[_]])(implicit p: Parameters): ClusterPRCIDomain[ClusterType] = {
     require(instantiatedClusters.contains(sourceClusterId))
     val clockSinkParams = clusterParams.clockSinkParams.copy(name = Some(clusterParams.uniqueName))
     val cluster_prci_domain = CloneLazyModule(
-      new ClusterPRCIDomain(clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)),
+      new ClusterPRCIDomain[ClusterType](clockSinkParams, crossingParams, clusterParams, PriorityMuxClusterIdFromSeq(allClusterParams)) {},
       instantiatedClusters(sourceClusterId)
     )
     cluster_prci_domain

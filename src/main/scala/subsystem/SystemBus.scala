@@ -44,7 +44,7 @@ class SystemBus(params: SystemBusParams, name: String = "system_bus")(implicit p
     addressPrefixNexusNode
   }
 
-  private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy))
+  private val system_bus_xbar = LazyModule(new TLXbar(policy = params.policy, nameSuffix = Some(name)))
   val inwardNode: TLInwardNode = system_bus_xbar.node :=* TLFIFOFixer(TLFIFOFixer.allVolatile) :=* replicator.map(_.node).getOrElse(TLTempNode())
   val outwardNode: TLOutwardNode = system_bus_xbar.node
   def busView: TLEdge = system_bus_xbar.node.edges.in.head

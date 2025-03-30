@@ -25,9 +25,7 @@ import freechips.rocketchip.util.SeqBoolBitwiseOps
 
 // TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
 trait InlineInstance { self: chisel3.experimental.BaseModule =>
-  chisel3.experimental.annotate(
-    new chisel3.experimental.ChiselAnnotation {
-      def toFirrtl: firrtl.annotations.Annotation = firrtl.passes.InlineAnnotation(self.toNamed) } )
+  chisel3.experimental.annotate(self)(Seq(firrtl.passes.InlineAnnotation(self.toNamed)))
 }
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)
@@ -60,7 +58,7 @@ class DCacheDataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
   val data_arrays = Seq.tabulate(rowBits / subWordBits) {
     i =>
       DescribedSRAM(
-        name = s"data_arrays_${i}",
+        name = s"${tileParams.baseName}_dcache_data_arrays_${i}",
         desc = "DCache Data Array",
         size = nSets * cacheBlockBytes / rowBytes,
         data = Vec(nWays * (subWordBits / eccBits), UInt(encBits.W))
@@ -135,7 +133,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val metaArb = Module(new Arbiter(new DCacheMetadataReq, 8) with InlineInstance)
 
   val tag_array = DescribedSRAM(
-    name = "tag_array",
+    name = s"${tileParams.baseName}_dcache_tag_array",
     desc = "DCache Tag Array",
     size = nSets,
     data = Vec(nWays, chiselTypeOf(metaArb.io.out.bits.data))

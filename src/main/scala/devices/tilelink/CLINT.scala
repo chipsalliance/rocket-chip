@@ -14,7 +14,6 @@ import freechips.rocketchip.interrupts.{IntNexusNode, IntSinkParameters, IntSink
 import freechips.rocketchip.regmapper.{RegField, RegFieldDesc, RegFieldGroup}
 import freechips.rocketchip.subsystem.{BaseSubsystem, CBUS, TLBusWrapperLocation}
 import freechips.rocketchip.tilelink.{TLFragmenter, TLRegisterNode}
-import freechips.rocketchip.util.Annotated
 
 object CLINTConsts
 {
@@ -63,7 +62,6 @@ class CLINT(params: CLINTParams, beatBytes: Int)(implicit p: Parameters) extends
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
-    Annotated.params(this, params)
     require (intnode.edges.in.size == 0, "CLINT only produces interrupts; it does not accept them")
 
     val io = IO(new Bundle {
@@ -110,7 +108,7 @@ trait CanHavePeripheryCLINT { this: BaseSubsystem =>
     val tlbus = locateTLBusWrapper(p(CLINTAttachKey).slaveWhere)
     val clintDomainWrapper = tlbus.generateSynchronousDomain("CLINT").suggestName("clint_domain")
     val clint = clintDomainWrapper { LazyModule(new CLINT(params, tlbus.beatBytes)) }
-    clintDomainWrapper { clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus) := _ } }
+    clintDomainWrapper { clint.node := tlbus.coupleTo("clint") { TLFragmenter(tlbus, Some("CLINT")) := _ } }
     val clintTick = clintDomainWrapper { InModuleBody {
       val tick = IO(Input(Bool()))
       clint.module.io.rtcTick := tick

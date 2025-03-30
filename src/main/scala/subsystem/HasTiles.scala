@@ -15,7 +15,7 @@ import freechips.rocketchip.tile.{MaxHartIdBits, BaseTile, InstantiableTileParam
 import freechips.rocketchip.tilelink.TLWidthWidget
 import freechips.rocketchip.prci.{ClockGroup, BundleBridgeBlockDuringReset, NoCrossing, SynchronousCrossing, CreditedCrossing, RationalCrossing, AsynchronousCrossing}
 import freechips.rocketchip.rocket.TracedInstruction
-import freechips.rocketchip.util.TraceCoreInterface
+import freechips.rocketchip.trace.TraceCoreInterface
 
 import scala.collection.immutable.SortedMap
 
@@ -238,7 +238,7 @@ trait CanAttachTile {
     //    so might need to be synchronized depending on the Tile's crossing type.
     context.tileToPlicNodes.get(domain.element.tileId).foreach { node =>
       FlipRendering { implicit p => domain.element.intOutwardNode.foreach { out =>
-        node := domain.crossIntOut(crossingParams.crossingType, out)
+        context.toPlicDomain { node := domain.crossIntOut(crossingParams.crossingType, out) }
       }}
     }
 

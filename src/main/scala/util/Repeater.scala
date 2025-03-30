@@ -9,6 +9,7 @@ import chisel3.util.{Decoupled, DecoupledIO}
 // When repeat is asserted, the Repeater copies the input and repeats it next cycle.
 class Repeater[T <: Data](gen: T) extends Module
 {
+  override def desiredName = s"Repeater_${gen.typeName}"
   val io = IO( new Bundle {
     val repeat = Input(Bool())
     val full = Output(Bool())

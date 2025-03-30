@@ -149,7 +149,7 @@ class PTBR(implicit p: Parameters) extends CoreBundle()(p) {
     case 32 => (1, 9)
     case 64 => (4, 16)
   }
-  require(modeBits + maxASIdBits + maxPAddrBits - pgIdxBits == xLen)
+  require(!usingVM || modeBits + maxASIdBits + maxPAddrBits - pgIdxBits == xLen)
 
   val mode = UInt(modeBits.W)
   val asid = UInt(maxASIdBits.W)
@@ -272,8 +272,8 @@ class CSRFileIO(hasBeu: Boolean)(implicit p: Parameters) extends CoreBundle
   val csr_stall = Output(Bool()) // stall retire for wfi
   val rw_stall = Output(Bool()) // stall rw, rw will have no effect while rw_stall
   val eret = Output(Bool())
+  val trap_return = Output(Bool())
   val singleStep = Output(Bool())
-
   val status = Output(new MStatus())
   val hstatus = Output(new HStatus())
   val gstatus = Output(new MStatus())
@@ -636,7 +636,7 @@ class CSRFile(
     (if (usingAtomics) "A" else "") +
     (if (fLen >= 32) "F" else "") +
     (if (fLen >= 64) "D" else "") +
-    (if (usingVector) "V" else "") +
+    (if (coreParams.hasV) "V" else "") +
     (if (usingCompressed) "C" else "")
   val isaString = (if (coreParams.useRVE) "E" else "I") +
     isaMaskString +
@@ -913,7 +913,7 @@ class CSRFile(
       (!usingSupervisor.B || reg_mstatus.prv >= PRV.S.U || read_scounteren(counter_addr)) &&
       (!usingHypervisor.B || !reg_mstatus.v || read_hcounteren(counter_addr))
     io_dec.fp_illegal := io.status.fs === 0.U || reg_mstatus.v && reg_vsstatus.fs === 0.U || !reg_misa('f'-'a')
-    io_dec.vector_illegal := io.status.vs === 0.U || reg_mstatus.v && reg_vsstatus.vs === 0.U || !reg_misa('v'-'a')
+    io_dec.vector_illegal := io.status.vs === 0.U || reg_mstatus.v && reg_vsstatus.vs === 0.U || !usingVector.B
     io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
     io_dec.vector_csr := decodeFast(vector_csrs.keys.toList)
     io_dec.rocc_illegal := io.status.xs === 0.U || reg_mstatus.v && reg_vsstatus.xs === 0.U || !reg_misa('x'-'a')
@@ -998,6 +998,7 @@ class CSRFile(
   io.hgatp := reg_hgatp
   io.vsatp := reg_vsatp
   io.eret := insn_call || insn_break || insn_ret
+  io.trap_return := insn_ret
   io.singleStep := reg_dcsr.step && !reg_debug
   io.status := reg_mstatus
   io.status.sd := io.status.fs.andR || io.status.xs.andR || io.status.vs.andR

@@ -15,11 +15,12 @@ class IntXbar()(implicit p: Parameters) extends LazyModule
       }.flatten)
     })
   {
-    override def circuitIdentity = outputs == 1 && inputs == 1
+    override def circuitIdentity = outputs.size == 1 && inputs.size == 1
   }
 
   lazy val module = new Impl
   class Impl extends LazyRawModuleImp(this) {
+    override def desiredName = s"IntXbar_i${intnode.in.size}_o${intnode.out.size}"
     val cat = intnode.in.map { case (i, e) => i.take(e.source.num) }.flatten
     intnode.out.foreach { case (o, _) => o := cat }
   }
@@ -35,11 +36,12 @@ class IntSyncXbar()(implicit p: Parameters) extends LazyModule
       }.flatten)
     })
   {
-    override def circuitIdentity = outputs == 1 && inputs == 1
+    override def circuitIdentity = outputs.size == 1 && inputs.size == 1
   }
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
+    override def desiredName = s"IntSyncXbar_i${intnode.in.size}_o${intnode.out.size}"
     val cat = intnode.in.map { case (i, e) => i.sync.take(e.source.num) }.flatten
     intnode.out.foreach { case (o, _) => o.sync := cat }
   }

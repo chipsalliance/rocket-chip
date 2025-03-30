@@ -87,6 +87,7 @@ object JtagBypassChain {
   * 4.3.2a TDI captured on TCK rising edge, 6.1.2.1b assumed changes on TCK falling edge
   */
 class CaptureChain[+T <: Data](gen: T)(implicit val p: Parameters) extends Chain {
+  override def desiredName = s"CaptureChain_${gen.typeName}"
   class ModIO extends ChainIO {
     val capture = Capture(gen)
   }
@@ -134,6 +135,7 @@ object CaptureChain {
   * 4.3.2a TDI captured on TCK rising edge, 6.1.2.1b assumed changes on TCK falling edge
   */
 class CaptureUpdateChain[+T <: Data, +V <: Data](genCapture: T, genUpdate: V)(implicit val p: Parameters) extends Chain {
+  override def desiredName = s"CaptureUpdateChain_${genCapture.typeName}_To_${genUpdate.typeName}"
   class ModIO extends ChainIO {
     val capture = Capture(genCapture)
     val update = Valid(genUpdate)  // valid high when in update state (single cycle), contents may change any time after

@@ -19,7 +19,7 @@ import freechips.rocketchip.regmapper.{RegField, RegFieldAccessType, RegFieldDes
 import freechips.rocketchip.rocket.{CSRs, Instructions}
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink.{TLAsyncCrossingSink, TLAsyncCrossingSource, TLBuffer, TLRegisterNode, TLXbar}
-import freechips.rocketchip.util.{Annotated, AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
+import freechips.rocketchip.util.{AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
 
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 import freechips.rocketchip.util.SeqToAugmentedSeq
@@ -660,7 +660,7 @@ class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyMod
       val hartResetReg = RegNext(next=hartResetNxt, init=0.U.asTypeOf(hartResetNxt))
 
       for (component <- 0 until nComponents) {
-        hartResetNxt(component) := DMCONTROLReg.hartreset & hartSelected(component)
+        hartResetNxt(component) := DMCONTROLNxt.hartreset & hartSelected(component)
         io.hartResetReq.get(component) := hartResetReg(component)
       }
     }
@@ -672,7 +672,7 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
 
   val cfg = p(DebugModuleKey).get
 
-  val dmiXbar = LazyModule (new TLXbar())
+  val dmiXbar = LazyModule (new TLXbar(nameSuffix = Some("dmixbar")))
 
   val dmi2tlOpt = (!p(ExportDebug).apb).option({
     val dmi2tl = LazyModule(new DMIToTL())
@@ -789,7 +789,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this){
     val nComponents = getNComponents()
-    Annotated.params(this, cfg)
     val supportHartArray = cfg.supportHartArray & (nComponents > 1)
     val nExtTriggers = cfg.nExtTriggers
     val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 0)) cfg.nHaltGroups
