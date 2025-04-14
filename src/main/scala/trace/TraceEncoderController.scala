@@ -20,8 +20,6 @@ class TraceEncoderControlInterface() extends Bundle {
   val enable = Bool()
   val target = UInt(TraceSinkTarget.width.W)
   val bp_mode = UInt(32.W)
-  val hpmcounter_enable = UInt(32.W)
-  val hpmcounter_report_interval = UInt(32.W)
 }
 class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameters) extends LazyModule {
 
