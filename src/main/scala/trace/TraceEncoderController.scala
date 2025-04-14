@@ -19,6 +19,7 @@ object TraceSinkTarget {
 class TraceEncoderControlInterface() extends Bundle {
   val enable = Bool()
   val target = UInt(TraceSinkTarget.width.W)
+  val bp_mode = UInt(32.W)
   val hpmcounter_enable = UInt(32.W)
   val hpmcounter_report_interval = UInt(32.W)
 }
@@ -48,11 +49,8 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
     val trace_sink_target = RegInit(0.U(TraceSinkTarget.width.W))
     io.control.target := trace_sink_target.asUInt
 
-    val trace_hpmcounter_enable = RegInit(0.U(32.W))
-    io.control.hpmcounter_enable := trace_hpmcounter_enable
-
-    val trace_hpmcounter_report_interval = RegInit(0.U(32.W))
-    io.control.hpmcounter_report_interval := trace_hpmcounter_report_interval
+    val trace_bp_mode = RegInit(0.U(32.W))
+    io.control.bp_mode := trace_bp_mode
 
     def traceEncoderControlRegWrite(valid: Bool, bits: UInt): Bool = {
       control_reg_write_valid := valid
@@ -79,6 +77,10 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
         0x20 -> Seq(
           RegField(1, trace_sink_target,
             RegFieldDesc("target", "Trace sink target"))
+        ),
+        0x24 -> Seq(
+          RegField(32, trace_bp_mode,
+            RegFieldDesc("bp_mode", "Trace branch predictor mode"))
         )
       ):_*
     )
