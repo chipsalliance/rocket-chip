@@ -21,7 +21,7 @@ object APBImp extends SimpleNodeImp[APBMasterPortParameters, APBSlavePortParamet
   override def monitor(bundle: APBBundle, edge: APBEdgeParameters): Unit = {
     edge.params.lift(APBMonitorBuilder).foreach { builder =>
       val monitor = Module(builder(APBMonitorArgs(edge)))
-      monitor.io.in := bundle
+      monitor.io.in :#= bundle
     }
   }
 

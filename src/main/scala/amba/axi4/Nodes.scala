@@ -23,7 +23,7 @@ object AXI4Imp extends SimpleNodeImp[AXI4MasterPortParameters, AXI4SlavePortPara
   override def monitor(bundle: AXI4Bundle, edge: AXI4EdgeParameters): Unit = {
     edge.params.lift(AXI4MonitorBuilder).foreach { builder =>
       val monitor = Module(builder(AXI4MonitorArgs(edge)))
-      monitor.io.in := bundle
+      monitor.io.in :#= bundle
     }
   }
 
