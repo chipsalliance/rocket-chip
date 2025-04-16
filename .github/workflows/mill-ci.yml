@@ -27,17 +27,17 @@ jobs:
       matrix:
         config: [DefaultConfig, DefaultBufferlessConfig, DefaultRV32Config, TinyConfig, DefaultFP16Config, DefaultBConfig, DefaultRV32BConfig]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: cachix/install-nix-action@v19
+      - uses: cachix/install-nix-action@v31
         with:
           install_url: https://releases.nixos.org/nix/nix-2.13.3/install
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Coursier Cache
-        uses: coursier/cache-action@v5
+        uses: coursier/cache-action@v6
 
       - name: run riscv-tests
         run: |
@@ -50,17 +50,17 @@ jobs:
       matrix:
         config: [DefaultSmallConfig, DualBankConfig, DualChannelConfig, DualChannelDualBankConfig, RoccExampleConfig, Edge128BitConfig, Edge32BitConfig, QuadChannelBenchmarkConfig, EightChannelConfig, DualCoreConfig, MemPortOnlyConfig, MMIOPortOnlyConfig, CloneTileConfig, HypervisorConfig]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: cachix/install-nix-action@v19
+      - uses: cachix/install-nix-action@v31
         with:
           install_url: https://releases.nixos.org/nix/nix-2.13.3/install
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Coursier Cache
-        uses: coursier/cache-action@v5
+        uses: coursier/cache-action@v6
 
       - name: compile emulator
         run: |
@@ -74,12 +74,12 @@ jobs:
       matrix:
         config: ["DefaultRV32Config,32,RV32IMACZicsr_Zifencei", "DefaultConfig,64,RV64IMACZicsr_Zifencei"]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
       - name: install nix
-        uses: cachix/install-nix-action@v19
+        uses: cachix/install-nix-action@v31
         with:
           install_url: https://releases.nixos.org/nix/nix-2.13.3/install
           nix_path: nixpkgs=channel:nixos-unstable
@@ -98,12 +98,12 @@ jobs:
       matrix:
         config: ["freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultConfig", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.DefaultRV32Config", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultConfig", "freechips.rocketchip.system.WithJtagDTMSystem_freechips.rocketchip.system.WithDebugSBASystem_freechips.rocketchip.system.DefaultRV32Config"]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
       - name: install nix
-        uses: cachix/install-nix-action@v19
+        uses: cachix/install-nix-action@v31
         with:
           install_url: https://releases.nixos.org/nix/nix-2.13.3/install
           nix_path: nixpkgs=channel:nixos-unstable
