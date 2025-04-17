@@ -13,7 +13,7 @@ import freechips.rocketchip.devices.debug.{DebugModuleKey, DefaultDebugModulePar
 import freechips.rocketchip.devices.tilelink.{
   BuiltInErrorDeviceParams, BootROMLocated, BootROMParams, CLINTKey, DevNullDevice, CLINTParams, PLICKey, PLICParams, DevNullParams
 }
-import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
+import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType, CreditedCrossing}
 import freechips.rocketchip.diplomacy.{
   AddressSet, MonitorsEnabled,
 }

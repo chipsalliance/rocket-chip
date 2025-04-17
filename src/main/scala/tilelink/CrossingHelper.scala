@@ -32,8 +32,11 @@ case class TLInwardClockCrossingHelper(name: String, scope: LazyScope, node: TLI
         node :*=* scope { TLRationalCrossingSink(direction.flip) :*=* TLRationalNameNode(name) } :*=* TLRationalNameNode(name) :*=* TLRationalCrossingSource()
       case SynchronousCrossing(buffer) =>
         node :*=* scope { TLBuffer(buffer) :*=* TLNameNode(name) } :*=* TLNameNode(name)
-      case CreditedCrossing(sourceDelay, sinkDelay) =>
+      case CreditedCrossing(sourceDelay, sinkDelay) => if (p(UseTLMergedCreditedCrossing)) {
+        node :*=* scope { TLMergedCreditedSink(sinkDelay) :*=* TLMergedCreditedNameNode(name) } :*=* TLMergedCreditedNameNode(name) :*=* TLMergedCreditedSource(sourceDelay)
+      } else {
         node :*=* scope { TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name) } :*=* TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay)
+      }
     }
   }
 }
@@ -63,8 +66,11 @@ case class TLOutwardClockCrossingHelper(name: String, scope: LazyScope, node: TL
         TLRationalCrossingSink(direction) :*=* TLRationalNameNode(name) :*=* scope { TLRationalNameNode(name) :*=* TLRationalCrossingSource() } :*=* node
       case SynchronousCrossing(buffer) =>
         TLNameNode(name) :*=* scope { TLNameNode(name) :*=* TLBuffer(buffer) } :*=* node
-      case CreditedCrossing(sourceDelay, sinkDelay) =>
+      case CreditedCrossing(sourceDelay, sinkDelay) => if (p(UseTLMergedCreditedCrossing)) {
+        TLMergedCreditedSink(sinkDelay) :*=* TLMergedCreditedNameNode(name) :*=* scope { TLMergedCreditedNameNode(name) :*=* TLMergedCreditedSource(sourceDelay) } :*=* node
+      } else {
         TLCreditedSink(sinkDelay) :*=* TLCreditedNameNode(name) :*=* scope { TLCreditedNameNode(name) :*=* TLCreditedSource(sourceDelay) } :*=* node
+      }
     }
   }
 }

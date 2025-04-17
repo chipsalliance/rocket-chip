@@ -5,8 +5,7 @@ package freechips.rocketchip.tilelink
 import chisel3._
 import freechips.rocketchip.util._
 import scala.collection.immutable.ListMap
-import chisel3.util.Decoupled
-import chisel3.util.DecoupledIO
+import chisel3.util.{Decoupled, DecoupledIO, Valid}
 import chisel3.reflect.DataMirror
 
 abstract class TLBundleBase(val params: TLBundleParameters) extends Bundle
@@ -321,4 +320,45 @@ class TLCreditedBundle(params: TLBundleParameters) extends TLBundleBase(params)
   val c = CreditedIO(new TLBundleC(params))
   val d = Flipped(CreditedIO(new TLBundleD(params)))
   val e = CreditedIO(new TLBundleE(params))
+}
+
+class TLBundleACE(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  // fixed fields during multibeat:
+  val opcode  = UInt(3.W)
+  val param   = UInt(List(TLAtomics.width, TLPermissions.aWidth, TLPermissions.cWidth, TLHints.width).max.W)
+  val size    = UInt(params.sizeBits.W)
+  val source  = UInt(params.sourceBits.W) // from
+  val address = UInt(params.addressBits.W) // to
+  val sink    = UInt(params.sinkBits.W) // to
+  val user    = BundleMap(params.requestFields)
+  val echo    = BundleMap(params.echoFields)
+  // variable fields during multibeat:
+  val mask    = UInt((params.dataBits/8).W)
+  val data    = UInt(params.dataBits.W)
+  val corrupt = Bool() // only applies to *Data messages
+}
+
+class TLBundleBD(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  // fixed fields during multibeat:
+  val opcode  = UInt(3.W)
+  val param   = UInt(TLPermissions.bdWidth.W) // cap perms
+  val size    = UInt(params.sizeBits.W)
+  val source  = UInt(params.sourceBits.W) // to
+  val address = UInt(params.addressBits.W) // from
+  val sink    = UInt(params.sinkBits.W)   // from
+  val denied  = Bool() // implies corrupt iff *Data
+  val user    = BundleMap(params.responseFields)
+  val echo    = BundleMap(params.echoFields)
+  // variable fields during multibeat:
+  val mask    = UInt((params.dataBits/8).W)
+  val data    = UInt(params.dataBits.W)
+  val corrupt = Bool() // only applies to *Data messages
+}
+
+class TLMergedCreditedBundle(params: TLBundleParameters) extends TLBundleBase(params)
+{
+  val eca = MultiCreditedIO(new TLBundleACE(params), 3)
+  val db = Flipped(MultiCreditedIO(new TLBundleBD(params), 2))
 }

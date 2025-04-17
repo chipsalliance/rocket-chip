@@ -16,7 +16,8 @@ case class RocketCrossingParams(
   slave: HierarchicalElementSlavePortParams = HierarchicalElementSlavePortParams(),
   mmioBaseAddressPrefixWhere: TLBusWrapperLocation = CBUS,
   resetCrossingType: ResetCrossingType = NoResetCrossing(),
-  forceSeparateClockReset: Boolean = false
+  forceSeparateClockReset: Boolean = false,
+  forceMergedCreditedTLCrossings: Boolean = false
 ) extends HierarchicalElementCrossingParamsLike
 
 case class RocketTileAttachParams(

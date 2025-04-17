@@ -5,7 +5,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
-import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
+import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, CreditedCrossing, ClockCrossingType}
 import freechips.rocketchip.subsystem.{TilesLocated, NumTiles, HierarchicalLocation, RocketCrossingParams, SystemBusKey, CacheBlockBytes, RocketTileAttachParams, InSubsystem, InCluster, HierarchicalElementMasterPortParams, HierarchicalElementSlavePortParams, CBUS, CCBUS, ClustersLocated, TileAttachConfig, CloneTileAttachParams}
 import freechips.rocketchip.tile.{RocketTileParams, RocketTileBoundaryBufferParams, FPUParams}
 import freechips.rocketchip.util.{RationalDirection, Flexible}
@@ -305,12 +305,12 @@ class WithDefaultBtb extends RocketTileConfig(t => t.copy(btb = Some(BTBParams()
 class WithNoBtb      extends RocketTileConfig(_.copy(btb = None))
 
 // Tile CDC configs
-class WithCDC(crossingType: ClockCrossingType = SynchronousCrossing()) extends RocketCrossingConfig(_.copy(crossingType = crossingType))
+class WithCDC(crossingType: ClockCrossingType = SynchronousCrossing(), mergedCredited: Boolean = false) extends RocketCrossingConfig(_.copy(crossingType = crossingType, forceMergedCreditedTLCrossings = mergedCredited))
 class WithSeperateClockReset                                           extends RocketCrossingConfig(_.copy(forceSeparateClockReset = true))
 class WithSynchronousCDCs                                              extends WithCDC(SynchronousCrossing())
 class WithAsynchronousCDCs(depth: Int, sync: Int)                      extends WithCDC(AsynchronousCrossing(depth, sync))
 class WithRationalCDCs(direction: RationalDirection = Flexible)        extends WithCDC(RationalCrossing(direction))
-
+class WithCreditedCDCs(mergedCredited: Boolean = false)                extends WithCDC(CreditedCrossing(), mergedCredited)
 
 
 class WithCloneRocketTiles(

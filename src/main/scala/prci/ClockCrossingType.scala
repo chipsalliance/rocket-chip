@@ -16,22 +16,29 @@ trait HasClockDomainCrossing extends HasDomainCrossing { this: LazyModule =>
 }
 
 /** Enumerates the types of clock crossings generally supported by Diplomatic bus protocols  */
-sealed trait ClockCrossingType extends CrossingType
+trait ClockCrossingType extends CrossingType
 {
-  def sameClock = this match {
-    case _: SynchronousCrossing | _: CreditedCrossing => true
-    case _ => false
-  }
+  def sameClock: Boolean
 }
 
 case object NoCrossing // converts to SynchronousCrossing(BufferParams.none) via implicit def in package
 case class SynchronousCrossing(params: BufferParams = BufferParams.default) extends ClockCrossingType
+{
+  def sameClock = true
+}
 case class RationalCrossing(direction: RationalDirection = FastToSlow) extends ClockCrossingType
+{
+  def sameClock = false
+}
 case class AsynchronousCrossing(depth: Int = 8, sourceSync: Int = 3, sinkSync: Int = 3, safe: Boolean = true, narrow: Boolean = false) extends ClockCrossingType
 {
+  def sameClock = false
   def asSinkParams = AsyncQueueParams(depth, sinkSync, safe, narrow)
 }
 case class CreditedCrossing(sourceDelay: CreditedDelay, sinkDelay: CreditedDelay) extends ClockCrossingType
+{
+  def sameClock = true
+}
 
 object CreditedCrossing {
   def apply(delay: CreditedDelay): CreditedCrossing = CreditedCrossing(delay, delay.flip)
