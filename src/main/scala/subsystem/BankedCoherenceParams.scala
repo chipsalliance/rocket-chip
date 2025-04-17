@@ -52,7 +52,7 @@ case class CoherenceManagerWrapperParams(
   extends HasTLBusParams 
   with TLBusWrapperInstantiationLike
 {
-  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule, loc: Location[TLBusWrapper])(implicit p: Parameters): CoherenceManagerWrapper = {
     val cmWrapper = LazyModule(new CoherenceManagerWrapper(this, context))
     cmWrapper.suggestName(loc.name + "_wrapper")
     cmWrapper.halt.foreach { context.anyLocationMap += loc.halt(_) }
@@ -61,7 +61,7 @@ case class CoherenceManagerWrapperParams(
   }
 }
 
-class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: HasTileLinkLocations)(implicit p: Parameters) extends TLBusWrapper(params, params.name) {
+class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: HasTileLinkLocations with HasPRCILocations with LazyModule)(implicit p: Parameters) extends TLBusWrapper(params, params.name) {
   val (tempIn, tempOut, halt) = params.coherenceManager(context)
 
   private val coherent_jbar = LazyModule(new TLJbar)
@@ -76,7 +76,7 @@ class CoherenceManagerWrapper(params: CoherenceManagerWrapperParams, context: Ha
 }
 
 object CoherenceManagerWrapper {
-  type CoherenceManagerInstantiationFn = HasTileLinkLocations => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode])
+  type CoherenceManagerInstantiationFn = HasTileLinkLocations with HasPRCILocations with LazyModule => (TLInwardNode, TLOutwardNode, Option[IntOutwardNode])
 
   def broadcastManagerFn(
     name: String,

@@ -17,7 +17,7 @@ import freechips.rocketchip.prci.{ClockGroupIdentityNode, ClockGroupAggregator, 
 import freechips.rocketchip.tilelink.TLBusWrapper
 import freechips.rocketchip.util.{Location, ElaborationArtefacts, PlusArgArtefacts, RecordMap}
 
-case object SubsystemDriveClockGroupsFromIO extends Field[Boolean](true)
+case object SubsystemDriveClockFromIO extends Field[Boolean](true)
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
 case class TLManagerViewpointLocated(where: HierarchicalLocation) extends Field[Location[TLBusWrapper]](SBUS)
 
@@ -61,26 +61,16 @@ case object SubsystemResetSchemeKey extends Field[SubsystemResetScheme](ResetSyn
   */
 trait HasConfigurablePRCILocations { this: HasPRCILocations =>
   val ibus = LazyModule(new InterruptBusWrapper)
-  val allClockGroupsNode = ClockGroupIdentityNode()
-  val io_clocks = if (p(SubsystemDriveClockGroupsFromIO)) {
-    val aggregator = ClockGroupAggregator()
-    val source = ClockGroupSourceNode(Seq(ClockGroupSourceParameters()))
-    allClockGroupsNode :*= aggregator := source
-    Some(InModuleBody {
-      val elements = source.out.map(_._1.member.elements).flatten
-      val io = IO(Flipped(RecordMap(elements.map { case (name, data) =>
-        name -> data.cloneType
-      }:_*)))
-      elements.foreach { case (name, data) => io(name).foreach { data := _ } }
-      io
-    })
-  } else {
-    None
+  val prciClockNode = ClockAdapterNode()
+  val io_clocks = Option.when(p(SubsystemDriveClockFromIO)){
+    val source = ClockSourceNode(Seq(ClockSourceParameters()))
+    prciClockNode :*= FixedClockBroadcast() := source
+    InModuleBody(source.makeIOs())
   }
 }
 
 /** Look up the topology configuration for the TL buses located within this layer of the hierarchy */
-trait HasConfigurableTLNetworkTopology { this: HasTileLinkLocations =>
+trait HasConfigurableTLNetworkTopology extends LazyModule { this: HasTileLinkLocations with HasPRCILocations =>
   val location: HierarchicalLocation
 
   // Calling these functions populates tlBusWrapperLocationMap and connects the locations to each other.
@@ -100,13 +90,14 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
   with HasDTS
   with Attachable
   with HasConfigurablePRCILocations
+  with HasPRCILocations
   with HasConfigurableTLNetworkTopology
 {
   override val module: BaseSubsystemModuleImp[BaseSubsystem]
 
   val busContextName = "subsystem"
 
-  viewpointBus.clockGroupNode := allClockGroupsNode
+  viewpointBus.clockNode := prciClockNode
 
   // TODO: Preserve legacy implicit-clock behavior for IBUS for now. If binding
   //       a PLIC to the CBUS, ensure it is synchronously coupled to the SBUS.

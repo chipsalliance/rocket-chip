@@ -33,7 +33,7 @@ case class PeripheryBusParams(
   with HasRegionReplicatorParams
   with TLBusWrapperInstantiationLike
 {
-  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule, loc: Location[TLBusWrapper])(implicit p: Parameters): PeripheryBus = {
     val pbus = LazyModule(new PeripheryBus(this, loc.name))
     pbus.suggestName(loc.name)
     context.tlBusWrapperLocationMap += (loc -> pbus)

@@ -49,23 +49,12 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
     with HasTLBusParams
     with CanHaveBuiltInDevices
 {
-  private val clockGroupAggregator = LazyModule(new ClockGroupAggregator(busName){ override def shouldBeInlined = true }).suggestName(busName + "_clock_groups")
-  private val clockGroup = LazyModule(new ClockGroup(busName){ override def shouldBeInlined = true })
-  val clockGroupNode = clockGroupAggregator.node // other bus clock groups attach here
-  val clockNode = clockGroup.node
-  val fixedClockNode = FixedClockBroadcast(fixedClockOpt) // device clocks attach here
+  val clockNode = ClockIdentityNode() // device clocks attach here
+  val fixedClockNode = FixedClockBroadcast(fixedClockOpt)
   private val clockSinkNode = ClockSinkNode(List(ClockSinkParameters(take = fixedClockOpt)))
 
-  clockGroup.node := clockGroupAggregator.node
-  fixedClockNode := clockGroup.node // first member of group is always domain's own clock
+  fixedClockNode := clockNode
   clockSinkNode := fixedClockNode
-
-  InModuleBody {
-    // make sure the above connections work properly because mismatched-by-name signals will just be ignored.
-    (clockGroup.node.edges.in zip clockGroupAggregator.node.edges.out).zipWithIndex map { case ((in: ClockGroupEdgeParameters , out: ClockGroupEdgeParameters), i) =>
-      require(in.members.keys == out.members.keys, s"clockGroup := clockGroupAggregator not working as you expect for index ${i}, becuase clockGroup has ${in.members.keys} and clockGroupAggregator has ${out.members.keys}")
-    }
-  }
 
   def clockBundle = clockSinkNode.in.head._1
   def beatBytes = params.beatBytes
@@ -108,15 +97,15 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
   def coupleFrom[T](name: String)(gen: TLInwardNode => T): T =
     from(name) { gen(inwardNode :*=* TLNameNode("tl")) }
 
-  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType, allClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
-    bus.clockGroupNode := asyncMux(xType, allClockGroupNode, this.clockGroupNode)
+  def crossToBus(bus: TLBusWrapper, xType: ClockCrossingType, asyncClockNode: ClockEphemeralNode): NoHandle = {
+    bus.clockNode := asyncMux(xType, asyncClockNode, fixedClockNode)
     coupleTo(s"bus_named_${bus.busName}") {
       bus.crossInHelper(xType) :*= TLWidthWidget(beatBytes) :*= _
     }
   }
 
-  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType, allClockGroupNode: ClockGroupEphemeralNode): NoHandle = {
-    bus.clockGroupNode := asyncMux(xType, allClockGroupNode, this.clockGroupNode)
+  def crossFromBus(bus: TLBusWrapper, xType: ClockCrossingType, asyncClockNode: ClockEphemeralNode): NoHandle = {
+    this.clockNode := asyncMux(xType, asyncClockNode, bus.fixedClockNode)
     coupleFrom(s"bus_named_${bus.busName}") {
       _ :=* TLWidthWidget(bus.beatBytes) :=* bus.crossOutHelper(xType)
     }
@@ -124,7 +113,7 @@ abstract class TLBusWrapper(params: HasTLBusParams, val busName: String)(implici
 }
 
 trait TLBusWrapperInstantiationLike {
-  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLBusWrapper
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule, loc: Location[TLBusWrapper])(implicit p: Parameters): TLBusWrapper
 }
 
 trait TLBusWrapperConnectionLike {
@@ -197,8 +186,8 @@ class TLBusWrapperConnection
     val masterTLBus = context.locateTLBusWrapper(master)
     val slaveTLBus  = context.locateTLBusWrapper(slave)
     def bindClocks(implicit p: Parameters) = driveClockFromMaster match {
-      case Some(true)  => slaveTLBus.clockGroupNode  := asyncMux(xType, context.allClockGroupsNode, masterTLBus.clockGroupNode)
-      case Some(false) => masterTLBus.clockGroupNode := asyncMux(xType, context.allClockGroupsNode, slaveTLBus.clockGroupNode)
+      case Some(true)  => slaveTLBus.clockNode  := asyncMux(xType, masterTLBus.clockNode, masterTLBus.clockNode)
+      case Some(false) => masterTLBus.clockNode := asyncMux(xType, slaveTLBus.clockNode, slaveTLBus.clockNode)
       case None =>
     }
     def bindTLNodes(implicit p: Parameters) = nodeBinding match {
@@ -228,10 +217,10 @@ class TLBusWrapperTopology(
 ) extends CanInstantiateWithinContextThatHasTileLinkLocations
   with CanConnectWithinContextThatHasTileLinkLocations
 {
-  def instantiate(context: HasTileLinkLocations)(implicit p: Parameters): Unit = {
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule)(implicit p: Parameters): Unit = {
     instantiations.foreach { case (loc, params) => context { params.instantiate(context, loc) } }
   }
-  def connect(context: HasTileLinkLocations)(implicit p: Parameters): Unit = {
+  def connect(context: HasTileLinkLocations with HasPRCILocations with LazyModule)(implicit p: Parameters): Unit = {
     connections.foreach { case (master, slave, params) => context { params.connect(context, master, slave) } }
   }
 }
@@ -258,7 +247,7 @@ case class AddressAdjusterWrapperParams(
   with TLBusWrapperInstantiationLike
 {
   val dtsFrequency = None
-  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule, loc: Location[TLBusWrapper])(implicit p: Parameters): AddressAdjusterWrapper = {
     val aaWrapper = LazyModule(new AddressAdjusterWrapper(this, context.busContextName + "_" + loc.name))
     aaWrapper.suggestName(context.busContextName + "_" + loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> aaWrapper)
@@ -288,7 +277,7 @@ case class TLJBarWrapperParams(
   with TLBusWrapperInstantiationLike
 {
   val dtsFrequency = None
-  def instantiate(context: HasTileLinkLocations, loc: Location[TLBusWrapper])(implicit p: Parameters): TLJBarWrapper = {
+  def instantiate(context: HasTileLinkLocations with HasPRCILocations with LazyModule, loc: Location[TLBusWrapper])(implicit p: Parameters): TLJBarWrapper = {
     val jbarWrapper = LazyModule(new TLJBarWrapper(this, context.busContextName + "_" + loc.name))
     jbarWrapper.suggestName(context.busContextName + "_" + loc.name + "_wrapper")
     context.tlBusWrapperLocationMap += (loc -> jbarWrapper)
