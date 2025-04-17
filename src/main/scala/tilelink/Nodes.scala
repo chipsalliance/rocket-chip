@@ -25,7 +25,7 @@ object TLImp extends NodeImp[TLMasterPortParameters, TLSlavePortParameters, TLEd
 
   override def monitor(bundle: TLBundle, edge: TLEdgeIn): Unit = {
     val monitor = Module(edge.params(TLMonitorBuilder)(TLMonitorArgs(edge)))
-    monitor.io.in := bundle
+    monitor.io.in :#= bundle
   }
 
   override def mixO(pd: TLMasterPortParameters, node: OutwardNode[TLMasterPortParameters, TLSlavePortParameters, TLBundle]): TLMasterPortParameters  =
