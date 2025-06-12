@@ -1125,12 +1125,12 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       }
 
       for (hg <- 1 to nHaltGroups) {
-        hgHartFiring(hg) := hartHaltedWrEn & ~haltedBitRegs(hartHaltedId) & (hgParticipateHart(hartSelFuncs.hartIdToHartSel(hartHaltedId)) === hg.U)
+        hgHartFiring(hg) := hartHaltedWrEn & ~haltedBitRegs(hartSelFuncs.hartIdToHartSel(hartHaltedId)) & (hgParticipateHart(hartSelFuncs.hartIdToHartSel(hartHaltedId)) === hg.U)
         hgHartsAllHalted(hg) := (haltedBitRegs.asBools | hgParticipateHart.map(_ =/= hg.U)).reduce(_ & _)
 
         when (~io.dmactive || ~dmAuthenticated) {
           hgFired(hg) := false.B
-        }.elsewhen (~hgFired(hg) & (hgHartFiring(hg) | hgTrigFiring(hg))) {
+        }.elsewhen (~hgFired(hg) & ~hgHartsAllHalted(hg) & (hgHartFiring(hg) | hgTrigFiring(hg))) {
           hgFired(hg) := true.B
         }.elsewhen ( hgFired(hg) & hgHartsAllHalted(hg) & hgTrigsAllAcked(hg)) {
           hgFired(hg) := false.B
