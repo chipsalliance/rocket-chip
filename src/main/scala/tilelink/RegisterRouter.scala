@@ -106,7 +106,61 @@ case class TLRegisterNode(
 
     genRegDescsJson(mapping:_*)
   }
+  // Calling this method causes the matching TL2 bundle to be
+  // configured to route all requests to the listed RegFields.
+  def regmapClint(offset:UInt,mapping:RegField.Map*) = {
+    val (bundleIn, edge) = this.in(0)
+    val a = bundleIn.a
+//    a.bits.address := bundleIn.a.bits.address
+    val d = bundleIn.d
+    val newAddr = a.bits.address - offset
 
+    val fields = TLRegisterRouterExtraField(edge.bundle.sourceBits, edge.bundle.sizeBits) +: a.bits.params.echoFields
+    val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, fields)
+    val in = Wire(Decoupled(new RegMapperInput(params)))
+    in.bits.read  := a.bits.opcode === TLMessages.Get
+//    in.bits.index := edge.addr_hi(a.bits)
+
+    in.bits.index := edge.addr_hi(newAddr)
+
+    in.bits.data  := a.bits.data
+    in.bits.mask  := a.bits.mask
+    Connectable.waiveUnmatched(in.bits.extra, a.bits.echo) match {
+      case (lhs, rhs) => lhs :<= rhs
+    }
+
+    val a_extra = in.bits.extra(TLRegisterRouterExtra)
+    a_extra.source := a.bits.source
+    a_extra.size   := a.bits.size
+
+    // Invoke the register map builder
+    val out = RegMapper(beatBytes, concurrency, undefZero, in, mapping:_*)
+
+    // No flow control needed
+    in.valid  := a.valid
+    a.ready   := in.ready
+    d.valid   := out.valid
+    out.ready := d.ready
+
+    // We must restore the size to enable width adapters to work
+    val d_extra = out.bits.extra(TLRegisterRouterExtra)
+    d.bits := edge.AccessAck(toSource = d_extra.source, lgSize = d_extra.size)
+
+    // avoid a Mux on the data bus by manually overriding two fields
+    d.bits.data := out.bits.data
+    Connectable.waiveUnmatched(d.bits.echo, out.bits.extra) match {
+      case (lhs, rhs) => lhs :<= rhs
+    }
+
+    d.bits.opcode := Mux(out.bits.read, TLMessages.AccessAckData, TLMessages.AccessAck)
+
+    // Tie off unused channels
+    bundleIn.b.valid := false.B
+    bundleIn.c.ready := true.B
+    bundleIn.e.ready := true.B
+
+    genRegDescsJson(mapping:_*)
+  }
   def genRegDescsJson(mapping: RegField.Map*): Unit = {
     // Dump out the register map for documentation purposes.
     val base = address.head.base
