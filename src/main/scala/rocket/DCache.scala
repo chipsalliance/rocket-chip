@@ -25,9 +25,7 @@ import freechips.rocketchip.util.SeqBoolBitwiseOps
 
 // TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
 trait InlineInstance { self: chisel3.experimental.BaseModule =>
-  chisel3.experimental.annotate(
-    new chisel3.experimental.ChiselAnnotation {
-      def toFirrtl: firrtl.annotations.Annotation = firrtl.passes.InlineAnnotation(self.toNamed) } )
+  chisel3.experimental.annotate(self)(Seq(firrtl.passes.InlineAnnotation(self.toNamed)))
 }
 
 class DCacheErrors(implicit p: Parameters) extends L1HellaCacheBundle()(p)

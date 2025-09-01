@@ -359,7 +359,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     v_decode.io.vconfig := csr.io.vector.get.vconfig
     id_ctrl.vec := v_decode.io.vector
     when (v_decode.io.legal) {
-      id_ctrl.legal := !csr.io.vector.get.vconfig.vtype.vill
+      id_ctrl.legal := true.B
       id_ctrl.fp := v_decode.io.fp
       id_ctrl.rocc := false.B
       id_ctrl.branch := false.B
@@ -389,8 +389,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || (io.fpu.illegal_rm && !id_ctrl.vec)) ||
-    id_set_vconfig && csr.io.decode(0).vector_illegal ||
-    id_ctrl.vec && (csr.io.decode(0).vector_illegal || csr.io.vector.map(_.vconfig.vtype.vill).getOrElse(false.B)) ||
+    (id_ctrl.vec || id_set_vconfig) && csr.io.decode(0).vector_illegal ||
     id_ctrl.dp && !csr.io.status.isa('d'-'a') ||
     ibuf.io.inst(0).bits.rvc && !csr.io.status.isa('c'-'a') ||
     id_raddr2_illegal && id_ctrl.rxs2 ||

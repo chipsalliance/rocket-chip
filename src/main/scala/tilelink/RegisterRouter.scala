@@ -123,13 +123,6 @@ case class TLRegisterNode(
       suffix = suffix + 1
     }
     ElaborationArtefacts.add(s"${baseHex}.${suffix}.regmap.json", json)
-
-    val module = Module.currentModule.get.asInstanceOf[RawModule]
-    GenRegDescsAnno.anno(
-      module,
-      base,
-      mapping:_*)
-
   }
 }
 

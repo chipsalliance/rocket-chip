@@ -15,7 +15,7 @@ import freechips.rocketchip.resources.{
   ResourceAnchors, AddressMapEntry}
 import freechips.rocketchip.prci.{ClockGroupIdentityNode, ClockGroupAggregator, ClockGroupSourceNode, ClockGroupSourceParameters}
 import freechips.rocketchip.tilelink.TLBusWrapper
-import freechips.rocketchip.util.{Location, ElaborationArtefacts, PlusArgArtefacts, RecordMap, Annotated}
+import freechips.rocketchip.util.{Location, ElaborationArtefacts, PlusArgArtefacts, RecordMap}
 
 case object SubsystemDriveClockGroupsFromIO extends Field[Boolean](true)
 case class TLNetworkTopologyLocated(where: HierarchicalLocation) extends Field[Seq[CanInstantiateWithinContextThatHasTileLinkLocations with CanConnectWithinContextThatHasTileLinkLocations]]
@@ -142,13 +142,11 @@ abstract class BaseSubsystem(val location: HierarchicalLocation = InSubsystem)
 
 abstract class BaseSubsystemModuleImp[+L <: BaseSubsystem](_outer: L) extends BareSubsystemModuleImp(_outer) with HasDTSImp[L] {
   def dtsLM: L = _outer
-  private val mapping: Seq[AddressMapEntry] = Annotated.addressMapping(this, {
+  private val mapping: Seq[AddressMapEntry] = {
     dtsLM.collectResourceAddresses.groupBy(_._2).toList.flatMap { case (key, seq) =>
       AddressRange.fromSets(key.address).map { r => AddressMapEntry(r, key.permissions, seq.map(_._1)) }
     }.sortBy(_.range)
-  })
-
-  Annotated.addressMapping(this, mapping)
+  }
 
   println("Generated Address Map")
   mapping.foreach(entry => println(entry.toString((dtsLM.tlBusWrapperLocationMap(p(TLManagerViewpointLocated(dtsLM.location))).busView.bundle.addressBits-1)/4 + 1)))

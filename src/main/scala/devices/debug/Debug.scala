@@ -19,7 +19,7 @@ import freechips.rocketchip.regmapper.{RegField, RegFieldAccessType, RegFieldDes
 import freechips.rocketchip.rocket.{CSRs, Instructions}
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink.{TLAsyncCrossingSink, TLAsyncCrossingSource, TLBuffer, TLRegisterNode, TLXbar}
-import freechips.rocketchip.util.{Annotated, AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
+import freechips.rocketchip.util.{AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
 
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 import freechips.rocketchip.util.SeqToAugmentedSeq
@@ -789,7 +789,6 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this){
     val nComponents = getNComponents()
-    Annotated.params(this, cfg)
     val supportHartArray = cfg.supportHartArray & (nComponents > 1)
     val nExtTriggers = cfg.nExtTriggers
     val nHaltGroups = if ((nComponents > 1) | (nExtTriggers > 0)) cfg.nHaltGroups
