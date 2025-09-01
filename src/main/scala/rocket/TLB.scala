@@ -583,7 +583,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_lrsc, ~lrscAllowed, 0.U)
 
   // access exception needs SoC information from PMA
-  val ae_ld_array = Mux(cmd_read, ae_array | ~pr_array, 0.U)
+  val ae_ld_array = Mux(cmd_read, ae_array | ~Mux(cmd_readx, pr_array & px_array, pr_array), 0.U)
   val ae_st_array =
     Mux(cmd_write_perms, ae_array | ~pw_array, 0.U) |
     Mux(cmd_put_partial, ~ppp_array_if_cached, 0.U) |
