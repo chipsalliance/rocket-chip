@@ -325,8 +325,8 @@ class VConfig(implicit p: Parameters) extends CoreBundle {
 
 object VType {
   def fromUInt(that: UInt, ignore_vill: Boolean = false)(implicit p: Parameters): VType = {
-    val res = 0.U.asTypeOf(new VType)
-    val in = that.asTypeOf(res)
+    val res = WireInit(0.U.asTypeOf(new VType))
+    val in = that.asTypeOf(new VType)
     val vill = (in.max_vsew.U < in.vsew) || !in.lmul_ok || in.reserved =/= 0.U || in.vill
     when (!vill || ignore_vill.B) {
       res := in
