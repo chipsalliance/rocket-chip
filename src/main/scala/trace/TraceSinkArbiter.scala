@@ -26,7 +26,7 @@ class TraceSinkArbiter(nSeq : Seq[Int], use_monitor: Boolean = false, monitor_na
   }
 
   if (use_monitor) {
-    val monitor = Module(new TraceSinkMonitor(s"trace_monitor_$monitor_name.out"))
+    val monitor = Module(new TraceSinkMonitor(s"trace_monitor_$monitor_name.encoded.trace"))
     monitor.io.in_fire := io.in.valid && io.in.ready
     monitor.io.in_byte := io.in.bits
     monitor.io.clk := clock
