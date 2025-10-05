@@ -43,7 +43,7 @@ class TraceCoreIngress(val params: TraceCoreParams) extends Module {
         itype := TraceItype.ITNothing
     }
     itype
-}
+  }
   
   io.out.iretire := io.in.valid
   io.out.iaddr := io.in.pc
