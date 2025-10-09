@@ -72,7 +72,7 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int, hartId: Int)(implicit
             RegFieldDesc("impl", "Trace encoder implementation"))
         ),
         0x20 -> Seq(
-          RegField(1, trace_sink_target,
+          RegField(8, trace_sink_target,
             RegFieldDesc("target", "Trace sink target"))
         ),
         0x24 -> Seq(
