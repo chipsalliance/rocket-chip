@@ -55,6 +55,7 @@ trait CoreParams {
   val traceHasWdata: Boolean
   val xLen: Int
   val pgLevels: Int
+  val asidLen: Int
   def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
@@ -149,6 +150,8 @@ trait HasCoreParameters extends HasTileParameters {
   // Requires post-processing due to out-of-order writebacks.
   val enableCommitLog = false
 
+  def asidLen = coreParams.asidLen
+  def usingASID = asidLen > 0
 }
 
 abstract class CoreModule(implicit val p: Parameters) extends Module

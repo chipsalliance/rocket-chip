@@ -164,7 +164,7 @@ class PTE(implicit p: Parameters) extends CoreBundle()(p) {
 class L2TLBEntry(nSets: Int)(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val idxBits = log2Ceil(nSets)
-  val tagBits = maxSVAddrBits - pgIdxBits - idxBits + (if (usingHypervisor) 1 else 0)
+  val tagBits = maxSVAddrBits - pgIdxBits - idxBits + (if (usingHypervisor) 1 else 0) + (if (usingASID) asidLen else 0)
   val tag = UInt(tagBits.W)
   val ppn = UInt(ppnBits.W)
   /** dirty bit */
@@ -268,6 +268,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   /** tlb request */
   val r_req = Reg(new PTWReq)
+  val r_req_asid = usingASID.option(Reg(UInt(asidLen.W)))
   /** current selected way in arbitor */
   val r_req_dest = Reg(Bits())
   // to respond to L1TLB : l2_hit
@@ -350,7 +351,14 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   } else {
     val plru = new PseudoLRU(coreParams.nPTECacheEntries)
     val valid = RegInit(0.U(coreParams.nPTECacheEntries.W))
-    val tags = Reg(Vec(coreParams.nPTECacheEntries, UInt((if (usingHypervisor) 1 + vaddrBits else paddrBits).W)))
+    val baseTagWidth = if (s2) {
+      if (usingHypervisor) 1 + vaddrBits else paddrBits
+    } else {
+      1 + (if (usingHypervisor) vaddrBits else paddrBits)
+    }
+    val includeAsid = usingASID && !s2
+    val tagWidth = baseTagWidth + (if (includeAsid) asidLen else 0)
+    val tags = Reg(Vec(coreParams.nPTECacheEntries, UInt(tagWidth.W)))
     // not include full pte, only ppn
     val data = Reg(Vec(coreParams.nPTECacheEntries, UInt((if (usingHypervisor && s2) vpnBits else ppnBits).W)))
     val can_hit =
@@ -359,9 +367,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val can_refill =
       if (s2) do_both_stages && !stage2 && !stage2_final
       else can_hit
-    val tag =
+    val tagBase =
       if (s2) Cat(true.B, stage2_pte_cache_addr.padTo(vaddrBits))
       else Cat(r_req.vstage1, pte_addr.padTo(if (usingHypervisor) vaddrBits else paddrBits))
+    val tag =
+      if (includeAsid) Cat(r_req_asid.get, tagBase)
+      else tagBase
 
     val hits = tags.map(_ === tag).asUInt & valid
     val hit = hits.orR && can_hit
@@ -421,7 +432,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val g = Reg(Vec(coreParams.nL2TLBWays, UInt(nL2TLBSets.W)))
     val valid = RegInit(VecInit(Seq.fill(coreParams.nL2TLBWays)(0.U(nL2TLBSets.W))))
     // use r_req to construct tag
-    val (r_tag, r_idx) = Split(Cat(r_req.vstage1, r_req.addr(maxSVAddrBits-pgIdxBits-1, 0)), idxBits)
+    val l2TagBase = Cat(r_req.vstage1, r_req.addr(maxSVAddrBits-pgIdxBits-1, 0))
+    val l2Tag = if (usingASID) Cat(r_req_asid.get, l2TagBase) else l2TagBase
+    val (r_tag, r_idx) = Split(l2Tag, idxBits)
     /** the valid vec for the selected set(including n ways) */
     val r_valid_vec = valid.map(_(r_idx)).asUInt
     val r_valid_vec_q = Reg(UInt(coreParams.nL2TLBWays.W))
@@ -589,6 +602,9 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         val aux_ppn             = Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp.ppn, arb.io.out.bits.bits.addr)
 
         r_req := arb.io.out.bits.bits
+        if (usingASID) {
+          r_req_asid.foreach(_ := Mux(arb.io.out.bits.bits.vstage1, io.dpath.vsatp.asid(asidLen-1, 0), io.dpath.ptbr.asid(asidLen-1, 0)))
+        }
         r_req_dest := arb.io.chosen
         next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
         stage2       := arb.io.out.bits.bits.stage2
