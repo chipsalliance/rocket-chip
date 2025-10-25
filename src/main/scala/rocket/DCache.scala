@@ -972,7 +972,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.resp.bits.data := loadgen.data | s2_sc_fail
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.resp.bits.data_raw := s2_data_word
-  io.cpu.resp.bits.store_data := pstore1_data
+  io.cpu.resp.bits.store_data := Mux(isAMO(pstore1_cmd), pstore1_storegen_data, pstore1_data)
 
   // AMOs
   if (usingRMW) {
