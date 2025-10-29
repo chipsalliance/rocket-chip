@@ -158,7 +158,7 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   /** tag in vitualization mode */
   val tag_v = Bool()
   /** asid as additional tag */
-  val tag_asid = usingASID.option(UInt(asidLen.W))
+  val tag_sectored_asid = usingASID.option(Vec(nSectors, UInt(asidLen.W)))
   /** entry data */
   val data = Vec(nSectors, UInt(new TLBEntryData().getWidth.W))
   /** valid bit */
@@ -170,11 +170,14 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
   /** returns the entry data matched with this vpn*/
   def getData(vpn: UInt) = OptimizationBarrier(data(sectorIdx(vpn)).asTypeOf(new TLBEntryData))
   /** returns whether a sector hits */
-  def sectorHit(vpn: UInt, virtual: Bool, asid: UInt) = valid.orR && sectorTagMatch(vpn, virtual) && asidMatch(asid, 0.U, false)
+  def sectorHit(vpn: UInt, virtual: Bool, asid: UInt) = {
+    val idx = sectorIdx(vpn)
+    valid(idx) && sectorTagMatch(vpn, virtual) && asidMatch(asid, idx, false)
+  }
   /** returns whether tag matches vpn */
   def sectorTagMatch(vpn: UInt, virtual: Bool) = (((tag_vpn ^ vpn) >> nSectors.log2) === 0.U) && (tag_v === virtual)
   /** returns whether current asid matches entry asid */
-  def asidMatch(asid: UInt, idx: UInt, ignoreAsid: Boolean) = if (usingASID && !ignoreAsid) (entry_data(idx).g === true.B || tag_asid.get === asid) else true.B
+  def asidMatch(asid: UInt, idx: UInt, ignoreAsid: Boolean) = if (usingASID && !ignoreAsid) (entry_data(idx).g === true.B || tag_sectored_asid.get(idx) === asid) else true.B
   /** returns hit signal */
   // ignoreAsid is used to ignore asid check for sfence.
   def hit(vpn: UInt, virtual: Bool, asid: UInt, ignoreAsid: Boolean = false): Bool = {
@@ -219,39 +222,62 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
     val idx = sectorIdx(vpn)
     valid(idx) := true.B
     data(idx) := entry.asUInt
-    if (usingASID) { tag_asid.get := asid }
+    if (usingASID) { tag_sectored_asid.get(idx) := asid }
   }
 
-  def invalidate(): Unit = { valid.foreach(_ := false.B) }
+  def invalidate(): Unit = {
+    valid.foreach(_ := false.B)
+    if (usingASID) { tag_sectored_asid.get.foreach(_ := 0.U) }
+  }
   def invalidate(virtual: Bool): Unit = {
-    for ((v, e) <- valid zip entry_data)
-      when (tag_v === virtual) { v := false.B }
+    for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
+      when (tag_v === virtual) {
+        v := false.B
+        if (usingASID) { tag_sectored_asid.get(i) := 0.U }
+      }
+    }
   }
   def invalidateVPN(vpn: UInt, virtual: Bool): Unit = {
     if (superpage) {
       when (hit(vpn, virtual, 0.U, ignoreAsid = true)) { invalidate() }
     } else {
       when (sectorTagMatch(vpn, virtual)) {
-        for (((v, e), i) <- (valid zip entry_data).zipWithIndex)
-          when (tag_v === virtual && i.U === sectorIdx(vpn)) { v := false.B }
+        for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
+          when (tag_v === virtual && i.U === sectorIdx(vpn)) {
+            v := false.B
+            if (usingASID) { tag_sectored_asid.get(i) := 0.U }
+          }
+        }
       }
     }
     // For fragmented superpage mappings, we assume the worst (largest)
     // case, and zap entries whose most-significant VPNs match
     when (((tag_vpn ^ vpn) >> (pgLevelBits * (pgLevels - 1))) === 0.U) {
-      for ((v, e) <- valid zip entry_data)
-        when (tag_v === virtual && e.fragmented_superpage) { v := false.B }
+      for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
+        when (tag_v === virtual && e.fragmented_superpage) {
+          v := false.B
+          if (usingASID) { tag_sectored_asid.get(i) := 0.U }
+        }
+      }
     }
   }
   def invalidateAsid(asid: UInt, virtual: Bool): Unit = {
     if (usingASID) {
-      for ((v, e) <- valid zip entry_data)
-        when (tag_v === virtual && !e.g && tag_asid.get === asid) { v := false.B }
+      for (i <- 0 until nSectors) {
+        when (valid(i) && tag_v === virtual && !entry_data(i).g && tag_sectored_asid.get(i) === asid) {
+          valid(i) := false.B
+          tag_sectored_asid.get(i) := 0.U
+        }
+      }
     }
   }
   def invalidateNonGlobal(virtual: Bool): Unit = {
-    for ((v, e) <- valid zip entry_data)
-      when (tag_v === virtual && !e.g) { v := false.B }
+    for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
+      when (tag_v === virtual && !e.g) {
+        v := false.B
+        if (usingASID) { tag_sectored_asid.get(i) := 0.U }
+      }
+    }
   }
 }
 
