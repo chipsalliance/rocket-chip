@@ -59,7 +59,7 @@ case class RocketCoreParams(
   haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
   vector: Option[RocketCoreVectorParams] = None,
   enableTraceCoreIngress: Boolean = false,
-  asidLen: Int = 0
+  override val asidLen: Int = 0
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false

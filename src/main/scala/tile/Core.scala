@@ -55,7 +55,8 @@ trait CoreParams {
   val traceHasWdata: Boolean
   val xLen: Int
   val pgLevels: Int
-  val asidLen: Int
+
+  val asidLen: Int = 0
   def traceCustom: Option[Data] = None
   def customIsaExt: Option[String] = None
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
