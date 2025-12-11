@@ -42,7 +42,7 @@ class WithTraceGen(
   wordBits: Int = 32
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
+    val prev = up(TilesLocated(InSubsystem))
     val idOffset = up(NumTiles)
     val memOffset: BigInt = overrideMemOffset.orElse(site(ExtMem).map(_.master.base)).getOrElse(0x0L)
     params.zipWithIndex.map { case (dcp, i) =>

@@ -49,5 +49,5 @@ class WithLitexSlavePort extends Config((site, here, up) => {
 })
 
 class WithNBitMemoryBus(dataBits: Int) extends Config((site, here, up) => {
-  case MemoryBusKey => up(MemoryBusKey, site).copy(beatBytes = dataBits/8)
+  case MemoryBusKey => up(MemoryBusKey).copy(beatBytes = dataBits/8)
 })
