@@ -54,7 +54,7 @@ class AXI4IdIndexer(idBits: Int)(implicit p: Parameters) extends LazyModule
       val field = if (bits > 0) Seq(AXI4ExtraIdField(bits)) else Nil
       mp.copy(
         echoFields = field ++ mp.echoFields,
-        masters    = masters.zip(finalNameStrings).map { case (m, n) => m.copy(name = n) })
+        masters    = masters.zip(finalNameStrings).map { case (m, n) => m.copy(name = n) }.toIndexedSeq)
     },
     slaveFn = { sp => sp
     })

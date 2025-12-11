@@ -273,17 +273,17 @@ class TLEdge(
 
   // Does the request need T permissions to be executed?
   def needT(a: TLBundleA): Bool = {
-    val acq_needT = MuxLookup(a.param, WireDefault(Bool(), DontCare))(Array(
+    val acq_needT = MuxLookup(a.param, WireDefault(Bool(), DontCare))(Seq(
       TLPermissions.NtoB -> false.B,
       TLPermissions.NtoT -> true.B,
       TLPermissions.BtoT -> true.B))
-    MuxLookup(a.opcode, WireDefault(Bool(), DontCare))(Array(
+    MuxLookup(a.opcode, WireDefault(Bool(), DontCare))(Seq(
       TLMessages.PutFullData    -> true.B,
       TLMessages.PutPartialData -> true.B,
       TLMessages.ArithmeticData -> true.B,
       TLMessages.LogicalData    -> true.B,
       TLMessages.Get            -> false.B,
-      TLMessages.Hint           -> MuxLookup(a.param, WireDefault(Bool(), DontCare))(Array(
+      TLMessages.Hint           -> MuxLookup(a.param, WireDefault(Bool(), DontCare))(Seq(
         TLHints.PREFETCH_READ   -> false.B,
         TLHints.PREFETCH_WRITE  -> true.B)),
       TLMessages.AcquireBlock   -> acq_needT,

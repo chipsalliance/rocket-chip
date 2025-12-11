@@ -83,7 +83,7 @@ class IOMSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCa
   val get     = edge.Get(a_source, a_address, a_size)._2
   val put     = edge.Put(a_source, a_address, a_size, a_data)._2
   val atomics = if (edge.manager.anySupportLogical) {
-    MuxLookup(req.cmd, (0.U).asTypeOf(new TLBundleA(edge.bundle)))(Array(
+    MuxLookup(req.cmd, (0.U).asTypeOf(new TLBundleA(edge.bundle)))(Seq(
       M_XA_SWAP -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.SWAP)._2,
       M_XA_XOR  -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.XOR) ._2,
       M_XA_OR   -> edge.Logical(a_source, a_address, a_size, a_data, TLAtomics.OR)  ._2,

@@ -137,6 +137,6 @@ object DTB
     require (proc.! == 0, "Failed to run dtc; is it in your path?")
     instream.close
     outstream.close
-    DTB(outstream.toByteArray)
+    DTB(outstream.toByteArray.toIndexedSeq)
   }
 }

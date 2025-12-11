@@ -1703,7 +1703,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt, RegFieldDesc(s"debug_flags_$i", "", volatile=true))}
         }),
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
-        (if (cfg.atzero) DebugRomContents() else DebugRomNonzeroContents()).zipWithIndex.map{case (x, i) =>
+        (if (cfg.atzero) DebugRomContents() else DebugRomNonzeroContents()).toIndexedSeq.zipWithIndex.map{case (x, i) =>
           RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
     )
 

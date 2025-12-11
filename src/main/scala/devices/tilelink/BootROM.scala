@@ -99,7 +99,7 @@ object BootROM {
     }
 
     val bootrom = bootROMDomainWrapper {
-      LazyModule(new TLROM(params.address, params.size, contents, true, tlbus.beatBytes))
+      LazyModule(new TLROM(params.address, params.size, contents.toIndexedSeq, true, tlbus.beatBytes))
     }
 
     bootrom.node := tlbus.coupleTo(params.name){ TLFragmenter(tlbus, Some(params.name)) := _ }

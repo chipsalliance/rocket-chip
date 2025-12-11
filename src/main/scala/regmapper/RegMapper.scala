@@ -195,10 +195,10 @@ object RegMapper
       })
 
     // Include the per-register one-hot selected criteria
-    val rifireMux = mux(iindex, in.valid && front.ready &&  front.bits.read, frontSel, iRightReg, rifire)
-    val wifireMux = mux(iindex, in.valid && front.ready && !front.bits.read, frontSel, iRightReg, wifire)
-    val rofireMux = mux(oindex, back.valid && out.ready &&  back .bits.read, backSel,  oRightReg, rofire)
-    val wofireMux = mux(oindex, back.valid && out.ready && !back .bits.read, backSel,  oRightReg, wofire)
+    val rifireMux = mux(iindex, in.valid && front.ready &&  front.bits.read, frontSel, iRightReg.toIndexedSeq, rifire.toIndexedSeq)
+    val wifireMux = mux(iindex, in.valid && front.ready && !front.bits.read, frontSel, iRightReg.toIndexedSeq, wifire.toIndexedSeq)
+    val rofireMux = mux(oindex, back.valid && out.ready &&  back .bits.read, backSel,  oRightReg.toIndexedSeq, rofire.toIndexedSeq)
+    val wofireMux = mux(oindex, back.valid && out.ready && !back .bits.read, backSel,  oRightReg.toIndexedSeq, wofire.toIndexedSeq)
 
     val iready = Mux(front.bits.read, rifireMux, wifireMux)
     val oready = Mux(back .bits.read, rofireMux, wofireMux)
@@ -210,8 +210,8 @@ object RegMapper
     out.valid   := back.valid  && oready
 
     out.bits.read  := back.bits.read
-    out.bits.data  := Mux(MuxSeq(oindex, true.B, oRightReg),
-                          MuxSeq(oindex, 0.U, dataOut),
+    out.bits.data  := Mux(MuxSeq(oindex, true.B, oRightReg.toIndexedSeq),
+                          MuxSeq(oindex, 0.U, dataOut.toIndexedSeq),
                           0.U)
     out.bits.extra := back.bits.extra
 

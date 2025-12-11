@@ -182,7 +182,7 @@ class TLAtomicAutomata(logical: Boolean = true, arithmetic: Boolean = true, conc
             when (en) {
               r.fifoId := a_fifoId
               r.bits   := in.a.bits
-              r.lut    := MuxLookup(in.a.bits.param(1, 0), 0.U(4.W))(Array(
+              r.lut    := MuxLookup(in.a.bits.param(1, 0), 0.U(4.W))(Seq(
                 TLAtomics.AND  -> 0x8.U,
                 TLAtomics.OR   -> 0xe.U,
                 TLAtomics.XOR  -> 0x6.U,
