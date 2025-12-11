@@ -34,7 +34,7 @@ class ClockGroup(groupName: String)(implicit p: Parameters) extends LazyModule
 
 object ClockGroup
 {
-  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroup(valName.name)).node
+  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroup(valName.value)).node
 }
 
 case class ClockGroupAggregateNode(groupName: String)(implicit valName: ValName)
@@ -63,7 +63,7 @@ class ClockGroupAggregator(groupName: String)(implicit p: Parameters) extends La
 
 object ClockGroupAggregator
 {
-  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroupAggregator(valName.name)).node
+  def apply()(implicit p: Parameters, valName: ValName) = LazyModule(new ClockGroupAggregator(valName.value)).node
 }
 
 class SimpleClockGroupSource(numSources: Int = 1)(implicit p: Parameters) extends LazyModule
