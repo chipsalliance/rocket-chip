@@ -133,7 +133,7 @@ class Envcfg extends Bundle {
   val cbie = UInt(2.W)
   val zero3 = UInt(3.W)
   val fiom = Bool()
-  def write(wdata: UInt) {
+  def write(wdata: UInt): Unit = {
     val new_envcfg = wdata.asTypeOf(new Envcfg)
     fiom := new_envcfg.fiom // only FIOM is writable currently
   }

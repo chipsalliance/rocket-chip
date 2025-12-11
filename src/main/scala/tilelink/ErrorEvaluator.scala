@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.tilelink
 
+import scala.language.implicitConversions
+
 import chisel3._
 
 import org.chipsalliance.cde.config._

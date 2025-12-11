@@ -4,6 +4,7 @@ package freechips.rocketchip
 
 import chisel3._
 import chisel3.util._
+import scala.language.implicitConversions
 import scala.math.min
 import scala.collection.{immutable, mutable}
 

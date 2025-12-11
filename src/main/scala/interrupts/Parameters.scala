@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.interrupts
 
+import scala.language.implicitConversions
+
 import chisel3.experimental.SourceInfo
 
 import org.chipsalliance.cde.config._

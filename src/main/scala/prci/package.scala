@@ -2,6 +2,8 @@
 
 package freechips.rocketchip
 
+import scala.language.implicitConversions
+
 import org.chipsalliance.diplomacy.nodes._
 import freechips.rocketchip.diplomacy.{BufferParams}
 
