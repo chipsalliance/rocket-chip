@@ -14,9 +14,8 @@ import freechips.rocketchip.devices.tilelink.{
   BuiltInErrorDeviceParams, BootROMLocated, BootROMParams, CLINTKey, DevNullDevice, CLINTParams, PLICKey, PLICParams, DevNullParams
 }
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
-import freechips.rocketchip.diplomacy.{
-  AddressSet, MonitorsEnabled,
-}
+import freechips.rocketchip.diplomacy.AddressSet
+import org.chipsalliance.diplomacy.nodes.MonitorsEnabled
 import freechips.rocketchip.resources.{
   DTSModel, DTSCompat, DTSTimebase, BigIntHexContext
 }

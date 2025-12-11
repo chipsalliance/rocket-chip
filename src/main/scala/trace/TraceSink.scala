@@ -2,9 +2,9 @@ package freechips.rocketchip.trace
 
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.diplomacy._
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.diplomacy.lazymodule._
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.prci._
 import freechips.rocketchip.subsystem._
 

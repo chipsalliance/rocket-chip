@@ -11,7 +11,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 import org.chipsalliance.diplomacy.nodes._
 
-import freechips.rocketchip.diplomacy.{AddressSet, NoHandle, NodeHandle, NodeBinding}
+import freechips.rocketchip.diplomacy.AddressSet
 
 // TODO This class should be moved to package subsystem to resolve
 //      the dependency awkwardness of the following imports

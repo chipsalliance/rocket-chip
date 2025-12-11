@@ -8,7 +8,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.debug.{TLDebugModule}
-import freechips.rocketchip.diplomacy.{FlipRendering}
+import org.chipsalliance.diplomacy.FlipRendering
 import freechips.rocketchip.interrupts.{IntIdentityNode, IntSyncIdentityNode, NullIntSource}
 import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, ClockSinkParameters, ClockGroupIdentityNode, BundleBridgeBlockDuringReset}
 import freechips.rocketchip.tile.{RocketTile, NMI, TraceBundle}
