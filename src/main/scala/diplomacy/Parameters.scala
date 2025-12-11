@@ -32,8 +32,8 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
   require (start <= end, "Id ranges cannot be negative.")
 
   def compare(x: IdRange) = {
-    val primary   = (this.start - x.start).signum
-    val secondary = (x.end - this.end).signum
+    val primary   = (this.start - x.start).sign
+    val secondary = (x.end - this.end).sign
     if (primary != 0) primary else secondary
   }
 

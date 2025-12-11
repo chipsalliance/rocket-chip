@@ -17,5 +17,5 @@ case class AddressMapEntry(range: AddressRange, permissions: ResourcePermissions
 
   def toJSON = s"""{"base":[${range.base}],"size":[${range.size}],""" +
     s""""r":[$r],"w":[$w],"x":[$x],"c":[$c],"a":[$a],""" +
-    s""""names":[${names.map('"'+_+'"').mkString(",")}]}"""
+    s""""names":[${names.map(n => s""""$n"""").mkString(",")}]}"""
 }

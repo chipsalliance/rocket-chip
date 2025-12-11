@@ -12,8 +12,9 @@ object AddressDecoder
   type Partitions = Seq[Partition]
 
   val addressOrder = Ordering.ordered[AddressSet]
-  val portOrder = Ordering.Iterable(addressOrder)
-  val partitionOrder = Ordering.Iterable(portOrder)
+  import Ordering.Implicits._
+  val portOrder = Ordering[Seq[AddressSet]]
+  val partitionOrder = Ordering[Seq[Seq[AddressSet]]]
 
   // Find the minimum subset of bits needed to disambiguate port addresses.
   // ie: inspecting only the bits in the output, you can look at an address
@@ -126,7 +127,7 @@ object AddressDecoder
           println("  For bit %x, %s".format(bit, score.toString))
         (score, bit, result)
       }
-      val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Iterable[Int]](_._1.toIterable))
+      val (bestScore, bestBit, bestPartitions) = candidates.min(Ordering.by[(Seq[Int], BigInt, Partitions), Seq[Int]](_._1))
       if (debug) println("=> Selected bit 0x%x".format(bestBit))
       bestBit +: recurse(bestPartitions, bits.filter(_ != bestBit))
     }

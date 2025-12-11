@@ -15,7 +15,7 @@ class ShiftQueue[T <: Data](gen: T,
                             flow: Boolean = false)
     extends Module {
   val io = IO(new QueueIO(gen, entries) {
-    val mask = Output(UInt(entries.W))
+    val mask = Output(UInt(ShiftQueue.this.entries.W))
   })
 
   private val valid = RegInit(VecInit(Seq.fill(entries) { false.B }))

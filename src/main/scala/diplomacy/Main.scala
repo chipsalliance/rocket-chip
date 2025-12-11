@@ -22,7 +22,7 @@ object Main {
         .getConstructor(classOf[Parameters])
         .newInstance(new Config(config.foldRight(Parameters.empty) {
           case (currentName, config) =>
-            val currentConfig = Class.forName(currentName).newInstance.asInstanceOf[Config]
+            val currentConfig = Class.forName(currentName).getDeclaredConstructor().newInstance().asInstanceOf[Config]
             currentConfig ++ config
         })) match {
           case m: RawModule => m
