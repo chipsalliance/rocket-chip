@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import chisel3.experimental._
+import chisel3.experimental.{IntParam, StringParam}
 import chisel3.util.HasBlackBoxResource
 
 @deprecated("This will be removed in Rocket Chip 2020.08", "Rocket Chip 2020.05")
