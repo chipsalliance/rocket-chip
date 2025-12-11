@@ -66,7 +66,7 @@ object TestGeneration {
       val envs = s.groupBy(_.envName)
       val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ")
       s.map(_.toString).mkString("\n") +
-      envs.filterKeys(_ != "").map( {
+      envs.view.filterKeys(_ != "").toMap.map( {
                                      case (env,envsuites) => {
                                        val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
                                        s"""

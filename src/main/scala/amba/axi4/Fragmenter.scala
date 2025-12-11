@@ -78,7 +78,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
 
         // We don't care about illegal addresses; bursts or no bursts... whatever circuit is simpler (AXI4ToTL will fix it)
         // !!! think about this more -- what if illegal?
-        val sizes1 = (supportedSizes1 zip slave.slaves.map(_.address)).filter(_._1 >= 0).groupBy(_._1).mapValues(_.flatMap(_._2))
+        val sizes1 = (supportedSizes1 zip slave.slaves.map(_.address)).filter(_._1 >= 0).groupBy(_._1).view.mapValues(_.flatMap(_._2)).toMap
         val reductionMask = AddressDecoder(sizes1.values.toList)
         val support1 = Mux1H(sizes1.toList.map { case (v, a) => // maximum supported size-1 based on target address
           (AddressSet.unify(a.map(_.widen(~reductionMask)).distinct).map(_.contains(addr)).reduce(_||_), v.U)

@@ -45,7 +45,7 @@ object TLBPageLookup
     permissions
       .filter(_._2.useful) // get rid of no-permission devices
       .groupBy(_._2) // group by permission type
-      .mapValues(seq =>
+      .view.mapValues(seq =>
         AddressSet.unify(seq.flatMap(_._1))) // coalesce same-permission regions
       .toMap
   }
@@ -72,7 +72,7 @@ object TLBPageLookup
     }
 
     val grouped = groupRegions(managers)
-      .mapValues(_.filter(_.alignment >= pageSize)) // discard any region that's not big enough
+      .view.mapValues(_.filter(_.alignment >= pageSize)).toMap // discard any region that's not big enough
 
     def lowCostProperty(prop: TLBFixedPermissions => Boolean): UInt => Bool = {
       val (yesm, nom) = grouped.partition { case (k, eq) => prop(k) }

@@ -79,7 +79,7 @@ class Cluster(
   lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(SortedMap)
   lazy val nmiNodes = totalTiles.filter { case (i,t) => t.tileParams.core.useNMI }
-    .mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(SortedMap)
+    .view.mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(SortedMap)
   lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(SortedMap)
   lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(SortedMap)
   lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.to(SortedMap)
