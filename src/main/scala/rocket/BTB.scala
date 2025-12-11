@@ -24,7 +24,7 @@ case class BTBParams(
   bhtParams: Option[BHTParams] = Some(BHTParams()),
   updatesOutOfOrder: Boolean = false)
 
-trait HasBtbParameters extends HasCoreParameters { this: InstanceId =>
+trait HasBtbParameters extends HasCoreParameters {
   val btbParams = tileParams.btb.getOrElse(BTBParams(nEntries = 0))
   val matchBits = btbParams.nMatchBits max log2Ceil(p(CacheBlockBytes) * tileParams.icache.get.nSets)
   val entries = btbParams.nEntries
