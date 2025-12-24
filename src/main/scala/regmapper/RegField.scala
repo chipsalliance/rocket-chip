@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.regmapper
 
+import scala.language.implicitConversions
+
 import chisel3._
 import chisel3.util.{DecoupledIO, ReadyValidIO}
 
@@ -18,7 +20,7 @@ object RegReadFn
   // all other combinational dependencies forbidden (e.g. ovalid <= ivalid)
   // effects must become visible on the cycle after ovalid && oready
   // data is only inspected when ovalid && oready
-  implicit def apply(x: (Bool, Bool) => (Bool, Bool, UInt)) =
+  implicit def apply(x: (Bool, Bool) => (Bool, Bool, UInt)): RegReadFn =
     new RegReadFn(false, x)
   implicit def apply(x: RegisterReadIO[UInt]): RegReadFn =
     RegReadFn((ivalid, oready) => {
@@ -29,7 +31,7 @@ object RegReadFn
   // (ready: Bool) => (valid: Bool, data: UInt)
   // valid must not combinationally depend on ready
   // effects must become visible on the cycle after valid && ready
-  implicit def apply(x: Bool => (Bool, UInt)) =
+  implicit def apply(x: Bool => (Bool, UInt)): RegReadFn =
     new RegReadFn(true, { case (_, oready) =>
       val (ovalid, data) = x(oready)
       (true.B, ovalid, data)
@@ -50,7 +52,7 @@ object RegWriteFn
   // all other combinational dependencies forbidden (e.g. ovalid <= ivalid)
   // effects must become visible on the cycle after ovalid && oready
   // data should only be used for an effect when ivalid && iready
-  implicit def apply(x: (Bool, Bool, UInt) => (Bool, Bool)) =
+  implicit def apply(x: (Bool, Bool, UInt) => (Bool, Bool)): RegWriteFn =
     new RegWriteFn(false, x)
   implicit def apply(x: RegisterWriteIO[UInt]): RegWriteFn =
     RegWriteFn((ivalid, oready, data) => {
@@ -62,7 +64,7 @@ object RegWriteFn
   // (valid: Bool, data: UInt) => (ready: Bool)
   // ready may combinationally depend on data (but not valid)
   // effects must become visible on the cycle after valid && ready
-  implicit def apply(x: (Bool, UInt) => Bool) =
+  implicit def apply(x: (Bool, UInt) => Bool): RegWriteFn =
     // combinational => data valid on oready
     new RegWriteFn(true, { case (_, oready, data) =>
       (true.B, x(oready, data))

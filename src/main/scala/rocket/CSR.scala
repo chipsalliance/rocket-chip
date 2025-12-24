@@ -133,7 +133,7 @@ class Envcfg extends Bundle {
   val cbie = UInt(2.W)
   val zero3 = UInt(3.W)
   val fiom = Bool()
-  def write(wdata: UInt) {
+  def write(wdata: UInt): Unit = {
     val new_envcfg = wdata.asTypeOf(new Envcfg)
     fiom := new_envcfg.fiom // only FIOM is writable currently
   }
@@ -897,7 +897,7 @@ class CSRFile(
     val addr = io_dec.inst(31, 20)
 
     def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => addr === k.U }.reduce(_||_)
-    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
+    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(addr, s.map(_.U), (read_mapping.toMap -- s).keys.toList.map(_.U))
 
     val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: is_hfence_vvma :: is_hfence_gvma :: is_hlsv :: Nil =
       DecodeLogic(io_dec.inst, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
@@ -1508,10 +1508,10 @@ class CSRFile(
         io.wen := true.B
       }
     }
-    for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+    for ((io, csr, reg) <- io.customCSRs.lazyZip(customCSRs).lazyZip(reg_custom)) {
       writeCustomCSR(io, csr, reg)
     }
-    for ((io, csr, reg) <- (io.roccCSRs, roccCSRs, reg_rocc).zipped) {
+    for ((io, csr, reg) <- io.roccCSRs.lazyZip(roccCSRs).lazyZip(reg_rocc)) {
       writeCustomCSR(io, csr, reg)
     }
     if (usingVector) {
@@ -1532,10 +1532,10 @@ class CSRFile(
       reg := (io.sdata & mask) | (reg & ~mask)
     }
   }
-  for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
+  for ((io, csr, reg) <- io.customCSRs.lazyZip(customCSRs).lazyZip(reg_custom)) {
     setCustomCSR(io, csr, reg)
   }
-  for ((io, csr, reg) <- (io.roccCSRs, roccCSRs, reg_rocc).zipped) {
+  for ((io, csr, reg) <- io.roccCSRs.lazyZip(roccCSRs).lazyZip(reg_rocc)) {
     setCustomCSR(io, csr, reg)
   }
 

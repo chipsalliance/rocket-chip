@@ -59,7 +59,7 @@ package object diplomacy {
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
   def ValName(value:                String)          = _root_.org.chipsalliance.diplomacy.ValName(value)
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")
-  implicit def SourcecodeNameExt(x: sourcecode.Name) = _root_.org.chipsalliance.diplomacy.SourcecodeNameExt(x)
+  implicit def SourcecodeNameExt(x: sourcecode.Name): _root_.org.chipsalliance.diplomacy.SourcecodeNameExt = _root_.org.chipsalliance.diplomacy.SourcecodeNameExt(x)
 
 // LazyModule.scala
   @deprecated("Diplomacy has been split to a standalone library", "rocketchip 2.0.0")

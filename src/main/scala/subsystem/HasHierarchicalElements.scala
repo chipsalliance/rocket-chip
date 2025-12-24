@@ -100,7 +100,7 @@ trait InstantiatesHierarchicalElements { this: LazyModule with Attachable =>
 
   val element_prci_domains: Seq[HierarchicalElementPRCIDomain[_]] = tile_prci_domains.values.toSeq ++ cluster_prci_domains.values.toSeq
 
-  val leafTiles: SortedMap[Int, BaseTile] = SortedMap(tile_prci_domains.mapValues(_.element.asInstanceOf[BaseTile]).toSeq.sortBy(_._1):_*)
+  val leafTiles: SortedMap[Int, BaseTile] = SortedMap(tile_prci_domains.view.mapValues(_.element.asInstanceOf[BaseTile]).toSeq.sortBy(_._1):_*)
   val totalTiles: SortedMap[Int, BaseTile] = (leafTiles ++ cluster_prci_domains.values.map(_.element.asInstanceOf[Cluster].totalTiles).flatten)
 
   // Helper functions for accessing certain parameters that are popular to refer to in subsystem code
@@ -108,7 +108,7 @@ trait InstantiatesHierarchicalElements { this: LazyModule with Attachable =>
   def nTotalTiles: Int = totalTiles.size
   def leafTileIdList: Seq[Int] = leafTiles.keys.toSeq.sorted
   def totalTileIdList: Seq[Int] = totalTiles.keys.toSeq.sorted
-  def localIntCounts: SortedMap[Int, Int] = totalTiles.mapValues(_.tileParams.core.nLocalInterrupts).to(SortedMap)
+  def localIntCounts: SortedMap[Int, Int] = totalTiles.view.mapValues(_.tileParams.core.nLocalInterrupts).to(SortedMap)
 
   require(totalTileIdList.distinct.size == totalTiles.size, s"Every tile must be statically assigned a unique id, but got:\n${totalTileIdList}")
 }
@@ -217,7 +217,7 @@ trait HasHierarchicalElementsRootContext
     outputRequiresInput = false,
     inputRequiresOutput = false))
   val seipNodes: SortedMap[Int, IntNode] = totalTiles.filter { case (_, t) => t.tileParams.core.hasSupervisorMode }
-    .mapValues( _ => IntEphemeralNode()).to(SortedMap)
+    .view.mapValues( _ => IntEphemeralNode()).to(SortedMap)
 
   // meip/seip nodes must be connected in MSMSMS order
   // TODO: This is ultra fragile... the plic should just expose two intnodes

@@ -8,7 +8,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.debug.{TLDebugModule}
-import freechips.rocketchip.diplomacy.{FlipRendering}
+import org.chipsalliance.diplomacy.FlipRendering
 import freechips.rocketchip.interrupts.{IntIdentityNode, IntSyncIdentityNode, NullIntSource}
 import freechips.rocketchip.prci.{ClockCrossingType, NoCrossing, ClockSinkParameters, ClockGroupIdentityNode, BundleBridgeBlockDuringReset}
 import freechips.rocketchip.tile.{RocketTile, NMI, TraceBundle}
@@ -79,7 +79,7 @@ class Cluster(
   lazy val tileToPlicNodes = totalTileIdList.map { i => (i, IntIdentityNode()) }.to(SortedMap)
   lazy val debugNodes = totalTileIdList.map { i => (i, IntSyncIdentityNode()) }.to(SortedMap)
   lazy val nmiNodes = totalTiles.filter { case (i,t) => t.tileParams.core.useNMI }
-    .mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(SortedMap)
+    .view.mapValues(_ => BundleBridgeIdentityNode[NMI]()).to(SortedMap)
   lazy val tileHartIdNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(SortedMap)
   lazy val tileResetVectorNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[UInt]()) }.to(SortedMap)
   lazy val traceCoreNodes = totalTileIdList.map { i => (i, BundleBridgeIdentityNode[TraceCoreInterface]()) }.to(SortedMap)

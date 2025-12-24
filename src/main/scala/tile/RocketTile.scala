@@ -9,8 +9,9 @@ import org.chipsalliance.cde.config._
 import org.chipsalliance.diplomacy.lazymodule._
 
 import freechips.rocketchip.devices.tilelink.{BasicBusBlockerParams, BasicBusBlocker}
+import org.chipsalliance.diplomacy.DisableMonitors
 import freechips.rocketchip.diplomacy.{
-  AddressSet, DisableMonitors, BufferParams
+  AddressSet, BufferParams
 }
 import freechips.rocketchip.resources.{
   SimpleDevice, Description,

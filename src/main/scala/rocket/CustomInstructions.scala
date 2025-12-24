@@ -50,7 +50,7 @@ object CustomCSRs {
     res.toArray
   }
   val all32 = {
-    val res = collection.mutable.ArrayBuffer(all:_*)
+    val res = collection.mutable.ArrayBuffer.from(all)
     res.toArray
   }
 }

@@ -14,9 +14,8 @@ import freechips.rocketchip.devices.tilelink.{
   BuiltInErrorDeviceParams, BootROMLocated, BootROMParams, CLINTKey, DevNullDevice, CLINTParams, PLICKey, PLICParams, DevNullParams
 }
 import freechips.rocketchip.prci.{SynchronousCrossing, AsynchronousCrossing, RationalCrossing, ClockCrossingType}
-import freechips.rocketchip.diplomacy.{
-  AddressSet, MonitorsEnabled,
-}
+import freechips.rocketchip.diplomacy.AddressSet
+import org.chipsalliance.diplomacy.nodes.MonitorsEnabled
 import freechips.rocketchip.resources.{
   DTSModel, DTSCompat, DTSTimebase, BigIntHexContext
 }
@@ -129,11 +128,11 @@ class WithClusterBanks(clusterId: Int, nBanks: Int = 1) extends Config((site, he
 })
 
 class WithNBanks(n: Int) extends Config((site, here, up) => {
-  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey, site).copy(nBanks = n)
+  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey).copy(nBanks = n)
 })
 
 class WithNTrackersPerBank(n: Int) extends Config((site, here, up) => {
-  case BroadcastKey => up(BroadcastKey, site).copy(nTrackers = n)
+  case BroadcastKey => up(BroadcastKey).copy(nTrackers = n)
 })
 
 class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
@@ -141,7 +140,7 @@ class WithCacheBlockBytes(linesize: Int) extends Config((site, here, up) => {
 })
 
 class WithBufferlessBroadcastHub extends Config((site, here, up) => {
-  case BroadcastKey => up(BroadcastKey, site).copy(bufferless = true)
+  case BroadcastKey => up(BroadcastKey).copy(bufferless = true)
 })
 
 class TileAttachConfig[T <: CanAttachTile](f: T => T, locationOpt: Option[HierarchicalLocation], tileIdOpt: Seq[Int])(implicit tag: ClassTag[T])
@@ -194,7 +193,7 @@ class WithRoccExample extends Config((site, here, up) => {
  * DO NOT use this configuration.
  */
 class WithIncoherentTiles extends Config((site, here, up) => {
-  case TilesLocated(location) => up(TilesLocated(location), site) map {
+  case TilesLocated(location) => up(TilesLocated(location)) map {
     case tp: RocketTileAttachParams => tp.copy(crossingParams = tp.crossingParams.copy(
       master = tp.crossingParams.master match {
         case x: HierarchicalElementMasterPortParams => x.copy(cork = Some(true))
@@ -202,13 +201,13 @@ class WithIncoherentTiles extends Config((site, here, up) => {
       }))
     case t => t
   }
-  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey, site).copy(
+  case SubsystemBankedCoherenceKey => up(SubsystemBankedCoherenceKey).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager
   )
 })
 
 class WithBootROMFile(bootROMFile: String) extends Config((site, here, up) => {
-  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(contentFileName=SystemFileName(bootROMFile)))
+  case BootROMLocated(x) => up(BootROMLocated(x)).map(_.copy(contentFileName=SystemFileName(bootROMFile)))
 })
 
 class WithClockGateModel(file: String = "/vsrc/EICG_wrapper.v") extends Config((site, here, up) => {
@@ -216,25 +215,25 @@ class WithClockGateModel(file: String = "/vsrc/EICG_wrapper.v") extends Config((
 })
 
 class WithEdgeDataBits(dataBits: Int) extends Config((site, here, up) => {
-  case MemoryBusKey => up(MemoryBusKey, site).copy(beatBytes = dataBits/8)
-  case ExtIn => up(ExtIn, site).map(_.copy(beatBytes = dataBits/8))
+  case MemoryBusKey => up(MemoryBusKey).copy(beatBytes = dataBits/8)
+  case ExtIn => up(ExtIn).map(_.copy(beatBytes = dataBits/8))
 })
 
 class WithJtagDTM extends Config ((site, here, up) => {
-  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(JTAG))
+  case ExportDebug => up(ExportDebug).copy(protocols = Set(JTAG))
 })
 
 class WithDebugAPB extends Config ((site, here, up) => {
-  case ExportDebug => up(ExportDebug, site).copy(protocols = Set(APB))
+  case ExportDebug => up(ExportDebug).copy(protocols = Set(APB))
 })
 
 
 class WithDebugSBA extends Config ((site, here, up) => {
-  case DebugModuleKey => up(DebugModuleKey, site).map(_.copy(hasBusMaster = true))
+  case DebugModuleKey => up(DebugModuleKey).map(_.copy(hasBusMaster = true))
 })
 
 class WithNBitPeripheryBus(nBits: Int) extends Config ((site, here, up) => {
-  case PeripheryBusKey => up(PeripheryBusKey, site).copy(beatBytes = nBits/8)
+  case PeripheryBusKey => up(PeripheryBusKey).copy(beatBytes = nBits/8)
 })
 
 class WithoutTLMonitors extends Config ((site, here, up) => {
@@ -246,15 +245,15 @@ class WithNExtTopInterrupts(nExtInts: Int) extends Config((site, here, up) => {
 })
 
 class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).map(_.copy(nMemoryChannels = n))
+  case ExtMem => up(ExtMem).map(_.copy(nMemoryChannels = n))
 })
 
 class WithExtMemSize(n: BigInt) extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
+  case ExtMem => up(ExtMem).map(x => x.copy(master = x.master.copy(size = n)))
 })
 
 class WithExtMemSbusBypass(base: BigInt = x"10_0000_0000") extends Config((site, here, up) => {
-  case ExtMem => up(ExtMem, site).map(x => x.copy(incohBase = Some(base)))
+  case ExtMem => up(ExtMem).map(x => x.copy(incohBase = Some(base)))
 })
 
 class WithDTS(model: String, compat: Seq[String]) extends Config((site, here, up) => {
@@ -348,19 +347,19 @@ class WithFbusToSbusCrossingType(xType: ClockCrossingType) extends Config((site,
   * up the diplomatic graph to the clock sources.
   */
 class WithPeripheryBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
-  case PeripheryBusKey => up(PeripheryBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+  case PeripheryBusKey => up(PeripheryBusKey).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
 })
 class WithMemoryBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
-  case MemoryBusKey => up(MemoryBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+  case MemoryBusKey => up(MemoryBusKey).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
 })
 class WithSystemBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
-  case SystemBusKey => up(SystemBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+  case SystemBusKey => up(SystemBusKey).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
 })
 class WithFrontBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
-  case FrontBusKey => up(FrontBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+  case FrontBusKey => up(FrontBusKey).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
 })
 class WithControlBusFrequency(freqMHz: Double) extends Config((site, here, up) => {
-  case ControlBusKey => up(ControlBusKey, site).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
+  case ControlBusKey => up(ControlBusKey).copy(dtsFrequency = Some(BigInt((freqMHz * 1e6).round)))
 })
 
 /** Under the default multi-bus topologies, this leaves bus ClockSinks undriven by the topology itself */

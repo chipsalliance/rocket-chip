@@ -2,6 +2,8 @@
 
 package freechips.rocketchip.diplomacy
 
+import scala.language.implicitConversions
+
 import chisel3._
 import chisel3.util.{DecoupledIO, Queue, ReadyValidIO, isPow2, log2Ceil, log2Floor}
 import freechips.rocketchip.util.ShiftQueue
@@ -30,8 +32,8 @@ case class IdRange(start: Int, end: Int) extends Ordered[IdRange]
   require (start <= end, "Id ranges cannot be negative.")
 
   def compare(x: IdRange) = {
-    val primary   = (this.start - x.start).signum
-    val secondary = (x.end - this.end).signum
+    val primary   = (this.start - x.start).sign
+    val secondary = (x.end - this.end).sign
     if (primary != 0) primary else secondary
   }
 
@@ -119,7 +121,7 @@ object TransferSizes {
   def mincover(seq: Seq[TransferSizes]) = seq.foldLeft(none)(_ mincover _)
   def intersect(seq: Seq[TransferSizes]) = seq.reduce(_ intersect _)
 
-  implicit def asBool(x: TransferSizes) = !x.none
+  implicit def asBool(x: TransferSizes): Boolean = !x.none
 }
 
 // AddressSets specify the address space managed by the manager

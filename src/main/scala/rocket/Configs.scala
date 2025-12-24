@@ -18,7 +18,7 @@ class WithNHugeCores(
   crossing: RocketCrossingParams,
 ) extends Config((site, here, up) => {
   case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(`location`), site)
+    val prev = up(TilesLocated(`location`))
     val idOffset = up(NumTiles)
     val big = RocketTileParams(
       core   = RocketCoreParams(
@@ -65,7 +65,7 @@ class WithNBigCores(
   crossing: RocketCrossingParams,
 ) extends Config((site, here, up) => {
   case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(`location`), site)
+    val prev = up(TilesLocated(`location`))
     val idOffset = up(NumTiles)
     val big = RocketTileParams(
       core   = RocketCoreParams(mulDiv = Some(MulDivParams(
@@ -101,7 +101,7 @@ class WithNMedCores(
   crossing: RocketCrossingParams = RocketCrossingParams(),
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
+    val prev = up(TilesLocated(InSubsystem))
     val idOffset = up(NumTiles)
     val med = RocketTileParams(
       core = RocketCoreParams(fpu = None),
@@ -134,7 +134,7 @@ class WithNSmallCores(
   crossing: RocketCrossingParams = RocketCrossingParams()
 ) extends Config((site, here, up) => {
   case TilesLocated(InSubsystem) => {
-    val prev = up(TilesLocated(InSubsystem), site)
+    val prev = up(TilesLocated(InSubsystem))
     val idOffset = up(NumTiles)
     val small = RocketTileParams(
       core = RocketCoreParams(useVM = false, fpu = None),
@@ -320,7 +320,7 @@ class WithCloneRocketTiles(
   cloneLocation: HierarchicalLocation = InSubsystem
 ) extends Config((site, here, up) => {
   case TilesLocated(`location`) => {
-    val prev = up(TilesLocated(location), site)
+    val prev = up(TilesLocated(location))
     val idOffset = up(NumTiles)
     val tileAttachParams = up(TilesLocated(cloneLocation)).find(_.tileParams.tileId == cloneTileId)
       .get.asInstanceOf[RocketTileAttachParams]

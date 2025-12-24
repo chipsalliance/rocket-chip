@@ -113,7 +113,7 @@ object TLXbar
       }
     }
   }
-  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]) {
+  def circuit(policy: TLArbiter.Policy, seqIn: Seq[(TLBundle, TLEdge)], seqOut: Seq[(TLBundle, TLEdge)]): Unit = {
     val (io_in, edgesIn) = seqIn.unzip
     val (io_out, edgesOut) = seqOut.unzip
 

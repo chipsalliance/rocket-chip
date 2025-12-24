@@ -285,7 +285,7 @@ class TLFragmenter(val minSize: Int, val maxSize: Int, val alwaysMin: Boolean = 
         val maxLgHint        = Mux1H(find, maxLgHints)
 
         val limit = if (alwaysMin) lgMinSize else
-          MuxLookup(in_a.bits.opcode, lgMinSize)(Array(
+          MuxLookup(in_a.bits.opcode, lgMinSize)(Seq(
             TLMessages.PutFullData    -> maxLgPutFull,
             TLMessages.PutPartialData -> maxLgPutPartial,
             TLMessages.ArithmeticData -> maxLgArithmetic,

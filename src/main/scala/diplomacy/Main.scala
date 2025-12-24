@@ -5,7 +5,7 @@ import chisel3.stage.ChiselGeneratorAnnotation
 import chisel3.stage.phases.{Elaborate, Convert}
 import firrtl.AnnotationSeq
 import firrtl.options.TargetDirAnnotation
-import freechips.rocketchip.diplomacy.LazyModule
+import org.chipsalliance.diplomacy.lazymodule.LazyModule
 import org.chipsalliance.cde.config.{Config, Parameters}
 import mainargs._
 
@@ -22,7 +22,7 @@ object Main {
         .getConstructor(classOf[Parameters])
         .newInstance(new Config(config.foldRight(Parameters.empty) {
           case (currentName, config) =>
-            val currentConfig = Class.forName(currentName).newInstance.asInstanceOf[Config]
+            val currentConfig = Class.forName(currentName).getDeclaredConstructor().newInstance().asInstanceOf[Config]
             currentConfig ++ config
         })) match {
           case m: RawModule => m
@@ -51,6 +51,6 @@ object Main {
     freechips.rocketchip.util.ElaborationArtefacts.files.foreach{ case (ext, contents) => os.write.over(os.Path(dir) / s"${config.mkString("_")}.${ext}", contents()) }
   }
 
-  def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
+  def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args.toIndexedSeq)
 }
 

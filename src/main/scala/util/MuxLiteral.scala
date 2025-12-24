@@ -46,7 +46,7 @@ object MuxTable
       /* The dense encoding case uses a Vec */
       val table = Array.fill(endIndex.toInt) { default }
       simple.foreach { case (k, v) => table(k.toInt) = v }
-      Mux(index >= endIndex.U, default, VecInit(table)(index))
+      Mux(index >= endIndex.U, default, VecInit(table.toIndexedSeq)(index))
     } else {
       /* The sparse encoding case uses switch */
       val out = WireDefault(default)

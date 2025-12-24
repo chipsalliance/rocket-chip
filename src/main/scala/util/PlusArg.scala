@@ -3,7 +3,7 @@
 package freechips.rocketchip.util
 
 import chisel3._
-import chisel3.experimental._
+import chisel3.experimental.{IntParam, StringParam}
 import chisel3.util.HasBlackBoxResource
 
 @deprecated("This will be removed in Rocket Chip 2020.08", "Rocket Chip 2020.05")
@@ -32,13 +32,13 @@ trait Doctypeable[A] {
 object Doctypes {
 
   /** Converts an Int => "INT" */
-  implicit val intToDoctype    = new Doctypeable[Int]    { def toDoctype(a: Option[Int])    = "INT"    }
+  implicit val intToDoctype:    Doctypeable[Int]    = new Doctypeable[Int]    { def toDoctype(a: Option[Int])    = "INT"    }
 
   /** Converts a BigInt => "INT" */
-  implicit val bigIntToDoctype = new Doctypeable[BigInt] { def toDoctype(a: Option[BigInt]) = "INT"    }
+  implicit val bigIntToDoctype: Doctypeable[BigInt] = new Doctypeable[BigInt] { def toDoctype(a: Option[BigInt]) = "INT"    }
 
   /** Converts a String => "STRING" */
-  implicit val stringToDoctype = new Doctypeable[String] { def toDoctype(a: Option[String]) = "STRING" }
+  implicit val stringToDoctype: Doctypeable[String] = new Doctypeable[String] { def toDoctype(a: Option[String]) = "STRING" }
 
 }
 

@@ -4,6 +4,7 @@ package freechips.rocketchip
 
 import chisel3._
 import chisel3.util._
+import scala.language.implicitConversions
 import scala.math.min
 import scala.collection.{immutable, mutable}
 
@@ -102,7 +103,7 @@ package object util {
 
   implicit class StringToAugmentedString(private val x: String) extends AnyVal {
     /** converts from camel case to to underscores, also removing all spaces */
-    def underscore: String = x.tail.foldLeft(x.headOption.map(_.toLower + "") getOrElse "") {
+    def underscore: String = x.tail.foldLeft(x.headOption.map(c => s"${c.toLower}") getOrElse "") {
       case (acc, c) if c.isUpper => acc + "_" + c.toLower
       case (acc, c) if c == ' ' => acc
       case (acc, c) => acc + c

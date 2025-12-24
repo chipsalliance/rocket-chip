@@ -64,16 +64,16 @@ class ScratchpadSlavePort(address: Seq[AddressSet], coreDataBytes: Int, usingAto
 
     def formCacheReq(a: TLBundleA) = {
       val req = Wire(new HellaCacheReq)
-      req.cmd := MuxLookup(a.opcode, M_XRD)(Array(
+      req.cmd := MuxLookup(a.opcode, M_XRD)(Seq(
         TLMessages.PutFullData    -> M_XWR,
         TLMessages.PutPartialData -> M_PWR,
-        TLMessages.ArithmeticData -> MuxLookup(a.param, M_XRD)(Array(
+        TLMessages.ArithmeticData -> MuxLookup(a.param, M_XRD)(Seq(
           TLAtomics.MIN           -> M_XA_MIN,
           TLAtomics.MAX           -> M_XA_MAX,
           TLAtomics.MINU          -> M_XA_MINU,
           TLAtomics.MAXU          -> M_XA_MAXU,
           TLAtomics.ADD           -> M_XA_ADD)),
-        TLMessages.LogicalData    -> MuxLookup(a.param, M_XRD)(Array(
+        TLMessages.LogicalData    -> MuxLookup(a.param, M_XRD)(Seq(
           TLAtomics.XOR           -> M_XA_XOR,
           TLAtomics.OR            -> M_XA_OR,
           TLAtomics.AND           -> M_XA_AND,

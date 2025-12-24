@@ -145,7 +145,7 @@ trait DeviceRegName
 {
   this: Device =>
   def describeName(devname: String, resources: ResourceBindings): String = {
-    val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
+    val reg = resources.map.view.filterKeys(DiplomacyUtils.regFilter).toMap
     if (reg.isEmpty) {
       devname
     } else {
@@ -195,7 +195,7 @@ class SimpleDevice(val devname: String, devcompat: Seq[String]) extends Device
     def optDef(x: String, seq: Seq[ResourceValue]) = if (seq.isEmpty) None else Some(x -> seq)
     val compat = optDef("compatible", devcompat.map(ResourceString(_))) // describe the list of compatiable devices
 
-    val reg = resources.map.filterKeys(DiplomacyUtils.regFilter)
+    val reg = resources.map.view.filterKeys(DiplomacyUtils.regFilter).toMap
     val (named, bulk) = reg.partition { case (k, v) => DiplomacyUtils.regName(k).isDefined }
     // We need to be sure that each named reg has exactly one AddressRange associated to it
     named.foreach {
@@ -252,7 +252,7 @@ class MemoryDevice extends Device with DeviceRegName
 {
   def describe(resources: ResourceBindings): Description = {
     Description(describeName("memory", resources), ListMap(
-      "reg"         -> resources.map.filterKeys(DiplomacyUtils.regFilter).flatMap(_._2).map(_.value).toList,
+      "reg"         -> resources.map.view.filterKeys(DiplomacyUtils.regFilter).toMap.flatMap(_._2).map(_.value).toList,
       "device_type" -> Seq(ResourceString("memory"))))
   }
 }
@@ -379,8 +379,8 @@ trait BindingScope
     */
   def getResourceBindingsMap: ResourceBindingsMap = {
     eval
-    ResourceBindingsMap(map = resourceBindings.reverse.groupBy(_._1.owner).mapValues(seq => ResourceBindings(
-        seq.groupBy(_._1.key).mapValues(_.map(z => Binding(z._2, z._3)).distinct).toMap)).toMap)
+    ResourceBindingsMap(map = resourceBindings.reverse.groupBy(_._1.owner).view.mapValues(seq => ResourceBindings(
+        seq.groupBy(_._1.key).view.mapValues(_.map(z => Binding(z._2, z._3)).distinct).toMap)).toMap)
   }
 
   /** Collect resource addresses from tree. */

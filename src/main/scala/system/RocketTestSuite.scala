@@ -55,7 +55,7 @@ class RegressionTestSuite(val names: LinkedHashSet[String]) extends RocketTestSu
 }
 
 object TestGeneration {
-  private val suites = collection.mutable.ListMap[String, RocketTestSuite]()
+  private var suites = collection.immutable.ListMap[String, RocketTestSuite]()
 
   def addSuite(s: RocketTestSuite): Unit = { suites += (s.makeTargetName -> s) }
   
@@ -66,7 +66,7 @@ object TestGeneration {
       val envs = s.groupBy(_.envName)
       val targets = s.map(t => s"$$(${t.makeTargetName})").mkString(" ")
       s.map(_.toString).mkString("\n") +
-      envs.filterKeys(_ != "").map( {
+      envs.view.filterKeys(_ != "").toMap.map( {
                                      case (env,envsuites) => {
                                        val suites = envsuites.map(t => s"$$(${t.makeTargetName})").mkString(" ")
                                        s"""
@@ -113,7 +113,7 @@ object DefaultTestSuites {
   val rv32uaSansLRSCNames = LinkedHashSet("amoadd_w", "amoand_w", "amoor_w", "amoxor_w", "amoswap_w", "amomax_w", "amomaxu_w", "amomin_w", "amominu_w")
   val rv32uaSansLRSC = new AssemblyTestSuite("rv32ua", rv32uaSansLRSCNames)(_)
 
-  val rv32uaNames = rv32uaSansLRSCNames + "lrsc"
+  val rv32uaNames = rv32uaSansLRSCNames.union(LinkedHashSet("lrsc"))
   val rv32ua = new AssemblyTestSuite("rv32ua", rv32uaNames)(_)
 
   val rv32siNames = LinkedHashSet("csr", "ma_fetch", "scall", "sbreak", "wfi", "dirty")
@@ -138,7 +138,7 @@ object DefaultTestSuites {
   val rv64uaSansLRSCNames = rv32uaSansLRSCNames.map(_.replaceAll("_w","_d"))
   val rv64uaSansLRSC = new AssemblyTestSuite("rv64ua", rv32uaSansLRSCNames ++ rv64uaSansLRSCNames)(_)
 
-  val rv64uaNames = rv64uaSansLRSCNames + "lrsc"
+  val rv64uaNames = rv64uaSansLRSCNames.union(LinkedHashSet("lrsc"))
   val rv64ua = new AssemblyTestSuite("rv64ua", rv32uaNames ++ rv64uaNames)(_)
 
   val rv64ucNames = rv32ucNames
@@ -148,9 +148,9 @@ object DefaultTestSuites {
   val rv64uf = new AssemblyTestSuite("rv64uf", rv64ufNames)(_)
 
   val rv32uf = new AssemblyTestSuite("rv32uf", rv64ufNames)(_)
-  val rv32ud = new AssemblyTestSuite("rv32ud", rv64ufNames - "move")(_)
+  val rv32ud = new AssemblyTestSuite("rv32ud", rv64ufNames.diff(LinkedHashSet("move")))(_)
 
-  val rv64udNames = rv64ufNames + "structural"
+  val rv64udNames = rv64ufNames.union(LinkedHashSet("structural"))
   val rv64ud = new AssemblyTestSuite("rv64ud", rv64udNames)(_)
 
   val rv32uzfhNames = rv64ufNames
@@ -162,13 +162,13 @@ object DefaultTestSuites {
   val rv32uzbaNames = LinkedHashSet("sh1add", "sh2add", "sh3add")
   val rv32uzba = new AssemblyTestSuite("rv32uzba", rv32uzbaNames)(_)
 
-  val rv64uzbaNames = rv32uzbaNames ++ rv32uzbaNames.map(_ + "_uw") + "add_uw" + "slli_uw"
+  val rv64uzbaNames = rv32uzbaNames ++ rv32uzbaNames.map(_ + "_uw") ++ LinkedHashSet("add_uw", "slli_uw")
   val rv64uzba = new AssemblyTestSuite("rv64uzba", rv64uzbaNames)(_)
 
   val rv32uzbbNames = LinkedHashSet("andn", "clz", "cpop", "ctz", "max", "maxu", "min", "minu", "orc_b", "orn", "rev8", "rol", "ror", "rori", "sext_b", "sext_h", "xnor", "zext_h")
   val rv32uzbb = new AssemblyTestSuite("rv32uzbb", rv32uzbbNames)(_)
 
-  val rv64uzbbNames = rv32uzbbNames + "clzw" + "cpopw" + "ctzw" + "rolw" + "roriw"
+  val rv64uzbbNames = rv32uzbbNames.union(LinkedHashSet("clzw", "cpopw", "ctzw", "rolw", "roriw"))
   val rv64uzbb = new AssemblyTestSuite("rv64uzbb", rv64uzbbNames)(_)
 
   val rv32uzbsNames = LinkedHashSet("bclr", "bclri", "bext", "bexti", "binv", "binvi", "bset", "bseti")
@@ -177,10 +177,10 @@ object DefaultTestSuites {
   val rv64uzbsNames = rv32uzbsNames
   val rv64uzbs = new AssemblyTestSuite("rv64uzbs", rv64uzbsNames)(_)
 
-  val rv64siNames = rv32siNames + "icache-alias"
+  val rv64siNames = rv32siNames.union(LinkedHashSet("icache-alias"))
   val rv64si = new AssemblyTestSuite("rv64si", rv64siNames)(_)
 
-  val rv64miNames = rv32miNames - "shamt" + "breakpoint" + "access"
+  val rv64miNames = rv32miNames.diff(LinkedHashSet("shamt")).union(LinkedHashSet("breakpoint", "access"))
   val rv64mi = new AssemblyTestSuite("rv64mi", rv64miNames)(_)
 
   val groundtestNames = LinkedHashSet("simple")

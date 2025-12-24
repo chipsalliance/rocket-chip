@@ -5,8 +5,9 @@ package freechips.rocketchip.resources
 import chisel3._
 import chisel3.util.log2Ceil
 import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.diplomacy.lazymodule._
 import freechips.rocketchip.util.{DescribedSRAM, Code}
-import freechips.rocketchip.diplomacy.{AddressSet, LazyModule}
+import freechips.rocketchip.diplomacy.AddressSet
 
 abstract class DiplomaticSRAM(
     val address: AddressSet,

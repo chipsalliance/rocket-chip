@@ -5,7 +5,6 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util._
-import chisel3.experimental.{IntParam}
 import org.chipsalliance.cde.config.{Parameters}
 import freechips.rocketchip.tile.{HasCoreParameters}
 import freechips.rocketchip.util.DecoupledHelper
@@ -91,7 +90,7 @@ object DebugROB {
     trace
   }
   def pushWb(clock: Clock, reset: Reset,
-    hartid: UInt, valid: Bool, tag: UInt, data: UInt)(implicit p: Parameters) {
+    hartid: UInt, valid: Bool, tag: UInt, data: UInt)(implicit p: Parameters): Unit = {
     val debug_rob_push_wb = Module(new DebugROBPushWb)
     debug_rob_push_wb.io.clock := clock
     debug_rob_push_wb.io.reset := reset
