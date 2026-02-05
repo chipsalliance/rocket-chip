@@ -471,9 +471,12 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
       val hg = usingHypervisor.B && io.dpath.sfence.bits.hg
       for (way <- 0 until coreParams.nL2TLBWays) {
         valid(way) :=
-          Mux(!hg && io.dpath.sfence.bits.rs1, valid(way) & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
-          Mux(!hg && io.dpath.sfence.bits.rs2, valid(way) & g(way),
-          0.U))
+          Mux(!hg && io.dpath.sfence.bits.rs1, 
+            valid(way) & ~UIntToOH(io.dpath.sfence.bits.addr(idxBits+pgIdxBits-1, pgIdxBits)),
+            Mux(!hg && io.dpath.sfence.bits.rs2, 
+              valid(way) & g(way), 
+              0.U)
+            )
       }
     }
 

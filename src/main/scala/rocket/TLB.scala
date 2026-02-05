@@ -233,7 +233,6 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
     for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
       when (tag_v === virtual) {
         v := false.B
-        if (usingASID) { tag_sectored_asid.get(i) := 0.U }
       }
     }
   }
@@ -245,7 +244,6 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
         for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
           when (tag_v === virtual && i.U === sectorIdx(vpn)) {
             v := false.B
-            if (usingASID) { tag_sectored_asid.get(i) := 0.U }
           }
         }
       }
@@ -256,7 +254,6 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
       for (((v, e), i) <- (valid zip entry_data).zipWithIndex) {
         when (tag_v === virtual && e.fragmented_superpage) {
           v := false.B
-          if (usingASID) { tag_sectored_asid.get(i) := 0.U }
         }
       }
     }
@@ -773,10 +770,12 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
       for (e <- all_real_entries) {
         when (!hg && io.sfence.bits.rs1) {
           e.invalidateVPN(vpn, hv)
-        }.elsewhen (!hg && io.sfence.bits.rs2 && usingASID.B) {
-          e.invalidateAsid(flushAsid, hv)
-        }.elsewhen (!hg && io.sfence.bits.rs2) { // not using asid, flush all non-global entries
-          e.invalidateNonGlobal(hv)
+        }.elsewhen (!hg && io.sfence.bits.rs2) {
+          if (usingASID) {
+            e.invalidateAsid(flushAsid, hv)
+          } else {
+            e.invalidateNonGlobal(hv) // not using asid, flush all non-global entries
+          }
         }.otherwise {
           e.invalidate(hv || hg)
         }
