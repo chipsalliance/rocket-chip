@@ -847,6 +847,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
     io.trace_core_ingress.get.group(0) <> trace_ingress.io.out
     io.trace_core_ingress.get.priv := csr.io.trace(0).priv 
+    io.trace_core_ingress.get.ctx := csr.io.ptbr.asid
     io.trace_core_ingress.get.tval := csr.io.tval
     io.trace_core_ingress.get.cause := csr.io.cause
     io.trace_core_ingress.get.time := csr.io.time

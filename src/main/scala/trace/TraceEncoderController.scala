@@ -21,15 +21,14 @@ class TraceEncoderControlInterface() extends Bundle {
   val target = UInt(TraceSinkTarget.width.W)
   val bp_mode = UInt(32.W)
 }
-class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameters) extends LazyModule {
+class TraceEncoderController(addr: BigInt, beatBytes: Int, hartId: Int)(implicit p: Parameters) extends LazyModule {
 
-  val device = new SimpleDevice("trace-encoder-controller", Seq("ucbbar,trace0"))
+  val device = new SimpleDevice(s"trace-encoder-controller$hartId", Seq("ucbbar,trace"))
   val node = TLRegisterNode(
     address = Seq(AddressSet(addr, 0xFF)),
     device = device,
     beatBytes = beatBytes
   )
-  
   override lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -73,7 +72,7 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int)(implicit p: Parameter
             RegFieldDesc("impl", "Trace encoder implementation"))
         ),
         0x20 -> Seq(
-          RegField(1, trace_sink_target,
+          RegField(8, trace_sink_target,
             RegFieldDesc("target", "Trace sink target"))
         ),
         0x24 -> Seq(

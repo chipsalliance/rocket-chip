@@ -93,7 +93,7 @@ class RocketTile private(
    * and selecting trace sink
    */
   val trace_encoder_controller = rocketParams.traceParams.map { t =>
-    val trace_encoder_controller = LazyModule(new TraceEncoderController(t.encoderBaseAddr, xBytes))
+    val trace_encoder_controller = LazyModule(new TraceEncoderController(t.encoderBaseAddr, xBytes, tileId))
     connectTLSlave(trace_encoder_controller.node, xBytes)
     trace_encoder_controller
   }

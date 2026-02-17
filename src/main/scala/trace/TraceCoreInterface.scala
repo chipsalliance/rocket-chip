@@ -43,6 +43,7 @@ class TraceCoreGroup (val params: TraceCoreParams) extends Bundle {
 class TraceCoreInterface (val params: TraceCoreParams) extends Bundle {
   val group = Vec(params.nGroups, new TraceCoreGroup(params))
   val priv = UInt(4.W)
+  val ctx = UInt(params.xlen.W)
   val tval = UInt(params.xlen.W)
   val cause = UInt(params.xlen.W)
   val time = UInt(params.xlen.W)
