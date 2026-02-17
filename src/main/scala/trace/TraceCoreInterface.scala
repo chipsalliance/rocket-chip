@@ -28,8 +28,8 @@ object TraceItype extends ChiselEnum {
 case class TraceCoreParams (
   nGroups: Int = 1,
   iretireWidth: Int = 1,
-  xlen: Int = 32,
-  iaddrWidth: Int = 32
+  xlen: Int = 64,
+  iaddrWidth: Int = 64
 )
 
 

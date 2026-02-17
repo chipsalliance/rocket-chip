@@ -12,7 +12,7 @@ import org.chipsalliance.diplomacy.bundlebridge._
 
 import freechips.rocketchip.resources.{PropertyMap, PropertyOption, ResourceReference, DTSTimebase}
 import freechips.rocketchip.interrupts.{IntInwardNode, IntOutwardNode}
-import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, ASIdBits, VMIdBits, TraceAux, BPWatch}
+import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, VMIdBits, TraceAux, BPWatch}
 import freechips.rocketchip.subsystem.{
   HierarchicalElementParams, InstantiableHierarchicalElementParams, HierarchicalElementCrossingParamsLike,
   CacheBlockBytes, SystemBusKey, BaseHierarchicalElement, InsertTimingClosureRegistersOnHartIds, BaseHierarchicalElementModuleImp
@@ -81,7 +81,7 @@ trait HasNonDiplomaticTileParameters {
     require(pgLevels >= res)
     res
   }
-  def asIdBits: Int = p(ASIdBits)
+  def asIdBits: Int = tileParams.core.asidLen
   def vmIdBits: Int = p(VMIdBits)
   lazy val maxPAddrBits: Int = {
     require(xLen == 32 || xLen == 64, s"Only XLENs of 32 or 64 are supported, but got $xLen")
