@@ -1,10 +1,14 @@
+**Summary of Change**: <!-- Describe what this change does at a high level -->
+
+
 <!--
-Please select the item best describing the pull request in each category and delete the other items.
+For the items below, please select the item best describing the pull request in each category and delete the other items.
 -->
 **Related issue**: <!-- if applicable -->
 
+
 <!-- choose one -->
-**Type of change**: bug report | feature request | other enhancement
+**Type of change**: bug fix | new feature | documentation | other enhancement
 
 <!-- choose one -->
 **Impact**: no functional change | API addition (no impact on existing code) | API modification
