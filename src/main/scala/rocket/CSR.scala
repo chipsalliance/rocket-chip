@@ -797,8 +797,17 @@ class CSRFile(
     require(!read_mapping.contains(csr.id))
     val reg = csr.init.map(init => RegInit(init.U(xLen.W))).getOrElse(Reg(UInt(xLen.W)))
     val read = io.rw.cmd =/= CSR.N && io.rw.addr === csr.id.U
+    val write = io.rw.cmd.isOneOf(CSR.W, CSR.S, CSR.C) && io.rw.addr === csr.id.U
     csr_io.ren := read
+    csr_io.wen := write
     when (read && csr_io.stall) { io.rw_stall := true.B }
+    // Handle writes for writable CSRs (mask != 0)
+    if (csr.mask != 0) {
+      when (write) {
+        val wdata = readModifyWriteCSR(io.rw.cmd, reg, io.rw.wdata)
+        reg := wdata & csr.mask.U
+      }
+    }
     read_mapping += csr.id -> reg
     reg
   }

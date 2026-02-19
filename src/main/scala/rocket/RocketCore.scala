@@ -97,7 +97,7 @@ trait HasRocketCoreParameters extends HasCoreParameters {
 
 class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocketCoreParameters {
   override def bpmCSR = {
-    rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(1), Some(BigInt(0))))
+    rocketParams.branchPredictionModeCSR.option(CustomCSR(bpmCSRId, BigInt(0x1FF), Some(BigInt(0))))
   }
 
   private def haveDCache = tileParams.dcache.get.scratch.isEmpty

@@ -40,6 +40,8 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
 
   def flushBTB = getOrElse(bpmCSR, _.wen, false.B)
   def bpmStatic = getOrElse(bpmCSR, _.value(0), false.B)
+  def historyLengthConfig = getOrElse(bpmCSR, _.value(4,1), 0.U)
+  def historyBitsConfig = getOrElse(bpmCSR, _.value(8,5), 0.U)
   def disableDCacheClockGate = getOrElse(chickenCSR, _.value(0), false.B)
   def disableICacheClockGate = getOrElse(chickenCSR, _.value(1), false.B)
   def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), false.B)
