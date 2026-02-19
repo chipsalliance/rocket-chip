@@ -65,6 +65,7 @@ module TestDriver;
       $fsdbDumpfile(fsdbfile);
       $fsdbDumpvars("+all");
       //$fsdbDumpSVA;
+      $fsdbDumpoff ;
 `else
       $fdisplay(stderr, "Error: +fsdbfile is FSDB-only; use +vcdfile/+vcdplus instead or recompile with FSDB=1");
       $fatal;
