@@ -1213,6 +1213,53 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
+// TEST: start of custom performance counters
+val ctr_dcache_miss    = RegInit(0.U(64.W))
+val ctr_icache_miss    = RegInit(0.U(64.W))
+val ctr_dtlb_miss      = RegInit(0.U(64.W))
+val ctr_itlb_miss      = RegInit(0.U(64.W))
+val ctr_br_mispredict  = RegInit(0.U(64.W))
+
+when (io.dmem.perf.acquire)                          { ctr_dcache_miss   := ctr_dcache_miss   + 1.U }
+when (io.imem.perf.acquire)                          { ctr_icache_miss   := ctr_icache_miss   + 1.U }
+when (io.dmem.perf.tlbMiss)                          { ctr_dtlb_miss     := ctr_dtlb_miss     + 1.U }
+when (io.imem.perf.tlbMiss)                          { ctr_itlb_miss     := ctr_itlb_miss     + 1.U }
+when (take_pc_mem && mem_direction_misprediction)    { ctr_br_mispredict := ctr_br_mispredict + 1.U }
+
+class RocketPerfFinalPrint extends BlackBox with HasBlackBoxInline {
+  val io = IO(new Bundle {
+    val dcache_miss   = Input(UInt(64.W))
+    val icache_miss   = Input(UInt(64.W))
+    val dtlb_miss     = Input(UInt(64.W))
+    val itlb_miss     = Input(UInt(64.W))
+    val br_mispredict = Input(UInt(64.W))
+  })
+  setInline("RocketPerfFinalPrint.sv",
+    s"""|module RocketPerfFinalPrint(
+        |  input [63:0] dcache_miss,
+        |  input [63:0] icache_miss,
+        |  input [63:0] dtlb_miss,
+        |  input [63:0] itlb_miss,
+        |  input [63:0] br_mispredict
+        |);
+        |`ifndef SYNTHESIS
+        |  final begin
+        |    $$display("ROCKET_PERF_FINAL dcache_miss=%0d icache_miss=%0d dtlb_miss=%0d itlb_miss=%0d br_mispredict=%0d",
+        |      dcache_miss, icache_miss, dtlb_miss, itlb_miss, br_mispredict);
+        |  end
+        |`endif
+        |endmodule
+    """.stripMargin)
+}
+
+val rocketPerfPrint = Module(new RocketPerfFinalPrint)
+rocketPerfPrint.io.dcache_miss   := ctr_dcache_miss
+rocketPerfPrint.io.icache_miss   := ctr_icache_miss
+rocketPerfPrint.io.dtlb_miss     := ctr_dtlb_miss
+rocketPerfPrint.io.itlb_miss     := ctr_itlb_miss
+rocketPerfPrint.io.br_mispredict := ctr_br_mispredict
+// TEST: end of custom performance counters
+
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 
   coreMonitorBundle.clock := clock
