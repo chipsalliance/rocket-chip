@@ -11,6 +11,9 @@ import freechips.rocketchip.tile.{RocketTileParams, RocketTileBoundaryBufferPara
 import freechips.rocketchip.util.{RationalDirection, Flexible}
 import scala.reflect.ClassTag
 
+
+class WithRocketPerfPrint extends RocketCoreConfig(_.copy(enablePerfPrint = true))
+
 // All the user-level bells and whistles
 class WithNHugeCores(
   n: Int,
