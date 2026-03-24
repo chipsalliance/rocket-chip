@@ -118,7 +118,11 @@ class AHBToTL()(implicit p: Parameters) extends LazyModule
           d_write := in.hwrite
           d_addr  := in.haddr
           d_size  := Mux(a_burst_ok, a_burst_size, in.hsize)
-          d_user  :<= in.hauser
+
+          Connectable.waiveUnmatched(d_user, in.hauser) match {
+            case (lhs, rhs) => lhs.squeezeAll :<= rhs.squeezeAll
+          }
+
           d_user.lift(AMBAProt).foreach { x =>
             x.fetch      := !in.hprot(0)
             x.privileged :=  in.hprot(1)
