@@ -20,6 +20,7 @@ class TraceEncoderControlInterface() extends Bundle {
   val enable = Bool()
   val target = UInt(TraceSinkTarget.width.W)
   val bp_mode = UInt(32.W)
+  val sync_interval = UInt(32.W)
 }
 
 class TraceEncoderPerformanceInterface() extends Bundle {
@@ -38,7 +39,7 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int, hartId: Int)(implicit
     }
   }
   val node = TLRegisterNode(
-    address = Seq(AddressSet(addr, 0xFF)),
+    address = Seq(AddressSet(addr, 0xFFFF)),
     device = device,
     beatBytes = beatBytes
   )
@@ -62,6 +63,9 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int, hartId: Int)(implicit
 
     val trace_bp_mode = RegInit(0.U(32.W))
     io.control.bp_mode := trace_bp_mode
+
+    val trace_sync_interval = RegInit(0.U(32.W))
+    io.control.sync_interval := trace_sync_interval
 
     def traceEncoderControlRegWrite(valid: Bool, bits: UInt): Bool = {
       control_reg_write_valid := valid
