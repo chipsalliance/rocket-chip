@@ -303,7 +303,10 @@ object FType {
   val H = new FType(5, 11)
   val S = new FType(8, 24)
   val D = new FType(11, 53)
-
+  val BF16 = new FType(8, 8)
+  val E5M3 = new FType(5, 4)
+  val E4M3 = new FType(4, 4) // used to be 4 but caused mux issues? 
+  val E5M2 = new FType(5, 3)
   val all = List(H, S, D)
 }
 
@@ -645,6 +648,8 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
         val detectTininess = Input(UInt(1.W))
         val out = Output(Bits((expWidth + sigWidth + 1).W))
         val exceptionFlags = Output(Bits(5.W))
+        val unroundedOut = Output(new hardfloat.RawFloat(expWidth, sigWidth + 2))
+        val unroundedInvalidExc = Output(Bool())
         val validout = Output(Bool())
     })
 
@@ -692,6 +697,8 @@ class MulAddRecFNPipe(latency: Int, expWidth: Int, sigWidth: Int) extends Module
 
     io.out            := roundRawFNToRecFN.io.out
     io.exceptionFlags := roundRawFNToRecFN.io.exceptionFlags
+    io.unroundedOut   := roundRawFNToRecFN.io.in
+    io.unroundedInvalidExc := roundRawFNToRecFN.io.invalidExc
 }
 
 class FPUFMAPipe(val latency: Int, val t: FType)

@@ -28,6 +28,6 @@ class LazyTraceEncoderModule(outer: LazyTraceEncoder) extends LazyModuleImp(oute
     val control = Input(new TraceEncoderControlInterface())
     val in = Input(new TraceCoreInterface(outer.coreParams))
     val stall = Output(Bool())
-    val out = Decoupled(UInt(8.W))
+    val out = new TraceEgressInterface()
   })
 }
