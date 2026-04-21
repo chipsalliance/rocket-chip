@@ -563,7 +563,18 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs.B
     io.requestor(i).resp.bits.gpa.valid := r_req.need_gpa
     io.requestor(i).resp.bits.gpa.bits :=
-      Cat(Mux(!stage2_final || !r_req.vstage1 || aux_count === (pgLevels - 1).U, aux_pte.ppn, makeFragmentedSuperpagePPN(aux_pte.ppn)(aux_count)), gpa_pgoff)
+      Mux(
+        r_req.vstage1,
+        Cat(
+          Mux(
+            stage2,
+            Mux(!stage2_final || aux_count === (pgLevels - 1).U, aux_pte.ppn, makeFragmentedSuperpagePPN(aux_pte.ppn)(aux_count)),
+            r_pte.ppn,
+          ),
+          gpa_pgoff,
+        ),
+        r_req.addr,
+      )
     io.requestor(i).resp.bits.gpa_is_pte := !stage2_final
     io.requestor(i).ptbr := io.dpath.ptbr
     io.requestor(i).hgatp := io.dpath.hgatp
@@ -691,12 +702,21 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   when (mem_resp_valid) {
     assert(state === s_wait3)
     next_state := s_req
+    when (do_both_stages && !stage2) {
+      gpa_pgoff := {
+        val vpn_idxs = (0 until pgLevels).map(i => vpn >> ((pgLevels - i - 1) * pgLevelBits))
+        val vpn_idx  = vpn_idxs(count + 1.U)
+        vpn_idx << log2Ceil(xLen / 8)
+      }
+    }
+
     when (traverse) {
       when (do_both_stages && !stage2) { do_switch := true.B }
       count := count + 1.U
     }.otherwise {
-      val gf = (stage2 && !stage2_final && !pte.ur()) || (pte.leaf() && pte.reserved_for_future === 0.U && invalid_gpa)
-      val ae = pte.v && invalid_paddr
+      val gf = (stage2 && !stage2_final && !pte.ur()) ||
+        (Mux(count === (pgLevels - 1).U, pte.leaf(), pte.v) && pte.reserved_for_future === 0.U && invalid_gpa)
+      val ae = pte.v && invalid_paddr && !(invalid_gpa && ((count =/= (pgLevels - 1).U) || pte.leaf()))
       val pf = pte.v && pte.reserved_for_future =/= 0.U
       val success = pte.v && !ae && !pf && !gf
 
@@ -715,7 +735,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
            do_both_stages && aux_count === (pgLevels-1).U && pte.isFullPerm())
         count := max_count
 
-        when (pageGranularityPMPs.B && !(count === (pgLevels-1).U && (!do_both_stages || aux_count === (pgLevels-1).U))) {
+        when (success && pageGranularityPMPs.B && !(count === (pgLevels-1).U && (!do_both_stages || aux_count === (pgLevels-1).U))) {
           next_state := s_fragment_superpage
         }.otherwise {
           next_state := s_ready
