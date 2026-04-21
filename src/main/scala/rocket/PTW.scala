@@ -310,7 +310,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         when (count <= i.U && tmp.ppn((pgLevels-1-i)*pgLevelBits-1, (pgLevels-2-i)*pgLevelBits) =/= 0.U) { res.v := false.B }
     }
     (res,
-     Mux(do_both_stages && !stage2, (tmp.ppn >> vpnBits) =/= 0.U, (tmp.ppn >> ppnBits) =/= 0.U),
+     !(do_both_stages && !stage2) && ((tmp.ppn >> ppnBits) =/= 0.U),
      do_both_stages && !stage2 && checkInvalidHypervisorGPA(r_hgatp, tmp.ppn))
   }
   // find non-leaf PTE, need traverse
@@ -722,8 +722,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
           resp_valid(r_req_dest) := true.B
         }
 
-        resp_ae_ptw := ae && count < (pgLevels-1).U && pte.table()
-        resp_ae_final := ae && pte.leaf()
+        resp_ae_ptw := ae && ((count < (pgLevels-1).U && pte.table()) || (do_both_stages && !stage2_final))
+        resp_ae_final := ae && pte.leaf() && !(do_both_stages && !stage2_final)
         resp_pf := pf && !stage2
         resp_gf := gf || (pf && stage2)
         resp_hr := !stage2 || (!pf && !gf && pte.ur())
