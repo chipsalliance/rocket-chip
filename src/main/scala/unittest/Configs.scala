@@ -27,6 +27,7 @@ class WithAMBAUnitTests extends Config((site, here, up) => {
       Module(new AHBBridgeTest(true,         txns=8*txns, timeout=timeout)),
       Module(new AHBNativeTest(true,         txns=6*txns, timeout=timeout)),
       Module(new AHBNativeTest(false,        txns=6*txns, timeout=timeout)),
+      Module(new AHBSourceToTLSlaveTest(                  timeout=timeout)),
       Module(new APBBridgeTest(true,         txns=6*txns, timeout=timeout)),
       Module(new APBBridgeTest(false,        txns=6*txns, timeout=timeout)),
       Module(new AXI4LiteFuzzRAMTest(        txns=6*txns, timeout=timeout)),
