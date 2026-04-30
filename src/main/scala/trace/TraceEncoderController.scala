@@ -105,6 +105,10 @@ class TraceEncoderController(addr: BigInt, beatBytes: Int, hartId: Int)(implicit
         0x28 -> Seq(
           RegField.r(64, stall,
             RegFieldDesc("stall", "Trace encoder stall"))
+        ),
+        0x30 -> Seq(
+          RegField(32, trace_sync_interval,
+          RegFieldDesc("sync_interval", "Periodic sync interval in cycles"))
         )
       ):_*
     )
