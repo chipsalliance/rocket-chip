@@ -218,6 +218,8 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     val force_taken = io.ptw.customCSRs.bpmStatic
     when (io.ptw.customCSRs.flushBTB) { btb.io.flush := true.B }
     when (force_taken) { btb.io.bht_update.valid := false.B }
+    btb.io.historyLengthConfig := io.ptw.customCSRs.historyLengthConfig
+    btb.io.historyBitsConfig := io.ptw.customCSRs.historyBitsConfig
 
     val s2_base_pc = ~(~s2_pc | (fetchBytes-1).U)
     val taken_idx = Wire(UInt())

@@ -72,18 +72,26 @@ class BHTResp(implicit p: Parameters) extends BtbBundle()(p) {
 //    - each counter corresponds with the address of the fetch packet ("fetch pc").
 //    - updated when a branch resolves (and BTB was a hit for that branch).
 //      The updating branch must provide its "fetch pc".
-class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParameters {
+class BHT(params: BHTParams, historyLengthConfig: UInt, historyBitsConfig: UInt)(implicit val p: Parameters) extends HasCoreParameters {
   def index(addr: UInt, history: UInt) = {
-    def hashHistory(hist: UInt) = if (params.historyLength == params.historyBits) hist else {
-      val k = math.sqrt(3)/2
-      val i = BigDecimal(k * math.pow(2, params.historyLength)).toBigInt
-      (i.U * hist)(params.historyLength-1, params.historyLength-params.historyBits)
+    def hashHistory(hist: UInt) = {
+      Mux(historyBitsConfig >= historyLengthConfig,
+        hist,
+        {
+          val k = math.sqrt(3)/2
+          val i = (BigDecimal(k * math.pow(2, params.historyLength)).toBigInt.U) >> (params.historyLength.U - historyLengthConfig)
+          val product = i * hist
+          (product >> (historyLengthConfig - historyBitsConfig)) & ((1.U << historyLengthConfig) - 1.U)
+        }
+      )
     }
     def hashAddr(addr: UInt) = {
       val hi = addr >> log2Ceil(fetchBytes)
       hi(log2Ceil(params.nEntries)-1, 0) ^ (hi >> log2Ceil(params.nEntries))(1, 0)
     }
-    hashAddr(addr) ^ (hashHistory(history) << (log2Up(params.nEntries) - params.historyBits))
+    val slicedInputHistory = history >> (params.historyLength.U - historyLengthConfig)
+    val hashValue = hashHistory(slicedInputHistory)
+    hashAddr(addr) ^ (hashValue << (log2Up(params.nEntries).U - historyBitsConfig))
   }
   def get(addr: UInt): BHTResp = {
     val res = Wire(new BHTResp)
@@ -113,6 +121,8 @@ class BHT(params: BHTParams)(implicit val p: Parameters) extends HasCoreParamete
 
   private val table = Mem(params.nEntries, UInt(params.counterLength.W))
   val history = RegInit(0.U(params.historyLength.W))
+
+  val slicedHistory = history >> (params.historyLength.U - historyLengthConfig)
 
   private val reset_waddr = RegInit(0.U((params.nEntries.log2+1).W))
   private val resetting = !reset_waddr(params.nEntries.log2)
@@ -192,6 +202,8 @@ class BTB(implicit p: Parameters) extends BtbModule {
     val ras_update = Flipped(Valid(new RASUpdate))
     val ras_head = Valid(UInt(vaddrBits.W))
     val flush = Input(Bool())
+    val historyLengthConfig = Input(UInt(4.W))
+    val historyBitsConfig = Input(UInt(4.W))
   })
 
   val idxs = Reg(Vec(entries, UInt((matchBits - log2Up(coreInstBytes)).W)))
@@ -299,7 +311,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   if (btbParams.bhtParams.nonEmpty) {
-    val bht = new BHT(btbParams.bhtParams.get)
+    val bht = new BHT(btbParams.bhtParams.get, io.historyLengthConfig, io.historyBitsConfig)
     val isBranch = (idxHit & cfiType.map(_ === CFIType.branch).asUInt).orR
     val res = bht.get(io.req.bits.addr)
     when (io.bht_advance.valid) {
