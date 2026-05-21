@@ -105,7 +105,11 @@ class ALU(implicit p: Parameters) extends AbstractALU()(p) {
       val shamt = Cat(io.in2(5) & (io.dw === DW_64), io.in2(4,0))
       (shamt, Cat(shin_hi, io.in1(31,0)))
     }
-  val shin = Mux(shiftReverse(io.fn), Reverse(shin_r), shin_r)
+  val shin = Mux(!io.fn.isOneOf(
+    Seq(FN_SR, FN_SRA) ++
+    (if (coreParams.useZbs) Seq(FN_BEXT) else Nil) ++
+    (if (coreParams.useZbb) Seq(FN_ROR) else Nil)
+  : _*), Reverse(shin_r), shin_r)
   val shout_r = (Cat(isSub(io.fn) & shin(xLen-1), shin).asSInt >> shamt)(xLen-1,0)
   val shout_l = Reverse(shout_r)
   val shout = Mux(io.fn === FN_SR || io.fn === FN_SRA || io.fn === FN_BEXT, shout_r, 0.U) |
