@@ -796,7 +796,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   if (usingRoCC) {
     io.rocc.resp.ready := ll_arb.io.in(1).ready
-    ll_arb.io.in(1).valid := io.rocc.resp.valid
+    ll_arb.io.in(1).valid := io.rocc.resp.valid && rocc_write_waiting
     ll_arb.io.in(1).bits.data := io.rocc.resp.bits.data
     ll_arb.io.in(1).bits.tag := io.rocc.resp.bits.rd
   } else {
@@ -1056,7 +1056,9 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     blocked && !io.dmem.perf.grant
   }
   val rocc_blocked = Reg(Bool())
+  val rocc_write_waiting = RegInit(false.B)
   rocc_blocked := !wb_xcpt && !io.rocc.cmd.ready && (io.rocc.cmd.valid || rocc_blocked)
+  rocc_write_waiting := Mux(io.rocc.cmd.fire, !wb_xcpt && wb_ctrl.rocc && wb_ctrl.wxd, Mux(io.rocc.resp.fire, false.B, rocc_write_waiting))
 
   val ctrl_stalld =
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
