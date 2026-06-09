@@ -1,103 +1,117 @@
+//| mill-version: 1.1.0
+//| mill-allow-nested-build-mill: true
+//| mvnDeps:
+//| - com.goyeau::mill-scalafix::0.6.0
+//| - com.lihaoyi::mill-contrib-jmh:$MILL_VERSION
+//| - com.47deg::github4s:0.33.3
+//| - com.lumidion::sonatype-central-client-requests:0.6.0
+//| - com.github.lolgab::mill-mima::0.2.0
+
+package build
+
 import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import coursier.maven.MavenRepository
-import $file.dependencies.hardfloat.common
-import $file.dependencies.cde.common
-import $file.dependencies.diplomacy.common
-import $file.dependencies.chisel.build
-import $file.common
+import mill.util.Jvm
 
 object v {
   val scala = "2.13.12"
   // the first version in this Map is the mainly supported version which will be used to run tests
   val chiselCrossVersions = Map(
-    "6.7.0" -> (ivy"org.chipsalliance::chisel:6.7.0", ivy"org.chipsalliance:::chisel-plugin:6.7.0"),
+    "6.7.0" -> (mvn"org.chipsalliance::chisel:6.7.0", mvn"org.chipsalliance:::chisel-plugin:6.7.0"),
     // build from project from source
-    "source" -> (ivy"org.chipsalliance::chisel:99", ivy"org.chipsalliance:::chisel-plugin:99"),
+    "source" -> (mvn"org.chipsalliance::chisel:99", mvn"org.chipsalliance:::chisel-plugin:99"),
   )
-  val mainargs = ivy"com.lihaoyi::mainargs:0.5.0"
-  val json4sJackson = ivy"org.json4s::json4s-jackson:4.0.5"
-  val scalaReflect = ivy"org.scala-lang:scala-reflect:${scala}"
-  val sourcecode = ivy"com.lihaoyi::sourcecode:0.3.1"
+  val mainargs = mvn"com.lihaoyi::mainargs:0.5.0"
+  val json4sJackson = mvn"org.json4s::json4s-jackson:4.0.5"
+  val scalaReflect = mvn"org.scala-lang:scala-reflect:${scala}"
+  val sourcecode = mvn"com.lihaoyi::sourcecode:0.3.1"
   val sonatypesSnapshots = Seq(
     MavenRepository("https://s01.oss.sonatype.org/content/repositories/snapshots")
   )
+  def scalaVersionToCross(version: String): String =
+    if (version.startsWith("2.13")) "2.13"
+    else if (version.startsWith("3.")) "3"
+    else throw new Exception(s"Unsupported Scala version $version")
 }
 
-// Build form source only for dev
+// Build from source only for dev
 object chisel extends Chisel
 
 trait Chisel
-  extends millbuild.dependencies.chisel.build.Chisel {
-  def crossValue = v.scala
-  override def millSourcePath = os.pwd / "dependencies" / "chisel"
-  def scalaVersion = T(v.scala)
+  extends build.dependencies.chisel.Chisel {
+  def crossValue = v.scalaVersionToCross(v.scala)
+  override def moduleDir = super.moduleDir / os.up / "dependencies" / "chisel"
+  def scalaVersion: T[String] = v.scala
 }
+
 
 object macros extends Macros
 
 trait Macros
-  extends millbuild.common.MacrosModule
+  extends build.MacrosModule
     with RocketChipPublishModule
     with SbtModule {
-
-  def scalaVersion: T[String] = T(v.scala)
-
+  def scalaVersion: T[String] = v.scala
   def scalaReflectIvy = v.scalaReflect
 }
 
-object hardfloat extends mill.define.Cross[Hardfloat](v.chiselCrossVersions.keys.toSeq)
+object hardfloat extends Cross[Hardfloat](v.chiselCrossVersions.keys.toSeq)
 
-trait Hardfloat
-  extends millbuild.dependencies.hardfloat.common.HardfloatModule
-    with RocketChipPublishModule
+trait Hardfloat 
+  extends build.HardfloatModule 
+    with RocketChipPublishModule 
     with Cross.Module[String] {
 
-  def scalaVersion: T[String] = T(v.scala)
+  def scalaVersion: T[String] = v.scala
 
-  override def millSourcePath = os.pwd / "dependencies" / "hardfloat" / "hardfloat"
+  override def moduleDir = super.moduleDir / os.up / "dependencies" / "hardfloat" / "hardfloat"
 
   def chiselModule = Option.when(crossValue == "source")(chisel)
 
-  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
+  def chiselPluginJar = Option.when(crossValue == "source")(chisel.pluginModule.jar())
 
   def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
 
   def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
 
-  def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
+  override def repositoriesTask = Task.Anon{
+    super.repositoriesTask() ++ v.sonatypesSnapshots
+  }
 }
 
 object cde extends CDE
 
 trait CDE
-  extends millbuild.dependencies.cde.common.CDEModule
+  extends build.dependencies.cde.CDEModule
     with RocketChipPublishModule
     with ScalaModule {
 
-  def scalaVersion: T[String] = T(v.scala)
+  def scalaVersion: T[String] = v.scala
 
-  override def millSourcePath = os.pwd / "dependencies" / "cde" / "cde"
+  override def moduleDir = super.moduleDir / os.up / "dependencies" / "cde" / "cde"
 }
 
-object diplomacy extends mill.define.Cross[Diplomacy](v.chiselCrossVersions.keys.toSeq)
+object diplomacy extends Cross[Diplomacy](v.chiselCrossVersions.keys.toSeq)
 
 trait Diplomacy
-    extends millbuild.dependencies.diplomacy.common.DiplomacyModule
+    extends build.dependencies.diplomacy.DiplomacyModule
     with RocketChipPublishModule
     with Cross.Module[String] {
 
-  override def scalaVersion: T[String] = T(v.scala)
+  override def scalaVersion: T[String] = v.scala
 
-  override def millSourcePath = os.pwd / "dependencies" / "diplomacy" / "diplomacy"
+  override def moduleDir = super.moduleDir / os.up / "dependencies" / "diplomacy" / "diplomacy"
 
   // dont use chisel from source
   def chiselModule = Option.when(crossValue == "source")(chisel)
-  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
+
+  def chiselPluginJar = Option.when(crossValue == "source")(chisel.pluginModule.jar())
 
   // use chisel from ivy
   def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
+
   def chiselPluginIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._2)
 
   // use CDE from source until published to sonatype
@@ -109,17 +123,17 @@ trait Diplomacy
 object rocketchip extends Cross[RocketChip](v.chiselCrossVersions.keys.toSeq)
 
 trait RocketChip
-  extends millbuild.common.RocketChipModule
+  extends build.RocketChipModule
     with RocketChipPublishModule
     with SbtModule
     with Cross.Module[String] {
-  def scalaVersion: T[String] = T(v.scala)
+  def scalaVersion: T[String] = v.scala
 
-  override def millSourcePath = super.millSourcePath / os.up
+  override def moduleDir = super.moduleDir / os.up
 
   def chiselModule = Option.when(crossValue == "source")(chisel)
 
-  def chiselPluginJar = T(Option.when(crossValue == "source")(chisel.pluginModule.jar()))
+  def chiselPluginJar = Option.when(crossValue == "source")(chisel.pluginModule.jar())
 
   def chiselIvy = Option.when(crossValue != "source")(v.chiselCrossVersions(crossValue)._1)
 
@@ -139,7 +153,9 @@ trait RocketChip
 
   def json4sJacksonIvy = v.json4sJackson
 
-  def repositoriesTask = T.task(super.repositoriesTask() ++ v.sonatypesSnapshots)
+  def repositoriesTask = Task.Anon{
+    super.repositoriesTask() ++ v.sonatypesSnapshots
+  }
 }
 
 trait RocketChipPublishModule
@@ -155,7 +171,7 @@ trait RocketChipPublishModule
     )
   )
 
-  override def publishVersion: T[String] = T("1.6-SNAPSHOT")
+  override def publishVersion: T[String] = "1.6-SNAPSHOT"
 }
 
 // Tests
@@ -163,30 +179,33 @@ trait Emulator extends Cross.Module2[String, String] {
   val top: String = crossValue
   val config: String = crossValue2
 
+  // Get the rocket-chip root directory (where bootrom/ and other resources are)
+  def rocketChipRoot = this.moduleDir / os.up
+
   object generator extends Module {
-    def elaborate = T {
+    def elaborate = Task {
       os.proc(
         mill.util.Jvm.javaExe,
         "-jar",
         rocketchip(v.chiselCrossVersions.keys.head).assembly().path,
-        "--dir", T.dest.toString,
+        "--dir", Task.dest.toString,
         "--top", top,
         config.split('_').flatMap(c => Seq("--config", c)),
-      ).call()
-      PathRef(T.dest)
+      ).call(cwd = rocketChipRoot)
+      PathRef(Task.dest)
     }
 
-    def chiselAnno = T {
+    def chiselAnno = Task {
       os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("anno.json") => p }.map(PathRef(_)).get
     }
 
-    def chirrtl = T {
+    def chirrtl = Task {
       os.walk(elaborate().path).collectFirst { case p if p.last.endsWith("fir") => p }.map(PathRef(_)).get
     }
   }
 
   object litexgenerate extends Module {
-    def compile = T {
+    def compile = Task {
       os.proc("firtool",
         generator.chirrtl().path,
         s"--annotation-file=${generator.chiselAnno().path}",
@@ -197,12 +216,12 @@ trait Emulator extends Cross.Module2[String, String] {
         "--preserve-values=named",
         "--output-annotation-file=mfc.anno.json",
         "--lowering-options=disallowLocalVariables",
-        s"-o=${T.dest}"
-      ).call(T.dest)
-      PathRef(T.dest)
+        s"-o=${Task.dest}"
+      ).call(Task.dest)
+      PathRef(Task.dest)
     }
 
-    def rtls = T {
+    def rtls = Task {
       os.read(compile().path / "filelist.f").split("\n").map(str =>
         try {
           os.Path(str)
@@ -215,7 +234,7 @@ trait Emulator extends Cross.Module2[String, String] {
   }
 
   object mfccompiler extends Module {
-    def compile = T {
+    def compile = Task {
       os.proc("firtool",
         generator.chirrtl().path,
         s"--annotation-file=${generator.chiselAnno().path}",
@@ -225,12 +244,12 @@ trait Emulator extends Cross.Module2[String, String] {
         "--split-verilog",
         "--preserve-values=named",
         "--output-annotation-file=mfc.anno.json",
-        s"-o=${T.dest}"
-      ).call(T.dest)
-      PathRef(T.dest)
+        s"-o=${Task.dest}"
+      ).call(Task.dest)
+      PathRef(Task.dest)
     }
 
-    def rtls = T {
+    def rtls = Task {
       os.read(compile().path / "filelist.f").split("\n").map(str =>
         try {
           os.Path(str)
@@ -243,67 +262,58 @@ trait Emulator extends Cross.Module2[String, String] {
   }
 
   object verilator extends Module {
-    def spikeRoot = T {
-      envByNameOrRiscv("SPIKE_ROOT")
-    }
+    def spikeRoot = envByNameOrRiscv("SPIKE_ROOT")
 
-    def csrcDir = T {
-      PathRef(os.pwd / "src" / "main" / "resources" / "csrc")
-    }
+    def csrcDir = PathRef(os.pwd / "src" / "main" / "resources" / "csrc")
 
-    def vsrcDir = T {
-      PathRef(os.pwd / "src" / "main" / "resources" / "vsrc")
-    }
+    def vsrcDir = PathRef(os.pwd / "src" / "main" / "resources" / "vsrc")
 
-    def allCSourceFiles = T {
-      Seq(
+    def allCSourceFiles = Seq(
         "SimDTM.cc",
         "SimJTAG.cc",
         "debug_rob.cc",
         "emulator.cc",
         "remote_bitbang.cc",
-      ).map(c => PathRef(csrcDir().path / c))
-    }
+      ).map(c => PathRef(csrcDir.path / c))
 
-    def CMakeListsString = T {
-      // format: off
+    // format: off
+    def CMakeListsString(elaboratePath: String, plusArgsPath: String, rtlPaths: String, verilatorArgsList: String) =
       s"""cmake_minimum_required(VERSION 3.20)
          |project(emulator)
-         |include_directories(${csrcDir().path})
+         |include_directories(${csrcDir.path})
          |# plusarg is here
-         |include_directories(${generator.elaborate().path})
-         |link_directories(${spikeRoot() + "/lib"})
-         |include_directories(${spikeRoot() + "/include"})
+         |include_directories(${elaboratePath})
+         |link_directories(${spikeRoot + "/lib"})
+         |include_directories(${spikeRoot + "/include"})
          |
          |set(CMAKE_BUILD_TYPE Release)
          |set(CMAKE_CXX_STANDARD 17)
          |set(CMAKE_C_COMPILER "clang")
          |set(CMAKE_CXX_COMPILER "clang++")
          |set(CMAKE_CXX_FLAGS
-         |"$${CMAKE_CXX_FLAGS} -DVERILATOR -DTEST_HARNESS=VTestHarness -include VTestHarness.h -include verilator.h -include ${generator.elaborate().path / config + ".plusArgs"}")
+         |"$${CMAKE_CXX_FLAGS} -DVERILATOR -DTEST_HARNESS=VTestHarness -include VTestHarness.h -include verilator.h -include ${plusArgsPath}")
          |set(THREADS_PREFER_PTHREAD_FLAG ON)
          |
          |find_package(verilator)
          |find_package(Threads)
          |
          |add_executable(emulator
-         |${allCSourceFiles().map(_.path).mkString("\n")}
+         |${allCSourceFiles.map(_.path).mkString("\n")}
          |)
          |
          |target_link_libraries(emulator PRIVATE $${CMAKE_THREAD_LIBS_INIT})
          |target_link_libraries(emulator PRIVATE fesvr)
          |verilate(emulator
          |  SOURCES
-         |  ${mfccompiler.rtls().map(_.path.toString).mkString("\n")}
+         |  ${rtlPaths}
          |  TOP_MODULE TestHarness
          |  PREFIX VTestHarness
-         |  VERILATOR_ARGS ${verilatorArgs().mkString(" ")}
+         |  VERILATOR_ARGS ${verilatorArgsList}
          |)
          |""".stripMargin
       // format: on
-    }
 
-    def verilatorArgs = T.input {
+    def verilatorArgs = Task.Input {
       Seq(
         // format: off
         "-Wno-UNOPTTHREADS", "-Wno-STMTDLY", "-Wno-LATCH", "-Wno-WIDTH", "--no-timing",
@@ -314,27 +324,30 @@ trait Emulator extends Cross.Module2[String, String] {
         "--output-split 20000",
         "--output-split-cfuncs 20000",
         "--max-num-width 1048576",
-        s"-I${vsrcDir().path}",
+        s"-I${vsrcDir.path}",
         // format: on
       )
     }
 
-    def cmakefileLists = T.persistent {
-      val path = T.dest / "CMakeLists.txt"
-      os.write.over(path, CMakeListsString())
-      PathRef(T.dest)
+    def cmakefileLists = Task(persistent = true) {
+      val elaboratePath = generator.elaborate().path.toString
+      val plusArgsPath = (generator.elaborate().path / s"${config}.plusArgs").toString
+      val rtlPaths = mfccompiler.rtls().map(_.path.toString).mkString("\n")
+      val verilatorArgsList = verilatorArgs().mkString(" ")
+      val cmakeContent = CMakeListsString(elaboratePath, plusArgsPath, rtlPaths, verilatorArgsList)
+      val path = Task.dest / "CMakeLists.txt"
+      os.write.over(path, cmakeContent)
+      PathRef(Task.dest)
     }
 
-    def elf = T.persistent {
-      mill.util.Jvm.runSubprocess(Seq("cmake", "-G", "Ninja", "-S", cmakefileLists().path, "-B", T.dest.toString).map(_.toString), Map[String, String](), T.dest)
-      mill.util.Jvm.runSubprocess(Seq("ninja", "-C", T.dest).map(_.toString), Map[String, String](), T.dest)
-      PathRef(T.dest / "emulator")
+    def elf = Task(persistent = true) {
+      os.proc("cmake", "-G", "Ninja", "-S", cmakefileLists().path, "-B", Task.dest.toString).call()
+      os.proc("ninja", "-C", Task.dest).call()
+      PathRef(Task.dest / "emulator")
     }
   }
 
-  def elf = T {
-    verilator.elf()
-  }
+  def elf = Task { verilator.elf() }
 }
 
 /** object to elaborate verilated emulators. */
@@ -530,7 +543,7 @@ object `riscv-tests` extends Module {
   def testsRoot =
     os.Path(envByNameOrRiscv("RISCV_TESTS_ROOT")) / "riscv64-unknown-elf" / "share" / "riscv-tests"
 
-  def allCases = T {
+  def allCases = Task {
     os.walk(testsRoot).filterNot(p => p.last.endsWith("dump"))
   }
 
@@ -541,11 +554,9 @@ object `riscv-tests` extends Module {
   trait Suite extends Cross.Module[String] {
     val name: String = crossValue
 
-    def description = T {
-      s"test suite ${name} from riscv-tests"
-    }
+    def description = s"test suite ${name} from riscv-tests"
 
-    def binaries = T {
+    def binaries = Task{
       allCases().filter(p => p.last.startsWith(name)).map(PathRef(_))
     }
   }
@@ -558,22 +569,22 @@ trait RiscvTest extends Cross.Module4[String, String, String, String] {
   val suiteName: String = crossValue3
   val exclude: String = crossValue4
 
-  def run = T {
+  def run = Task {
     `riscv-tests`.suite(suiteName).binaries().map { bin =>
       val name = bin.path.last
       val toExclude = exclude.split("-").map(suiteName + "-" + _).exists(_ == name)
       if (toExclude) {
-        PathRef(T.dest)
+        PathRef(Task.dest)
       } else {
         System.out.println(s"Running: ${emulator(top, config).elf().path} ${bin.path}")
-        val p = os.proc(emulator(top, config).elf().path, bin.path).call(stdout = T.dest / s"$name.running.log", mergeErrIntoOut = true, check = false)
+        val p = os.proc(emulator(top, config).elf().path, bin.path).call(stdout = Task.dest / s"$name.running.log", mergeErrIntoOut = true, check = false)
         PathRef(if (p.exitCode != 0) {
-          os.move(T.dest / s"$name.running.log", T.dest / s"$name.failed.log")
+          os.move(Task.dest / s"$name.running.log", Task.dest / s"$name.failed.log")
           throw new Exception(s"Test $name failed with exit code ${p.exitCode}")
-          T.dest / s"$name.failed.log"
+          Task.dest / s"$name.failed.log"
         } else {
-          os.move(T.dest / s"$name.running.log", T.dest / s"$name.passed.log")
-          T.dest / s"$name.passed.log"
+          os.move(Task.dest / s"$name.running.log", Task.dest / s"$name.passed.log")
+          Task.dest / s"$name.passed.log"
         })
       }
     }
@@ -586,20 +597,18 @@ trait ArchTest extends Cross.Module4[String, String, String, String] {
   val xlen: String = crossValue3
   val isa: String = crossValue4
 
-  def ispecString = T {
     // format: off
-    s"""hart_ids: [0]
+  def ispecString = s"""hart_ids: [0]
        |hart0:
        |  ISA: ${isa}
        |  physical_addr_sz: 32
        |  User_Spec_Version: '2.3'
        |  supported_xlen: [${xlen}]
        |""".stripMargin
-    // format: on
-  }
+  // format: on
 
-  def pspecString = T {
-    // format: off
+  // format: off
+  def pspecString =
     s"""mtime:
        |  implemented: true
        |  address: 0xbff8
@@ -612,20 +621,16 @@ trait ArchTest extends Cross.Module4[String, String, String, String] {
        |  label: reset_vector
        |""".stripMargin
     // format: on
-  }
 
-  def spikeRoot = T {
-    envByNameOrRiscv("SPIKE_ROOT")
-  }
+  def spikeRoot = envByNameOrRiscv("SPIKE_ROOT")
 
-  def CC = T {
+  def CC =
     sys.env.get("RV64_TOOLCHAIN_ROOT") match {
       case Some(value) => value + "/bin/riscv64-none-elf-gcc" // nix uses a different name
       case None => sys.env("RISCV") + "/bin/riscv64-unknown-elf-gcc" // if not found, throws NoSuchElementException exception
     }
-  }
 
-  def configString = T {
+  def configString(ispecPath: String, pspecPath: String, emulatorElfPath: String) =
     // format: off
     s"""[RISCOF]
        |ReferencePlugin=spike
@@ -635,60 +640,63 @@ trait ArchTest extends Cross.Module4[String, String, String, String] {
        |
        |[spike]
        |pluginpath=spike
-       |ispec=${ispecYaml().path}
-       |pspec=${pspecYaml().path}
+       |ispec=${ispecPath}
+       |pspec=${pspecPath}
        |target_run=1
        |jobs=${Runtime.getRuntime().availableProcessors()}
-       |PATH=${spikeRoot() + "/bin"}
-       |CC=${CC()}
+       |PATH=${spikeRoot + "/bin"}
+       |CC=${CC}
        |
        |[emulator]
        |pluginpath=emulator
-       |ispec=${ispecYaml().path}
-       |pspec=${pspecYaml().path}
+       |ispec=${ispecPath}
+       |pspec=${pspecPath}
        |target_run=1
        |jobs=${Runtime.getRuntime().availableProcessors()}
-       |PATH=${emulator(top, config).elf().path / os.up}
-       |CC=${CC()}
+       |PATH=${emulatorElfPath}
+       |CC=${CC}
        |""".stripMargin
     // format: on
-  }
 
-  def ispecYaml = T.persistent {
-    val path = T.dest / "ispec.yaml"
-    os.write.over(path, ispecString())
+  def ispecYaml = Task(persistent = true) {
+    val path = Task.dest / "ispec.yaml"
+    os.write.over(path, ispecString)
     PathRef(path)
   }
 
-  def pspecYaml = T.persistent {
-    val path = T.dest / "pspec.yaml"
-    os.write.over(path, pspecString())
+  def pspecYaml = Task(persistent = true) {
+    val path = Task.dest / "pspec.yaml"
+    os.write.over(path, pspecString)
     PathRef(path)
   }
 
-  def configIni = T.persistent {
-    val path = T.dest / "config.ini"
-    os.write.over(path, configString())
-    PathRef(T.dest)
+  def configIni = Task(persistent = true) {
+    val ispecPath = ispecYaml().path.toString
+    val pspecPath = pspecYaml().path.toString
+    val emulatorElfPath = (emulator(top, config).elf().path / os.up).toString
+    val configContent = configString(ispecPath, pspecPath, emulatorElfPath)
+    val path = Task.dest / "config.ini"
+    os.write.over(path, configContent)
+    PathRef(Task.dest)
   }
 
-  def home = T {
+  def home = Task {
     configIni()
   }
 
-  def src = T {
+  def src = Task {
     if (!os.exists(home().path / "riscv-arch-test")) {
       os.proc("riscof", "--verbose", "info", "arch-test", "--clone").call(home().path)
     }
-    PathRef(T.dest)
+    PathRef(Task.dest)
   }
 
-  def copy = T {
+  def copy = Task {
     os.copy.over(os.pwd / "scripts" / "arch-test" / "spike", home().path / "spike")
     os.copy.over(os.pwd / "scripts" / "arch-test" / "emulator", home().path / "emulator")
   }
 
-  def run = T {
+  def run = Task {
     src()
     copy()
     os.proc("riscof", "run", "--no-browser",
@@ -713,7 +721,7 @@ trait JTAGDTMTest extends Cross.Module5[String, String, String, String, String] 
   val xlen: String = crossValue4
   val name: String = crossValue5
 
-  def run = T {
+  def run = Task {
     val gdbserver = os.Path(sys.env.get("RISCV_TESTS_ROOT").get) / "debug" / "gdbserver.py"
     val p = os.proc(
       gdbserver,
@@ -730,16 +738,16 @@ trait JTAGDTMTest extends Cross.Module5[String, String, String, String, String] 
         "TERM" -> "", // otherwise readline issues on bracketed-paste
         "JTAG_DTM_ENABLE_SBA" -> sba,
       ),
-      stdout = T.dest / s"$name.running.log",
+      stdout = Task.dest / s"$name.running.log",
       mergeErrIntoOut = true,
       check = false)
     PathRef(if (p.exitCode != 0) {
-      os.move(T.dest / s"$name.running.log", T.dest / s"$name.failed.log")
+      os.move(Task.dest / s"$name.running.log", Task.dest / s"$name.failed.log")
       throw new Exception(s"Test $name failed with exit code ${p.exitCode}")
-      T.dest / s"$name.failed.log"
+      Task.dest / s"$name.failed.log"
     } else {
-      os.move(T.dest / s"$name.running.log", T.dest / s"$name.passed.log")
-      T.dest / s"$name.passed.log"
+      os.move(Task.dest / s"$name.running.log", Task.dest / s"$name.passed.log")
+      Task.dest / s"$name.passed.log"
     })
   }
 }

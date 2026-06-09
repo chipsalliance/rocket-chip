@@ -1,3 +1,5 @@
+package build
+
 import mill._
 import mill.scalalib._
 
@@ -10,32 +12,35 @@ trait HasChisel
 
   def chiselPluginJar: T[Option[PathRef]]
 
-  override def scalacOptions = T(super.scalacOptions() ++ chiselPluginJar().map(path => s"-Xplugin:${path.path}"))
+  override def scalacOptions = super.scalacOptions() ++ chiselPluginJar().map(path => s"-Xplugin:${path.path}")
 
-  override def scalacPluginClasspath: T[Agg[PathRef]] = T(super.scalacPluginClasspath() ++ chiselPluginJar())
+  override def scalacPluginClasspath: T[Seq[PathRef]] = super.scalacPluginClasspath() ++ chiselPluginJar()
 
   // Define these for building chisel from ivy
   def chiselIvy: Option[Dep]
 
-  override def ivyDeps = T(super.ivyDeps() ++ chiselIvy)
+  override def mvnDeps = super.mvnDeps() ++ chiselIvy
 
   def chiselPluginIvy: Option[Dep]
 
-  override def scalacPluginIvyDeps: T[Agg[Dep]] = T(super.scalacPluginIvyDeps() ++ chiselPluginIvy.map(Agg(_)).getOrElse(Agg.empty[Dep]))
+  override def scalacPluginMvnDeps: T[Seq[Dep]] = super.scalacPluginMvnDeps() ++ chiselPluginIvy.map(Seq(_)).getOrElse(Seq.empty[Dep])
 }
+
+trait HardfloatModule extends HasChisel
+
 
 trait MacrosModule
   extends ScalaModule {
 
   def scalaReflectIvy: Dep
 
-  override def ivyDeps = T(super.ivyDeps() ++ Some(scalaReflectIvy))
+  override def mvnDeps = super.mvnDeps() ++ Some(scalaReflectIvy)
 }
 
 
 trait RocketChipModule
   extends HasChisel {
-  override def mainClass = T(Some("freechips.rocketchip.diplomacy.Main"))
+  override def mainClass = Some("freechips.rocketchip.diplomacy.Main")
 
   def macrosModule: MacrosModule
 
@@ -50,10 +55,8 @@ trait RocketChipModule
 
   override def moduleDeps = super.moduleDeps ++ Seq(macrosModule, hardfloatModule, diplomacyModule)
 
-  override def ivyDeps = T(
-    super.ivyDeps() ++ Agg(
+  override def mvnDeps = super.mvnDeps() ++ Seq(
       mainargsIvy,
       json4sJacksonIvy,
     )
-  )
 }
