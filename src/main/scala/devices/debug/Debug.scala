@@ -19,7 +19,7 @@ import freechips.rocketchip.regmapper.{RegField, RegFieldAccessType, RegFieldDes
 import freechips.rocketchip.rocket.{CSRs, Instructions}
 import freechips.rocketchip.tile.MaxHartIdBits
 import freechips.rocketchip.tilelink.{TLAsyncCrossingSink, TLAsyncCrossingSource, TLBuffer, TLRegisterNode, TLXbar}
-import freechips.rocketchip.util.{AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
+import freechips.rocketchip.util.{AsyncBundle, AsyncQueueParams, AsyncResetSynchronizerShiftReg, ElaborationArtefacts, FromAsyncBundle, ParameterizedBundle, ResetSynchronizerShiftReg, ToAsyncBundle}
 
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 import freechips.rocketchip.util.SeqToAugmentedSeq
@@ -165,6 +165,108 @@ object DefaultDebugModuleParams {
 }
 
 case object DebugModuleKey extends Field[Option[DebugModuleParams]](Some(DebugModuleParams()))
+
+/** Replace the Debug Module's constant debug ROM with the SMIC S018VM macro.
+  *
+  * The macro is a 128 x 64 synchronous ROM. It is only selected by the
+  * TapeoutConfig build flow when the SMIC ROM option is explicitly enabled.
+  */
+case object UseSMIC180DebugROM extends Field[Boolean](false)
+
+object SMIC180DebugROM {
+  val macroName = "S018VM_X8Y16D64_PM"
+  val wordBytes = 8
+  val dataBits = wordBytes * 8
+  val words = 128
+  val sizeBytes = words * wordBytes
+  val imageSizeBytes = 128
+  val imageWords = imageSizeBytes / wordBytes
+  val addressBits = log2Ceil(words)
+
+  private def padded(contents: Seq[Byte], bytes: Int): Seq[Byte] = {
+    require(contents.length <= bytes,
+      s"Debug ROM image (${contents.length} bytes) exceeds capacity ($bytes bytes)")
+    contents ++ Seq.fill(bytes - contents.length)(0.toByte)
+  }
+
+  def imageWordsLE(contents: Seq[Byte]): Seq[BigInt] = {
+    padded(contents, imageSizeBytes).grouped(wordBytes).map { bytes =>
+      bytes.zipWithIndex.foldLeft(BigInt(0)) { case (word, (byte, index)) =>
+        word | (BigInt(byte & 0xff) << (index * 8))
+      }
+    }.toSeq
+  }
+
+  def codeFile(contents: Seq[Byte]): String = {
+    padded(contents, sizeBytes).grouped(wordBytes).map { bytes =>
+      val word = bytes.zipWithIndex.foldLeft(BigInt(0)) { case (value, (byte, index)) =>
+        value | (BigInt(byte & 0xff) << (index * 8))
+      }
+      val binary = word.toString(2)
+      ("0" * (dataBits - binary.length)) + binary
+    }.mkString("\n") + "\n"
+  }
+}
+
+class SMIC180DebugROMMacro extends BlackBox {
+  override def desiredName: String = SMIC180DebugROM.macroName
+
+  val io = IO(new Bundle {
+    val Q = Output(UInt(SMIC180DebugROM.dataBits.W))
+    val A = Input(UInt(SMIC180DebugROM.addressBits.W))
+    val CLK = Input(Clock())
+    val CEN = Input(Bool())
+  })
+}
+
+/** Convert the S018VM synchronous ROM into 64-bit RegMapper read fields. */
+class SMIC180DebugROMReader(contents: Seq[Byte]) extends Module {
+  require(contents.length <= SMIC180DebugROM.imageSizeBytes,
+    s"Debug ROM image (${contents.length} bytes) exceeds visible Debug ROM capacity (${SMIC180DebugROM.imageSizeBytes} bytes)")
+
+  ElaborationArtefacts.add("smic180_debugrom.code", SMIC180DebugROM.codeFile(contents))
+
+  val io = IO(new Bundle {
+    val requestValid = Input(Vec(SMIC180DebugROM.imageWords, Bool()))
+    val requestReady = Output(Bool())
+    val responseReady = Input(Vec(SMIC180DebugROM.imageWords, Bool()))
+    val responseValid = Output(Vec(SMIC180DebugROM.imageWords, Bool()))
+    val responseBits = Output(UInt(SMIC180DebugROM.dataBits.W))
+  })
+
+  private val rom = Module(new SMIC180DebugROMMacro)
+  private val requestMask = io.requestValid.asUInt
+  private val requestWord = PriorityEncoder(requestMask)
+  private val responseMask = RegInit(0.U(SMIC180DebugROM.imageWords.W))
+  private val pending = RegInit(false.B)
+  private val accept = !pending && requestMask.orR
+  private val responseFire = (io.responseReady.asUInt | ~responseMask).andR
+
+  // The selected word is sampled by the macro on the request edge and Q stays
+  // stable during the following response cycle.
+  rom.io.A := requestWord
+  rom.io.CLK := clock
+  rom.io.CEN := !accept
+
+  when (accept) {
+    responseMask := requestMask
+  }
+  pending := (pending && !responseFire) || accept
+  io.requestReady := !pending
+  io.responseValid := VecInit.tabulate(SMIC180DebugROM.imageWords) { i =>
+    pending && responseMask(i)
+  }
+  io.responseBits := rom.io.Q
+
+  def read(wordOffset: Int): RegReadFn = {
+    require(wordOffset >= 0 && wordOffset < SMIC180DebugROM.imageWords)
+    RegReadFn { (request, ready) =>
+      io.requestValid(wordOffset) := request
+      io.responseReady(wordOffset) := ready
+      (io.requestReady, io.responseValid(wordOffset), io.responseBits)
+    }
+  }
+}
 
 /** Functional parameters exposed to the design configuration.
   *
@@ -758,6 +860,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
   import DMI_RegAddrs._
 
   val cfg = p(DebugModuleKey).get
+  if (p(UseSMIC180DebugROM)) {
+    require(beatBytes == SMIC180DebugROM.wordBytes,
+      s"${SMIC180DebugROM.macroName} requires ${SMIC180DebugROM.wordBytes}-byte TileLink beats, got $beatBytes")
+  }
   def getCfg = () => cfg
   val dmTopAddr = (1 << cfg.nDMIAddrSize) << 2
   /** dmiNode address set */
@@ -776,6 +882,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     address=Seq(cfg.address),
     device=device,
     beatBytes=beatBytes,
+    concurrency=if (p(UseSMIC180DebugROM)) 1 else 0,
     executable=true
   )
 
@@ -1675,6 +1782,18 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
     // Hart Bus Access
     //--------------------------------------------------------------
 
+    val debugRomContents = (if (cfg.atzero) DebugRomContents() else DebugRomNonzeroContents()).toIndexedSeq
+    val debugRomFields = if (p(UseSMIC180DebugROM)) {
+      val reader = Module(new SMIC180DebugROMReader(debugRomContents))
+      SMIC180DebugROM.imageWordsLE(debugRomContents).zipWithIndex.map { case (word, i) =>
+        RegField.r(SMIC180DebugROM.dataBits, reader.read(i), RegFieldDesc(s"debug_rom_$i", "", reset=Some(word)))
+      }
+    } else {
+      debugRomContents.toIndexedSeq.zipWithIndex.map { case (x, i) =>
+        RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))
+      }
+    }
+
     tlNode.regmap(
       // This memory is writable.
       HALTED      -> Seq(WNotifyWire(sbIdWidth, hartHaltedId, hartHaltedWrEn,
@@ -1703,8 +1822,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
           flags.zipWithIndex.map{case(x, i) => RegField.r(8, x.asUInt, RegFieldDesc(s"debug_flags_$i", "", volatile=true))}
         }),
       ROMBASE       -> RegFieldGroup("debug_rom", Some("Debug ROM"),
-        (if (cfg.atzero) DebugRomContents() else DebugRomNonzeroContents()).toIndexedSeq.zipWithIndex.map{case (x, i) =>
-          RegField.r(8, (x & 0xFF).U(8.W), RegFieldDesc(s"debug_rom_$i", "", reset=Some(x)))})
+        debugRomFields)
     )
 
     // Override System Bus accesses with dmactive reset.
@@ -1860,11 +1978,10 @@ class TLDebugModuleInnerAsync(device: Device, getNComponents: () => Int, beatByt
 
   dmInner.dmiNode := dmiXing.node
 
-  // Require that there are no registers in TL interface, so that spurious
-  // processor accesses to the DM don't need to enable the clock.  We don't
-  // require this property of the SBA, because the debugger is responsible for
-  // raising dmactive (hence enabling the clock) during these transactions.
-  require(dmInner.tlNode.concurrency == 0)
+  // The default path has no registers so spurious processor accesses do not
+  // need to enable the debug clock. The optional SMIC ROM is synchronous and
+  // is only accessed after the debugger has raised dmactive.
+  require(p(UseSMIC180DebugROM) || dmInner.tlNode.concurrency == 0)
 
   lazy val module = new Impl
   class Impl extends LazyRawModuleImp(this) {
