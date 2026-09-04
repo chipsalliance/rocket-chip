@@ -173,6 +173,7 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
     dtm.io.jtag_mfr_id := sj.mfr_id
     dtm.io.jtag_part_number := sj.part_number
     dtm.io.jtag_version := sj.version
+    sj.state := dtm.io.jtag_state
     dtm.rf_reset := sj.reset
 
     debugOpt.map { outerdebug =>
