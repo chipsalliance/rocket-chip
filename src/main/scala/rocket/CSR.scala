@@ -466,7 +466,9 @@ class CSRFile(
     Causes.user_ecall,
     Causes.fetch_page_fault,
     Causes.load_page_fault,
-    Causes.store_page_fault).map(1 << _).sum.U
+    Causes.store_page_fault,
+    Causes.software_check,
+    Causes.hardware_error).map(1 << _).sum.U
 
   val (hs_delegable_interrupts, mideleg_always_hs) = {
     val always = WireDefault(0.U.asTypeOf(new MIP()))
