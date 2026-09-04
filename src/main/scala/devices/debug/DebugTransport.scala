@@ -67,6 +67,7 @@ class SystemJTAGIO extends Bundle {
   val mfr_id = Input(UInt(11.W))
   val part_number = Input(UInt(16.W))
   val version = Input(UInt(4.W))
+  val state = Output(JtagState.State.chiselType())
 }
 
 // Use the Chisel Name macro due to the bulk of this being inside a withClockAndReset block
@@ -83,6 +84,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
     val jtag_mfr_id = Input(UInt(11.W))
     val jtag_part_number = Input(UInt(16.W))
     val jtag_version = Input(UInt(4.W))
+    val jtag_state = Output(JtagState.State.chiselType())
   })
   val rf_reset = IO(Input(Reset()))    // RF transform
 
@@ -262,6 +264,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
   tapIO.jtag <> io.jtag
 
   tapIO.control.jtag_reset := io.jtag_reset.asAsyncReset
+  io.jtag_state := tapIO.output.state
 
   //--------------------------------------------------------
   // TAP Test-Logic-Reset state synchronously resets the debug registers.
