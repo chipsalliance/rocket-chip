@@ -310,4 +310,16 @@ trait HasFpuOpt { this: RocketTileModuleImp =>
       fpu.io.cp_resp.ready := false.B
     }
   }
+
+  // The vector unit's FP port is driven only inside the fpuOpt.foreach above, so a tile with a
+  // vector unit and core.fpu = None leaves fp_req.ready and fp_resp undriven and fails to
+  // elaborate. An integer-only (Zve*x) vector unit never asserts fp_req.valid, so tying the
+  // port off is the correct build for that configuration rather than a stub.
+  if (fpuOpt.isEmpty) {
+    outer.vector_unit.foreach { vu =>
+      vu.module.io.fp_req.ready := false.B
+      vu.module.io.fp_resp.valid := false.B
+      vu.module.io.fp_resp.bits := DontCare
+    }
+  }
 }
