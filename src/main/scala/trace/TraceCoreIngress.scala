@@ -30,7 +30,8 @@ class TraceCoreIngress(val params: TraceCoreParams) extends Module {
     }.elsewhen (io.in.interrupt) {
         itype := TraceItype.ITInterrupt
     }.elsewhen (io.in.trap_return) {
-        itype := TraceItype.ITReturn
+        // mret/sret/uret/dret terminate a traced block as an exception return.
+        itype := TraceItype.ITExcReturn
     }.elsewhen (is_branch && taken) {
         itype := TraceItype.ITBrTaken
     }.elsewhen (is_branch && !taken) {
@@ -45,7 +46,9 @@ class TraceCoreIngress(val params: TraceCoreParams) extends Module {
     itype
   }
   
-  io.out.iretire := io.in.valid
+  // Precise exceptions and interrupts are reported as a trace event, but the
+  // faulting/interrupted instruction is not counted as retired.
+  io.out.iretire := io.in.valid && !io.in.exception && !io.in.interrupt
   io.out.iaddr := io.in.pc
   io.out.itype := gen_itype(io.in.insn, io.in.taken, io.in.is_branch, io.in.is_jal, io.in.is_jalr)
   io.out.ilastsize := io.in.valid && !io.in.is_compressed // 2^1 if non-compressed, 2^0 if compressed

@@ -63,6 +63,8 @@ class DTMInfo extends Bundle {
 /** A wrapper around JTAG providing a reset signal and manufacturer id. */
 class SystemJTAGIO extends Bundle {
   val jtag = Flipped(new JTAGIO(hasTRSTn = false))
+  // Export the TAP state for chipyard's physical JTAG IO binder.
+  val state = Output(JtagState.State.chiselType())
   val reset = Input(Reset())
   val mfr_id = Input(UInt(11.W))
   val part_number = Input(UInt(16.W))
@@ -81,6 +83,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
                                     // invasive API change.
     val dmi = new DMIIO()(p)
     val jtag = Flipped(new JTAGIO(hasTRSTn = false)) // TODO: re-use SystemJTAGIO here?
+    val state = Output(JtagState.State.chiselType())
     val jtag_mfr_id = Input(UInt(11.W))
     val jtag_part_number = Input(UInt(16.W))
     val jtag_version = Input(UInt(4.W))
@@ -262,6 +265,7 @@ class DebugTransportModuleJTAG(debugAddrBits: Int, c: JtagDTMConfig)
 
   tapIO.idcode.get := idcode
   tapIO.jtag <> io.jtag
+  io.state := tapIO.output.state
 
   tapIO.control.jtag_reset := io.jtag_reset.asAsyncReset
   io.jtag_state := tapIO.output.state

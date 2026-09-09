@@ -29,7 +29,8 @@ case class TraceCoreParams (
   nGroups: Int = 1,
   iretireWidth: Int = 1,
   xlen: Int = 32,
-  iaddrWidth: Int = 32
+  iaddrWidth: Int = 32,
+  iaddrLsb: Int = 1
 )
 
 
@@ -48,4 +49,3 @@ class TraceCoreInterface (val params: TraceCoreParams) extends Bundle {
   val cause = UInt(params.xlen.W)
   val time = UInt(params.xlen.W)
 }
-

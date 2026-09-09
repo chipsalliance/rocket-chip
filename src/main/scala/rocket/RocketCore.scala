@@ -134,7 +134,8 @@ trait HasRocketCoreIO extends HasRocketCoreParameters {
   implicit val p: Parameters
   def nTotalRoCCCSRs: Int
   def traceIngressParams = TraceCoreParams(nGroups = 1, iretireWidth = coreParams.retireWidth, 
-                                            xlen = coreParams.xLen, iaddrWidth = coreParams.xLen) 
+                                            xlen = coreParams.xLen, iaddrWidth = coreParams.xLen,
+                                            iaddrLsb = if (coreParams.useCompressed) 1 else 2)
   val io = IO(new CoreBundle()(p) {
     val hartid = Input(UInt(hartIdLen.W))
     val reset_vector = Input(UInt(resetVectorLen.W))
