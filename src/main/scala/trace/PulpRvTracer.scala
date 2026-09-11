@@ -4,17 +4,16 @@ package freechips.rocketchip.trace
 
 import chisel3._
 import chisel3.experimental.IntParam
-import chisel3.util.{Cat, Decoupled, HasBlackBoxPath}
+import chisel3.util.{Cat, Decoupled, HasBlackBoxResource}
 import org.chipsalliance.cde.config.Parameters
 import org.chipsalliance.diplomacy.lazymodule._
-import java.nio.file.Paths
 
 /** Parameters for the optional PULP rv_tracer backend. */
 case class PulpRvTracerParams(tracerBaseAddr: BigInt, coreParams: TraceCoreParams)
 
 class PulpRvTracerBlackBox(params: TraceCoreParams) extends BlackBox(Map(
   "N" -> IntParam(params.nGroups)
-)) with HasBlackBoxPath {
+)) with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk_i = Input(Clock())
     val rst_ni = Input(Bool())
@@ -40,20 +39,21 @@ class PulpRvTracerBlackBox(params: TraceCoreParams) extends BlackBox(Map(
     val packet_payload_o = Output(Vec(params.nGroups, UInt(248.W)))
     val stall_o = Output(Bool())
   })
-  private val rvTracerRoot = Paths.get("../rv_tracer").toAbsolutePath.normalize.toString
-  private def rv(path: String): Unit = addPath(Paths.get(rvTracerRoot, path).toString)
-  rv("rtl/rv_tracer_wrapper.sv")
-  rv("rtl/rv_tracer.sv")
-  rv("include/te_pkg.sv")
-  rv("rtl/te_branch_map.sv")
-  rv("rtl/te_filter.sv")
-  rv("rtl/te_packet_emitter.sv")
-  rv("rtl/te_priority.sv")
-  rv("rtl/te_reg.sv")
-  rv("rtl/te_resync_counter.sv")
-  rv("rtl/rv_tracer_math_compat.sv")
-  rv("rtl/lzc.sv")
-  rv("rtl/rv_tracer_compat.sv")
+  // Keep the tracer self-contained in the Rocket-Chip resource jar.  The
+  // generator must not depend on a sibling checkout at ../rv_tracer.
+  private def rv(path: String): Unit = addResource(s"/vsrc/rv_tracer/$path")
+  rv("rv_tracer_wrapper.sv")
+  rv("rv_tracer.sv")
+  rv("te_pkg.sv")
+  rv("te_branch_map.sv")
+  rv("te_filter.sv")
+  rv("te_packet_emitter.sv")
+  rv("te_priority.sv")
+  rv("te_reg.sv")
+  rv("te_resync_counter.sv")
+  rv("rv_tracer_math_compat.sv")
+  rv("lzc.sv")
+  rv("rv_tracer_compat.sv")
 }
 
 /**
@@ -105,11 +105,17 @@ class LazyPulpRvTracerModule(outer: LazyPulpRvTracer) extends LazyModuleImp(oute
     val payload = RegInit(0.U(248.W))
     val bytes = Wire(Vec(31, UInt(8.W)))
     bytes := payload.asTypeOf(bytes)
-    val queue = Module(new TraceByteFifo(64))
+    val queue = Module(new TraceByteFifo(128))
     queue.io.clear := !io.enable
     val emit = RegInit(false.B)
     val index = RegInit(0.U(6.W))
     val length = Reg(UInt(5.W))
+    // Watermark for preemptive backpressure.  The core's ctrl_stalld stalls
+    // the decode stage, leaving ~3 instructions at E/M/W to drain into the
+    // rv_tracer's 3-stage pipeline.  At 1 IPC that gives at most 3 packets
+    // in flight.  Reserve 3 × 33 = 99 B for the worst-case drain (F3SF1
+    // trap packets), rounded to 112 for margin.
+    val queueAlmostFull = queue.io.count >= 16.U
     when (!io.enable) {
       emit := false.B
       index := 0.U
@@ -133,9 +139,13 @@ class LazyPulpRvTracerModule(outer: LazyPulpRvTracer) extends LazyModuleImp(oute
     io.out.valid := queue.io.deq.valid && io.enable
     io.out.bits := queue.io.deq.bits
     queue.io.deq.ready := io.out.ready && io.enable
-    // The downstream FIFO can accept bytes while a packet is being drained.
-    // Keeping ready low for the whole drain interval deadlocks lossless
-    // rv_tracer mode: it stalls retirement before the packet can complete.
-    bb.io.encapsulator_ready_i := queue.io.enq.ready && io.enable
-    io.stall := emit && !queue.io.enq.ready && io.enable
+    // Bidirectional backpressure:
+    //   1. bb.io.stall_o — rv_tracer internal pipeline stall (lossless mode)
+    //   2. queueAlmostFull — FIFO watermark signals full before it's too late
+    //   3. emit && !queue.io.enq.ready — direct emission backpressure
+    // A packet has no ready signal at this boundary.  Do not let rv_tracer
+    // retire another packet while the serializer still owns its payload;
+    // lossless mode converts this to a core stall through bb.io.stall_o.
+    bb.io.encapsulator_ready_i := queue.io.enq.ready && io.enable && !queueAlmostFull && !emit
+    io.stall := (bb.io.stall_o || queueAlmostFull || (emit && !queue.io.enq.ready)) && io.enable
 }
