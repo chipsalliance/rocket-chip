@@ -16,6 +16,7 @@ import freechips.rocketchip.tilelink.{TLWidthWidget, TLEdgeOut}
 import freechips.rocketchip.util.{ClockGate, ShiftQueue, property}
 
 import freechips.rocketchip.util.UIntToAugmentedUInt
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 class FrontendReq(implicit p: Parameters) extends CoreBundle()(p) {
   val pc = UInt(vaddrBitsExtended.W)
@@ -171,10 +172,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   tlb.io.kill := !s2_valid || s2_kill_speculative_tlb_refill
 
   icache.io.req.valid := s0_valid
-  icache.io.req.bits.addr := io.cpu.npc
+  icache.io.req.bits.addr :%= io.cpu.npc
   icache.io.invalidate := io.cpu.flush_icache
   icache.io.s1_paddr := tlb.io.resp.paddr
-  icache.io.s2_vaddr := s2_pc
+  icache.io.s2_vaddr :%= s2_pc
   icache.io.s1_kill := s2_redirect || tlb.io.resp.miss || s2_replay
   val s2_can_speculatively_refill = s2_tlb_resp.cacheable && !io.ptw.customCSRs.asInstanceOf[RocketCustomCSRs].disableSpeculativeICacheRefill
   icache.io.s2_kill := s2_speculative && !s2_can_speculatively_refill || s2_xcpt
@@ -183,10 +184,10 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
 
   fq.io.enq.valid := RegNext(s1_valid) && s2_valid && (icache.io.resp.valid || (s2_kill_speculative_tlb_refill && s2_tlb_resp.miss) || (!s2_tlb_resp.miss && icache.io.s2_kill))
   fq.io.enq.bits.pc := s2_pc
-  io.cpu.npc := alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
+  io.cpu.npc :%= alignPC(Mux(io.cpu.req.valid, io.cpu.req.bits.pc, npc))
 
   fq.io.enq.bits.data := icache.io.resp.bits.data
-  fq.io.enq.bits.mask := ((1 << fetchWidth)-1).U << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes))
+  fq.io.enq.bits.mask :%= (((1 << fetchWidth)-1).U << s2_pc.extract(log2Ceil(fetchWidth)+log2Ceil(coreInstBytes)-1, log2Ceil(coreInstBytes)))
   fq.io.enq.bits.replay := (icache.io.resp.bits.replay || icache.io.s2_kill && !icache.io.resp.valid && !s2_xcpt) || (s2_kill_speculative_tlb_refill && s2_tlb_resp.miss)
   fq.io.enq.bits.btb := s2_btb_resp_bits
   fq.io.enq.bits.btb.taken := s2_btb_taken
@@ -198,7 +199,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
     val btb = Module(new BTB)
     btb.io.flush := false.B
     btb.io.req.valid := false.B
-    btb.io.req.bits.addr := s1_pc
+    btb.io.req.bits.addr :%= s1_pc
     btb.io.btb_update := io.cpu.btb_update
     btb.io.bht_update := io.cpu.bht_update
     btb.io.ras_update.valid := false.B
@@ -320,11 +321,11 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
       btb.io.btb_update.bits.prediction.entry := tileParams.btb.get.nEntries.U
       btb.io.btb_update.bits.isValid := true.B
       btb.io.btb_update.bits.cfiType := btb.io.ras_update.bits.cfiType
-      btb.io.btb_update.bits.br_pc := s2_base_pc | (taken_idx << log2Ceil(coreInstBytes))
-      btb.io.btb_update.bits.pc := s2_base_pc
+      btb.io.btb_update.bits.br_pc :%= (s2_base_pc | (taken_idx << log2Ceil(coreInstBytes)))
+      btb.io.btb_update.bits.pc :%= s2_base_pc
     }
 
-    btb.io.ras_update.bits.returnAddr := s2_base_pc + (after_idx << log2Ceil(coreInstBytes))
+    btb.io.ras_update.bits.returnAddr :%= (s2_base_pc + (after_idx << log2Ceil(coreInstBytes)))
 
     val taken = scanInsns(0, s2_partial_insn_valid, s2_partial_insn, false.B)
     when (useRAS) {

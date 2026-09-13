@@ -129,7 +129,7 @@ class TLWidthWidget(innerBeatBytes: Int)(implicit p: Parameters) extends LazyMod
         mux(index)
       }
 
-      out.bits := in.bits
+      out.bits :<= in.bits.squeezeAll
       out.valid := in.valid
       in.ready := out.ready
 

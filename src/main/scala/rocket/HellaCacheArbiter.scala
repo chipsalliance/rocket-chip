@@ -7,6 +7,8 @@ import chisel3._
 import chisel3.util.{Cat,log2Up}
 import org.chipsalliance.cde.config.Parameters
 
+import freechips.rocketchip.util.ConnectableBitsOpExtension
+
 class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
 {
   val io = IO(new Bundle {
@@ -31,7 +33,7 @@ class HellaCacheArbiter(n: Int)(implicit p: Parameters) extends Module
       val req = io.requestor(i).req
       def connect_s0() = {
         io.mem.req.bits := req.bits
-        io.mem.req.bits.tag := Cat(req.bits.tag, i.U(log2Up(n).W))
+        io.mem.req.bits.tag :%= Cat(req.bits.tag, i.U(log2Up(n).W))
         s1_id := i.U
       }
       def connect_s1() = {

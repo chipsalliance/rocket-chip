@@ -86,7 +86,7 @@ object PlusArg
     */
   def timeout(name: String, default: BigInt = 0, docstring: String = "", width: Int = 32)(count: UInt): Unit = {
     PlusArgArtefacts.append(name, Some(default), docstring)
-    Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count := count
+    Module(new PlusArgTimeout(name + "=%d", default, docstring, width)).io.count :%= count
   }
 }
 

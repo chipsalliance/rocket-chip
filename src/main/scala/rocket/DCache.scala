@@ -22,6 +22,7 @@ import freechips.rocketchip.util.UIntIsOneOf
 import freechips.rocketchip.util.IntToAugmentedInt
 import freechips.rocketchip.util.SeqToAugmentedSeq
 import freechips.rocketchip.util.SeqBoolBitwiseOps
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 // TODO: delete this trait once deduplication is smart enough to avoid globally inlining matching circuits
 trait InlineInstance { self: chisel3.experimental.BaseModule =>
@@ -240,8 +241,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   dataArb.io.in(3).valid := io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)
   dataArb.io.in(3).bits := dataArb.io.in(1).bits
   dataArb.io.in(3).bits.write := false.B
-  dataArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.idx.getOrElse(io.cpu.req.bits.addr) >> tagLSB, io.cpu.req.bits.addr(tagLSB-1, 0))
-  dataArb.io.in(3).bits.wordMask := {
+  dataArb.io.in(3).bits.addr :%= Cat(io.cpu.req.bits.idx.getOrElse(io.cpu.req.bits.addr) >> tagLSB, io.cpu.req.bits.addr(tagLSB-1, 0))
+  dataArb.io.in(3).bits.wordMask :%= {
     val mask = (subWordBytes.log2 until rowOffBits).foldLeft(1.U) { case (in, i) =>
       val upper_mask = Mux((i >= wordBytes.log2).B || io.cpu.req.bits.size <= i.U, 0.U,
         ((BigInt(1) << (1 << (i - subWordBytes.log2)))-1).U)
@@ -276,8 +277,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   tlb.io.sfence.valid := s1_valid && !io.cpu.s1_kill && s1_sfence
   tlb.io.sfence.bits.rs1 := s1_req.size(0)
   tlb.io.sfence.bits.rs2 := s1_req.size(1)
-  tlb.io.sfence.bits.asid := io.cpu.s1_data.data
-  tlb.io.sfence.bits.addr := s1_req.addr
+  tlb.io.sfence.bits.asid :%= io.cpu.s1_data.data
+  tlb.io.sfence.bits.addr :%= s1_req.addr
   tlb.io.sfence.bits.hv := s1_req.cmd === M_HFENCEV
   tlb.io.sfence.bits.hg := s1_req.cmd === M_HFENCEG
 
@@ -544,10 +545,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   })
   dataArb.io.in(0).valid := should_pstore_drain(false.B)
   dataArb.io.in(0).bits.write := pstore_drain
-  dataArb.io.in(0).bits.addr := Mux(pstore2_valid, pstore2_addr, pstore1_addr)
+  dataArb.io.in(0).bits.addr :%= Mux(pstore2_valid, pstore2_addr, pstore1_addr)
   dataArb.io.in(0).bits.way_en := Mux(pstore2_valid, pstore2_way, pstore1_way)
   dataArb.io.in(0).bits.wdata := encodeData(Fill(rowWords, Mux(pstore2_valid, pstore2_storegen_data, pstore1_data)), false.B)
-  dataArb.io.in(0).bits.wordMask := {
+  dataArb.io.in(0).bits.wordMask :%= {
     val eccMask = dataArb.io.in(0).bits.eccMask.asBools.grouped(subWordBytes/eccBytes).map(_.orR).toSeq.asUInt
     val wordMask = UIntToOH(Mux(pstore2_valid, pstore2_addr, pstore1_addr).extract(rowOffBits-1, wordBytes.log2))
     FillInterleaved(wordBytes/subWordBytes, wordMask) & Fill(rowBytes/wordBytes, eccMask)
@@ -723,7 +724,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   if (!usingDataScratchpad) {
     dataArb.io.in(1).bits.write := true.B
-    dataArb.io.in(1).bits.addr :=  (s2_vaddr >> idxLSB) << idxLSB | d_address_inc
+    dataArb.io.in(1).bits.addr :%= ((s2_vaddr >> idxLSB) << idxLSB | d_address_inc)
     dataArb.io.in(1).bits.way_en := refill_way
     dataArb.io.in(1).bits.wdata := tl_d_data_encoded
     dataArb.io.in(1).bits.wordMask := ~0.U((rowBytes / subWordBytes).W)
@@ -916,7 +917,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   io.cpu.resp.bits.has_data := s2_read
   io.cpu.resp.bits.replay := false.B
   io.cpu.s2_uncached := s2_uncached && !s2_hit
-  io.cpu.s2_paddr := s2_req.addr
+  io.cpu.s2_paddr :%= s2_req.addr
   io.cpu.s2_gpa := s2_tlb_xcpt.gpa
   io.cpu.s2_gpa_is_pte := s2_tlb_xcpt.gpa_is_pte
 
@@ -1047,7 +1048,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   metaArb.io.in(0).bits.way_en := ~0.U(nWays.W)
   metaArb.io.in(0).bits.data := tECC.encode(L1Metadata(0.U, ClientMetadata.onReset).asUInt)
   when (resetting) {
-    flushCounter := flushCounterNext
+    flushCounter :%= flushCounterNext
     when (flushDone) {
       resetting := false.B
       if (!isPow2(nWays)) flushCounter := flushCounterWrap
@@ -1125,7 +1126,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
       io.errors.uncorrectable.foreach { u => when (u.valid) { c.valid := false.B } }
     }
     io.errors.bus.valid := tl_out.d.fire && (tl_out.d.bits.denied || tl_out.d.bits.corrupt)
-    io.errors.bus.bits := Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
+    io.errors.bus.bits :%= Mux(grantIsCached, s2_req.addr >> idxLSB << idxLSB, 0.U)
 
     ccoverNotScratchpad(io.errors.bus.valid && grantIsCached, "D_ERROR_CACHED", "D$ D-channel error, cached")
     ccover(io.errors.bus.valid && !grantIsCached, "D_ERROR_UNCACHED", "D$ D-channel error, uncached")

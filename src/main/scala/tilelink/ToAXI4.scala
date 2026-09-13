@@ -16,6 +16,7 @@ import freechips.rocketchip.diplomacy.{IdMap, IdMapEntry, IdRange}
 import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, UIntToOH1}
 
 import freechips.rocketchip.util.DataToAugmentedData
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 class AXI4TLStateBundle(val sourceBits: Int) extends Bundle {
   val size   = UInt(4.W)
@@ -172,7 +173,7 @@ class TLToAXI4(val combinational: Boolean = true, val adapterName: Option[String
       arw.id    := sourceTable(a_source)
       arw.addr  := a_address
       arw.len   := UIntToOH1(a_size, AXI4Parameters.lenBits + log2Ceil(beatBytes)) >> log2Ceil(beatBytes)
-      arw.size  := Mux(a_size >= maxSize, maxSize, a_size)
+      arw.size  :%= Mux(a_size >= maxSize, maxSize, a_size)
       arw.burst := AXI4Parameters.BURST_INCR
       arw.lock  := 0.U // not exclusive (LR/SC unsupported b/c no forward progress guarantee)
       arw.cache := 0.U // do not allow AXI to modify our transactions

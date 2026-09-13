@@ -57,7 +57,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         // State tracking
         val sourceIdMap = Mem(maxInFlight, UInt(edgeIn.bundle.sourceBits.W))
         val allocated = RegInit(0.U(maxInFlight.W))
-        val nextFreeOH = ~(leftOR(~allocated) << 1) & ~allocated
+        val nextFreeOH = (~(leftOR(~allocated) << 1) & ~allocated)(maxInFlight-1, 0)
         val nextFree = OHToUInt(nextFreeOH)
         val full = allocated.andR
 
@@ -67,8 +67,8 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         val block = a_first && full
         in.a.ready := out.a.ready && !block
         out.a.valid := in.a.valid && !block
-        out.a.bits := in.a.bits
-        out.a.bits.source := nextFree holdUnless a_first
+        out.a.bits :<= in.a.bits.squeezeAll
+        out.a.bits.source :<= nextFree holdUnless a_first
 
         val bypass = (edgeOut.manager.minLatency == 0).B && in.a.valid && !full && a_first && nextFree === out.d.bits.source
         in.d <> out.d
@@ -82,7 +82,7 @@ class TLSourceShrinker(maxInFlight: Int)(implicit p: Parameters) extends LazyMod
         val free = d_last && in.d.fire
         val alloc_id = Mux(alloc, nextFreeOH, 0.U)
         val free_id = Mux(free, UIntToOH(out.d.bits.source), 0.U)
-        allocated := (allocated | alloc_id) & ~free_id
+        allocated :<= (allocated | alloc_id) & ~free_id
       }
     }
   }

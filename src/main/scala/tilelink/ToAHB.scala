@@ -15,6 +15,7 @@ import freechips.rocketchip.amba.ahb.{AHBImpMaster, AHBParameters, AHBMasterPara
 import freechips.rocketchip.amba.ahb.AHBParameters.{BURST_INCR, BURST_SINGLE, TRANS_NONSEQ, TRANS_SEQ, TRANS_IDLE, TRANS_BUSY, PROT_DEFAULT}
 import freechips.rocketchip.diplomacy.TransferSizes
 import freechips.rocketchip.util.{BundleMap, UIntToOH1}
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 case class TLToAHBNode(supportHints: Boolean)(implicit valName: ValName) extends MixedAdapterNode(TLImp, AHBImpMaster)(
   dFn = { cp =>
@@ -116,7 +117,7 @@ class TLToAHB(val aFlow: Boolean = false, val supportHints: Boolean = true, val 
         step.first := false.B
         step.last  := (if (lgBytes + 1 >= lgMax) true.B else
                        !((UIntToOH1(send.size, lgMax) & ~send.addr) >> (lgBytes + 1)).orR)
-        step.addr  := Cat(send.addr(edgeIn.bundle.addressBits-1, lgMax), send.addr(lgMax-1, 0) + beatBytes.U)
+        step.addr  :%= Cat(send.addr(edgeIn.bundle.addressBits-1, lgMax), send.addr(lgMax-1, 0) + beatBytes.U)
       } .otherwise /* new burst */ {
         step.full  := false.B
         step.send  := false.B

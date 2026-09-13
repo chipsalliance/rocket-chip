@@ -14,6 +14,7 @@ import freechips.rocketchip.resources.{Device, Resource, ResourceBindings}
 import freechips.rocketchip.prci.{NoCrossing}
 import freechips.rocketchip.regmapper.{RegField, RegMapper, RegMapperParams, RegMapperInput, RegisterRouter}
 import freechips.rocketchip.util.{BundleField, ControlKey, ElaborationArtefacts, GenRegDescsAnno}
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 import scala.math.min
 
@@ -72,7 +73,7 @@ case class TLRegisterNode(
     val params = RegMapperParams(log2Up(size/beatBytes), beatBytes, fields)
     val in = Wire(Decoupled(new RegMapperInput(params)))
     in.bits.read  := a.bits.opcode === TLMessages.Get
-    in.bits.index := edge.addr_hi(a.bits)
+    in.bits.index :%= edge.addr_hi(a.bits)
     in.bits.data  := a.bits.data
     in.bits.mask  := a.bits.mask
     Connectable.waiveUnmatched(in.bits.extra, a.bits.echo) match {

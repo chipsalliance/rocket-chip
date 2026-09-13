@@ -11,6 +11,7 @@ import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp}
 
 import freechips.rocketchip.diplomacy.{AddressDecoder, AddressSet, TransferSizes}
 import freechips.rocketchip.util.{ControlKey, SimpleBundleField, rightOR, leftOR, OH1ToOH, UIntToOH1}
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 case object AXI4FragLast extends ControlKey[Bool]("real_last")
 case class AXI4FragLastField() extends SimpleBundleField(AXI4FragLast)(Output(Bool()), false.B)
@@ -132,7 +133,7 @@ class AXI4Fragmenter()(implicit p: Parameters) extends LazyModule
         when (out.fire) {
           busy := !last
           r_addr := mux_addr
-          r_len  := len - beats
+          r_len  :%= (len - beats)
         }
 
         (out, last, beats)

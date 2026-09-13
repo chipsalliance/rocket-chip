@@ -117,10 +117,10 @@ class TLFIFOFixer(policy: TLFIFOFixer.Policy = TLFIFOFixer.all)(implicit p: Para
       val SourceIdClear = WireDefault(0.U(edgeIn.client.endSourceId.W))
 
       when (a_first && in.a.fire && !a_notFIFO)  {
-        SourceIdSet := UIntToOH(in.a.bits.source)
+        SourceIdSet :<= UIntToOH(in.a.bits.source, edgeIn.client.endSourceId)
       }
       when (d_first && in.d.fire)  {
-        SourceIdClear := UIntToOH(in.d.bits.source)
+        SourceIdClear :<= UIntToOH(in.d.bits.source, edgeIn.client.endSourceId)
       }
 
       SourceIdFIFOed := SourceIdFIFOed | SourceIdSet

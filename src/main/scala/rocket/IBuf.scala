@@ -45,7 +45,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
 
   if (n > 0) {
     when (io.inst(0).ready) {
-      nBufValid := Mux(nReady >== nBufValid, 0.U, nBufValid - nReady)
+      nBufValid :%= Mux(nReady >== nBufValid, 0.U, nBufValid - nReady)
       if (n > 1) when (nReady > 0.U && nReady < nBufValid) {
         val shiftedBuf = shiftInsnRight(buf.data(n*coreInstBits-1, coreInstBits), (nReady-1.U)(log2Ceil(n-1)-1,0))
         buf.data := Cat(buf.data(n*coreInstBits-1, (n-1)*coreInstBits), shiftedBuf((n-1)*coreInstBits-1, 0))
@@ -53,7 +53,7 @@ class IBuf(implicit p: Parameters) extends CoreModule {
       }
       when (io.imem.valid && nReady >= nBufValid && nICReady < nIC && n.U >= nIC - nICReady) {
         val shamt = pcWordBits + nICReady
-        nBufValid := nIC - nICReady
+        nBufValid :%= (nIC - nICReady)
         buf := io.imem.bits
         buf.data := shiftInsnRight(io.imem.bits.data, shamt)(n*coreInstBits-1,0)
         buf.pc := io.imem.bits.pc & ~pcWordMask | (io.imem.bits.pc + (nICReady << log2Ceil(coreInstBytes))) & pcWordMask

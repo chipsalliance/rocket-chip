@@ -11,6 +11,7 @@ import org.json4s.JsonDSL._
 import org.json4s.JsonAST.JValue
 
 import freechips.rocketchip.util.{SimpleRegIO}
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 case class RegReadFn private(combinational: Boolean, fn: (Bool, Bool) => (Bool, Bool, UInt))
 object RegReadFn
@@ -153,7 +154,7 @@ object RegField
     val oldBytes = VecInit.tabulate(numBytes) { i => pad(8*(i+1)-1, 8*i) }
     val newBytes = WireDefault(oldBytes)
     val valids = WireDefault(VecInit.fill(numBytes) { false.B })
-    when (valids.reduce(_ || _)) { reg := newBytes.asUInt }
+    when (valids.reduce(_ || _)) { reg :%= newBytes.asUInt }
 
     def wrFn(i: Int): RegWriteFn = RegWriteFn((valid, data) => {
       valids(i) := valid

@@ -305,7 +305,7 @@ class SetAssocLRU(n_sets: Int, n_ways: Int, policy: String) extends SetAssocRepl
     else RegInit(VecInit(Seq.fill(n_sets)(0.U(logic.nBits.W))))
 
   def access(set: UInt, touch_way: UInt) = {
-    state_vec(set) := logic.get_next_state(state_vec(set), touch_way)
+    state_vec(set) :%= logic.get_next_state(state_vec(set), touch_way)
   }
 
   def access(sets: Seq[UInt], touch_ways: Seq[Valid[UInt]]) = {

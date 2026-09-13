@@ -24,6 +24,7 @@ import freechips.rocketchip.util.{AsyncBundle, AsyncQueueParams, AsyncResetSynch
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 import freechips.rocketchip.util.SeqToAugmentedSeq
 import freechips.rocketchip.util.BooleanToAugmentedBoolean
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 object DsbBusConsts {
   def sbAddrWidth = 12
@@ -905,7 +906,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       when (~io.dmactive) {
         selectedHartReg := 0.U
       }.elsewhen (io.innerCtrl.fire){
-        selectedHartReg := io.innerCtrl.bits.hartsel
+        selectedHartReg :%= io.innerCtrl.bits.hartsel
       }
     }
 
@@ -1042,7 +1043,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         }.otherwise {
           when (haltgroupWrEn & DMCS2WrData.hgwrite & ~DMCS2WrData.hgselect &
               hamaskFull(component) & (DMCS2WrData.haltgroup <= nHaltGroups.U)) {
-            hgParticipateHart(component) := DMCS2WrData.haltgroup
+            hgParticipateHart(component) :%= DMCS2WrData.haltgroup
           }
         }
       }
@@ -1323,10 +1324,10 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         val hartselIndex        = UIntToOH(io.innerCtrl.bits.hartsel)
         when (hartHaltedWrEn) {
           // add those harts halting and remove those in reset
-          haltedBitRegs := (haltedBitRegs | hartHaltedIdIndex) & ~(hartIsInResetSync.asUInt)
+          haltedBitRegs :%= ((haltedBitRegs | hartHaltedIdIndex) & ~(hartIsInResetSync.asUInt))
         }.elsewhen (hartResumingWrEn) {
           // remove those harts in reset and those in resume
-          haltedBitRegs := (haltedBitRegs & ~(hartResumingIdIndex)) & ~(hartIsInResetSync.asUInt)
+          haltedBitRegs :%= ((haltedBitRegs & ~(hartResumingIdIndex)) & ~(hartIsInResetSync.asUInt))
         }.otherwise {
           // remove those harts in reset
           haltedBitRegs := haltedBitRegs & ~(hartIsInResetSync.asUInt)
@@ -1334,7 +1335,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
 
         when (hartResumingWrEn) {
           // remove those harts in resume and those in reset
-          resumeReqRegs := (resumeReqRegs & ~(hartResumingIdIndex)) & ~(hartIsInResetSync.asUInt)
+          resumeReqRegs :%= ((resumeReqRegs & ~(hartResumingIdIndex)) & ~(hartIsInResetSync.asUInt))
         }
         when (resumereq) {
           // set all sleceted harts to resumeReq, remove those in reset
@@ -1574,7 +1575,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
         val immBits = WireInit(VecInit(immWire.asBools))
 
         imm0 := immBits.slice(1,  1  + 10).asUInt
-        imm1 := immBits.slice(11, 11 + 11).asUInt
+        imm1 :%= immBits.slice(11, 11 + 11).asUInt
         imm2 := immBits.slice(12, 12 + 8).asUInt
         imm3 := immBits.slice(20, 20 + 1).asUInt
       }
@@ -1589,7 +1590,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       val offset = if (cfg.atzero) DATA else (DATA-0x800) & 0xFFF
       val base = if (cfg.atzero) 0.U else Mux(accessRegisterCommandReg.regno(0), 8.U, 9.U)
       inst.opcode := (Instructions.LW.value.U.asTypeOf(new GeneratedI())).opcode
-      inst.rd     := (accessRegisterCommandReg.regno & 0x1F.U)
+      inst.rd     :%= (accessRegisterCommandReg.regno & 0x1F.U)
       inst.funct3 := accessRegisterCommandReg.size
       inst.rs1    := base
       inst.imm    := offset.U
@@ -1604,7 +1605,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       inst.immlo  := (offset & 0x1F).U
       inst.funct3 := accessRegisterCommandReg.size
       inst.rs1    := base
-      inst.rs2    := (accessRegisterCommandReg.regno & 0x1F.U)
+      inst.rs2    :%= (accessRegisterCommandReg.regno & 0x1F.U)
       inst.immhi  := (offset >> 5).U
       inst.asUInt
     }

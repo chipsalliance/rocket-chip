@@ -369,8 +369,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     when (mem_resp_valid && traverse && can_refill && !hits.orR && !invalidated) {
       val r = Mux(valid.andR, plru.way, PriorityEncoder(~valid))
       valid := valid | UIntToOH(r)
-      tags(r) := tag
-      data(r) := pte.ppn
+      tags(r) :%= tag
+      data(r) :%= pte.ppn
       plru.access(r)
     }
     // replace
@@ -428,18 +428,18 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val r_l2_plru_way = Reg(UInt(log2Ceil(coreParams.nL2TLBWays max 1).W))
     r_valid_vec_q := r_valid_vec
     // replacement way
-    r_l2_plru_way := (if (coreParams.nL2TLBWays > 1) l2_plru.way(r_idx) else 0.U)
+    r_l2_plru_way :<= (if (coreParams.nL2TLBWays > 1) l2_plru.way(r_idx) else 0.U(0.W))
     // refill with r_pte(leaf pte)
     when (l2_refill && !invalidated) {
       val entry = Wire(new L2TLBEntry(nL2TLBSets))
-      entry.ppn := r_pte.ppn
+      entry.ppn :%= r_pte.ppn
       entry.d := r_pte.d
       entry.a := r_pte.a
       entry.u := r_pte.u
       entry.x := r_pte.x
       entry.w := r_pte.w
       entry.r := r_pte.r
-      entry.tag := r_tag
+      entry.tag :%= r_tag
       // if all the way are valid, use plru to select one way to be replaced,
       // otherwise use PriorityEncoderOH to select one
       val wmask = if (coreParams.nL2TLBWays > 1) Mux(r_valid_vec_q.andR, UIntToOH(r_l2_plru_way, coreParams.nL2TLBWays), PriorityEncoderOH(~r_valid_vec_q)) else 1.U(1.W)
@@ -562,7 +562,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     io.requestor(i).resp.bits.homogeneous := homogeneous || pageGranularityPMPs.B
     io.requestor(i).resp.bits.fragmented_superpage := resp_fragmented_superpage && pageGranularityPMPs.B
     io.requestor(i).resp.bits.gpa.valid := r_req.need_gpa
-    io.requestor(i).resp.bits.gpa.bits :=
+    io.requestor(i).resp.bits.gpa.bits :%=
       Mux(
         r_req.vstage1,
         Cat(
@@ -604,8 +604,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
         next_state := Mux(arb.io.out.bits.valid, s_req, s_ready)
         stage2       := arb.io.out.bits.bits.stage2
         stage2_final := arb.io.out.bits.bits.stage2 && !arb.io.out.bits.bits.vstage1
-        count       := Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
-        aux_count   := Mux(arb.io.out.bits.bits.vstage1, vsatp_initial_count, 0.U)
+        count       :%= Mux(arb.io.out.bits.bits.stage2, hgatp_initial_count, satp_initial_count)
+        aux_count   :%= Mux(arb.io.out.bits.bits.vstage1, vsatp_initial_count, 0.U)
         aux_pte.ppn := aux_ppn
         aux_pte.reserved_for_future := 0.U
         resp_ae_ptw := false.B
@@ -623,7 +623,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     }
     is (s_req) {
       when(stage2 && count === r_hgatp_initial_count) {
-        gpa_pgoff := Mux(aux_count === (pgLevels-1).U, r_req.addr << (xLen/8).log2, stage2_pte_cache_addr)
+        gpa_pgoff :%= Mux(aux_count === (pgLevels-1).U, r_req.addr << (xLen/8).log2, stage2_pte_cache_addr)
       }
       // pte_cache hit
       when (stage2_pte_cache_hit) {
@@ -703,10 +703,10 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     assert(state === s_wait3)
     next_state := s_req
     when (do_both_stages && !stage2) {
-      gpa_pgoff := {
+      gpa_pgoff :%= {
         val vpn_idxs = (0 until pgLevels).map(i => vpn >> ((pgLevels - i - 1) * pgLevelBits))
         val vpn_idx  = vpn_idxs(count + 1.U)
-        vpn_idx << log2Ceil(xLen / 8)
+        (vpn_idx << log2Ceil(xLen / 8))
       }
     }
 
@@ -759,7 +759,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   when (do_switch) {
     aux_count := Mux(traverse, count + 1.U, count)
-    count := r_hgatp_initial_count
+    count :%= r_hgatp_initial_count
     aux_pte := Mux(traverse, pte, {
       val s1_ppns = (0 until pgLevels-1).map(i => Cat(pte.ppn(pte.ppn.getWidth-1, (pgLevels-i-1)*pgLevelBits), r_req.addr(((pgLevels-i-1)*pgLevelBits min vpnBits)-1,0).padTo((pgLevels-i-1)*pgLevelBits))) :+ pte.ppn
       makePTE(s1_ppns(count), pte)
@@ -796,7 +796,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
   private def makeHypervisorRootPTE(hgatp: PTBR, vpn: UInt, default: PTE) = {
     val count = pgLevels.U - minPgLevels.U - hgatp.additionalPgLevels
     val idxs = (0 to pgLevels-minPgLevels).map(i => (vpn >> (pgLevels-i)*pgLevelBits))
-    val lsbs = WireDefault(UInt(maxHypervisorExtraAddrBits.W), idxs(count))
+    val lsbs = WireDefault(UInt(maxHypervisorExtraAddrBits.W), idxs(count).pad(maxHypervisorExtraAddrBits)(maxHypervisorExtraAddrBits - 1, 0))
     val pte = WireDefault(default)
     pte.ppn := Cat(hgatp.ppn >> maxHypervisorExtraAddrBits, lsbs)
     pte

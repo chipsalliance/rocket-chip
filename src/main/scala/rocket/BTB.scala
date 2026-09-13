@@ -233,7 +233,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   val usePageHit = pageHit.orR
   val doIdxPageRepl = !useUpdatePageHit
   val nextPageRepl = RegInit(0.U(log2Ceil(nPages).W))
-  val idxPageRepl = Cat(pageHit(nPages-2,0), pageHit(nPages-1)) | Mux(usePageHit, 0.U, UIntToOH(nextPageRepl))
+  val idxPageRepl = Cat(pageHit(nPages-2,0), pageHit(nPages-1)) | Mux(usePageHit, 0.U, UIntToOH(nextPageRepl, nPages))
   val idxPageUpdateOH = Mux(useUpdatePageHit, updatePageHit, idxPageRepl)
   val idxPageUpdate = OHToUInt(idxPageUpdateOH)
   val idxPageReplEn = Mux(doIdxPageRepl, idxPageRepl, 0.U)
@@ -258,15 +258,15 @@ class BTB(implicit p: Parameters) extends BtbModule {
   }
 
   when (r_btb_update.valid) {
-    val mask = UIntToOH(waddr)
+    val mask = UIntToOH(waddr, entries)
     idxs(waddr) := r_btb_update.bits.pc(matchBits-1, log2Up(coreInstBytes))
     tgts(waddr) := update_target(matchBits-1, log2Up(coreInstBytes))
-    idxPages(waddr) := idxPageUpdate +& 1.U // the +1 corresponds to the <<1 on io.resp.valid
+    idxPages(waddr) :%= (idxPageUpdate +& 1.U) // the +1 corresponds to the <<1 on io.resp.valid
     tgtPages(waddr) := tgtPageUpdate
     cfiType(waddr) := r_btb_update.bits.cfiType
-    isValid := Mux(r_btb_update.bits.isValid, isValid | mask, isValid & ~mask)
+    isValid :<= Mux(r_btb_update.bits.isValid, isValid | mask, isValid & ~mask)
     if (fetchWidth > 1)
-      brIdx(waddr) := r_btb_update.bits.br_pc >> log2Up(coreInstBytes)
+      brIdx(waddr) :%= (r_btb_update.bits.br_pc >> log2Up(coreInstBytes))
 
     require(nPages % 2 == 0)
     val idxWritesEven = !idxPageUpdate(0)
@@ -279,7 +279,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
       Mux(idxWritesEven, page(r_btb_update.bits.pc), page(update_target)))
     writeBank(1, 2, Mux(idxWritesEven, tgtPageReplEn, idxPageReplEn),
       Mux(idxWritesEven, page(update_target), page(r_btb_update.bits.pc)))
-    pageValid := pageValid | tgtPageReplEn | idxPageReplEn
+    pageValid :<= pageValid | tgtPageReplEn | idxPageReplEn
   }
 
   io.resp.valid := (pageHit << 1)(Mux1H(idxHit, idxPages))
@@ -287,7 +287,7 @@ class BTB(implicit p: Parameters) extends BtbModule {
   io.resp.bits.target := Cat(pagesMasked(Mux1H(idxHit, tgtPages)), Mux1H(idxHit, tgts) << log2Up(coreInstBytes))
   io.resp.bits.entry := OHToUInt(idxHit)
   io.resp.bits.bridx := (if (fetchWidth > 1) Mux1H(idxHit, brIdx) else 0.U)
-  io.resp.bits.mask := Cat((1.U << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, 0.U))-1.U, 1.U)
+  io.resp.bits.mask :%= Cat((1.U << ~Mux(io.resp.bits.taken, ~io.resp.bits.bridx, 0.U))-1.U, 1.U)
   io.resp.bits.cfiType := Mux1H(idxHit, cfiType)
 
   // if multiple entries for same PC land in BTB, zap them

@@ -721,9 +721,9 @@ class FPUFMAPipe(val latency: Int, val t: FType)
   fma.io.op := in.fmaCmd
   fma.io.roundingMode := in.rm
   fma.io.detectTininess := hardfloat.consts.tininess_afterRounding
-  fma.io.a := in.in1
-  fma.io.b := in.in2
-  fma.io.c := in.in3
+  fma.io.a :%= in.in1
+  fma.io.b :%= in.in2
+  fma.io.c :%= in.in3
 
   val res = Wire(new FPResult)
   res.data := sanitizeNaN(fma.io.out, t)
@@ -886,8 +886,8 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
 
   val ifpu = Module(new IntToFP(cfg.ifpuLatency))
   ifpu.io.in.valid := req_valid && ex_ctrl.fromint
-  ifpu.io.in.bits := fpiu.io.in.bits
-  ifpu.io.in.bits.in1 := Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
+  (ifpu.io.in.bits: Data).unsafe :<= (fpiu.io.in.bits: Data).unsafe
+  ifpu.io.in.bits.in1 :%= Mux(ex_cp_valid, io.cp_req.bits.in1, io.fromint_data)
 
   val fpmu = Module(new FPToFP(cfg.fpmuLatency))
   fpmu.io.in.valid := req_valid && ex_ctrl.fastpipe
@@ -954,7 +954,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
     for (i <- 0 until maxLatency-1) {
       when (!write_port_busy && memLatencyMask(i)) {
         wbInfo(i).cp := mem_cp_valid
-        wbInfo(i).typeTag := mem_ctrl.typeTagOut
+        wbInfo(i).typeTag :%= mem_ctrl.typeTagOut
         wbInfo(i).pipeid := pipeid(mem_ctrl)
         wbInfo(i).rd := mem_reg_inst(11,7)
       }

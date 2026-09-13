@@ -71,7 +71,7 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
     FN_DIVU   -> List(N, N, N, N),
     FN_REMU   -> List(N, Y, N, N))
   val cmdMul :: cmdHi :: lhsSigned :: rhsSigned :: Nil =
-    DecodeLogic(io.req.bits.fn, List(X, X, X, X),
+    DecodeLogic(io.req.bits.fn(2, 0), List(X, X, X, X),
       (if (cfg.divUnroll != 0) divDecode else Nil) ++ (if (cfg.mulUnroll != 0) mulDecode else Nil)).map(_.asBool)
 
   require(w == 32 || w == 64)
@@ -197,7 +197,7 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Modu
     FN_MULHU  -> List(Y, N, N),
     FN_MULHSU -> List(Y, Y, N))
   val cmdHi :: lhsSigned :: rhsSigned :: Nil =
-    DecodeLogic(in.bits.fn, List(X, X, X), decode).map(_.asBool)
+    DecodeLogic(in.bits.fn(1, 0), List(X, X, X), decode).map(_.asBool)
   val cmdHalf = (width > 32).B && in.bits.dw === DW_32
 
   val lhs = Cat(lhsSigned && in.bits.in1(width-1), in.bits.in1).asSInt
@@ -209,5 +209,5 @@ class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Modu
   io.resp.valid := resp.valid
   io.resp.bits.tag := resp.bits.tag
   io.resp.bits.data := Pipe(in.valid, muxed, latency-1).bits
-  io.resp.bits.full_data := Pipe(in.valid, prod, latency-1).bits.asUInt
+  io.resp.bits.full_data :%= Pipe(in.valid, prod, latency-1).bits.asUInt
 }

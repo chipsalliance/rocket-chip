@@ -24,7 +24,7 @@ object PMP {
     val pmp = Wire(new PMP()(reg.p))
     pmp.cfg := reg.cfg
     pmp.addr := reg.addr
-    pmp.mask := pmp.computeMask
+    pmp.mask :%= pmp.computeMask
     pmp
   }
 }

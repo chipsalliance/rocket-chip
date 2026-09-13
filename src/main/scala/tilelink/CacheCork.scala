@@ -139,7 +139,7 @@ class TLCacheCork(params: TLCacheCorkParams = TLCacheCorkParams())(implicit p: P
 
         // Take responses from D and transform them
         val d_d = Wire(chiselTypeOf(in.d))
-        d_d <> out.d
+        d_d :<>= out.d.squeezeAll
         d_d.bits.source := out.d.bits.source >> 1
 
         // Record if a target was writable and auto-promote toT if it was

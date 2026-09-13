@@ -22,6 +22,7 @@ import freechips.rocketchip.util.UIntToAugmentedUInt
 import freechips.rocketchip.util.UIntIsOneOf
 import freechips.rocketchip.util.SeqToAugmentedSeq
 import freechips.rocketchip.util.SeqBoolBitwiseOps
+import freechips.rocketchip.util.ConnectableBitsOpExtension
 
 case object ASIdBits extends Field[Int](0)
 case object VMIdBits extends Field[Int](0)
@@ -414,10 +415,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val mpu_priv = Mux[UInt](usingVM.B && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S.U, Cat(io.ptw.status.debug, priv))
   val pmp = Module(new PMPChecker(lgMaxSize))
-  pmp.io.addr := mpu_physaddr
+  pmp.io.addr :%= mpu_physaddr
   pmp.io.size := io.req.bits.size
   pmp.io.pmp := (io.ptw.pmp: Seq[PMP])
-  pmp.io.prv := mpu_priv
+  pmp.io.prv :%= mpu_priv
 
   val pma = Module(new PMAChecker(edge.manager)(p))
   pma.io.paddr := mpu_physaddr
@@ -447,7 +448,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     val pte = io.ptw.resp.bits.pte
     val refill_v = r_vstage1_en || r_stage2_en
     val newEntry = Wire(new TLBEntryData)
-    newEntry.ppn := pte.ppn
+    newEntry.ppn :%= pte.ppn
     newEntry.c := cacheable
     newEntry.u := pte.u
     newEntry.g := pte.g && pte.v
@@ -653,7 +654,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.resp.size := io.req.bits.size
   io.resp.cmd := io.req.bits.cmd
   io.resp.gpa_is_pte := vstage1_en && r_gpa_is_pte
-  io.resp.gpa := {
+  io.resp.gpa :%= {
     val page = Mux(!vstage1_en, Cat(bad_gpa, vpn), r_gpa >> pgIdxBits)
     val offset = Mux(io.resp.gpa_is_pte, r_gpa(pgIdxBits-1, 0), io.req.bits.vaddr(pgIdxBits-1, 0))
     Cat(page, offset)

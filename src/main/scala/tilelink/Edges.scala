@@ -348,7 +348,7 @@ class TLEdgeOut(
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -365,7 +365,7 @@ class TLEdgeOut(
     a.param   := growPermissions
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -462,7 +462,7 @@ class TLEdgeOut(
     a.param   := 0.U
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -482,7 +482,7 @@ class TLEdgeOut(
     a.param   := 0.U
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -502,10 +502,10 @@ class TLEdgeOut(
     a.param   := 0.U
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
-    a.mask    := mask
+    a.mask    :%= mask
     a.data    := data
     a.corrupt := corrupt
     (legal, a)
@@ -519,7 +519,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -536,7 +536,7 @@ class TLEdgeOut(
     a.param   := atomic
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -553,7 +553,7 @@ class TLEdgeOut(
     a.param   := param
     a.size    := lgSize
     a.source  := fromSource
-    a.address := toAddress
+    a.address :%= toAddress
     a.user    := DontCare
     a.echo    := DontCare
     a.mask    := mask(toAddress, lgSize)
@@ -645,7 +645,7 @@ class TLEdgeIn(
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.Grant
     d.param   := capPermissions
-    d.size    := lgSize
+    d.size    :%= lgSize
     d.source  := toSource
     d.sink    := fromSink
     d.denied  := denied
@@ -661,7 +661,7 @@ class TLEdgeIn(
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.GrantData
     d.param   := capPermissions
-    d.size    := lgSize
+    d.size    :%= lgSize
     d.source  := toSource
     d.sink    := fromSink
     d.denied  := denied
@@ -677,7 +677,7 @@ class TLEdgeIn(
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.ReleaseAck
     d.param   := 0.U
-    d.size    := lgSize
+    d.size    :%= lgSize
     d.source  := toSource
     d.sink    := 0.U
     d.denied  := denied
@@ -792,7 +792,7 @@ class TLEdgeIn(
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.AccessAck
     d.param   := 0.U
-    d.size    := lgSize
+    d.size    :%= lgSize
     d.source  := toSource
     d.sink    := 0.U
     d.denied  := denied
@@ -810,7 +810,7 @@ class TLEdgeIn(
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.AccessAckData
     d.param   := 0.U
-    d.size    := lgSize
+    d.size    :%= lgSize
     d.source  := toSource
     d.sink    := 0.U
     d.denied  := denied
@@ -828,7 +828,7 @@ class TLEdgeIn(
     val d = Wire(new TLBundleD(bundle))
     d.opcode  := TLMessages.HintAck
     d.param   := 0.U
-    d.size    := lgSize
+    d.size    :%= lgSize
     d.source  := toSource
     d.sink    := 0.U
     d.denied  := denied

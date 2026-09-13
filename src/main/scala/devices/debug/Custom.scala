@@ -84,7 +84,7 @@ class DebugCustomXbar(
     }
     // mux correct 'ready' and 'data' based on address
     sink.ready := (decoded zip sources).foldLeft(false.B){case (result, (d, i)) => result || (d & i.ready)}
-    sink.data := (decoded zip sources).foldLeft(0.U){ case (result, (d, i)) => result | Mux(i.ready, i.data, 0.U)}
+    sink.data :<= (decoded zip sources).foldLeft(0.U(0.W)){ case (result, (d, i)) => result | Mux(i.ready, i.data, 0.U)}
 
   }
 }

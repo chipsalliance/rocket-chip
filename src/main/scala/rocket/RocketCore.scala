@@ -421,8 +421,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val bpu = Module(new BreakpointUnit(nBreakpoints))
   bpu.io.status := csr.io.status
   bpu.io.bp := csr.io.bp
-  bpu.io.pc := ibuf.io.pc
-  bpu.io.ea := mem_reg_wdata
+  bpu.io.pc :%= ibuf.io.pc
+  bpu.io.ea :%= mem_reg_wdata
   bpu.io.mcontext := csr.io.mcontext
   bpu.io.scontext := csr.io.scontext
 
@@ -512,7 +512,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   alu.io.dw := ex_ctrl.alu_dw
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
-  alu.io.in1 := ex_op1.asUInt
+  alu.io.in1 :%= ex_op1.asUInt
 
   // multiplier and divider
   val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen))
@@ -926,7 +926,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
   }
 
-  csr.io.htval := htval
+  csr.io.htval :%= htval
   csr.io.mhtinst_read_pseudo := mhtinst_read_pseudo
   io.ptw.ptbr := csr.io.ptbr
   io.ptw.hgatp := csr.io.hgatp
@@ -1090,8 +1090,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.imem.sfence.valid := wb_reg_valid && wb_reg_sfence
   io.imem.sfence.bits.rs1 := wb_reg_mem_size(0)
   io.imem.sfence.bits.rs2 := wb_reg_mem_size(1)
-  io.imem.sfence.bits.addr := wb_reg_wdata
-  io.imem.sfence.bits.asid := wb_reg_rs2
+  io.imem.sfence.bits.addr :%= wb_reg_wdata
+  io.imem.sfence.bits.asid :%= wb_reg_rs2
   io.imem.sfence.bits.hv := wb_reg_hfence_v
   io.imem.sfence.bits.hg := wb_reg_hfence_g
   io.ptw.sfence := io.imem.sfence
@@ -1105,8 +1105,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     Mux(mem_ctrl.jalr && (mem_reg_inst(19,15) & regAddrMask.U) === BitPat("b00?01"), CFIType.ret,
     Mux(mem_ctrl.jal || mem_ctrl.jalr, CFIType.jump,
     CFIType.branch)))
-  io.imem.btb_update.bits.target := io.imem.req.bits.pc
-  io.imem.btb_update.bits.br_pc := (if (usingCompressed) mem_reg_pc + Mux(mem_reg_rvc, 0.U, 2.U) else mem_reg_pc)
+  io.imem.btb_update.bits.target :%= io.imem.req.bits.pc
+  io.imem.btb_update.bits.br_pc :%= (if (usingCompressed) mem_reg_pc + Mux(mem_reg_rvc, 0.U, 2.U) else mem_reg_pc)
   io.imem.btb_update.bits.pc := ~(~io.imem.btb_update.bits.br_pc | (coreInstBytes*fetchWidth-1).U)
   io.imem.btb_update.bits.prediction := mem_reg_btb_resp
   io.imem.btb_update.bits.taken := DontCare

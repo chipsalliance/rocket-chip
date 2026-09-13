@@ -4,6 +4,7 @@ package freechips.rocketchip
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.SourceInfo
 import scala.language.implicitConversions
 import scala.math.min
 import scala.collection.{immutable, mutable}
@@ -217,6 +218,15 @@ package object util {
 
     // Like >=, but prevents x-prop for ('x >= 0)
     def >== (y: UInt): Bool = x >= y || y === 0.U
+  }
+
+  // Backport of `chisel3.connectable.Connectable.ConnectableBitsOpExtension`'s `:%=`. This arrived
+  // in Chisel 7.14.0, so once rocket-chip's minimum supported Chisel version reaches that, we can
+  // drop this.
+  implicit class ConnectableBitsOpExtension[T <: Bits](private val x: T) extends AnyVal {
+    def :%=[S <: Bits](y: => S)(implicit evidence: T =:= S, sourceInfo: SourceInfo): Unit = {
+      x :#= y.squeeze
+    }
   }
 
   implicit class OptionUIntToAugmentedOptionUInt(private val x: Option[UInt]) extends AnyVal {

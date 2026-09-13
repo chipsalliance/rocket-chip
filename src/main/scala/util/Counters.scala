@@ -44,7 +44,7 @@ case class WideCounter(width: Int, inc: UInt = 1.U, reset: Boolean = true, inhib
   private val smallWidth = if (isWide) inc.getWidth max log2Up(width) else width
   private val small = if (reset) RegInit(0.U(smallWidth.W)) else Reg(UInt(smallWidth.W))
   private val nextSmall = small +& inc
-  when (!inhibit) { small := nextSmall }
+  when (!inhibit) { small :%= nextSmall }
 
   private val large = if (isWide) {
     val r = if (reset) RegInit(0.U((width - smallWidth).W)) else Reg(UInt((width - smallWidth).W))
@@ -64,7 +64,7 @@ case class WideCounter(width: Int, inc: UInt = 1.U, reset: Boolean = true, inhib
   }
 
   def := (x: UInt) = {
-    small := x
+    small :%= x
     if (isWide) large := x >> smallWidth
   }
 }
