@@ -966,18 +966,26 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
   val wtypeTag = Mux(divSqrt_wen, divSqrt_typeTag, wbInfo(0).typeTag)
   val wdata = box(Mux(divSqrt_wen, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid)), wtypeTag)
   val wexc = (pipes.map(_.res.exc): Seq[UInt])(wbInfo(0).pipeid)
-  when ((!wbInfo(0).cp && wen(0)) || divSqrt_wen) {
-    assert(consistent(wdata))
-    regfile(waddr) := wdata
+  // The scalar register write must never take a coprocessor divide/sqrt's
+  // address or data. io.cp_resp keeps using waddr/wdata above. A scalar
+  // pipelined result and a coprocessor divide/sqrt can complete on the same
+  // cycle, so select scalar sources here.
+  val divSqrt_wen_scalar = divSqrt_wen && !divSqrt_cp
+  val waddr_scalar = Mux(divSqrt_wen_scalar, divSqrt_waddr, wbInfo(0).rd)
+  val wtypeTag_scalar = Mux(divSqrt_wen_scalar, divSqrt_typeTag, wbInfo(0).typeTag)
+  val wdata_scalar = box(Mux(divSqrt_wen_scalar, divSqrt_wdata, (pipes.map(_.res.data): Seq[UInt])(wbInfo(0).pipeid)), wtypeTag_scalar)
+  when ((!wbInfo(0).cp && wen(0)) || divSqrt_wen_scalar) {
+    assert(consistent(wdata_scalar))
+    regfile(waddr_scalar) := wdata_scalar
     if (enableCommitLog) {
-      printf("f%d p%d 0x%x\n", waddr, waddr + 32.U, ieee(wdata))
+      printf("f%d p%d 0x%x\n", waddr_scalar, waddr_scalar + 32.U, ieee(wdata_scalar))
     }
-    frfWriteBundle(1).wrdst := waddr
+    frfWriteBundle(1).wrdst := waddr_scalar
     frfWriteBundle(1).wrenf := true.B
-    frfWriteBundle(1).wrdata := ieee(wdata)
+    frfWriteBundle(1).wrdata := ieee(wdata_scalar)
   }
   if (useDebugROB) {
-    DebugROB.pushWb(clock, reset, io.hartid, (!wbInfo(0).cp && wen(0)) || divSqrt_wen, waddr + 32.U, ieee(wdata))
+    DebugROB.pushWb(clock, reset, io.hartid, (!wbInfo(0).cp && wen(0)) || divSqrt_wen_scalar, waddr_scalar + 32.U, ieee(wdata_scalar))
   }
 
   when (wb_cp && (wen(0) || divSqrt_wen)) {
