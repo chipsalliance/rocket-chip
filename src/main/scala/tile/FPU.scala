@@ -760,7 +760,7 @@ class FPU(cfg: FPUParams)(implicit p: Parameters) extends FPUModule()(p) {
       id_ctrl.swap12 := false.B
       id_ctrl.toint := true.B
       id_ctrl.typeTagIn := I
-      id_ctrl.typeTagOut := Mux(io.v_sew === 3.U, D, S)
+      id_ctrl.typeTagOut := D
     }
     when (v_decode.io.write_frd) { id_ctrl.wen := true.B }
   })}
