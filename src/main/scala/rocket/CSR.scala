@@ -975,9 +975,12 @@ class CSRFile(
     require(reg_mip.getWidth <= xLen)
     log2Ceil(xLen)
   }
+  // Guest-visible cause code (VSSI=2 -> SSI=1, ...); vscause and the vector offset share it.
+  val vsCause = Mux(cause(xLen-1), Cat(cause(xLen-1, 2), 1.U(2.W)), cause)
+  val vectorCause = Mux(delegateVS, vsCause, cause)
   val notDebugTVec = {
     val base = Mux(delegate, Mux(delegateVS, read_vstvec, read_stvec), read_mtvec)
-    val interruptOffset = cause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
+    val interruptOffset = vectorCause(mtvecInterruptAlign-1, 0) << mtvecBaseAlign
     val interruptVec = Cat(base >> (mtvecInterruptAlign + mtvecBaseAlign), interruptOffset)
     val doVector = base(0) && cause(cause.getWidth-1) && (cause_lsbs >> mtvecInterruptAlign) === 0.U
     Mux(doVector, interruptVec, base >> mtvecBaseAlign << mtvecBaseAlign)
@@ -1059,7 +1062,7 @@ class CSRFile(
       reg_mstatus.v := true.B
       reg_vsstatus.spp := reg_mstatus.prv
       reg_vsepc := epc
-      reg_vscause := Mux(cause(xLen-1), Cat(cause(xLen-1, 2), 1.U(2.W)), cause)
+      reg_vscause := vsCause
       reg_vstval := tval
       reg_vsstatus.spie := reg_vsstatus.sie
       reg_vsstatus.sie := false.B
