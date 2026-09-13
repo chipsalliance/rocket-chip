@@ -156,6 +156,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
     val req_bits       = Input(new MSHRReqInternal())
 
     val idx_match       = Output(Bool())
+    val cbo_zero_active = Output(Bool()) // this MSHR is handling a cbo.zero miss
     val tag             = Output(Bits(tagBits.W))
 
     val mem_acquire  = Decoupled(new TLBundleA(edge.bundle))
@@ -167,16 +168,22 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
     val meta_write = Decoupled(new L1MetaWriteReq)
     val replay = Decoupled(new ReplayInternal)
     val wb_req = Decoupled(new WritebackReq(edge.bundle))
+    val data_write = Decoupled(new L1DataWriteReq) // Zicboz zero-fill
     val probe_rdy = Output(Bool())
   })
 
-  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(9)
+  // s_refill_zero: for cbo.zero, write the whole block with zeros before making
+  // the line valid, so the block is never observable with fetched/stale data.
+  val s_invalid :: s_wb_req :: s_wb_resp :: s_meta_clear :: s_refill_req :: s_refill_resp :: s_refill_zero :: s_meta_write_req :: s_meta_write_resp :: s_drain_rpq :: Nil = Enum(10)
   val state = RegInit(s_invalid)
 
   val req = Reg(new MSHRReqInternal)
   val req_idx = req.addr(untagBits-1,blockOffBits)
   val req_tag = req.addr >> untagBits
   val req_block_addr = (req.addr >> blockOffBits) << blockOffBits
+  val req_cbo_zero = usingZicboz.B && req.cmd === M_CBO_ZERO
+  val io_req_cbo_zero = usingZicboz.B && io.req_bits.cmd === M_CBO_ZERO
+  val zero_cnt = RegInit(0.U(log2Up(refillCycles+1).W))
   val idx_match = req_idx === io.req_bits.addr(untagBits-1,blockOffBits)
 
   val new_coh = RegInit(ClientMetadata.onReset)
@@ -192,7 +199,13 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
 
   val states_before_refill = Seq(s_wb_req, s_wb_resp, s_meta_clear)
   val (_, _, refill_done, refill_address_inc) = edge.addr_inc(io.mem_grant)
-  val sec_rdy = idx_match &&
+  // cbo.zero must not share an MSHR with any other command, in either
+  // direction: (a) a cbo.zero must not merge into another op's MSHR (that
+  // primary would not run s_refill_zero), and (b) another op must not merge
+  // into a cbo.zero's MSHR (a merging store's dirtier_cmd would overwrite
+  // req.cmd, clearing req_cbo_zero and skipping the zero-fill).  Either way the
+  // late op waits and allocates its own primary MSHR, ordered after this one.
+  val sec_rdy = idx_match && !io_req_cbo_zero && !req_cbo_zero &&
                   (state.isOneOf(states_before_refill) ||
                     (state.isOneOf(s_refill_req, s_refill_resp) &&
                       !cmd_requires_second_acquire && !refill_done))
@@ -217,7 +230,12 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   }
   when (state === s_refill_resp && refill_done) {
     new_coh := coh_on_grant
-    state := s_meta_write_req
+    zero_cnt := 0.U
+    state := Mux(req_cbo_zero, s_refill_zero, s_meta_write_req)
+  }
+  when (state === s_refill_zero && io.data_write.ready) {
+    zero_cnt := zero_cnt + 1.U
+    when (zero_cnt === (refillCycles-1).U) { state := s_meta_write_req }
   }
   when (io.mem_acquire.fire) { // s_refill_req
     state := s_refill_resp
@@ -247,9 +265,11 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
     val needs_wb = old_coh.onCacheControl(M_FLUSH)._1
     val (is_hit, _, coh_on_hit) = old_coh.onAccess(io.req_bits.cmd)
     when (io.req_bits.tag_match) {
-      when (is_hit) { // set dirty bit
+      when (is_hit) { // set dirty bit; a cbo.zero with permission (e.g. a Trunk
+                      // block) reaches here, so it must still zero the block
         new_coh := coh_on_hit
-        state := s_meta_write_req
+        zero_cnt := 0.U
+        state := Mux(io_req_cbo_zero, s_refill_zero, s_meta_write_req)
       }.otherwise { // upgrade permissions
         new_coh := old_coh
         state := s_refill_req
@@ -269,6 +289,7 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   grantackq.io.deq.ready := io.mem_finish.ready && can_finish
 
   io.idx_match := (state =/= s_invalid) && idx_match
+  io.cbo_zero_active := (state =/= s_invalid) && req_cbo_zero
   io.refill.way_en := req.way_en
   io.refill.addr := req_block_addr | refill_address_inc
   io.tag := req_tag 
@@ -278,7 +299,9 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   val meta_hazard = RegInit(0.U(2.W))
   when (meta_hazard =/= 0.U) { meta_hazard := meta_hazard + 1.U }
   when (io.meta_write.fire) { meta_hazard := 1.U }
-  io.probe_rdy := !idx_match || (!state.isOneOf(states_before_refill) && meta_hazard === 0.U)
+  // s_refill_zero may be zeroing a still-valid (e.g. Trunk) block, so a probe
+  // must not read it mid-zero; hold the probe off like the pre-refill states.
+  io.probe_rdy := !idx_match || (!state.isOneOf(states_before_refill) && state =/= s_refill_zero && meta_hazard === 0.U)
 
   io.meta_write.valid := state.isOneOf(s_meta_write_req, s_meta_clear)
   io.meta_write.bits.idx := req_idx
@@ -296,11 +319,25 @@ class MSHR(id: Int)(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCach
   io.wb_req.bits.voluntary := true.B
 
   io.mem_acquire.valid := state === s_refill_req && grantackq.io.enq.ready
+  // Ideally cbo.zero would emit AcquirePerm to gain write permission without
+  // fetching the soon-to-be-overwritten block, but the stock TLBroadcast hub
+  // answers AcquirePerm with GrantData (it always issues a Get to memory),
+  // which is a protocol violation.  Until a coherence manager that honors
+  // AcquirePerm is in use, fetch with AcquireBlock and overwrite in the array;
+  // the s_refill_zero fill below still makes the line correct before it is
+  // marked valid.  The performance win here comes from not fencing cbo.zero.
   io.mem_acquire.bits := edge.AcquireBlock(
                                 fromSource = id.U,
                                 toAddress = Cat(io.tag, req_idx) << blockOffBits,
                                 lgSize = lgCacheBlockBytes.U,
                                 growPermissions = grow_param)._2
+
+  // Zicboz zero-fill: drive one row of zeros per cycle into the refill way.
+  io.data_write.valid := state === s_refill_zero
+  io.data_write.bits.way_en := req.way_en
+  io.data_write.bits.addr := (if (refillCycles > 1) Cat(req_idx, zero_cnt(log2Up(refillCycles)-1, 0)) else req_idx) << rowOffBits
+  io.data_write.bits.wmask := ~0.U(rowWords.W)
+  io.data_write.bits.data := 0.U
 
   io.meta_read.valid := state === s_drain_rpq
   io.meta_read.bits.idx := req_idx
@@ -323,6 +360,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     val req = Flipped(Decoupled(new MSHRReq))
     val resp = Decoupled(new HellaCacheResp)
     val secondary_miss = Output(Bool())
+    val cbo_zero_active = Output(Bool()) // some MSHR is handling a cbo.zero miss
 
     val mem_acquire  = Decoupled(new TLBundleA(edge.bundle))
     val mem_grant = Flipped(Valid(new TLBundleD(edge.bundle)))
@@ -333,6 +371,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     val meta_write = Decoupled(new L1MetaWriteReq)
     val replay = Decoupled(new Replay)
     val wb_req = Decoupled(new WritebackReq(edge.bundle))
+    val data_write = Decoupled(new L1DataWriteReq) // Zicboz zero-fill
 
     val probe_rdy = Output(Bool())
     val fence_rdy = Output(Bool())
@@ -360,12 +399,14 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
   val meta_write_arb = Module(new Arbiter(new L1MetaWriteReq, cfg.nMSHRs))
   val wb_req_arb = Module(new Arbiter(new WritebackReq(edge.bundle), cfg.nMSHRs))
   val replay_arb = Module(new Arbiter(new ReplayInternal, cfg.nMSHRs))
+  val data_write_arb = Module(new Arbiter(new L1DataWriteReq, cfg.nMSHRs))
   val alloc_arb = Module(new Arbiter(Bool(), cfg.nMSHRs))
   alloc_arb.io.in.foreach(_.bits := DontCare)
 
   var idx_match = false.B
   var pri_rdy = false.B
   var sec_rdy = false.B
+  var cbo_zero_active = false.B
 
   io.fence_rdy := true.B
   io.probe_rdy := true.B
@@ -391,6 +432,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     meta_write_arb.io.in(i) <> mshr.io.meta_write
     wb_req_arb.io.in(i) <> mshr.io.wb_req
     replay_arb.io.in(i) <> mshr.io.replay
+    data_write_arb.io.in(i) <> mshr.io.data_write
 
     mshr.io.mem_grant.valid := io.mem_grant.valid && io.mem_grant.bits.source === i.U
     mshr.io.mem_grant.bits := io.mem_grant.bits
@@ -399,6 +441,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
     pri_rdy = pri_rdy || mshr.io.req_pri_rdy
     sec_rdy = sec_rdy || mshr.io.req_sec_rdy
     idx_match = idx_match || mshr.io.idx_match
+    cbo_zero_active = cbo_zero_active || mshr.io.cbo_zero_active
 
     when (!mshr.io.req_pri_rdy) { io.fence_rdy := false.B }
     when (!mshr.io.probe_rdy) { io.probe_rdy := false.B }
@@ -412,6 +455,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
   io.meta_read <> meta_read_arb.io.out
   io.meta_write <> meta_write_arb.io.out
   io.wb_req <> wb_req_arb.io.out
+  io.data_write <> data_write_arb.io.out
 
   val mmio_alloc_arb = Module(new Arbiter(Bool(), nIOMSHRs))
   mmio_alloc_arb.io.in.foreach(_.bits := DontCare)
@@ -453,6 +497,7 @@ class MSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends L1HellaCacheModu
                     mmio_rdy,
                     sdq_rdy && Mux(idx_match, tag_match && sec_rdy, pri_rdy))
   io.secondary_miss := idx_match
+  io.cbo_zero_active := cbo_zero_active
   io.refill := refillMux(io.mem_grant.bits.source)
 
   val free_sdq = io.replay.fire && isWrite(io.replay.bits.cmd)
@@ -750,7 +795,9 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s1_recycled = RegEnable(s2_recycle, false.B, s1_clk_en)
   val s1_read  = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
-  val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd)
+  val s1_cbo_zero = usingZicboz.B && s1_req.cmd === M_CBO_ZERO
+  val s1_cbo = usingZicbom.B && isCBOMgmt(s1_req.cmd) || s1_cbo_zero
+  val s1_readwrite = s1_read || s1_write || isPrefetch(s1_req.cmd) || s1_cbo
   // check for unsupported operations
   assert(!s1_valid || !s1_req.cmd.isOneOf(M_PWR))
 
@@ -814,14 +861,14 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   def onReset = L1Metadata(0.U, ClientMetadata.onReset)
   val meta = Module(new L1MetadataArray(() => onReset ))
   val metaReadArb = Module(new Arbiter(new L1MetaReadReq, 5))
-  val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 2))
+  val metaWriteArb = Module(new Arbiter(new L1MetaWriteReq, 3))
   meta.io.read <> metaReadArb.io.out
   meta.io.write <> metaWriteArb.io.out
 
   // data
   val data = Module(new DataArray)
   val readArb = Module(new Arbiter(new L1DataReadReq, 4))
-  val writeArb = Module(new Arbiter(new L1DataWriteReq, 2))
+  val writeArb = Module(new Arbiter(new L1DataWriteReq, 4))
   data.io.write.valid := writeArb.io.out.valid
   writeArb.io.out.ready := data.io.write.ready
   data.io.write.bits := writeArb.io.out.bits
@@ -861,6 +908,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_hit_state = Mux1H(s2_tag_match_way, wayMap((w: Int) => RegEnable(meta.io.resp(w).coh, s1_clk_en)))
   val (s2_has_permission, _, s2_new_hit_state) = s2_hit_state.onAccess(s2_req.cmd)
   val s2_hit = s2_tag_match && s2_has_permission && s2_hit_state === s2_new_hit_state
+  val s2_cbo_mgmt = usingZicbom.B && isCBOMgmt(s2_req.cmd)
+  val s2_cbo_zero = usingZicboz.B && s2_req.cmd === M_CBO_ZERO
 
   // load-reserved/store-conditional
   val lrsc_count = RegInit(0.U)
@@ -922,7 +971,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   val s2_repl_meta = Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegEnable(meta.io.resp(w), s1_clk_en && s1_replaced_way_en(w))).toSeq)
 
   // miss handling
-  mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd))
+  mshrs.io.req.valid := s2_valid_masked && !s2_hit && (isPrefetch(s2_req.cmd) || isRead(s2_req.cmd) || isWrite(s2_req.cmd) || s2_cbo_zero)
   mshrs.io.req.bits.viewAsSupertype(new Replay) := s2_req.viewAsSupertype(new HellaCacheReq)
   mshrs.io.req.bits.tag_match := s2_tag_match
   mshrs.io.req.bits.old_meta := Mux(s2_tag_match, L1Metadata(s2_repl_meta.tag, s2_hit_state), s2_repl_meta)
@@ -969,7 +1018,7 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   tl_out.e <> mshrs.io.mem_finish
 
   // writebacks
-  val wbArb = Module(new Arbiter(new WritebackReq(edge.bundle), 2))
+  val wbArb = Module(new Arbiter(new WritebackReq(edge.bundle), 3))
   wbArb.io.in(0) <> prober.io.wb_req
   wbArb.io.in(1) <> mshrs.io.wb_req
   wb.io.req <> wbArb.io.out
@@ -977,6 +1026,125 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   readArb.io.in(2) <> wb.io.data_req
   wb.io.data_resp := s2_data_corrected
   TLArbiter.lowest(edge, tl_out.c, wb.io.release, prober.io.rep)
+
+  // Zicboz cbo.zero engine for HITS: when a cbo.zero hits a block that already
+  // has write permission, zero it one row per cycle.  Misses instead allocate
+  // an MSHR (like a store), which acquires write permission without fetching
+  // and zero-fills the block before making the line valid (see s_refill_zero);
+  // the MSHR's own replay is excluded here so it isn't zeroed twice.
+  // A 2-deep queue of pending (way, idx) lets back-to-back cbo.zero hits chain
+  // with no bubble: while one block is zeroed (refillCycles rows, one per cycle)
+  // the next hit's tag lookup completes and enqueues, so the data write port is
+  // driven every cycle across block boundaries.  Any non-cbo.zero access is held
+  // off until the queue drains, so a half-zeroed block is never observed; this
+  // targets tight zeroing loops and just serializes mixed traffic.
+  class ZeroBlock extends Bundle {
+    val way = Bits(nWays.W)
+    val idx = UInt(idxBits.W)
+  }
+  val zeroq = Module(new Queue(new ZeroBlock, 2))
+  val s2_zero_hit = s2_valid_masked && s2_hit && s2_cbo_zero
+  zeroq.io.enq.valid := s2_zero_hit
+  zeroq.io.enq.bits.way := s2_tag_match_way
+  zeroq.io.enq.bits.idx := s2_req.addr(idxMSB, idxLSB)
+
+  val zero_valid = RegInit(false.B)
+  val zero_beat = RegInit(0.U(log2Up(refillCycles max 2).W))
+  val zero_cur = Reg(new ZeroBlock)
+  val zero_last = zero_valid && writeArb.io.in(2).fire && zero_beat === (refillCycles-1).U
+  zeroq.io.deq.ready := !zero_valid || zero_last
+  when (zeroq.io.deq.fire) {
+    zero_valid := true.B
+    zero_beat := 0.U
+    zero_cur := zeroq.io.deq.bits
+  } .elsewhen (zero_last) {
+    zero_valid := false.B
+  }
+  when (writeArb.io.in(2).fire && !zeroq.io.deq.fire) {
+    zero_beat := zero_beat + 1.U
+  }
+  writeArb.io.in(2).valid := zero_valid
+  writeArb.io.in(2).bits.addr := (if (refillCycles > 1) Cat(zero_cur.idx, zero_beat(log2Up(refillCycles)-1, 0)) else zero_cur.idx) << rowOffBits
+  writeArb.io.in(2).bits.way_en := zero_cur.way
+  writeArb.io.in(2).bits.wmask := ~0.U(rowWords.W)
+  writeArb.io.in(2).bits.data := 0.U
+
+  // MSHR zero-fill data-array writes (Zicboz miss path)
+  writeArb.io.in(3) <> mshrs.io.data_write
+
+  // Zicbom cbo.clean/flush/inval engine: write back the block if it is dirty
+  // (unless discarding), then invalidate it.  A miss completes as a no-op.
+  //
+  // Scope notes:
+  //  - These ops act only on THIS L1.  A miss is a no-op and a hit only writes
+  //    back/invalidates the local copy; nothing is sent toward the point of
+  //    coherence.  That is spec-correct for a single-core tile (this L1 is the
+  //    sole coherent data cache) and for non-coherent agents reached through the
+  //    coherent front bus, but in a multi-core tile it does NOT reach a dirty
+  //    copy held by another hart.  Full cross-hart CMO would need an outer
+  //    coherence manager that performs the maintenance, or an acquire-to-flush
+  //    enhancement here -- out of scope for this change.
+  //  - The final invalidate drops a clean block with no Release, matching this
+  //    cache's existing eviction behavior (see needs_wb above): the non-blocking
+  //    D$ already assumes silentDrop, so this adds no new manager requirement.
+  val fs_idle :: fs_wb :: fs_wb_wait :: fs_meta :: Nil = Enum(4)
+  val flush_state = RegInit(fs_idle)
+  val flush_way = Reg(Bits(nWays.W))
+  val flush_idx = Reg(UInt(idxBits.W))
+  val flush_tag = Reg(UInt(tagBits.W))
+  val flush_shrink = Reg(UInt(TLPermissions.cWidth.W))
+  val flush_acked = Reg(Bool())
+  val (s2_flush_dirty, s2_flush_shrink, _) = s2_hit_state.onCacheControl(M_FLUSH)
+  val s2_flush_discard = s2_req.size(1) // cbo.inval, unless degraded to a flush
+  // cbo.clean/cbo.flush must write back dirty data, so a bad size encoding that
+  // set the discard bit would silently drop it -- catch such misuse.
+  assert(!(s2_valid && s2_cbo_mgmt && s2_req.cmd =/= M_CBO_INVAL && s2_flush_discard),
+    "cbo.clean/cbo.flush must not carry the discard (size[1]) encoding")
+  // The flush FSM issues its writeback with the fixed source id 0, which is safe
+  // only while MSHR 0 is idle.  The core fences management ops, but the PTW and
+  // other cache-port clients are not fenced and could allocate MSHR 0 in the
+  // window before the op reaches s2, so only start once all MSHRs are idle; the
+  // FSM then blocks all new/in-flight requests (cbo_busy), keeping source 0 free
+  // for its whole duration.  A management op that hits while an MSHR is still
+  // busy is nacked and retried.
+  val s2_flush_start = s2_valid_masked && s2_cbo_mgmt && s2_tag_match && flush_state === fs_idle && mshrs.io.fence_rdy
+  assert(flush_state === fs_idle || mshrs.io.fence_rdy,
+    "flush FSM: an MSHR became active mid-flush, source 0 could collide")
+  when (s2_flush_start) {
+    flush_way := s2_tag_match_way
+    flush_idx := s2_req.addr(idxMSB, idxLSB)
+    flush_tag := s2_req.addr >> untagBits
+    flush_shrink := s2_flush_shrink
+    flush_acked := false.B
+    flush_state := Mux(s2_flush_dirty && !s2_flush_discard, fs_wb, fs_meta)
+  }
+  wbArb.io.in(2).valid := flush_state === fs_wb
+  wbArb.io.in(2).bits.tag := flush_tag
+  wbArb.io.in(2).bits.idx := flush_idx
+  wbArb.io.in(2).bits.source := 0.U // quiescent, so MSHR 0's source is free
+  wbArb.io.in(2).bits.param := flush_shrink
+  wbArb.io.in(2).bits.way_en := flush_way
+  wbArb.io.in(2).bits.voluntary := true.B
+  when (wbArb.io.in(2).fire) { flush_state := fs_wb_wait }
+  when (tl_out.d.fire && tl_out.d.bits.opcode === TLMessages.ReleaseAck && tl_out.d.bits.source === 0.U) {
+    flush_acked := true.B
+  }
+  when (flush_state === fs_wb_wait && flush_acked && wb.io.req.ready) { flush_state := fs_meta }
+  metaWriteArb.io.in(2).valid := flush_state === fs_meta
+  metaWriteArb.io.in(2).bits.idx := flush_idx
+  metaWriteArb.io.in(2).bits.tag := flush_tag
+  metaWriteArb.io.in(2).bits.way_en := flush_way
+  metaWriteArb.io.in(2).bits.data.tag := flush_tag
+  metaWriteArb.io.in(2).bits.data.coh := ClientMetadata.onReset
+  when (metaWriteArb.io.in(2).fire) { flush_state := fs_idle }
+
+  // block probes and non-cbo.zero requests while a CBO engine owns the arrays,
+  // but keep feeding the zero pipeline so back-to-back cbo.zero hits stay full
+  val cbo_busy = zero_valid || zeroq.io.deq.valid || s2_zero_hit || flush_state =/= fs_idle || s2_flush_start
+  val cbo_zero_feed = flush_state === fs_idle && !s2_flush_start &&
+                      io.cpu.req.bits.cmd === M_CBO_ZERO && zeroq.io.enq.ready
+  when (cbo_busy && !cbo_zero_feed) { io.cpu.req.ready := false.B }
+  prober.io.mshr_rdy := mshrs.io.probe_rdy && !cbo_busy
 
   // store->load bypassing
   val s4_valid = RegNext(s3_valid, false.B)
@@ -1008,15 +1176,32 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
 
   // nack it like it's hot
   val s1_nack = dtlb.io.req.valid && dtlb.io.resp.miss || io.cpu.s2_nack || s1_tlb_req_valid ||
-                s1_req.addr(idxMSB,idxLSB) === prober.io.meta_write.bits.idx && !prober.io.req.ready
+                s1_req.addr(idxMSB,idxLSB) === prober.io.meta_write.bits.idx && !prober.io.req.ready ||
+                cbo_busy && !s1_cbo_zero
   val s2_nack_hit = RegEnable(s1_nack, s1_valid || s1_replay)
   when (s2_nack_hit) { mshrs.io.req.valid := false.B }
   val s2_nack_victim = s2_hit && mshrs.io.secondary_miss
   val s2_nack_miss = !s2_hit && !mshrs.io.req.ready
-  val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss
+  // a cbo.zero hit that can't enqueue (queue full) retries
+  val s2_nack_zeroq = s2_valid && s2_hit && s2_cbo_zero && !io.cpu.s2_kill && !zeroq.io.enq.ready
+  // The hit-path zero engine and cbo.zero-miss MSHRs both take ownership of a
+  // (set, way) and would race if run together (an allocating miss could pick, as
+  // its victim, a block queued for / being zeroed).  Keep them mutually
+  // exclusive: nack a cbo.zero miss while the engine has work queued, and nack a
+  // cbo.zero hit while a cbo.zero miss is being handled by an MSHR.  The pure
+  // warm-hit and pure cold-miss loops use only one mechanism, so neither nack
+  // fires there; only interleaved hit/miss traffic serializes.
+  val zero_engine_busy = zero_valid || zeroq.io.deq.valid
+  val s2_nack_cbo_xcl = s2_valid && s2_cbo_zero && !io.cpu.s2_kill &&
+    Mux(s2_hit, mshrs.io.cbo_zero_active, zero_engine_busy)
+  // a management op that hits but can't start the flush FSM yet (an MSHR is
+  // still busy -- see the source-0 note) retries until the cache is quiescent
+  val s2_nack_flush = s2_valid && s2_cbo_mgmt && s2_tag_match && !io.cpu.s2_kill &&
+    !(flush_state === fs_idle && mshrs.io.fence_rdy)
+  val s2_nack = s2_nack_hit || s2_nack_victim || s2_nack_miss || s2_nack_zeroq || s2_nack_cbo_xcl || s2_nack_flush
   s2_valid_masked := s2_valid && !s2_nack && !io.cpu.s2_kill
 
-  val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable
+  val s2_recycle_ecc = (s2_valid || s2_replay) && s2_hit && s2_data_correctable && !s2_cbo_zero
   val s2_recycle_next = RegInit(false.B)
   when (s1_valid || s1_replay) { s2_recycle_next := s2_recycle_ecc }
   s2_recycle := s2_recycle_ecc || s2_recycle_next
@@ -1055,8 +1240,8 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.resp := Mux(mshrs.io.resp.ready, uncache_resp, cache_resp)
   io.cpu.resp.bits.data_word_bypass := loadgen.wordData
   io.cpu.resp.bits.data_raw := s2_data_word
-  io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid
-  io.cpu.store_pending := mshrs.io.store_pending
+  io.cpu.ordered := mshrs.io.fence_rdy && !s1_valid && !s2_valid && !cbo_busy
+  io.cpu.store_pending := mshrs.io.store_pending || cbo_busy
   io.cpu.replay_next := (s1_replay && s1_read) || mshrs.io.replay_next
 
   val s1_xcpt_valid = dtlb.io.req.valid && !s1_nack

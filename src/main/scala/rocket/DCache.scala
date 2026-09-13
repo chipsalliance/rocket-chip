@@ -145,9 +145,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     * 0: data from pending store buffer
     * 1: data from TL-D refill
     * 2: release to TL-A
-    * 3: hit path to CPU
+    * 3: cbo.zero engine
+    * 4: hit path to CPU
     */
-  val dataArb = Module(new Arbiter(new DCacheDataReq, 4) with InlineInstance)
+  val dataArb = Module(new Arbiter(new DCacheDataReq, 5) with InlineInstance)
   dataArb.io.in.tail.foreach(_.bits.wdata := dataArb.io.in.head.bits.wdata) // tie off write ports by default
   data.io.req.bits <> dataArb.io.out.bits
   data.io.req.valid := dataArb.io.out.valid
@@ -207,14 +208,15 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   val s1_read = isRead(s1_req.cmd)
   val s1_write = isWrite(s1_req.cmd)
-  val s1_readwrite = s1_read || s1_write
+  val s1_cbo_zero = usingZicboz.B && s1_req.cmd === M_CBO_ZERO
+  val s1_readwrite = s1_read || s1_write || s1_cbo_zero
   val s1_sfence = s1_req.cmd === M_SFENCE || s1_req.cmd === M_HFENCEV || s1_req.cmd === M_HFENCEG
-  val s1_flush_line = s1_req.cmd === M_FLUSH_ALL && s1_req.size(0)
+  val s1_flush_line = s1_req.cmd === M_FLUSH_ALL && s1_req.size(0) || usingZicbom.B && isCBOMgmt(s1_req.cmd)
   val s1_flush_valid = Reg(Bool())
   val s1_waw_hazard = Wire(Bool())
 
   val s_ready :: s_voluntary_writeback :: s_probe_rep_dirty :: s_probe_rep_clean :: s_probe_retry :: s_probe_rep_miss :: s_voluntary_write_meta :: s_probe_write_meta :: s_dummy :: s_voluntary_release :: Nil = Enum(10)
-  val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush
+  val supports_flush = outer.flushOnFenceI || coreParams.haveCFlush || usingZicbom
   val flushed = RegInit(true.B)
   val flushing = RegInit(false.B)
   val flushing_req = Reg(chiselTypeOf(s1_req))
@@ -228,7 +230,25 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val any_pstore_valid = Wire(Bool())
   val inWriteback = release_state.isOneOf(s_voluntary_writeback, s_probe_rep_dirty)
   val releaseWay = Wire(UInt())
-  io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack
+  // cbo.zero engine: after a write-permission hit, zero the block one data
+  // row per cycle while blocking other cache activity
+  val zero_valid = RegInit(false.B)
+  val zero_beat = Reg(UInt(log2Ceil(refillCycles max 2).W))
+  val zero_way = Reg(UInt(nWays.W))
+  val zero_idx = Reg(UInt(idxBits.W))
+  class ZeroBlock extends Bundle {
+    val way = UInt(nWays.W)
+    val idx = UInt(idxBits.W)
+  }
+  // flow=true so an isolated cbo.zero (e.g. a miss replay) starts the engine the
+  // same cycle it hits, with no enqueue->dequeue bubble; back-to-back hits still
+  // queue and chain while the engine is busy.
+  val zeroq = Module(new Queue(new ZeroBlock, 4, flow = true))
+  val zero_pending = zero_valid || zeroq.io.deq.valid
+  // During zeroing let a cbo.zero issue ONLY if the queue has room, so it stalls
+  // cleanly at issue instead of entering and nack-spinning on a full queue.
+  io.cpu.req.ready := (release_state === s_ready) && !cached_grant_wait && !s1_nack &&
+                      (!zero_pending || (io.cpu.req.bits.cmd === M_CBO_ZERO && zeroq.io.enq.ready))
 
   // I/O MSHRs
   val uncachedInFlight = RegInit(VecInit(Seq.fill(maxUncachedInFlight)(false.B)))
@@ -237,11 +257,11 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
 
   // hit initiation path
   val s0_read = isRead(io.cpu.req.bits.cmd)
-  dataArb.io.in(3).valid := io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)
-  dataArb.io.in(3).bits := dataArb.io.in(1).bits
-  dataArb.io.in(3).bits.write := false.B
-  dataArb.io.in(3).bits.addr := Cat(io.cpu.req.bits.idx.getOrElse(io.cpu.req.bits.addr) >> tagLSB, io.cpu.req.bits.addr(tagLSB-1, 0))
-  dataArb.io.in(3).bits.wordMask := {
+  dataArb.io.in(4).valid := io.cpu.req.valid && likelyNeedsRead(io.cpu.req.bits)
+  dataArb.io.in(4).bits := dataArb.io.in(1).bits
+  dataArb.io.in(4).bits.write := false.B
+  dataArb.io.in(4).bits.addr := Cat(io.cpu.req.bits.idx.getOrElse(io.cpu.req.bits.addr) >> tagLSB, io.cpu.req.bits.addr(tagLSB-1, 0))
+  dataArb.io.in(4).bits.wordMask := {
     val mask = (subWordBytes.log2 until rowOffBits).foldLeft(1.U) { case (in, i) =>
       val upper_mask = Mux((i >= wordBytes.log2).B || io.cpu.req.bits.size <= i.U, 0.U,
         ((BigInt(1) << (1 << (i - subWordBytes.log2)))-1).U)
@@ -251,14 +271,14 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     }
     Fill(subWordBytes / eccBytes, mask)
   }
-  dataArb.io.in(3).bits.eccMask := ~0.U((wordBytes / eccBytes).W)
-  dataArb.io.in(3).bits.way_en := ~0.U(nWays.W)
-  when (!dataArb.io.in(3).ready && s0_read) { io.cpu.req.ready := false.B }
-  val s1_did_read = RegEnable(dataArb.io.in(3).ready && (io.cpu.req.valid && needsRead(io.cpu.req.bits)), s0_clk_en)
-  val s1_read_mask = RegEnable(dataArb.io.in(3).bits.wordMask, s0_clk_en)
+  dataArb.io.in(4).bits.eccMask := ~0.U((wordBytes / eccBytes).W)
+  dataArb.io.in(4).bits.way_en := ~0.U(nWays.W)
+  when (!dataArb.io.in(4).ready && s0_read) { io.cpu.req.ready := false.B }
+  val s1_did_read = RegEnable(dataArb.io.in(4).ready && (io.cpu.req.valid && needsRead(io.cpu.req.bits)), s0_clk_en)
+  val s1_read_mask = RegEnable(dataArb.io.in(4).bits.wordMask, s0_clk_en)
   metaArb.io.in(7).valid := io.cpu.req.valid
   metaArb.io.in(7).bits.write := false.B
-  metaArb.io.in(7).bits.idx := dataArb.io.in(3).bits.addr(idxMSB, idxLSB)
+  metaArb.io.in(7).bits.idx := dataArb.io.in(4).bits.addr(idxMSB, idxLSB)
   metaArb.io.in(7).bits.addr := io.cpu.req.bits.addr
   metaArb.io.in(7).bits.way_en := metaArb.io.in(4).bits.way_en
   metaArb.io.in(7).bits.data := metaArb.io.in(4).bits.data
@@ -336,7 +356,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_valid_not_killed = s2_valid_masked && !io.cpu.s2_kill
   val s2_req = Reg(chiselTypeOf(io.cpu.req.bits))
   val s2_cmd_flush_all = s2_req.cmd === M_FLUSH_ALL && !s2_req.size(0)
-  val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.size(0)
+  val s2_cmd_flush_line = s2_req.cmd === M_FLUSH_ALL && s2_req.size(0) || usingZicbom.B && isCBOMgmt(s2_req.cmd)
   val s2_tlb_xcpt = Reg(chiselTypeOf(tlb.io.resp))
   val s2_pma = Reg(chiselTypeOf(tlb.io.resp))
   val s2_uncached_resp_addr = Reg(chiselTypeOf(s2_req.addr)) // should be DCE'd in synthesis
@@ -349,7 +369,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val s2_vaddr = Cat(RegEnable(s1_vaddr, s1_valid_not_nacked || s1_flush_valid) >> tagLSB, s2_req.addr(tagLSB-1, 0))
   val s2_read = isRead(s2_req.cmd)
   val s2_write = isWrite(s2_req.cmd)
-  val s2_readwrite = s2_read || s2_write
+  val s2_cbo_zero = usingZicboz.B && s2_req.cmd === M_CBO_ZERO
+  val s2_readwrite = s2_read || s2_write || s2_cbo_zero
   val s2_flush_valid_pre_tag_ecc = RegNext(s1_flush_valid)
   val s1_meta_decoded = s1_meta.map(tECC.decode(_))
   val s1_meta_clk_en = s1_valid_not_nacked || s1_flush_valid || s1_probe
@@ -415,6 +436,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
   val s2_valid_hit_pre_data_ecc_and_waw = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_readwrite && !s2_no_alloc_hazard
   val s2_valid_flush_line = s2_valid_hit_maybe_flush_pre_data_ecc_and_waw && s2_cmd_flush_line
+  // cbo.clean/cbo.flush write back dirty data; a bad size encoding setting the
+  // discard bit (size[1]) would silently drop it -- catch such misuse.
+  assert(!(s2_valid && usingZicbom.B && isCBOMgmt(s2_req.cmd) && s2_req.cmd =/= M_CBO_INVAL && s2_req.size(1)),
+    "cbo.clean/cbo.flush must not carry the discard (size[1]) encoding")
   val s2_valid_hit_pre_data_ecc = s2_valid_hit_pre_data_ecc_and_waw && (!s2_waw_hazard || s2_store_merge)
   val s2_valid_data_error = s2_valid_hit_pre_data_ecc_and_waw && s2_data_error
   val s2_valid_hit = s2_valid_hit_pre_data_ecc && !s2_data_error
@@ -440,7 +465,9 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     (supports_flush.B && s2_cmd_flush_all && flushed && !flushing ||
      supports_flush.B && s2_cmd_flush_line && !s2_hit ||
      s2_req.cmd === M_WOK)
-  io.cpu.s2_nack := s2_valid_no_xcpt && !s2_dont_nack_uncached && !s2_dont_nack_misc && !s2_valid_hit
+  // a cbo.zero hit that can't enqueue (queue full) must retry rather than complete
+  val s2_zero_nack = usingZicboz.B && s2_valid_hit && s2_cbo_zero && !zeroq.io.enq.ready
+  io.cpu.s2_nack := (s2_valid_no_xcpt && !s2_dont_nack_uncached && !s2_dont_nack_misc && !s2_valid_hit) || s2_zero_nack
   when (io.cpu.s2_nack || (s2_valid_hit_pre_data_ecc_and_waw && s2_update_meta)) { s1_nack := true.B }
 
   // tag updates on ECC errors
@@ -567,6 +594,42 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     s1_write && (s1_hazard || needsRead(s1_req) && !s1_did_read)
   })
   when (s1_valid && s1_raw_hazard) { s1_nack := true.B }
+
+  // cbo.zero engine, fed by zeroq so back-to-back hits chain with no bubble.
+  // Misses use the normal (serialized) miss path; only hits enqueue.
+  zeroq.io.enq.valid := false.B
+  zeroq.io.enq.bits := DontCare
+  if (usingZicboz) {
+    // make sure program-ordered older stores have drained before zeroing
+    when (s1_valid && s1_cbo_zero && (pstore1_valid_likely || pstore2_valid)) { s1_nack := true.B }
+    // during zeroing, hold off any younger *valid* op that isn't a cbo.zero hit
+    // able to enqueue.  Must guard on s1_valid: req.ready couples on !s1_nack,
+    // so nacking an empty s1 would wedge issue and defeat the pipelining.
+    when (s1_valid && zero_pending && !(s1_cbo_zero && s1_hit_way.orR && zeroq.io.enq.ready)) { s1_nack := true.B }
+    zeroq.io.enq.valid := s2_valid_hit && s2_cbo_zero && !io.cpu.s2_kill && zeroq.io.enq.ready
+    zeroq.io.enq.bits.way := s2_hit_way
+    zeroq.io.enq.bits.idx := s2_vaddr(idxMSB, idxLSB)
+  }
+  val zero_last = zero_valid && dataArb.io.in(3).fire && zero_beat === (refillCycles-1).U
+  zeroq.io.deq.ready := !zero_valid || zero_last
+  when (zeroq.io.deq.fire) {
+    zero_valid := true.B
+    zero_beat := 0.U
+    zero_way := zeroq.io.deq.bits.way
+    zero_idx := zeroq.io.deq.bits.idx
+  } .elsewhen (zero_last) {
+    zero_valid := false.B
+  }
+  when (dataArb.io.in(3).fire && !zeroq.io.deq.fire) {
+    zero_beat := zero_beat + 1.U
+  }
+  dataArb.io.in(3).valid := zero_valid
+  dataArb.io.in(3).bits.write := true.B
+  dataArb.io.in(3).bits.addr := (if (refillCycles > 1) Cat(zero_idx, zero_beat(log2Ceil(refillCycles)-1, 0)) else zero_idx) << rowOffBits
+  dataArb.io.in(3).bits.way_en := zero_way
+  dataArb.io.in(3).bits.wdata := encodeData(0.U(rowBits.W), false.B)
+  dataArb.io.in(3).bits.wordMask := ~0.U((rowBytes / subWordBytes).W)
+  dataArb.io.in(3).bits.eccMask := ~0.U((wordBytes / eccBytes).W)
 
   // performance hints to processor
   io.cpu.s2_nack_cause_raw := RegNext(s1_raw_hazard) || !(!s2_waw_hazard || s2_store_merge)
@@ -765,7 +828,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   val block_probe_for_pending_release_ack = release_ack_wait && (tl_out.b.bits.address ^ release_ack_addr)(((pgIdxBits + pgLevelBits) min paddrBits) - 1, idxLSB) === 0.U
   val block_probe_for_ordering = releaseInFlight || block_probe_for_pending_release_ack || grantInProgress
   metaArb.io.in(6).valid := tl_out.b.valid && (!block_probe_for_core_progress || lrscBackingOff)
-  tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid)
+  tl_out.b.ready := metaArb.io.in(6).ready && !(block_probe_for_core_progress || block_probe_for_ordering || s1_valid || s2_valid || zero_pending)
   metaArb.io.in(6).bits.write := false.B
   metaArb.io.in(6).bits.idx := probeIdx(tl_out.b.bits)
   metaArb.io.in(6).bits.addr := Cat(io.cpu.req.bits.addr >> paddrBits, tl_out.b.bits.address)
@@ -924,8 +987,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   // slave-port accesses, since they don't affect local memory ordering.
   val s1_isSlavePortAccess = s1_req.no_xcpt
   val s2_isSlavePortAccess = s2_req.no_xcpt
-  io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR)
-  io.cpu.store_pending := (cached_grant_wait && isWrite(s2_req.cmd)) || uncachedInFlight.asUInt.orR
+  io.cpu.ordered := !(s1_valid && !s1_isSlavePortAccess || s2_valid && !s2_isSlavePortAccess || cached_grant_wait || uncachedInFlight.asUInt.orR || zero_pending)
+  io.cpu.store_pending := (cached_grant_wait && isWrite(s2_req.cmd)) || uncachedInFlight.asUInt.orR || zero_pending
 
   val s1_xcpt_valid = tlb.io.req.valid && !s1_isSlavePortAccess && !s1_nack
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), s2_tlb_xcpt, 0.U.asTypeOf(s2_tlb_xcpt))
@@ -1180,7 +1243,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   def eccByteMask(byteMask: UInt) = FillInterleaved(eccBytes, eccMask(byteMask))
 
   def likelyNeedsRead(req: HellaCacheReq) = {
-    val res = !req.cmd.isOneOf(M_XWR, M_PFW) || req.size < log2Ceil(eccBytes).U
+    val res = !req.cmd.isOneOf(M_XWR, M_PFW, M_CBO_ZERO) || req.size < log2Ceil(eccBytes).U
     assert(!needsRead(req) || res)
     res
   }

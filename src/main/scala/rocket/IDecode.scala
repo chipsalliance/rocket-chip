@@ -156,6 +156,20 @@ class CFlushDecode(supportsFlushLine: Boolean)(implicit val p: Parameters) exten
                 List(Y,N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_FLUSH_ALL,N,N,N,N,N,N,N,CSR.I,N,N,N,N))
 }
 
+class ZicbomDecode(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    CBO_CLEAN-> List(Y,N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_CBO_CLEAN,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+    CBO_FLUSH-> List(Y,N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_CBO_FLUSH,N,N,N,N,N,N,N,CSR.N,N,N,N,N),
+    CBO_INVAL-> List(Y,N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_CBO_INVAL,N,N,N,N,N,N,N,CSR.N,N,N,N,N))
+}
+
+class ZicbozDecode(implicit val p: Parameters) extends DecodeConstants
+{
+  val table: Array[(BitPat, List[BitPat])] = Array(
+    CBO_ZERO->  List(Y,N,N,N,N,N,N,Y,A2_ZERO,A1_RS1, IMM_X, DW_XPR,FN_ADD,   Y,M_CBO_ZERO, N,N,N,N,N,N,N,CSR.N,N,N,N,N))
+}
+
 class SVMDecode(implicit val p: Parameters) extends DecodeConstants
 {
   val table: Array[(BitPat, List[BitPat])] = Array(

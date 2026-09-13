@@ -413,9 +413,17 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
                 Mux(vm_enabled && special_entry.nonEmpty.B, special_entry.map(e => e.ppn(vpn, e.getData(vpn))).getOrElse(0.U), io.req.bits.vaddr >> pgIdxBits))
   val mpu_physaddr = Cat(mpu_ppn, io.req.bits.vaddr(pgIdxBits-1, 0))
   val mpu_priv = Mux[UInt](usingVM.B && (do_refill || io.req.bits.passthrough /* PTW */), PRV.S.U, Cat(io.ptw.status.debug, priv))
-  val pmp = Module(new PMPChecker(lgMaxSize))
+  // CBO ops act on the whole cache block (the core block-aligns the address), so
+  // the block must be permission-checked as a unit -- not just the 1-8 bytes the
+  // request's size would cover, which would let e.g. cbo.zero write past a
+  // sub-block PMP write-protection boundary.  Size the D-side PMP checker to the
+  // block and present the block size for CBO commands.
+  val cmd_cbo_mgmt = usingZicbom.B && isCBOMgmt(io.req.bits.cmd)
+  val cmd_cbo_zero = usingZicboz.B && io.req.bits.cmd === M_CBO_ZERO
+  val cbo_lgBytes = log2Ceil(p(CacheBlockBytes))
+  val pmp = Module(new PMPChecker(if (!instruction && usingCBO) lgMaxSize max cbo_lgBytes else lgMaxSize))
   pmp.io.addr := mpu_physaddr
-  pmp.io.size := io.req.bits.size
+  pmp.io.size := Mux(cmd_cbo_mgmt || cmd_cbo_zero, cbo_lgBytes.U, io.req.bits.size)
   pmp.io.pmp := (io.ptw.pmp: Seq[PMP])
   pmp.io.prv := mpu_priv
 
@@ -576,6 +584,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val cmd_write = isWrite(io.req.bits.cmd)
   val cmd_write_perms = cmd_write ||
     io.req.bits.cmd.isOneOf(M_FLUSH_ALL, M_WOK) // not a write, but needs write permissions
+  // Zicbom management ops are permitted wherever a load OR a store is
+  // permitted; Zicboz requires store permission and a PMA that supports it.
+  // Both report failures as store/AMO faults.  (cmd_cbo_mgmt/cmd_cbo_zero are
+  // defined up by the PMP checker so it can size the check to the whole block.)
 
   val lrscAllowed = Mux((usingDataScratchpad || usingAtomicsOnlyForIO).B, 0.U, c_array)
   val ae_array =
@@ -588,17 +600,23 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_write_perms, ae_array | ~pw_array, 0.U) |
     Mux(cmd_put_partial, ~ppp_array_if_cached, 0.U) |
     Mux(cmd_amo_logical, ~pal_array_if_cached, 0.U) |
-    Mux(cmd_amo_arithmetic, ~paa_array_if_cached, 0.U)
+    Mux(cmd_amo_arithmetic, ~paa_array_if_cached, 0.U) |
+    Mux(cmd_cbo_mgmt, ~(pr_array | pw_array), 0.U) |
+    Mux(cmd_cbo_zero, ~(pw_array & c_array), 0.U)
   val must_alloc_array =
     Mux(cmd_put_partial, ~ppp_array, 0.U) |
     Mux(cmd_amo_logical, ~pal_array, 0.U) |
     Mux(cmd_amo_arithmetic, ~paa_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
   val pf_ld_array = Mux(cmd_read, ((~Mux(cmd_readx, x_array, r_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
-  val pf_st_array = Mux(cmd_write_perms, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
+  val pf_st_array =
+    Mux(cmd_write_perms || cmd_cbo_zero, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U) |
+    Mux(cmd_cbo_mgmt, ((~(r_array | w_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_inst_array = ((~x_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array
   val gf_ld_array = Mux(priv_v && cmd_read, (~Mux(cmd_readx, hx_array, hr_array) & ~ptw_ae_array) | ptw_gf_array, 0.U)
-  val gf_st_array = Mux(priv_v && cmd_write_perms, (~hw_array & ~ptw_ae_array) | ptw_gf_array, 0.U)
+  val gf_st_array =
+    Mux(priv_v && (cmd_write_perms || cmd_cbo_zero), (~hw_array & ~ptw_ae_array) | ptw_gf_array, 0.U) |
+    Mux(priv_v && cmd_cbo_mgmt, (~(hr_array | hw_array) & ~ptw_ae_array) | ptw_gf_array, 0.U)
   val gf_inst_array = Mux(priv_v, (~hx_array & ~ptw_ae_array) | ptw_gf_array, 0.U)
 
   val gpa_hits = {
@@ -631,11 +649,11 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   io.req.ready := state === s_ready
   // page fault
   io.resp.pf.ld := (bad_va && cmd_read) || (pf_ld_array & hits).orR
-  io.resp.pf.st := (bad_va && cmd_write_perms) || (pf_st_array & hits).orR
+  io.resp.pf.st := (bad_va && (cmd_write_perms || cmd_cbo_mgmt || cmd_cbo_zero)) || (pf_st_array & hits).orR
   io.resp.pf.inst := bad_va || (pf_inst_array & hits).orR
   // guest page fault
   io.resp.gf.ld := (bad_gpa && cmd_read) || (gf_ld_array & hits).orR
-  io.resp.gf.st := (bad_gpa && cmd_write_perms) || (gf_st_array & hits).orR
+  io.resp.gf.st := (bad_gpa && (cmd_write_perms || cmd_cbo_mgmt || cmd_cbo_zero)) || (gf_st_array & hits).orR
   io.resp.gf.inst := bad_gpa || (gf_inst_array & hits).orR
   // access exception
   io.resp.ae.ld := (ae_ld_array & hits).orR

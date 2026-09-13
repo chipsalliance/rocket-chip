@@ -133,9 +133,15 @@ class Envcfg extends Bundle {
   val cbie = UInt(2.W)
   val zero3 = UInt(3.W)
   val fiom = Bool()
-  def write(wdata: UInt): Unit = {
+  def write(wdata: UInt, useZicbom: Boolean = false, useZicboz: Boolean = false): Unit = {
     val new_envcfg = wdata.asTypeOf(new Envcfg)
-    fiom := new_envcfg.fiom // only FIOM is writable currently
+    fiom := new_envcfg.fiom
+    if (useZicboz) cbze := new_envcfg.cbze
+    if (useZicbom) {
+      cbcfe := new_envcfg.cbcfe
+      // CBIE is WARL; 0b10 is reserved, so leave the field unchanged when it is written
+      when (new_envcfg.cbie =/= 2.U) { cbie := new_envcfg.cbie }
+    }
   }
 }
 
@@ -255,6 +261,20 @@ class CSRDecodeIO(implicit p: Parameters) extends CoreBundle {
   val virtual_system_illegal = Output(Bool())
 }
 
+/** Decode-time control for the Zicbom/Zicboz cache-block operations, derived
+  * from the current privilege mode and the CBIE/CBCFE/CBZE fields of
+  * menvcfg/senvcfg/henvcfg.
+  */
+class CBOControl(implicit p: Parameters) extends CoreBundle {
+  val zero_illegal = Bool()   // cbo.zero raises illegal-instruction
+  val zero_virtual = Bool()   // cbo.zero raises virtual-instruction
+  val cf_illegal = Bool()     // cbo.clean/cbo.flush raise illegal-instruction
+  val cf_virtual = Bool()     // cbo.clean/cbo.flush raise virtual-instruction
+  val inval_illegal = Bool()  // cbo.inval raises illegal-instruction
+  val inval_virtual = Bool()  // cbo.inval raises virtual-instruction
+  val inval_as_flush = Bool() // cbo.inval must perform a flush (CBIE = 01)
+}
+
 class CSRFileIO(hasBeu: Boolean)(implicit p: Parameters) extends CoreBundle
     with HasCoreParameters {
   val ungated_clock = Input(Clock())
@@ -306,6 +326,7 @@ class CSRFileIO(hasBeu: Boolean)(implicit p: Parameters) extends CoreBundle
   val mcontext = Output(UInt(coreParams.mcontextWidth.W))
   val scontext = Output(UInt(coreParams.scontextWidth.W))
   val fiom = Output(Bool())
+  val cbo = Output(new CBOControl())
 
   val vector = usingVector.option(new Bundle {
     val vconfig = Output(new VConfig())
@@ -630,6 +651,36 @@ class CSRFile(
   io.mcontext := reg_mcontext.getOrElse(0.U)
   io.scontext := reg_scontext.getOrElse(0.U)
   io.fiom := (reg_mstatus.prv < PRV.M.U && reg_menvcfg.fiom) || (reg_mstatus.prv < PRV.S.U && reg_senvcfg.fiom) || (reg_mstatus.v && reg_henvcfg.fiom)
+  io.cbo := {
+    // Zicbom/Zicboz gating per the CMO spec: menvcfg gates modes below M
+    // (illegal-instruction), senvcfg gates U/VU-mode, henvcfg gates VS/VU-mode
+    // (virtual-instruction; senvcfg denial in VU-mode is also virtual).
+    val cbo = Wire(new CBOControl)
+    val below_m = reg_mstatus.prv < PRV.M.U
+    val v = usingHypervisor.B && reg_mstatus.v
+    val u = !v && reg_mstatus.prv === PRV.U.U
+    val vs = v && reg_mstatus.prv === PRV.S.U
+    val vu = v && reg_mstatus.prv === PRV.U.U
+    // senvcfg/henvcfg exist only with the respective privilege levels
+    def s_gate(f: Envcfg => Bool) = if (usingSupervisor) f(reg_senvcfg) else true.B
+    def h_gate(f: Envcfg => Bool) = if (usingHypervisor) f(reg_henvcfg) else true.B
+    val s_cbie = if (usingSupervisor) reg_senvcfg.cbie else 3.U
+    val h_cbie = if (usingHypervisor) reg_henvcfg.cbie else 3.U
+
+    cbo.zero_illegal := usingZicboz.B && (below_m && !reg_menvcfg.cbze || u && !s_gate(_.cbze))
+    cbo.zero_virtual := usingZicboz.B && !cbo.zero_illegal &&
+      (vs && !h_gate(_.cbze) || vu && !(h_gate(_.cbze) && s_gate(_.cbze)))
+    cbo.cf_illegal := usingZicbom.B && (below_m && !reg_menvcfg.cbcfe || u && !s_gate(_.cbcfe))
+    cbo.cf_virtual := usingZicbom.B && !cbo.cf_illegal &&
+      (vs && !h_gate(_.cbcfe) || vu && !(h_gate(_.cbcfe) && s_gate(_.cbcfe)))
+    cbo.inval_illegal := usingZicbom.B && (below_m && reg_menvcfg.cbie === 0.U || u && s_cbie === 0.U)
+    cbo.inval_virtual := usingZicbom.B && !cbo.inval_illegal &&
+      (vs && h_cbie === 0.U || vu && (h_cbie === 0.U || s_cbie === 0.U))
+    cbo.inval_as_flush := below_m && reg_menvcfg.cbie === 1.U ||
+      (u || vu) && s_cbie === 1.U ||
+      v && h_cbie === 1.U
+    cbo
+  }
   io.pmp := reg_pmp.map(PMP(_))
 
   val isaMaskString =
@@ -1371,7 +1422,7 @@ class CSRFile(
       when (decoded_addr(CSRs.mideleg))  { reg_mideleg := wdata }
       when (decoded_addr(CSRs.medeleg))  { reg_medeleg := wdata }
       when (decoded_addr(CSRs.scounteren)) { reg_scounteren := wdata }
-      when (decoded_addr(CSRs.senvcfg))    { reg_senvcfg.write(wdata) }
+      when (decoded_addr(CSRs.senvcfg))    { reg_senvcfg.write(wdata, usingZicbom, usingZicboz) }
     }
 
     if (usingHypervisor) {
@@ -1447,11 +1498,11 @@ class CSRFile(
       when (decoded_addr(CSRs.vstvec))    { reg_vstvec := wdata }
       when (decoded_addr(CSRs.vscause))   { reg_vscause := wdata & scause_mask }
       when (decoded_addr(CSRs.vstval))    { reg_vstval := wdata }
-      when (decoded_addr(CSRs.henvcfg))   { reg_henvcfg.write(wdata) }
+      when (decoded_addr(CSRs.henvcfg))   { reg_henvcfg.write(wdata, usingZicbom, usingZicboz) }
     }
     if (usingUser) {
       when (decoded_addr(CSRs.mcounteren)) { reg_mcounteren := wdata }
-      when (decoded_addr(CSRs.menvcfg))    { reg_menvcfg.write(wdata) }
+      when (decoded_addr(CSRs.menvcfg))    { reg_menvcfg.write(wdata, usingZicbom, usingZicboz) }
     }
     if (nBreakpoints > 0) {
       when (decoded_addr(CSRs.tselect)) { reg_tselect := wdata }

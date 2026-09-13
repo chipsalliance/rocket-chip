@@ -227,6 +227,10 @@ abstract class HellaCache(tileId: Int)(implicit p: Parameters) extends LazyModul
   def canSupportCFlushLine = !usingVM || cfg.blockBytes * cfg.nSets <= (1 << pgIdxBits)
 
   require(!tileParams.core.haveCFlush || cfg.scratch.isEmpty, "CFLUSH_D_L1 instruction requires a D$")
+  require(!tileParams.core.useZicbom || (cfg.scratch.isEmpty && canSupportCFlushLine),
+    "Zicbom requires a D$ whose set size does not exceed the page size")
+  require(!tileParams.core.useZicboz || cfg.scratch.isEmpty,
+    "Zicboz requires a D$")
 }
 
 class HellaCacheBundle(implicit p: Parameters) extends CoreBundle()(p) {

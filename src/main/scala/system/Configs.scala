@@ -5,7 +5,7 @@ package freechips.rocketchip.system
 
 import org.chipsalliance.cde.config.Config
 import freechips.rocketchip.subsystem._
-import freechips.rocketchip.rocket.{WithNBigCores, WithNMedCores, WithNSmallCores, WithRV32, WithFP16, WithHypervisor, With1TinyCore, WithScratchpadsOnly, WithCloneRocketTiles, WithB}
+import freechips.rocketchip.rocket.{WithNBigCores, WithNMedCores, WithNSmallCores, WithRV32, WithFP16, WithHypervisor, With1TinyCore, WithScratchpadsOnly, WithCloneRocketTiles, WithB, WithCBO, WithL1DCacheNonblocking}
 
 class WithJtagDTMSystem extends freechips.rocketchip.subsystem.WithJtagDTM
 class WithDebugSBASystem extends freechips.rocketchip.subsystem.WithDebugSBA
@@ -29,6 +29,8 @@ class DefaultRV32Config extends Config(new WithRV32 ++ new DefaultConfig)
 class DefaultFP16Config extends Config(new WithFP16 ++ new DefaultConfig)
 class DefaultBConfig extends Config(new WithB ++ new DefaultConfig)
 class DefaultRV32BConfig extends Config(new WithB ++ new DefaultRV32Config)
+class DefaultCBOConfig extends Config(new WithCBO ++ new DefaultConfig)
+class DefaultCBONonblockingConfig extends Config(new WithCBO ++ new WithL1DCacheNonblocking(2) ++ new DefaultConfig)
 
 class HypervisorConfig extends Config(new WithHypervisor ++ new DefaultConfig)
 
