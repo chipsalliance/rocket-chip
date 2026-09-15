@@ -58,7 +58,8 @@ case class RocketCoreParams(
   haveCease: Boolean = true, // non-standard CEASE instruction
   haveSimTimeout: Boolean = true, // add plusarg for simulation timeout
   vector: Option[RocketCoreVectorParams] = None,
-  enableTraceCoreIngress: Boolean = false
+  enableTraceCoreIngress: Boolean = false,
+  override val asidLen: Int = 0
 ) extends CoreParams {
   val lgPauseCycles = 5
   val haveFSDirty = false
@@ -134,7 +135,7 @@ trait HasRocketCoreIO extends HasRocketCoreParameters {
   implicit val p: Parameters
   def nTotalRoCCCSRs: Int
   def traceIngressParams = TraceCoreParams(nGroups = 1, iretireWidth = coreParams.retireWidth, 
-                                            xlen = coreParams.xLen, iaddrWidth = coreParams.xLen) 
+                                            xlen = coreParams.xLen, iaddrWidth = vaddrBitsExtended) 
   val io = IO(new CoreBundle()(p) {
     val hartid = Input(UInt(hartIdLen.W))
     val reset_vector = Input(UInt(resetVectorLen.W))
