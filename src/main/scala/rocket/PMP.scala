@@ -91,7 +91,7 @@ class PMP(implicit p: Parameters) extends PMPReg {
     boundMatch(x, 0.U, lgMaxSize)
 
   private def rangeMatch(x: UInt, lgSize: UInt, lgMaxSize: Int, prev: PMP) =
-    prev.lowerBoundMatch(x, lgSize, lgMaxSize) && upperBoundMatch(x, lgMaxSize)
+    prev.comparand < comparand && prev.lowerBoundMatch(x, lgSize, lgMaxSize) && upperBoundMatch(x, lgMaxSize)
 
   private def pow2Homogeneous(x: UInt, pgLevel: UInt) = {
     val maskHomogeneous = pgLevelMap { idxBits => if (idxBits > paddrBits) false.B else mask(idxBits - 1) } (pgLevel)
