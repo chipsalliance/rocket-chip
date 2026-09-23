@@ -472,7 +472,10 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     newEntry.fragmented_superpage := io.ptw.resp.bits.fragmented_superpage
     // refill special_entry
     when (special_entry.nonEmpty.B && !io.ptw.resp.bits.homogeneous) {
-      special_entry.foreach(_.insert(r_refill_tag, refill_v, io.ptw.resp.bits.level, newEntry))
+      special_entry.foreach { e =>
+        e.insert(r_refill_tag, refill_v, io.ptw.resp.bits.level, newEntry)
+        when (invalidate_refill) { e.invalidate() }
+      }
     }.elsewhen (io.ptw.resp.bits.level < (pgLevels-1).U) {
       val waddr = Mux(r_superpage_hit.valid && usingHypervisor.B, r_superpage_hit.bits, r_superpage_repl_addr)
       for ((e, i) <- superpage_entries.zipWithIndex) when (r_superpage_repl_addr === i.U) {
