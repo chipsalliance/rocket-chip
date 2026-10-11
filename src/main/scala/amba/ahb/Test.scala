@@ -6,12 +6,12 @@ import chisel3._
 
 import org.chipsalliance.cde.config.Parameters
 
-import org.chipsalliance.diplomacy.lazymodule.{LazyModule, LazyModuleImp, SimpleLazyModule}
+import org.chipsalliance.diplomacy.lazymodule.{InModuleBody, LazyModule, LazyModuleImp, SimpleLazyModule}
 
 import freechips.rocketchip.devices.tilelink.TLTestRAM
 import freechips.rocketchip.diplomacy.{AddressSet, BufferParams}
 import freechips.rocketchip.regmapper.{RRTest0, RRTest1}
-import freechips.rocketchip.tilelink.{TLFuzzer, TLRAMModel, TLToAHB, TLDelayer, TLBuffer, TLErrorEvaluator, TLFragmenter}
+import freechips.rocketchip.tilelink.{TLFuzzer, TLRAMModel, TLRAM, TLToAHB, TLDelayer, TLBuffer, TLErrorEvaluator, TLFragmenter}
 import freechips.rocketchip.unittest.{UnitTestModule, UnitTest}
 
 class AHBRRTest0(address: BigInt)(implicit p: Parameters)
@@ -112,4 +112,36 @@ class AHBBridgeTest(aFlow: Boolean, txns: Int = 5000, timeout: Int = 500000)(imp
   val dut = Module(LazyModule(new AHBFuzzBridge(aFlow, txns)).module)
   io.finished := dut.io.finished
   dut.io.start := io.start
+}
+
+/** Test that AHBToTL elaborates when driven by an AHBSlaveSourceNode. */
+class AHBSourceToTLSlave()(implicit p: Parameters) extends SimpleLazyModule {
+  val ram = LazyModule(new TLRAM(AddressSet(0x0, 0xfff)))
+
+  val ahbMaster = AHBSlaveSourceNode(
+    Seq(AHBMasterPortParameters(masters = Seq(AHBMasterParameters(name = "test_ahb_master"))))
+  )
+
+  (ram.node
+    := AHBToTL()
+    := ahbMaster)
+
+  val idle = InModuleBody {
+    val (bundle, _) = ahbMaster.out.head
+    bundle.htrans    := 0.U // idle
+    bundle.hsize     := 0.U
+    bundle.hburst    := 0.U
+    bundle.hwrite    := false.B
+    bundle.hprot     := 0.U
+    bundle.haddr     := 0.U
+    bundle.hwdata    := 0.U
+    bundle.hmastlock := false.B
+    bundle.hsel      := false.B
+    bundle.hready    := true.B
+  }
+}
+
+class AHBSourceToTLSlaveTest(timeout: Int = 500000)(implicit p: Parameters) extends UnitTest(timeout) {
+  val dut = Module(LazyModule(new AHBSourceToTLSlave()).module)
+  io.finished := true.B
 }
