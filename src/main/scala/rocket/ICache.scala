@@ -377,7 +377,7 @@ class ICacheModule(outer: ICache) extends LazyModuleImp(outer)
   /** [[io]] access L1 I$ miss. */
   val s2_miss = s2_valid && !s2_hit && !io.s2_kill
   /** forward signal to stage 1, permit stage 1 refill. */
-  val s1_can_request_refill = !(s2_miss || refill_valid)
+  val s1_can_request_refill = !((s2_miss && refill_fire) || refill_valid)
   /** real refill signal, stage 2 miss, and was permit to refill in stage 1.
     * Since a miss will trigger burst.
     * miss under miss won't trigger another burst.
