@@ -6,6 +6,7 @@ package freechips.rocketchip.rocket
 import chisel3._
 import chisel3.util.{Cat, log2Up, log2Ceil, log2Floor, Log2, Decoupled, Enum, Fill, Valid, Pipe}
 import freechips.rocketchip.util._
+import freechips.rocketchip.unittest.UnitTest
 
 import ALU._
 
@@ -150,10 +151,12 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
       val divisorMSB = Log2(divisor(w-1,0), w) & alignMask
       val dividendMSB = Log2(remainder(w-1,0), w) | ~alignMask
       val eOutPos = ~(dividendMSB - divisorMSB)
-      val eOut = count === 0.U && !divby0 && eOutPos >= align.U
+      val eOutCount = eOutPos / cfg.divUnroll.U
+      val eOut = count === 0.U && !divby0 && eOutCount > 0.U
       when (eOut) {
-        remainder := remainder(w-1,0) << eOutPos
-        count := eOutPos >> log2Floor(cfg.divUnroll)
+        // Skip whole cycles so the shift and count agree for any divUnroll.
+        remainder := remainder(w-1,0) << (eOutCount * cfg.divUnroll.U)
+        count := eOutCount
       }
     }
     when (divby0 && !isHi) { neg_out := false.B }
@@ -181,6 +184,27 @@ class MulDiv(cfg: MulDivParams, width: Int, nXpr: Int = 32) extends Module {
   io.resp.bits.full_data := Cat(remainder(2*w, w+1), remainder(w-1, 0))
   io.resp.valid := (state === s_done_mul || state === s_done_div)
   io.req.ready := state === s_ready
+}
+
+class MulDivEarlyOutTest(divUnroll: Int, width: Int, dividend: BigInt) extends UnitTest {
+  val dut = Module(new MulDiv(MulDivParams(mulUnroll = 0, divUnroll = divUnroll, divEarlyOut = true), width))
+  dut.io.req.valid := io.start
+  dut.io.req.bits.fn := FN_DIVU
+  dut.io.req.bits.dw := DW_XPR
+  dut.io.req.bits.in1 := dividend.U
+  dut.io.req.bits.in2 := 2.U
+  dut.io.req.bits.tag := 0.U
+  dut.io.kill := false.B
+  dut.io.resp.ready := true.B
+
+  val finished = RegInit(false.B)
+  when (io.start) { assert(dut.io.req.ready) }
+  when (dut.io.resp.fire) {
+    assert(dut.io.resp.bits.data === (dividend / 2).U,
+      s"DIVU $dividend/2 with divUnroll=$divUnroll, width=$width: expected ${dividend / 2}, got %d", dut.io.resp.bits.data)
+    finished := true.B
+  }
+  io.finished := finished
 }
 
 class PipelinedMultiplier(width: Int, latency: Int, nXpr: Int = 32) extends Module {

@@ -11,6 +11,7 @@ import freechips.rocketchip.subsystem.{BaseSubsystemConfig}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.rocket.MulDivEarlyOutTest
 
 case object TestDurationMultiplier extends Field[Int]
 
@@ -169,6 +170,18 @@ class WithPowerQueueTests extends Config((site, here, up) => {
       Module(new MultiLaneQueueTest(5, 6, 10000))
       )}})
 
+class WithMulDivUnitTests extends Config((site, here, up) => {
+  case UnitTests => (q: Parameters) => {
+    for {
+      width <- Seq(32, 64)
+      unroll <- Seq(1, 2, 3, 5, 8)
+      // Include skips shorter than one unrolled cycle.
+      dividend <- Seq(BigInt(64), BigInt(1) << (width-4), BigInt(1) << (width-6))
+    } yield Module(new MulDivEarlyOutTest(unroll, width, dividend))
+  }
+})
+
+class MulDivUnitTestConfig extends Config(new WithMulDivUnitTests)
 class AMBAUnitTestConfig extends Config(new WithAMBAUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLSimpleUnitTestConfig extends Config(new WithTLSimpleUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
 class TLWidthUnitTestConfig extends Config(new WithTLWidthUnitTests ++ new WithTestDuration(10) ++ new BaseSubsystemConfig)
