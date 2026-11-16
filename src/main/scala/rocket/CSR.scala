@@ -5,7 +5,7 @@ package freechips.rocketchip.rocket
 
 import chisel3._
 import chisel3.util.{BitPat, Cat, Fill, Mux1H, PopCount, PriorityMux, RegEnable, UIntToOH, Valid, log2Ceil, log2Up}
-import org.chipsalliance.cde.config.Parameters
+import org.chipsalliance.cde.config.{Field, Parameters}
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -341,9 +341,15 @@ object VType {
     VType.fromUInt(vtype, true).vl(avl, currentVL, useCurrentVL, useMax, useZero)
 }
 
+// Bits of vtype above altfmt (bit 8) that the vector unit gives a meaning to,
+// as an element-format code with altfmt: fmt = fmt_hi ## altfmt. With 0, every
+// bit above altfmt stays reserved, and setting one makes vtype illegal (vill).
+case object VTypeFmtBits extends Field[Int](0)
+
 class VType(implicit p: Parameters) extends CoreBundle {
   val vill = Bool()
-  val reserved = UInt((xLen - 10).W)
+  val reserved = UInt((xLen - 10 - p(VTypeFmtBits)).W)
+  val fmt_hi = UInt(p(VTypeFmtBits).W)
   val altfmt = Bool()
   val vma = Bool()
   val vta = Bool()
