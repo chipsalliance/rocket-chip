@@ -1062,7 +1062,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     id_ex_hazard || id_mem_hazard || id_wb_hazard || id_sboard_hazard ||
     id_vconfig_hazard ||
     csr.io.singleStep && (ex_reg_valid || mem_reg_valid || wb_reg_valid) ||
-    id_csr_en && csr.io.decode(0).fp_csr && !io.fpu.fcsr_rdy ||
+    id_csr_en && csr.io.decode(0).fp_csr && usingFPU.B && !io.fpu.fcsr_rdy ||
     id_csr_en && csr.io.decode(0).vector_csr && id_vec_busy ||
     id_ctrl.fp && id_stall_fpu ||
     id_ctrl.mem && dcache_blocked || // reduce activity during D$ misses
