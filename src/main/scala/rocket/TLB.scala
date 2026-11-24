@@ -330,6 +330,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     val kill = Input(Bool())
   })
   io.ptw.customCSRs := DontCare
+  io.ptw.customCSRs.csrs.foreach { c => c.stall := false.B; c.set := false.B }
 
   val pageGranularityPMPs = pmpGranularity >= (1 << pgIdxBits)
   val vpn = io.req.bits.vaddr(vaddrBits-1, pgIdxBits)
