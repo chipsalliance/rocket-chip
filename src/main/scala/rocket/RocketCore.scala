@@ -30,6 +30,9 @@ case class RocketCoreParams(
   useZba: Boolean = false,
   useZbb: Boolean = false,
   useZbs: Boolean = false,
+  override val useZicbom: Boolean = false,
+  override val useZicboz: Boolean = false,
+  override val useZicbop: Boolean = false,
   nLocalInterrupts: Int = 0,
   useNMI: Boolean = false,
   nBreakpoints: Int = 1,
@@ -237,6 +240,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     (usingConditionalZero.option(new ConditionalZeroDecode)) ++:
     Seq(new FenceIDecode(tile.dcache.flushOnFenceI)) ++:
     coreParams.haveCFlush.option(new CFlushDecode(tile.dcache.canSupportCFlushLine)) ++:
+    coreParams.useZicbom.option(new ZicbomDecode) ++:
+    coreParams.useZicboz.option(new ZicbozDecode) ++:
     rocketParams.haveCease.option(new CeaseDecode) ++:
     usingVector.option(new VCFGDecode) ++:
     (if (coreParams.useZba) new ZbaDecode +: (xLen > 32).option(new Zba64Decode).toSeq else Nil) ++:
@@ -385,7 +390,21 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
 
+  // Zicbom/Zicboz: envcfg-based gating, evaluated in decode
+  val id_cbo_clean_flush = usingZicbom.B && id_ctrl.mem && id_ctrl.mem_cmd.isOneOf(M_CBO_CLEAN, M_CBO_FLUSH)
+  val id_cbo_inval = usingZicbom.B && id_ctrl.mem && id_ctrl.mem_cmd === M_CBO_INVAL
+  val id_cbo_zero = usingZicboz.B && id_ctrl.mem && id_ctrl.mem_cmd === M_CBO_ZERO
+  val id_cbo_illegal =
+    id_cbo_clean_flush && csr.io.cbo.cf_illegal ||
+    id_cbo_inval && csr.io.cbo.inval_illegal ||
+    id_cbo_zero && csr.io.cbo.zero_illegal
+  val id_cbo_virtual =
+    id_cbo_clean_flush && csr.io.cbo.cf_virtual ||
+    id_cbo_inval && csr.io.cbo.inval_virtual ||
+    id_cbo_zero && csr.io.cbo.zero_virtual
+
   val id_illegal_insn = !id_ctrl.legal ||
+    id_cbo_illegal ||
     (id_ctrl.mul || id_ctrl.div) && !csr.io.status.isa('m'-'a') ||
     id_ctrl.amo && !csr.io.status.isa('a'-'a') ||
     id_ctrl.fp && (csr.io.decode(0).fp_illegal || (io.fpu.illegal_rm && !id_ctrl.vec)) ||
@@ -400,13 +419,21 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     !ibuf.io.inst(0).bits.rvc && (id_system_insn && csr.io.decode(0).system_illegal)
   val id_virtual_insn = id_ctrl.legal &&
     ((id_csr_en && !(!id_csr_ren && csr.io.decode(0).write_illegal) && csr.io.decode(0).virtual_access_illegal) ||
-     (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal))
+     (!ibuf.io.inst(0).bits.rvc && id_system_insn && csr.io.decode(0).virtual_system_illegal) ||
+     id_cbo_virtual)
   // stall decode for fences (now, for AMO.rl; later, for AMO.aq and FENCE)
   val id_amo_aq = id_inst(0)(26)
   val id_amo_rl = id_inst(0)(25)
   val id_fence_pred = id_inst(0)(27,24)
   val id_fence_succ = id_inst(0)(23,20)
-  val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_aq
+  // On the non-blocking D$, the Zicbom management ops (clean/flush/inval) run
+  // through a dedicated FSM that assumes a quiescent cache, so serialize them
+  // like fences.  cbo.zero is NOT fenced: it behaves like a store, allocating
+  // an MSHR on a miss and relying on the same address-conflict machinery, so
+  // that back-to-back zeroing loops keep the misses overlapped.
+  val cboSerialize = usingZicbom && tileParams.dcache.get.nMSHRs > 0
+  val id_cbo_fence = id_cbo_clean_flush || id_cbo_inval
+  val id_fence_next = id_ctrl.fence || id_ctrl.amo && id_amo_aq || cboSerialize.B && id_cbo_fence
   val id_mem_busy = !io.dmem.ordered || io.dmem.req.valid
   when (!id_mem_busy) { id_reg_fence := false.B }
   val id_rocc_busy = usingRoCC.B &&
@@ -416,7 +443,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_vec_busy = io.vector.map(v => v.backend_busy || v.trap_check_busy).getOrElse(false.B)
   val id_do_fence = WireDefault(id_rocc_busy && (id_ctrl.fence || id_csr_rocc_write) ||
     id_vec_busy && id_ctrl.fence ||
-    id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
+    id_mem_busy && (id_ctrl.amo && id_amo_rl || id_ctrl.fence_i || cboSerialize.B && id_cbo_fence || id_reg_fence && (id_ctrl.mem || id_ctrl.rocc)))
 
   val bpu = Module(new BreakpointUnit(nBreakpoints))
   bpu.io.status := csr.io.status
@@ -564,6 +591,17 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     }
     when (id_ctrl.mem_cmd === M_SFENCE && csr.io.status.v) {
       ex_ctrl.mem_cmd := M_HFENCEV
+    }
+    when (id_cbo_clean_flush || id_cbo_inval) {
+      // size(0) flags a cache-block op; size(1) requests a discard (no
+      // writeback), which is only used by cbo.inval when CBIE permits it
+      ex_reg_mem_size := Mux(id_cbo_inval && !csr.io.cbo.inval_as_flush, 3.U, 1.U)
+    }
+    when (id_cbo_inval && csr.io.cbo.inval_as_flush) {
+      ex_ctrl.mem_cmd := M_CBO_FLUSH
+    }
+    when (id_cbo_zero) {
+      ex_reg_mem_size := 0.U
     }
     if (tile.dcache.flushOnFenceI) {
       when (id_ctrl.fence_i) {
@@ -1165,7 +1203,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.dmem.req.bits.size := ex_reg_mem_size
   io.dmem.req.bits.signed := !Mux(ex_reg_hls, ex_reg_inst(20), ex_reg_inst(14))
   io.dmem.req.bits.phys := false.B
-  io.dmem.req.bits.addr := encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
+  io.dmem.req.bits.addr := {
+    val ea = encodeVirtualAddress(ex_rs(0), alu.io.adder_out)
+    // cache-block ops operate on the whole block containing the effective
+    // address, so align it; this also avoids misaligned-access checks
+    val ex_cbo = usingCBO.B && ex_ctrl.mem &&
+      ex_ctrl.mem_cmd.isOneOf(M_CBO_CLEAN, M_CBO_FLUSH, M_CBO_INVAL, M_CBO_ZERO)
+    Mux(ex_cbo, ~(~ea | (cacheBlockBytes-1).U), ea)
+  }
   io.dmem.req.bits.idx.foreach(_ := io.dmem.req.bits.addr)
   io.dmem.req.bits.dprv := Mux(ex_reg_hls, csr.io.hstatus.spvp, csr.io.status.dprv)
   io.dmem.req.bits.dv := ex_reg_hls || csr.io.status.dv

@@ -28,6 +28,9 @@ trait CoreParams {
   val useZba: Boolean
   val useZbb: Boolean
   val useZbs: Boolean
+  val useZicbom: Boolean = false
+  val useZicboz: Boolean = false
+  val useZicbop: Boolean = false
   val mulDiv: Option[MulDivParams]
   val fpu: Option[FPUParams]
   val fetchWidth: Int
@@ -94,6 +97,10 @@ trait HasCoreParameters extends HasTileParameters {
   val usingVector = coreParams.useVector
   val usingNMI = coreParams.useNMI
   val usingConditionalZero = coreParams.useConditionalZero
+  val usingZicbom = coreParams.useZicbom
+  val usingZicboz = coreParams.useZicboz
+  val usingZicbop = coreParams.useZicbop
+  val usingCBO = usingZicbom || usingZicboz
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth

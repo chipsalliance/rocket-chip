@@ -26,7 +26,10 @@ object MemoryOpCategories extends MemoryOpConstants {
   def rd = Cat(false.B, false.B) // Op only reads
 
   def categorize(cmd: UInt): UInt = {
-    val cat = Cat(isWrite(cmd), isWriteIntent(cmd))
+    // cbo.zero overwrites the entire block, so treat it as a write here even
+    // though it does not use the ordinary store datapath (isWriteIntent already
+    // classifies it as write-intent)
+    val cat = Cat(isWrite(cmd) || cmd === M_CBO_ZERO, isWriteIntent(cmd))
     //assert(cat.isOneOf(wr,wi,rd), "Could not categorize command.")
     cat
   }

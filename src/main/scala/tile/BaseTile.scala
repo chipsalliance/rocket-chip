@@ -132,16 +132,23 @@ trait HasNonDiplomaticTileParameters {
       (tileParams.core.useConditionalZero) -> "zicond"
     ).filter(_._1).map(_._2)
 
+    val cboExt = Seq(
+      (tileParams.core.useZicbom) -> "zicbom",
+      (tileParams.core.useZicbop) -> "zicbop",
+      (tileParams.core.useZicboz) -> "zicboz"
+    ).filter(_._1).map(_._2)
+
     val multiLetterExt = (
       // rdcycle[h], rdinstret[h] is implemented
       // rdtime[h] is not implemented, and could be provided by software emulation
       // see https://github.com/chipsalliance/rocket-chip/issues/3207
       //Some(Seq("zicntr")) ++
+      Some(cboExt) ++
       Some(Seq("zicsr", "zifencei", "zihpm")) ++
       Some(ext_strs) ++ Some(tileParams.core.vExts) ++
       tileParams.core.customIsaExt.map(Seq(_))
     ).flatten
-    val multiLetterString = multiLetterExt.mkString("_")
+    val multiLetterString = multiLetterExt.map("_" + _).mkString
     s"rv$xLen$ie$m$a$f$d$c$b$v$h$multiLetterString"
   }
 
@@ -184,7 +191,12 @@ trait HasNonDiplomaticTileParameters {
       "riscv,pmpregions" -> tileParams.core.nPMPs.asProperty,
       "riscv,pmpgranularity" -> tileParams.core.pmpGranularity.asProperty) else Nil
 
-    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent
+    val cbo =
+      (if (tileParams.core.useZicbom) Map("riscv,cbom-block-size" -> cacheBlockBytes.asProperty) else Nil) ++
+      (if (tileParams.core.useZicbop) Map("riscv,cbop-block-size" -> cacheBlockBytes.asProperty) else Nil) ++
+      (if (tileParams.core.useZicboz) Map("riscv,cboz-block-size" -> cacheBlockBytes.asProperty) else Nil)
+
+    dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent ++ cbo
   }
 
 }
