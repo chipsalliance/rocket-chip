@@ -1358,6 +1358,7 @@ class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: I
       a.dmactive    := io.dmactive
       a.dmAuthRead  := authRdEnMaybe & ~a.dmAuthBusy
       a.dmAuthWrite := authWrEnMaybe & ~a.dmAuthBusy
+      a.dmAuthWdata := 0.U // RWNotify drives it only while authdata is written
     }
 
     val dmstatusRegFields = RegFieldGroup("dmi_dmstatus", Some("debug module status register"), Seq(
