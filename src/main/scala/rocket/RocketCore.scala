@@ -300,6 +300,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val wb_reg_pc = Reg(UInt())
   val wb_reg_mem_size = Reg(UInt())
   val wb_reg_hls_or_dv = Reg(Bool())
+  val wb_reg_ldst_bp = Reg(Bool()) // load/store address breakpoint: tval is the effective address
   val wb_reg_hfence_v = Reg(Bool())
   val wb_reg_hfence_g = Reg(Bool())
   val wb_reg_inst = Reg(Bits())
@@ -725,6 +726,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_raw_inst := mem_reg_raw_inst
     wb_reg_mem_size := mem_reg_mem_size
     wb_reg_hls_or_dv := mem_reg_hls_or_dv
+    wb_reg_ldst_bp := mem_reg_valid && mem_ldst_xcpt && !(mem_reg_xcpt_interrupt || mem_reg_xcpt) && !mem_npc_misaligned
     wb_reg_hfence_v := mem_ctrl.mem_cmd === M_HFENCEV
     wb_reg_hfence_g := mem_ctrl.mem_cmd === M_HFENCEG
     wb_reg_pc := mem_reg_pc
@@ -877,7 +879,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     wb_reg_cause.isOneOf(Causes.breakpoint.U, Causes.fetch_access.U, Causes.fetch_page_fault.U, Causes.fetch_guest_page_fault.U)
   val tval_inst = wb_reg_cause === Causes.illegal_instruction.U
   val tval_valid = wb_xcpt && (tval_any_addr || tval_inst)
-  csr.io.gva := wb_xcpt && (tval_any_addr && csr.io.status.v || tval_dmem_addr && wb_reg_hls_or_dv)
+  csr.io.gva := wb_xcpt && (tval_any_addr && csr.io.status.v || (tval_dmem_addr || wb_reg_ldst_bp) && wb_reg_hls_or_dv)
   csr.io.tval := Mux(tval_valid, encodeVirtualAddress(wb_reg_wdata, wb_reg_wdata), 0.U)
   val (htval, mhtinst_read_pseudo) = {
     val htval_valid_imem = wb_reg_xcpt && wb_reg_cause === Causes.fetch_guest_page_fault.U

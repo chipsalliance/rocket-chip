@@ -1014,7 +1014,7 @@ class CSRFile(
   io.status.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0).U
   io.status.sxl := (if (usingSupervisor) log2Ceil(xLen) - 4 else 0).U
   io.status.dprv := Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpp, reg_mstatus.prv)
-  io.status.dv := reg_mstatus.v || Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpv, false.B)
+  io.status.dv := reg_mstatus.v || Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpv && reg_mstatus.mpp <= PRV.S.U, false.B)
   io.status.sd_rv32 := (xLen == 32).B && io.status.sd
   io.status.mpv := reg_mstatus.mpv
   io.status.gva := reg_mstatus.gva
@@ -1039,6 +1039,7 @@ class CSRFile(
 
   val epc = formEPC(io.pc)
   val tval = Mux(insn_break, epc, io.tval)
+  val gva = io.gva || insn_break && reg_mstatus.v // EBREAK in VS/VU writes the guest-virtual PC to tval
 
   when (exception) {
     when (trapToDebug) {
@@ -1073,7 +1074,7 @@ class CSRFile(
     }.elsewhen (delegate && nmie) {
       reg_mstatus.v := false.B
       reg_hstatus.spvp := Mux(reg_mstatus.v, reg_mstatus.prv(0),reg_hstatus.spvp)
-      reg_hstatus.gva := io.gva
+      reg_hstatus.gva := gva
       reg_hstatus.spv := reg_mstatus.v
       reg_sepc := epc
       reg_scause := cause
@@ -1087,7 +1088,7 @@ class CSRFile(
     }.otherwise {
       reg_mstatus.v := false.B
       reg_mstatus.mpv := reg_mstatus.v
-      reg_mstatus.gva := io.gva
+      reg_mstatus.gva := gva
       reg_mepc := epc
       reg_mcause := cause
       reg_mtval := tval
