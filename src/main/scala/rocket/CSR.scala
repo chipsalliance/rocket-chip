@@ -957,7 +957,7 @@ class CSRFile(
       is_hfence_vvma ||
       is_hfence_gvma ||
       is_hlsv ||
-      is_wfi && (!reg_mstatus.prv(0) || !reg_mstatus.tw && reg_hstatus.vtw) ||
+      is_wfi && !reg_mstatus.tw && (!reg_mstatus.prv(0) || reg_hstatus.vtw) ||
       is_ret && CSR.mode(addr) === PRV.S.U && (!reg_mstatus.prv(0) || reg_hstatus.vtsr) ||
       is_sfence && (!reg_mstatus.prv(0) || reg_hstatus.vtvm))
   }
