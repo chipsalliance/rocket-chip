@@ -521,6 +521,8 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
   val r_array = Cat(true.B, (priv_rw_ok & (entries.map(_.sr).asUInt | Mux(mxr, entries.map(_.sx).asUInt, 0.U))) | stage1_bypass)
   val w_array = Cat(true.B, (priv_rw_ok & entries.map(_.sw).asUInt) | stage1_bypass)
   val x_array = Cat(true.B, (priv_x_ok & entries.map(_.sx).asUInt) | stage1_bypass)
+  // HLVX checks X in place of R, but with the load privilege rule (SUM applies)
+  val hlvx_array = Cat(true.B, (priv_rw_ok & entries.map(_.sx).asUInt) | stage1_bypass)
   val stage2_bypass = Fill(entries.size, !stage2_en)
   val hr_array = Cat(true.B, entries.map(_.hr).asUInt | Mux(io.ptw.status.mxr, entries.map(_.hx).asUInt, 0.U) | stage2_bypass)
   val hw_array = Cat(true.B, entries.map(_.hw).asUInt | stage2_bypass)
@@ -595,7 +597,7 @@ class TLB(instruction: Boolean, lgMaxSize: Int, cfg: TLBConfig)(implicit edge: T
     Mux(cmd_amo_logical, ~pal_array, 0.U) |
     Mux(cmd_amo_arithmetic, ~paa_array, 0.U) |
     Mux(cmd_lrsc, ~0.U(pal_array.getWidth.W), 0.U)
-  val pf_ld_array = Mux(cmd_read, ((~Mux(cmd_readx, x_array, r_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
+  val pf_ld_array = Mux(cmd_read, ((~Mux(cmd_readx, hlvx_array, r_array) & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_st_array = Mux(cmd_write_perms, ((~w_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array, 0.U)
   val pf_inst_array = ((~x_array & ~ptw_ae_array) | ptw_pf_array) & ~ptw_gf_array
   val gf_ld_array = Mux(priv_v && cmd_read, (~Mux(cmd_readx, hx_array, hr_array) & ~ptw_ae_array) | ptw_gf_array, 0.U)
