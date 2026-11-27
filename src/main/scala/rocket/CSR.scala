@@ -1014,7 +1014,7 @@ class CSRFile(
   io.status.uxl := (if (usingUser) log2Ceil(xLen) - 4 else 0).U
   io.status.sxl := (if (usingSupervisor) log2Ceil(xLen) - 4 else 0).U
   io.status.dprv := Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpp, reg_mstatus.prv)
-  io.status.dv := reg_mstatus.v || Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpv, false.B)
+  io.status.dv := reg_mstatus.v || Mux(reg_mstatus.mprv && !reg_debug, reg_mstatus.mpv && reg_mstatus.mpp <= PRV.S.U, false.B)
   io.status.sd_rv32 := (xLen == 32).B && io.status.sd
   io.status.mpv := reg_mstatus.mpv
   io.status.gva := reg_mstatus.gva
